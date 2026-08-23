@@ -3,7 +3,9 @@ import {
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
   BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
-  EVENT_DAYS, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS, INITIAL_CITIZEN_POOL,
+  APPEAL_SHARE_WEIGHT, EVENT_DAYS, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
+  RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   SUNMARK_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
@@ -411,8 +413,10 @@ export class GameStore {
 
   /** Visits a district will pay full price for today. */
   dailyAudience(): number {
-    const growth = 1 + (this.careerLevel().level - 1) * .18 + this.state.upgrades.appeal * .1;
-    return Math.max(8, Math.round(SERVICE_AUDIENCE_BUDGET * growth));
+    // Appeal already raises visitors per job; letting it grow the audience too compounds
+    // into services out-earning every goods business several times over.
+    const growth = 1 + (this.careerLevel().level - 1) * .18;
+    return Math.max(8, Math.round(SERVICE_AUDIENCE_BUDGET * growth * this.marketShare("supply") * 2));
   }
 
   audienceRemaining(): number {
@@ -952,6 +956,52 @@ export class GameStore {
     };
   }
 
+  /**
+   * Shocks that have not started yet but are already knowable. Building a business,
+   * stocking inputs and installing upgrades all take time, so a player who reads the
+   * forecast and positions early is the one who profits. The forecast is TRUE — the
+   * strategy is acting on it in time, not guessing whether it is real.
+   */
+  trendForecast(now = Date.now()): Array<DistrictEvent & { startsAt: number; periodsAway: number }> {
+    const period = Math.floor(now / (EVENT_DAYS * 86_400_000));
+    const span = EVENT_DAYS * 86_400_000;
+    const upcoming: Array<DistrictEvent & { startsAt: number; periodsAway: number }> = [];
+    for (let ahead = 1; ahead <= TREND_HORIZON_PERIODS; ahead += 1) {
+      const at = (period + ahead) * span;
+      for (const island of ISLANDS) {
+        const event = this.districtEvent(island.id, at);
+        if (event) upcoming.push({ ...event, startsAt: at, periodsAway: ahead });
+      }
+    }
+    return upcoming.sort((a, b) => a.startsAt - b.startsAt || b.multiplier - a.multiplier);
+  }
+
+  /**
+   * How strong the competition is for one good in this district. Rivals grow as the
+   * realm matures, so an early lead has to be defended rather than coasted on.
+   */
+  rivalStrength(key: ResourceKey): number {
+    const maturity = 1 + (this.careerLevel().level - 1) * RIVAL_GROWTH_PER_LEVEL;
+    const contested = RESOURCES[key].buyer === "citizens" ? 1.15 : 1;
+    return RIVAL_BASE_STRENGTH * maturity * contested;
+  }
+
+  /** What makes a customer pick you: appeal, product quality, and your track record. */
+  businessAppeal(): number {
+    return 1
+      + this.state.upgrades.appeal * APPEAL_SHARE_WEIGHT
+      + this.state.upgrades.yield * QUALITY_SHARE_WEIGHT
+      + Math.min(1.2, this.state.reputation * REPUTATION_SHARE_WEIGHT)
+      + (this.state.specialization === "premium" ? .3 : this.state.specialization === "community" ? .2 : 0);
+  }
+
+  /** Your slice of this district's daily appetite for one good. */
+  marketShare(key: ResourceKey): number {
+    const mine = this.businessAppeal();
+    const share = mine / (mine + this.rivalStrength(key));
+    return clamp(share, MIN_MARKET_SHARE, MAX_MARKET_SHARE);
+  }
+
   /** Every island's shock, for the ferry map. */
   districtEvents(now = Date.now()): DistrictEvent[] {
     return ISLANDS.map((island) => this.districtEvent(island.id, now)).filter((entry): entry is DistrictEvent => entry !== null);
@@ -968,11 +1018,21 @@ export class GameStore {
    * Cheap bulk goods therefore get a large unit allowance and capital goods a small one,
    * which is what stops a utility from flooding its own market on the first job.
    */
-  dailyQuota(key: ResourceKey): number {
+  /** Everything the district will absorb today, across every supplier in it. */
+  districtDemand(key: ResourceKey): number {
     const resource = RESOURCES[key];
     const budget = (resource.buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET) * DEMAND_TIER_WEIGHT[resource.tier];
-    const growth = 1 + (this.careerLevel().level - 1) * .18 + this.state.upgrades.appeal * .1;
-    return Math.max(4, Math.round((budget * growth) / resource.procurementPrice));
+    const maturity = 1 + (this.careerLevel().level - 1) * .18;
+    return Math.max(8, Math.round((budget * maturity * (1 + this.rivalStrength(key) * .3)) / resource.procurementPrice));
+  }
+
+  /**
+   * Units YOU can clear at full price today: the district's appetite times your share
+   * of it. Upgrading equipment is therefore how you take custom from a competitor, not
+   * merely how you charge more.
+   */
+  dailyQuota(key: ResourceKey): number {
+    return Math.max(4, Math.round(this.districtDemand(key) * this.marketShare(key)));
   }
 
   procurementQuota(): number { return this.dailyQuota("part"); }

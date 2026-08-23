@@ -97,7 +97,7 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   freight: {
     name: "Copper Quay Freight", sector: "Logistics service", stage: "Commerce", islandAffinity: "Copper Quay", icon: "↔", color: "#b68758", model: "./assets/structures/b01-ferry-terminal.glb",
     copy: "Fulfils delivery contracts and turns physical production into dependable island-wide trade.", duration: 14, licenseCost: 25, laborCost: 10,
-    inputs: { crate: 1, part: 1, power: 2 }, output: {}, servicePayout: 25, baseVisitors: 4, priceElasticity: .8, starter: { crate: 1, part: 1, power: 2 },
+    inputs: { crate: 1, part: 1, power: 2 }, output: {}, servicePayout: 29, baseVisitors: 4, priceElasticity: .8, starter: { crate: 1, part: 1, power: 2 },
     ecosystem: { upstream: "Crate mills, workshops and energy", process: "Storage and delivery", downstream: "Every buyer and seller" },
   },
   shop: {
@@ -109,19 +109,19 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   restaurant: {
     name: "Sunset Market Kitchen", sector: "Hospitality service", stage: "Services", islandAffinity: "Lantern Row", icon: "R", color: "#d47d5b", model: "./assets/structures/b07-starter-shop-cafe.glb",
     copy: "Serves price-sensitive citizen demand and turns local food into district footfall.", duration: 13, licenseCost: 28, laborCost: 12,
-    inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 13, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
+    inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 15, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Greenhouses, shops and utilities", process: "Hospitality and dining", downstream: "Citizens and district demand" },
   },
   gym: {
     name: "Harbor Gym", sector: "Wellness service", stage: "Services", islandAffinity: "Pulsegrove", icon: "H", color: "#4d9487", model: "./assets/structures/b08-harbor-gym.glb",
     copy: "Consumes supplies and utilities to serve citizens; equipment and appeal increase attendance.", duration: 12, licenseCost: 30, laborCost: 11,
-    inputs: { supply: 1, water: 1, power: 1 }, output: {}, servicePayout: 12, baseVisitors: 5, priceElasticity: 1.15, starter: { supply: 1, water: 1, power: 1 },
+    inputs: { supply: 1, water: 1, power: 1 }, output: {}, servicePayout: 14, baseVisitors: 5, priceElasticity: 1.15, starter: { supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Retail, water and power", process: "Training and recovery", downstream: "Healthy workers and local demand" },
   },
   cinema: {
     name: "Lantern Cinema", sector: "Entertainment service", stage: "Services", islandAffinity: "Lantern Row", icon: "C", color: "#d39a45", model: "./assets/structures/b02-market-pavilion.glb",
     copy: "Runs screenings and events; ticket price, quality and appeal determine audience demand.", duration: 18, licenseCost: 35, laborCost: 13,
-    inputs: { supply: 2, power: 2 }, output: {}, servicePayout: 11, baseVisitors: 9, priceElasticity: 1.35, starter: { supply: 2, power: 2 },
+    inputs: { supply: 2, power: 2 }, output: {}, servicePayout: 12, baseVisitors: 9, priceElasticity: 1.35, starter: { supply: 2, power: 2 },
     ecosystem: { upstream: "Retailers and SunGrid", process: "Screenings and concessions", downstream: "Watchers and nightlife" },
   },
   recycler: {
@@ -315,6 +315,20 @@ export const BREAKDOWN_REPAIR_PARTS = 2;
 // good in from somewhere else. That is spatial arbitrage — a merchant's job —
 // and it is bounded by the daily allowance, the ferry fare and the clock.
 // ---------------------------------------------------------------------------
+// How far ahead a shock is knowable. Positioning takes time — building, stocking and
+// upgrading all have lead times — so the forecast is what makes strategy possible.
+export const TREND_HORIZON_PERIODS = 3;
+
+// Every district already has suppliers in it. Your share of its demand is set by how
+// attractive your business is against theirs, which is what upgrades actually buy.
+export const RIVAL_BASE_STRENGTH = 2.6;
+export const RIVAL_GROWTH_PER_LEVEL = 0.35;
+export const APPEAL_SHARE_WEIGHT = 0.42;
+export const QUALITY_SHARE_WEIGHT = 0.26;
+export const REPUTATION_SHARE_WEIGHT = 0.004;
+export const MIN_MARKET_SHARE = 0.18;
+export const MAX_MARKET_SHARE = 0.86;
+
 export const EVENT_ISLANDS = 3;
 export const EVENT_DAYS = 2;
 export const EVENT_MIN_BONUS = 0.22;

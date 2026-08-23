@@ -550,6 +550,12 @@ function renderBusiness(): void {
         <b>→</b>
         <div><small>Makes</small>${config.servicePayout ? `<span>${economics.visitors} visits</span>` : resourceCosts(Object.fromEntries(Object.entries(config.output).map(([key, value]) => [key, Math.max((value ?? 0) * cycles, Math.round((value ?? 0) * cycles * (1 + state.upgrades.yield * .12)))]))) }</div>
       </div>
+      ${(() => {
+        const sold = (Object.keys(config.output) as ResourceKey[])[0];
+        if (!sold) return "";
+        const share = store.marketShare(sold);
+        return `<div class="share-row" title="Your share of local demand"><div class="share-bar"><span style="width:${(share * 100).toFixed(0)}%"></span></div><small>You win <b>${Math.round(share * 100)}%</b> of local ${RESOURCES[sold].short} custom — better equipment wins more</small></div>`;
+      })()}
       <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${SUNMARK_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${SUNMARK_CODE}</b></span></div>
       ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${SUNMARK_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${SUNMARK_CODE} in total</small>` : ""}</div>` : ""}
       ${jobMarkup()}
@@ -729,7 +735,22 @@ function renderMap(): void {
     return `<button class="map-node ${current ? "current" : ""}" style="--map-x:${x}%;--map-y:${y}%;--island-color:${island.color}" data-action="travel" data-island="${island.id}" ${current ? "disabled" : ""} aria-label="Travel to ${island.name}"><i></i><span>${island.name}</span></button>`;
   }).join("");
   element("#mapPanel").innerHTML = `
-    <h2>Islands</h2><p class="lead">Prices differ by island. Carry goods to where they are wanted.</p>
+    <h2>Islands</h2><p class="lead">Prices differ by island. Get there before the demand does.</p>
+    ${(() => {
+      const forecast = store.trendForecast().slice(0, 4);
+      if (!forecast.length) return "";
+      return `<div class="section-title">Coming up</div>
+      <div class="forecast-list">${forecast.map((entry) => {
+        const island = ISLANDS.find((row) => row.id === entry.islandId);
+        const days = (entry.startsAt - Date.now()) / 86_400_000;
+        const rounded = Math.max(1, Math.round(days));
+        const when = rounded === 1 ? "tomorrow" : `in ${rounded} days`;
+        return `<button class="forecast-row" style="--island-color:${island?.color ?? "#888"}" data-action="travel" data-island="${entry.islandId}" ${store.state.island === entry.islandId ? "disabled" : ""}>
+          <i></i><div><strong>${island?.name ?? entry.islandId} will want ${RESOURCES[entry.resource].short}</strong><small>${when} · ${entry.reason}</small></div><b>+${Math.round((entry.multiplier - 1) * 100)}%</b>
+        </button>`;
+      }).join("")}</div>
+      <small class="hint-line">Stock up or build before it starts — that is where the money is.</small>`;
+    })()}
     <div class="archipelago-map"><div class="trade-ring ring-one"></div><div class="trade-ring ring-two"></div>${mapNodes}<div class="map-compass">N</div></div>
     <div class="card-list">${[...ISLANDS].sort((a, b) => Number(Boolean(store.districtEvent(b.id))) - Number(Boolean(store.districtEvent(a.id)))).map((island) => {
       const event = store.districtEvent(island.id);

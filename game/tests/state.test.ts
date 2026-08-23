@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -347,6 +348,46 @@ describe("Markets & Makers economy", () => {
       const perUnit = shockedSell - Math.floor(shockedSell * 0.05) - homeBuy;
       const ceiling = perUnit * store.dailyQuota(event.resource);
       expect(ceiling).toBeLessThan(4_000);
+    }
+  });
+
+  it("makes upgrades win custom, not just charge more", () => {
+    const build = (level: 0 | 3) => {
+      const state = createFreshState();
+      state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+      state.upgrades = { yield: level, capacity: 0, speed: 0, appeal: level };
+      return new GameStore(state);
+    };
+    const plain = build(0);
+    const invested = build(3);
+
+    // Upgrading is how you take custom from a rival, so the share must move materially.
+    expect(invested.marketShare("food")).toBeGreaterThan(plain.marketShare("food") * 1.5);
+    expect(invested.dailyQuota("food")).toBeGreaterThan(plain.dailyQuota("food"));
+
+    // Nobody is ever squeezed out entirely, and nobody ever owns the whole district.
+    for (const store of [plain, invested]) {
+      expect(store.marketShare("food")).toBeGreaterThanOrEqual(MIN_MARKET_SHARE);
+      expect(store.marketShare("food")).toBeLessThanOrEqual(MAX_MARKET_SHARE);
+      expect(store.dailyQuota("food")).toBeLessThan(store.districtDemand("food"));
+    }
+  });
+
+  it("publishes shocks before they start, so a player can position", () => {
+    const store = new GameStore(createFreshState());
+    const at = Date.UTC(2026, 7, 24, 12);
+    const forecast = store.trendForecast(at);
+    expect(forecast.length).toBeGreaterThan(0);
+
+    for (const entry of forecast) {
+      // Always in the future, and always far enough ahead to actually act on.
+      expect(entry.startsAt).toBeGreaterThan(at);
+      expect(entry.periodsAway).toBeGreaterThanOrEqual(1);
+      // The forecast is TRUE: what it promises is what arrives.
+      const actual = store.districtEvent(entry.islandId, entry.startsAt);
+      expect(actual).not.toBeNull();
+      expect(actual!.resource).toBe(entry.resource);
+      expect(actual!.multiplier).toBeCloseTo(entry.multiplier, 6);
     }
   });
 

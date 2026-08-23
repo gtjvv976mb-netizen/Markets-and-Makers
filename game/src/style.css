@@ -608,3 +608,20 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 
 .sheet-title { padding: 4px 44px 10px 4px; font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
 .resource-chip.empty { opacity: .55; }
+
+/* ---- strategy surfaces ---- */
+.forecast-list { display: grid; gap: 6px; margin-bottom: 8px; }
+.forecast-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); text-align: left; }
+.forecast-row i { width: 10px; height: 10px; border-radius: 50%; background: var(--island-color); }
+.forecast-row strong { display: block; font-size: 14px; }
+.forecast-row small { display: block; color: var(--muted); font-size: 12.5px; }
+.forecast-row b { padding: 4px 9px; border-radius: 999px; background: #fdf0d4; color: #8a5f1c; font-size: 13.5px; }
+.forecast-row:not(:disabled):hover { border-color: #c8922f; }
+.forecast-row:disabled { opacity: .55; }
+
+.share-row { margin-top: 10px; }
+.share-bar { height: 7px; overflow: hidden; border-radius: 999px; background: rgba(31,125,128,.14); }
+.share-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#1f7d80,#4bb0a4); transition: width .4s ease; }
+.share-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 12.5px; }
+.share-row b { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .share-bar span { transition: none; } }
