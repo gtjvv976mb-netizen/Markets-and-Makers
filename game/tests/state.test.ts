@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BUSINESS, CAPACITY_DURATION_STEP, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, OFFLINE_MAX_HOURS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -94,8 +94,8 @@ describe("Markets & Makers economy", () => {
     expect(store.chooseLicense("workshop").ok).toBe(true);
     expect(store.placeBuilding().ok).toBe(true);
     expect(store.startJob(1_000).ok).toBe(true);
-    expect(store.collectJob(100_000).ok).toBe(true);
-    expect(store.state.inventory.part).toBe(2);
+    expect(store.collectJob(store.state.job!.completeAt).ok).toBe(true);
+    expect(store.state.inventory.part).toBe(BUSINESS.workshop.output.part);
     store.state.inventory.crate += 1;
     expect(store.purchaseUpgrade("yield").ok).toBe(true);
     store.state.inventory.part += 1;
@@ -127,7 +127,7 @@ describe("Markets & Makers economy", () => {
     const treasuryBefore = store.state.governmentTreasury;
     expect(store.startJob(10).ok).toBe(true);
     expect(store.state.citizenPool).toBeGreaterThan(citizenBefore);
-    expect(store.collectJob(100_000).ok).toBe(true);
+    expect(store.collectJob(store.state.job!.completeAt).ok).toBe(true);
     expect(store.state.citizenPool).toBeLessThan(citizenBefore);
     expect(store.state.governmentTreasury).toBeGreaterThan(treasuryBefore);
     expect(store.state.visitorsServed).toBeGreaterThan(0);
@@ -206,6 +206,105 @@ describe("Markets & Makers economy", () => {
     }
   });
 
+  it("never runs an unattended shift at a loss, for any licence", () => {
+    const losers: string[] = [];
+    for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
+      const state = createFreshState();
+      state.wallet = 20_000;
+      state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
+      state.upgrades = { yield: 2, capacity: 2, speed: 2, appeal: 2 };
+      state.lastTickAt = Date.now() - 24 * 3_600_000;
+      const store = new GameStore(state);
+      const opening = store.state.wallet;
+      store.catchUp();
+      const net = store.state.wallet - opening;
+      if (net <= 0) losers.push(`${license} (${net})`);
+    }
+    // A business that loses money while you sleep is a trap in a passive game.
+    expect(losers, `licences losing money unattended: ${losers.join(", ")}`).toEqual([]);
+  });
+
+  it("stops producing when the next job cannot pay for itself", () => {
+    const state = createFreshState();
+    state.wallet = 20_000;
+    state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
+    state.lastTickAt = Date.now() - 24 * 3_600_000;
+    const store = new GameStore(state);
+    const report = store.catchUp();
+    // It halts on saturated demand, not on a full shelf or a breakdown.
+    expect(report.halted).toBe("demand");
+    expect(report.jobs).toBeGreaterThan(0);
+  });
+
+  it("caps offline accrual so nobody has to set an alarm", () => {
+    const run = (hours: number) => {
+      const state = createFreshState();
+      state.wallet = 20_000;
+      state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
+      state.lastTickAt = Date.now() - hours * 3_600_000;
+      const store = new GameStore(state);
+      const opening = store.state.wallet;
+      const report = store.catchUp();
+      return { credited: report.hours, net: store.state.wallet - opening };
+    };
+    const day = run(24);
+    const week = run(168);
+    expect(week.credited).toBeLessThanOrEqual(OFFLINE_MAX_HOURS);
+    expect(week.net).toBe(day.net);
+  });
+
+  it("rewards attention: active play earns more and contributes far more", () => {
+    const build = () => {
+      const state = createFreshState();
+      state.wallet = 20_000;
+      state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
+      state.upgrades = { yield: 2, capacity: 2, speed: 2, appeal: 2 };
+      state.lastTickAt = Date.now() - 24 * 3_600_000;
+      return new GameStore(state);
+    };
+    const passive = build();
+    const passiveOpen = passive.state.wallet;
+    passive.catchUp();
+
+    const active = build();
+    const activeOpen = active.state.wallet;
+    active.state.operations.autoSell = false;
+    active.catchUp();
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+      const spare = active.state.inventory[key] - (BUSINESS.factory.inputs[key] ?? 0) * 3;
+      if (spare > 0) active.sellResource(key, spare);
+    }
+    for (let i = 0; i < 3; i += 1) {
+      const offer = active.contractOffers()[0];
+      if (!offer) break;
+      active.state.inventory[offer.resource] += offer.quantity;
+      active.acceptContract(offer.id);
+      active.fulfillContract();
+    }
+    expect(active.state.wallet - activeOpen).toBeGreaterThan(passive.state.wallet - passiveOpen);
+    // Contribution is the $MM lever, and it must reward showing up much more than earnings do.
+    expect(active.state.epoch.contribution).toBeGreaterThan(passive.state.epoch.contribution * 3);
+  });
+
+  it("treats a breakdown as a crisis only a person can clear", () => {
+    const state = createFreshState();
+    state.wallet = 20_000;
+    state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
+    state.brokenDown = true;
+    state.condition = 10;
+    state.lastTickAt = Date.now() - 24 * 3_600_000;
+    const store = new GameStore(state);
+    const report = store.catchUp();
+    expect(report.halted).toBe("breakdown");
+    expect(report.jobs).toBe(0);
+    expect(store.startJob().ok).toBe(false);
+
+    store.state.inventory.part = 2;
+    expect(store.repairBreakdown().ok).toBe(true);
+    expect(store.state.brokenDown).toBe(false);
+    expect(store.state.condition).toBeGreaterThan(BREAKDOWN_CONDITION);
+  });
+
   it("makes every licence viable at level zero on civic-priced inputs", () => {
     const losers: string[] = [];
     for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
@@ -278,7 +377,12 @@ describe("Markets & Makers economy", () => {
     expect(store.chooseSpecialization("premium").ok).toBe(false);
     Object.assign(store.state.inventory, BUSINESS.workshop.starter);
     expect(store.startJob(1_000).ok).toBe(true);
-    expect(store.state.job!.completeAt - store.state.job!.startedAt).toBeLessThan(BUSINESS.workshop.duration * 1000);
+    // Lean Operations must shorten the job relative to an identical unspecialised shop,
+    // whatever the absolute time scale happens to be.
+    const plain = new GameStore(createFreshState());
+    plain.state.ownedPlotId = "garden-row"; plain.state.license = "workshop"; plain.state.buildingPlaced = true;
+    plain.state.jobsCompleted = store.state.jobsCompleted;
+    expect(store.jobDuration("workshop")).toBeLessThan(plain.jobDuration("workshop"));
   });
 
   it("makes community enterprises employ more residents and serve more visitors", () => {

@@ -1,4 +1,4 @@
-import { BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, RealmConnection, type RealmStatus } from "./network";
@@ -44,6 +44,16 @@ const world = new World3D(canvas, {
 });
 
 world.setPositionCheckpoint(() => store.savePosition());
+
+// Replay the time the player was away, on load and whenever they come back to the tab.
+store.catchUp();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  const shift = store.catchUp();
+  if (shift.jobs > 0) toast(`${shift.jobs} job${shift.jobs === 1 ? "" : "s"} ran while you were away.`);
+  renderAll();
+});
+window.setInterval(() => { if (store.catchUp().jobs > 0) renderAll(); }, 60_000);
 
 let peerCount = 0;
 
@@ -259,6 +269,31 @@ function jobMarkup(): string {
   return `<div class="job-status"><div><strong>${remaining > 0 ? "Production underway" : "Output ready"}</strong><span>${progress}%</span></div><div class="meter"><span style="width:${progress}%"></span></div><p>${remaining > 0 ? `${Math.ceil(remaining / 1000)} seconds remaining` : "Collect the finished output and choose its next market."}</p><button class="operation-cta" data-action="collect-job" ${remaining > 0 ? "disabled" : ""}>${remaining > 0 ? "Working…" : "Collect output"}</button></div>`;
 }
 
+const HALT_COPY: Record<string, string> = {
+  demand: "the district stopped paying enough to cover the next job",
+  storage: "the warehouse filled up",
+  funds: "there were not enough Sunmarks for inputs or payroll",
+  inputs: "inputs ran out and standing orders are paused",
+  breakdown: "the equipment broke down",
+  running: "a job is still on the floor",
+  idle: "production is paused",
+};
+
+function shiftReportMarkup(): string {
+  const shift = store.state.lastShift;
+  if (!shift || shift.jobs <= 0) return "";
+  return `<article class="shift-card">
+    <div class="shift-head"><small>While you were away</small><strong>${shift.hours.toFixed(1)} hours of trading</strong></div>
+    <div class="shift-grid">
+      <div><small>Jobs</small><strong>${shift.jobs}</strong></div>
+      <div><small>Made</small><strong>${formatNumber(shift.produced)}</strong></div>
+      <div><small>Sold</small><strong>${formatNumber(shift.sold)}</strong></div>
+      <div class="${shift.revenue - shift.spent - shift.wages >= 0 ? "positive" : "negative"}"><small>Net</small><strong>${formatNumber(shift.revenue - shift.spent - shift.wages)} ${SUNMARK_CODE}</strong></div>
+    </div>
+    <small class="shift-halt">Stopped because ${HALT_COPY[shift.halted] ?? shift.halted}.</small>
+  </article>`;
+}
+
 function renderBusiness(): void {
   const state = store.state;
   if (!state.buildingPlaced || !state.license) {
@@ -277,6 +312,20 @@ function renderBusiness(): void {
     : `${resourceCosts(Object.fromEntries(Object.entries(config.output).map(([key, value]) => [key, Math.max((value ?? 0) * cycles, Math.round((value ?? 0) * cycles * (1 + state.upgrades.yield * .12 + qualityBonus)))])))}${config.wastePerCycle ? `<span>♻ ${config.wastePerCycle * cycles} Scrap</span>` : ""}`;
   element("#businessPanel").innerHTML = `
     <div class="panel-kicker">Operations center</div><h2>${config.name}</h2><p class="lead">${config.copy}</p>
+    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Equipment failed and production has stopped. An emergency crew needs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
+    ${shiftReportMarkup()}
+    <div class="section-title">Standing operations</div>
+    <article class="game-card operations-card">
+      <p>Your business runs on a clock while you are away. It stops on its own when the district stops paying — that is your cue to come back and make a decision.</p>
+      <div class="storage-meter" role="img" aria-label="Warehouse ${Math.round(store.storedUnits())} of ${store.storageCapacity()} units">
+        <div class="storage-fill" style="width:${Math.min(100, (store.storedUnits() / store.storageCapacity()) * 100).toFixed(1)}%"></div>
+      </div>
+      <small class="storage-label">Warehouse ${formatNumber(store.storedUnits())} / ${formatNumber(store.storageCapacity())} units${store.storageFull() ? " · full, production halted" : ""}</small>
+      <div class="ops-toggles">
+        ${([["autoProduce","Continuous production","Keep running jobs unattended"],["autoBuy","Standing input orders","Buy missing inputs at a 6% premium"],["autoSell","Broker sales","Sell output while away; the broker keeps 12%"]] as const).map(([key, name, hint]) => `<button class="ops-toggle ${state.operations[key] ? "on" : "off"}" data-action="operation" data-operation="${key}" aria-pressed="${state.operations[key]}"><span class="ops-dot"></span><span><strong>${name}</strong><small>${hint}</small></span></button>`).join("")}
+      </div>
+      <small class="ops-note">Selling by hand and filling contracts always pays more than the broker — and contracts are worth <strong>20&times;</strong> as much contribution toward your $MM share.</small>
+    </article>
     <div class="stat-grid">
       <div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div>
       <div class="stat"><small>Jobs completed</small><strong>${state.jobsCompleted}</strong></div>
@@ -502,6 +551,11 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy") report(store.buyResource(button.dataset.resource as ResourceKey));
   else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
   else if (action === "claim-epoch") report(store.claimEpochRewards());
+  else if (action === "repair") report(store.repairBreakdown());
+  else if (action === "operation") {
+    const key = button.dataset.operation as "autoProduce" | "autoBuy" | "autoSell";
+    report(store.setOperation(key, !store.state.operations[key]));
+  }
   else if (action === "sell-mm") report(store.sellMMToReserve());
   else if (action === "accept-contract") report(store.acceptContract(button.dataset.contract ?? ""));
   else if (action === "fulfill-contract") report(store.fulfillContract());

@@ -1,8 +1,10 @@
 import {
-  BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
+  AUTO_BUY_PREMIUM, AUTO_MAINTAIN_AT, AUTO_MAINTAIN_COST, AUTO_SELL_BROKER_FEE, BREAKDOWN_CONDITION,
+  BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
+  BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
-  MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SPECIALIZATIONS,
+  DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   SUNMARK_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
 } from "./data";
 
@@ -12,8 +14,14 @@ export interface ContractOffer {
   id: string; resource: ResourceKey; quantity: number; grossReward: number; buyer: "government" | "citizens";
   buyerName: string; bonusPercent: number; reputationReward: number; xpReward: number;
 }
-export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; claimed: boolean; }
+export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; visits: number; claimed: boolean; }
 export interface EpochProgress { id: number; contribution: number; claimed: boolean; }
+export interface Operations { autoProduce: boolean; autoBuy: boolean; autoSell: boolean; }
+export type HaltReason = "running" | "storage" | "demand" | "inputs" | "funds" | "breakdown" | "idle";
+export interface ShiftReport {
+  hours: number; jobs: number; produced: number; sold: number;
+  revenue: number; spent: number; wages: number; halted: HaltReason;
+}
 export interface ProcurementLedger { date: string; used: Record<ResourceKey, number>; }
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
@@ -24,6 +32,7 @@ export interface GameState {
   experience: number; specialization: SpecializationKey | null; contractsCompleted: number; contractSequence: number;
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
+  operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
@@ -68,8 +77,10 @@ export function createFreshState(): GameState {
     contractsCompleted: 0,
     contractSequence: 0,
     activeContract: null,
-    daily: { date: today, jobs: 0, contracts: 0, trades: 0, claimed: false },
+    daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
+    operations: { autoProduce: true, autoBuy: true, autoSell: true },
+    lastTickAt: Date.now(), brokenDown: false, lastShift: null,
     lifetimeContribution: 0, lifetimeMMEarned: 0,
     procurement: { date: today, used: blankProcurement() },
     economyHistory: [],
@@ -133,6 +144,7 @@ export function loadState(): GameState {
       jobs: Math.floor(finite(saved.daily.jobs, 0, 0, 99)),
       contracts: Math.floor(finite(saved.daily.contracts, 0, 0, 99)),
       trades: Math.floor(finite(saved.daily.trades, 0, 0, 999)),
+      visits: Math.floor(finite(saved.daily.visits, 0, 0, 99_999)),
       claimed: Boolean(saved.daily.claimed),
     } : fresh.daily;
     const procurementUsed = blankProcurement();
@@ -168,6 +180,14 @@ export function loadState(): GameState {
       epoch: saved.epoch && Math.floor(finite(saved.epoch.id, -1, 0)) === epochId()
         ? { id: epochId(), contribution: finite(saved.epoch.contribution, 0), claimed: Boolean(saved.epoch.claimed) }
         : { id: epochId(), contribution: 0, claimed: false },
+      operations: {
+        autoProduce: saved.operations?.autoProduce !== false,
+        autoBuy: saved.operations?.autoBuy !== false,
+        autoSell: saved.operations?.autoSell !== false,
+      },
+      lastTickAt: finite(saved.lastTickAt, Date.now()),
+      brokenDown: Boolean(saved.brokenDown),
+      lastShift: null,
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -204,7 +224,7 @@ export class GameStore {
 
   private rollCalendar(now = Date.now()): void {
     const today = utcDay(now);
-    if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, claimed: false };
+    if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
     if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
     const epoch = epochId(now);
     if (this.state.epoch.id !== epoch) this.state.epoch = { id: epoch, contribution: 0, claimed: false };
@@ -304,10 +324,21 @@ export class GameStore {
 
   private inputMultiplier(): number { return 1 + this.state.upgrades.capacity; }
 
+  /** Seconds for one job. The single source of truth for manual and unattended runs. */
+  jobDuration(license: LicenseKey, cycles = this.inputMultiplier()): number {
+    const config = BUSINESS[license];
+    const operations = this.state.specialization === "efficient" ? .9 : 1;
+    const speed = Math.max(.52, (1 - this.state.upgrades.speed * .12) * operations);
+    const batchLoad = 1 + CAPACITY_DURATION_STEP * (cycles - 1);
+    const scale = this.state.jobsCompleted < OPENING_JOBS ? PRODUCTION_TIME_SCALE * OPENING_TIME_SCALE : PRODUCTION_TIME_SCALE;
+    return config.duration * speed * batchLoad * scale;
+  }
+
   startJob(now = Date.now()): ActionResult {
     this.rollCalendar(now);
     if (!this.state.buildingPlaced || !this.state.license) return this.result(false, "Build your licensed business first.");
     if (this.state.job) return this.result(false, "A production job is already active.");
+    if (this.state.brokenDown) return this.result(false, "The line is broken down. Send an emergency repair crew first.");
     if (this.state.condition < 20) return this.result(false, "Repair the equipment before starting another job.");
     const config = BUSINESS[this.state.license]; const cycles = this.inputMultiplier();
     const laborMultiplier = this.state.specialization === "community" ? 1.1 : 1;
@@ -319,11 +350,7 @@ export class GameStore {
     if (this.state.wallet < laborCost) return this.result(false, `Payroll needs ${laborCost} ${SUNMARK_CODE}.`);
     for (const key of resourceKeys) this.state.inventory[key] -= (config.inputs[key] ?? 0) * cycles;
     this.state.wallet -= laborCost; this.state.citizenPool += laborCost; this.state.laborPaid += laborCost;
-    const operations = this.state.specialization === "efficient" ? .9 : 1;
-    const speed = Math.max(.52, (1 - this.state.upgrades.speed * .12) * operations);
-    // Extra batches take extra time: capacity raises throughput, it is not free output.
-    const batchLoad = 1 + CAPACITY_DURATION_STEP * (cycles - 1);
-    const duration = config.duration * speed * batchLoad;
+    const duration = this.jobDuration(this.state.license, cycles);
     this.state.job = { license: this.state.license, startedAt: now, completeAt: now + duration * 1000, cycles, laborCost };
     this.commit(`${config.name} began ${cycles} cycle${cycles === 1 ? "" : "s"}; ${laborCost} ${SUNMARK_CODE} entered citizen households as wages.`, "success");
     return this.result(true, "Job started.");
@@ -338,8 +365,32 @@ export class GameStore {
     return Math.max(1, Math.ceil((config.baseVisitors ?? 4) * cycles * appeal * throughput * (this.consumerConfidenceIndex() / 100) * priceResponse));
   }
 
+  /** Visits a district will pay full price for today. */
+  dailyAudience(): number {
+    const growth = 1 + (this.careerLevel().level - 1) * .18 + this.state.upgrades.appeal * .1;
+    return Math.max(8, Math.round(SERVICE_AUDIENCE_BUDGET * growth));
+  }
+
+  audienceRemaining(): number {
+    return Math.max(0, this.dailyAudience() - this.state.daily.visits);
+  }
+
+  /**
+   * Service revenue decays past the day's audience exactly as goods prices do. Without
+   * this a short-cycle service runs all night and prints, because nothing else stops it.
+   */
   private serviceGross(config: (typeof BUSINESS)[LicenseKey], cycles: number): number {
-    return Math.round(this.serviceVisitors(config, cycles) * (config.servicePayout ?? 0) * this.state.servicePriceIndex);
+    const visitors = this.serviceVisitors(config, cycles);
+    const audience = Math.max(1, this.dailyAudience());
+    const unit = (config.servicePayout ?? 0) * this.state.servicePriceIndex;
+    let used = this.state.daily.visits;
+    let gross = 0;
+    for (let i = 0; i < visitors; i += 1) {
+      const tranche = Math.floor(used / audience);
+      gross += unit * Math.max(DEMAND_PRICE_FLOOR, Math.pow(DEMAND_TRANCHE_DECAY, tranche));
+      used += 1;
+    }
+    return Math.round(gross);
   }
 
   collectJob(now = Date.now()): ActionResult {
@@ -353,6 +404,7 @@ export class GameStore {
       if (this.state.citizenPool < gross) return this.result(false, "Citizen spending pool is temporarily exhausted.");
       this.state.citizenPool -= gross; this.state.wallet += gross - tax; this.state.governmentTreasury += tax;
       this.state.taxPaid += tax; this.state.lifetimeRevenue += gross; this.state.visitorsServed += visitors;
+      this.state.daily.visits += visitors;
     } else {
       for (const key of resourceKeys) {
         const base = (config.output[key] ?? 0) * job.cycles;
@@ -487,15 +539,250 @@ export class GameStore {
     return this.result(true, "Specialization selected.");
   }
 
+  // ---------------------------------------------------------------------
+  // Passive operations
+  // ---------------------------------------------------------------------
+
+  storageCapacity(): number {
+    return STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
+  }
+
+  storedUnits(): number {
+    return resourceKeys.reduce((total, key) => total + this.state.inventory[key], 0);
+  }
+
+  storageFull(): boolean { return this.storedUnits() >= this.storageCapacity(); }
+
+  setOperation(key: keyof Operations, value: boolean): ActionResult {
+    this.state.operations[key] = value;
+    this.commit(`${key === "autoProduce" ? "Continuous production" : key === "autoBuy" ? "Standing input orders" : "Broker sales"} ${value ? "enabled" : "paused"}.`, "success");
+    return this.result(true, "Operations updated.");
+  }
+
+  /** A breakdown halts the line until a person deals with it. Timers cannot clear it. */
+  repairBreakdown(): ActionResult {
+    if (!this.state.brokenDown) return this.result(false, "Nothing is broken down.");
+    if (this.state.wallet < BREAKDOWN_REPAIR_COST) return this.result(false, `Emergency repair costs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE}.`);
+    if (this.state.inventory.part < BREAKDOWN_REPAIR_PARTS) return this.result(false, `Emergency repair needs ${BREAKDOWN_REPAIR_PARTS} Utility Parts.`);
+    this.state.wallet -= BREAKDOWN_REPAIR_COST;
+    this.state.citizenPool += Math.round(BREAKDOWN_REPAIR_COST * .7);
+    this.state.governmentTreasury += BREAKDOWN_REPAIR_COST - Math.round(BREAKDOWN_REPAIR_COST * .7);
+    this.state.inventory.part -= BREAKDOWN_REPAIR_PARTS;
+    this.state.condition = Math.min(100, this.state.condition + 55);
+    this.state.brokenDown = false;
+    this.addExperience(25);
+    this.commit("Emergency crew restored the line. Production resumes.", "success");
+    return this.result(true, "Repaired.");
+  }
+
+  /** Sell unattended through a broker, who keeps a cut. Selling by hand always pays more. */
+  private brokerSell(key: ResourceKey, amount: number): { sold: number; revenue: number } {
+    if (amount <= 0) return { sold: 0, revenue: 0 };
+    // Only sell the units that still clear above the floor; hold the rest.
+    let sellable = 0;
+    const floor = RESOURCES[key].procurementPrice * BROKER_PRICE_FLOOR;
+    while (sellable < amount && this.demandSaleGross(key, sellable + 1).lastUnit >= floor) sellable += 1;
+    if (sellable <= 0) return { sold: 0, revenue: 0 };
+    amount = sellable;
+    const sale = this.demandSaleGross(key, amount);
+    const gross = Math.max(0, Math.round(sale.gross * (1 - AUTO_SELL_BROKER_FEE)));
+    const citizenDemand = RESOURCES[key].buyer === "citizens";
+    const pool = citizenDemand ? this.state.citizenPool : this.state.governmentTreasury;
+    if (pool < gross || gross <= 0) return { sold: 0, revenue: 0 };
+    const tax = Math.floor(gross * TAX_RATE);
+    this.state.inventory[key] -= amount;
+    if (citizenDemand) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
+    this.state.wallet += gross - tax;
+    this.state.governmentTreasury += tax;
+    this.state.taxPaid += tax;
+    this.state.lifetimeRevenue += gross;
+    this.state.procurement.used[key] += amount;
+    this.addContribution(gross, "auto");
+    this.moveMarket(key, -1, amount);
+    return { sold: amount, revenue: gross - tax };
+  }
+
+  /**
+   * Replay the time the player was away. Production, procurement and sales run on a
+   * clock; the run stops at the first thing that genuinely needs a person — a full
+   * warehouse, an unaffordable input, or a breakdown.
+   */
+  catchUp(now = Date.now()): ShiftReport {
+    const report: ShiftReport = { hours: 0, jobs: 0, produced: 0, sold: 0, revenue: 0, spent: 0, wages: 0, halted: "idle" };
+    const license = this.state.license;
+    if (!license || !this.state.buildingPlaced) { this.state.lastTickAt = now; return report; }
+
+    const config = BUSINESS[license];
+    const budget = Math.min(now - this.state.lastTickAt, OFFLINE_MAX_HOURS * 3_600_000);
+    if (budget <= 0) { this.state.lastTickAt = now; return report; }
+
+    let clock = this.state.lastTickAt;
+    const until = clock + budget;
+    report.hours = budget / 3_600_000;
+
+    // Finish whatever was already on the floor.
+    if (this.state.job && this.state.job.completeAt <= until) {
+      clock = Math.max(clock, this.state.job.completeAt);
+      this.collectJob(this.state.job.completeAt);
+      report.jobs += 1;
+    }
+
+    if (!this.state.operations.autoProduce) {
+      this.state.lastTickAt = now;
+      report.halted = this.state.job ? "running" : "idle";
+      return report;
+    }
+
+    let day = utcDay(clock);
+    for (let guard = 0; guard < 400; guard += 1) {
+      if (this.state.brokenDown) { report.halted = "breakdown"; break; }
+
+      // Routine upkeep is automatic. It only becomes a crisis when it cannot be paid for.
+      if (this.state.condition <= AUTO_MAINTAIN_AT) {
+        if (this.state.inventory.part < 1 && this.state.operations.autoBuy) {
+          const unit = Math.max(1, Math.round(this.marketBuyPrice("part") * (1 + AUTO_BUY_PREMIUM)));
+          if (this.state.wallet >= unit + AUTO_MAINTAIN_COST) {
+            this.state.wallet -= unit;
+            this.state.governmentTreasury += unit;
+            this.state.inventory.part += 1;
+            report.spent += unit;
+          }
+        }
+        if (this.state.wallet >= AUTO_MAINTAIN_COST && this.state.inventory.part >= 1) {
+          this.state.wallet -= AUTO_MAINTAIN_COST;
+          this.state.citizenPool += 12;
+          this.state.governmentTreasury += AUTO_MAINTAIN_COST - 12;
+          this.state.laborPaid += 12;
+          this.state.inventory.part -= 1;
+          this.state.condition = Math.min(100, this.state.condition + 35);
+          report.spent += AUTO_MAINTAIN_COST;
+        } else if (this.state.condition <= BREAKDOWN_CONDITION) {
+          this.state.brokenDown = true;
+          report.halted = "breakdown";
+          break;
+        }
+      }
+
+      // A new civic day refreshes demand mid-absence.
+      const clockDay = utcDay(clock);
+      if (clockDay !== day) { this.state.procurement = { date: clockDay, used: blankProcurement() }; day = clockDay; }
+
+      const cycles = this.inputMultiplier();
+      const duration = this.jobDuration(license, cycles) * 1000;
+      if (clock + duration > until) { report.halted = "running"; break; }
+
+      if (this.storageFull()) { report.halted = "storage"; break; }
+
+      // Would this job pay for itself at today's *decayed* prices? An operator who keeps
+      // producing into a saturated market is not passive, just careless.
+      const laborEstimate = Math.ceil(config.laborCost * cycles * (this.state.specialization === "community" ? 1.1 : 1));
+      let inputEstimate = 0;
+      for (const key of resourceKeys) {
+        const need = (config.inputs[key] ?? 0) * cycles;
+        if (need > 0) inputEstimate += need * Math.round(this.marketBuyPrice(key) * (1 + AUTO_BUY_PREMIUM));
+      }
+      let revenueEstimate = 0;
+      if (config.servicePayout) {
+        revenueEstimate = this.serviceGross(config, cycles);
+      } else {
+        for (const key of resourceKeys) {
+          const base = (config.output[key] ?? 0) * cycles;
+          if (base <= 0) continue;
+          const made = Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12)));
+          revenueEstimate += this.demandSaleGross(key, made).gross * (1 - AUTO_SELL_BROKER_FEE);
+        }
+      }
+      if (revenueEstimate * (1 - TAX_RATE) <= inputEstimate + laborEstimate) {
+        report.halted = "demand";
+        break;
+      }
+
+      // Inputs: buy what is missing, at an unattended premium.
+      let starved = false;
+      for (const key of resourceKeys) {
+        const need = (config.inputs[key] ?? 0) * cycles;
+        const missing = need - this.state.inventory[key];
+        if (missing <= 0) continue;
+        if (!this.state.operations.autoBuy) { starved = true; break; }
+        const unit = Math.max(1, Math.round(this.marketBuyPrice(key) * (1 + AUTO_BUY_PREMIUM)));
+        const cost = unit * missing;
+        if (this.state.wallet < cost) { starved = true; break; }
+        this.state.wallet -= cost;
+        this.state.governmentTreasury += cost;
+        this.state.inventory[key] += missing;
+        this.moveMarket(key, 1, missing);
+        report.spent += cost;
+      }
+      if (starved) { report.halted = this.state.operations.autoBuy ? "funds" : "inputs"; break; }
+
+      const laborMultiplier = this.state.specialization === "community" ? 1.1 : 1;
+      const laborCost = Math.ceil(config.laborCost * cycles * laborMultiplier);
+      if (this.state.wallet < laborCost) { report.halted = "funds"; break; }
+
+      for (const key of resourceKeys) this.state.inventory[key] -= (config.inputs[key] ?? 0) * cycles;
+      this.state.wallet -= laborCost;
+      this.state.citizenPool += laborCost;
+      this.state.laborPaid += laborCost;
+      report.wages += laborCost;
+
+      clock += duration;
+
+      if (config.servicePayout) {
+        const gross = this.serviceGross(config, cycles);
+        if (this.state.citizenPool >= gross) {
+          const tax = Math.floor(gross * TAX_RATE);
+          this.state.citizenPool -= gross;
+          this.state.wallet += gross - tax;
+          this.state.governmentTreasury += tax;
+          this.state.taxPaid += tax;
+          this.state.lifetimeRevenue += gross;
+          const served = this.serviceVisitors(config, cycles);
+          this.state.visitorsServed += served;
+          this.state.daily.visits += served;
+          this.addContribution(gross, "auto");
+          report.revenue += gross - tax;
+        }
+      } else {
+        for (const key of resourceKeys) {
+          const base = (config.output[key] ?? 0) * cycles;
+          if (base <= 0) continue;
+          const made = Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12)));
+          this.state.inventory[key] += made;
+          report.produced += made;
+          if (this.state.operations.autoSell) {
+            const sale = this.brokerSell(key, made);
+            report.sold += sale.sold;
+            report.revenue += sale.revenue;
+          }
+        }
+      }
+      if (config.wastePerCycle) this.state.inventory.waste += config.wastePerCycle * cycles;
+
+      this.state.condition = Math.max(0, this.state.condition - 3 - cycles * 2);
+      this.state.jobsCompleted += 1;
+      this.state.daily.jobs += 1;
+      report.jobs += 1;
+      if (this.state.condition <= BREAKDOWN_CONDITION) { this.state.brokenDown = true; report.halted = "breakdown"; break; }
+    }
+
+    this.state.lastTickAt = now;
+    this.state.lastShift = report;
+    if (report.jobs > 0) {
+      this.commit(`While you were away: ${report.jobs} job${report.jobs === 1 ? "" : "s"}, ${report.produced} units made, ${report.revenue} ${SUNMARK_CODE} net.`, "success");
+    }
+    return report;
+  }
+
   /**
    * Units of one resource that clear at full price today, derived from a daily VALUE budget.
    * Cheap bulk goods therefore get a large unit allowance and capital goods a small one,
    * which is what stops a utility from flooding its own market on the first job.
    */
   dailyQuota(key: ResourceKey): number {
-    const budget = RESOURCES[key].buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET;
+    const resource = RESOURCES[key];
+    const budget = (resource.buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET) * DEMAND_TIER_WEIGHT[resource.tier];
     const growth = 1 + (this.careerLevel().level - 1) * .18 + this.state.upgrades.appeal * .1;
-    return Math.max(4, Math.round((budget * growth) / RESOURCES[key].procurementPrice));
+    return Math.max(4, Math.round((budget * growth) / resource.procurementPrice));
   }
 
   procurementQuota(): number { return this.dailyQuota("part"); }
