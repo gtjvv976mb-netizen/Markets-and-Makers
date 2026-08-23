@@ -3,6 +3,26 @@ export interface DeploymentStatus {
   label: string;
 }
 
+export interface DistrictQuote {
+  itemKey: string; islandId: string; pressure: number; buy: number; sell: number;
+  soldToday: number; districtQuota: number; nextUnit: number;
+}
+
+/** The district board is shared by everyone trading on that island. Public, read-only. */
+export async function fetchDistrictBoard(islandId: string): Promise<DistrictQuote[] | null> {
+  const base = serverBase();
+  if (!base) return null;
+  try {
+    const response = await fetch(`${base}/api/economy/board?island=${encodeURIComponent(islandId)}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    const payload = await response.json() as { quotes?: DistrictQuote[] };
+    return payload.quotes ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export type RealmStatus = "disabled" | "connecting" | "live" | "reconnecting" | "offline";
 
 export interface RemotePlayer { playerId: string; x: number; z: number; sequence: number }

@@ -177,6 +177,9 @@ export const CAREER_LEVELS = [
 
 export const DAILY_GOALS = { jobs: 2, contracts: 1, trades: 2, reward: 80, xp: 30 } as const;
 export const PROCUREMENT_BASE_QUOTA = 12;
+/** Plots a player may hold at once, raised by civic standing. */
+export const BASE_PLOT_ALLOWANCE = 1;
+export const PLOTS_PER_CAREER_LEVEL = 0.5;
 
 export const ISLANDS: IslandConfig[] = [
   { id: "hearth", name: "Hearthmarket", district: "Civic heart", x: 0, z: 0, radius: 63, spawnX: 0, spawnZ: 34, color: "#8fc66b", economy: "Markets, construction, starter plots and final demand" },
@@ -194,6 +197,22 @@ export const PLOTS: PlotConfig[] = [
   { id: "garden-row", name: "Garden Row Plot", island: "hearth", x: -47, z: 27, width: 16, depth: 14, price: 120 },
   { id: "seabreeze", name: "Seabreeze Plot", island: "hearth", x: 47, z: 27, width: 16, depth: 14, price: 120 },
   { id: "north-canopy", name: "North Canopy Plot", island: "hearth", x: 0, z: -46, width: 16, depth: 14, price: 120 },
+  { id: "kitecrest-loft", name: "Kitecrest Loft Plot", island: "kite", x: 8, z: -162, width: 16, depth: 14, price: 260 },
+  { id: "updraft-yard", name: "Updraft Yard Plot", island: "kite", x: -13, z: -180, width: 16, depth: 14, price: 260 },
+  { id: "solar-terrace", name: "Solar Terrace Plot", island: "sun", x: 150, z: -112, width: 16, depth: 14, price: 210 },
+  { id: "batteryside", name: "Batteryside Plot", island: "sun", x: 129, z: -130, width: 16, depth: 14, price: 210 },
+  { id: "forge-lane", name: "Forge Lane Plot", island: "kiln", x: 196, z: 0, width: 16, depth: 14, price: 220 },
+  { id: "cinderworks", name: "Cinderworks Plot", island: "kiln", x: 175, z: -18, width: 16, depth: 14, price: 220 },
+  { id: "quayside-depot", name: "Quayside Depot Plot", island: "copper", x: 149, z: 131, width: 16, depth: 14, price: 190 },
+  { id: "dockhand-row", name: "Dockhand Row Plot", island: "copper", x: 130, z: 115, width: 16, depth: 14, price: 190 },
+  { id: "tidepool-works", name: "Tidepool Works Plot", island: "tide", x: 8, z: 185, width: 16, depth: 14, price: 180 },
+  { id: "glassmere", name: "Glassmere Plot", island: "tide", x: -12, z: 168, width: 16, depth: 14, price: 180 },
+  { id: "lantern-walk", name: "Lantern Walk Plot", island: "lantern", x: -134, z: 132, width: 16, depth: 14, price: 230 },
+  { id: "nightmarket-row", name: "Nightmarket Row Plot", island: "lantern", x: -155, z: 114, width: 16, depth: 14, price: 230 },
+  { id: "greenloom-field", name: "Greenloom Field Plot", island: "green", x: -179, z: 8, width: 16, depth: 14, price: 170 },
+  { id: "orchard-bend", name: "Orchard Bend Plot", island: "green", x: -202, z: -10, width: 16, depth: 14, price: 170 },
+  { id: "pulsegrove-court", name: "Pulsegrove Court Plot", island: "pulse", x: -132, z: -114, width: 16, depth: 14, price: 200 },
+  { id: "springline", name: "Springline Plot", island: "pulse", x: -153, z: -132, width: 16, depth: 14, price: 200 },
 ];
 
 export const TUTORIAL = [
@@ -266,9 +285,9 @@ export const STORAGE_BASE_CAPACITY = 240;
 export const STORAGE_PER_CAPACITY_LEVEL = 90;
 
 /** The broker who sells for you while you are away keeps a cut, so trading by hand pays more. */
-export const AUTO_SELL_BROKER_FEE = 0.12;
+export const AUTO_SELL_BROKER_FEE = 0.07;
 /** Buying inputs unattended pays a convenience premium over the civic counter price. */
-export const AUTO_BUY_PREMIUM = 0.06;
+export const AUTO_BUY_PREMIUM = 0.03;
 
 /** Routine upkeep runs itself; it is the crisis that needs a person. */
 export const AUTO_MAINTAIN_AT = 46;

@@ -1,7 +1,7 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
-import { detectDeployment, RealmConnection, type RealmStatus } from "./network";
+import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -56,6 +56,19 @@ document.addEventListener("visibilitychange", () => {
 window.setInterval(() => { if (store.catchUp().jobs > 0) renderAll(); }, 60_000);
 
 let peerCount = 0;
+let districtBoard: DistrictQuote[] | null = null;
+let districtIsland = "";
+
+async function refreshDistrictBoard(): Promise<void> {
+  const island = store.state.island;
+  const quotes = await fetchDistrictBoard(island);
+  if (!quotes) return;
+  districtBoard = quotes;
+  districtIsland = island;
+  renderAll();
+}
+void refreshDistrictBoard();
+window.setInterval(() => { void refreshDistrictBoard(); }, 45_000);
 
 function paintNetwork(label: string, healthy: boolean): void {
   const network = element<HTMLElement>("#networkValue");
@@ -345,6 +358,28 @@ function renderBusiness(): void {
   `;
 }
 
+function districtBoardMarkup(): string {
+  if (!districtBoard || districtIsland !== store.state.island) return "";
+  const island = ISLANDS.find((entry) => entry.id === districtIsland);
+  const busiest = [...districtBoard].sort((a, b) => b.soldToday - a.soldToday).slice(0, 6);
+  const anyTrade = busiest.some((row) => row.soldToday > 0);
+  return `<section class="district-board">
+    <div class="district-head"><div><small>Live district board</small><strong>${island?.name ?? districtIsland}</strong></div><span>shared by everyone here</span></div>
+    <p>These prices belong to the district, not to you. Every sale made on this island moves them and uses up the same daily allowance.</p>
+    <div class="district-rows">
+      ${busiest.map((row) => {
+        const used = Math.min(100, (row.soldToday / Math.max(1, row.districtQuota)) * 100);
+        const resource = RESOURCES[row.itemKey as ResourceKey];
+        return `<div class="district-row"><i style="--resource-color:${resource?.color ?? "#888"}">${resource?.icon ?? "•"}</i>
+          <div class="district-name"><strong>${resource?.short ?? row.itemKey}</strong><small>${row.soldToday} of ${row.districtQuota} absorbed today</small></div>
+          <div class="district-bar"><span style="width:${used.toFixed(1)}%"></span></div>
+          <div class="district-quote"><strong>${row.nextUnit}</strong><small>next unit</small></div></div>`;
+      }).join("")}
+    </div>
+    ${anyTrade ? "" : `<small class="district-note">Nobody has traded here yet today. Prices are at their resting level.</small>`}
+  </section>`;
+}
+
 function renderMarket(): void {
   const confidence = store.consumerConfidenceIndex();
   const priceIndex = store.marketPriceIndex();
@@ -378,6 +413,7 @@ function renderMarket(): void {
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
+    ${districtBoardMarkup()}
     <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
     <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${SUNMARK_CODE}</span><span>Trade</span></div>
     <div class="card-list market-list">

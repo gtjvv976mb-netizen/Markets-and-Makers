@@ -5,6 +5,7 @@ import { config, heliusRpcUrl } from "./config.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
+import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 
 interface Presence {
   sessionId: string;
@@ -121,6 +122,28 @@ const server = createServer(async (req, res) => {
       json(res, 200, await tokenBalance(owner));
       return;
     }
+    // Prices are public information: anyone may read the district board.
+    if (req.method === "GET" && url.pathname === "/api/economy/board") {
+      try {
+        json(res, 200, { island: url.searchParams.get("island") ?? "hearth",
+          quotes: await islandBoard("sunwoven-1", url.searchParams.get("island") ?? "hearth") });
+      } catch (error) {
+        if (error instanceof EconomyError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/economy/standing") {
+      if (!config.marketRoutes) { json(res, 404, { error: "market-disabled" }); return; }
+      const owner = url.searchParams.get("playerId") ?? "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(owner)) {
+        json(res, 400, { error: "invalid-player" }); return;
+      }
+      json(res, 200, await epochStanding("sunwoven-1", owner));
+      return;
+    }
+
     if (url.pathname.startsWith("/api/market/")) {
       if (!config.marketRoutes) { json(res, 404, { error: "market-disabled" }); return; }
       try {

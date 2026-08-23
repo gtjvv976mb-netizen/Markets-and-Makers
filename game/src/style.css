@@ -307,6 +307,25 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .epoch-note strong { color: #8a5f1c; }
 .reserve-actions button[disabled] { opacity: .48; cursor: not-allowed; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .epoch-fill { transition: none; } }
+/* ---- shared district board ---- */
+.district-board { margin: 10px 0; padding: 11px 12px; border: 1px solid #9fc2c6; border-radius: 14px; background: linear-gradient(150deg,#eef7f8,#e3eff1); }
+.district-head { display: flex; align-items: center; justify-content: space-between; }
+.district-head small { display: block; color: #3f7a83; font-size: 7px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.district-head strong { display: block; margin-top: 1px; font-size: 13px; }
+.district-head > span { padding: 4px 7px; border: 1px solid #a8ced3; border-radius: 8px; color: #35707a; background: rgba(255,255,255,.6); font-size: 7px; font-weight: 900; }
+.district-board > p { margin: 7px 0 9px; color: var(--muted); font-size: 8.5px; line-height: 1.45; }
+.district-rows { display: grid; gap: 5px; }
+.district-row { display: grid; grid-template-columns: auto 1fr 64px auto; gap: 8px; align-items: center; padding: 6px 7px; border-radius: 9px; background: rgba(255,255,255,.68); }
+.district-row i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--resource-color); color: #fff; font-style: normal; font-size: 10px; }
+.district-name strong { display: block; font-size: 10px; }
+.district-name small { display: block; color: var(--muted); font-size: 7px; }
+.district-bar { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(63,122,131,.16); }
+.district-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#4b9aa5,#7cc3cc); }
+.district-quote { text-align: right; }
+.district-quote strong { display: block; font-size: 11px; }
+.district-quote small { display: block; color: var(--muted); font-size: 6.5px; text-transform: uppercase; }
+.district-note { display: block; margin-top: 7px; color: #5d7c80; font-size: 8px; }
+
 /* ---- passive operations ---- */
 .crisis-card { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 10px 0; padding: 11px 12px; border: 1px solid #d98a76; border-radius: 12px; background: linear-gradient(140deg,#fdeee9,#f8e2da); }
 .crisis-card i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #c9503a; color: #fff; font-style: normal; font-size: 12px; font-weight: 950; }
