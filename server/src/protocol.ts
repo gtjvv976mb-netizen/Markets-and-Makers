@@ -3,7 +3,12 @@ import { z } from "zod";
 const helloSchema = z.object({
   type: z.literal("hello"),
   playerId: z.string().uuid(),
-  islandId: z.enum(["hearth", "kite", "sun", "kiln", "copper", "tide", "lantern", "green", "pulse"])
+  islandId: z.enum(["hearth", "kite", "sun", "kiln", "copper", "tide", "lantern", "green", "pulse"]),
+  // Islands spawn away from the origin. Without a declared spawn the first move reads as a
+  // teleport, is rejected, and — because a rejected move never advances the stored position —
+  // every later move is measured from (0,0) too, pinning the player permanently.
+  x: z.number().finite().min(-500).max(500).optional(),
+  z: z.number().finite().min(-500).max(500).optional()
 });
 
 const moveSchema = z.object({

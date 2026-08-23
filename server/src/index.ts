@@ -158,7 +158,7 @@ wss.on("connection", (socket) => {
         sessionId,
         playerId: message.playerId,
         islandId: message.islandId,
-        position: { x: 0, z: 0, at: Date.now(), sequence: 0 },
+        position: { x: message.x ?? 0, z: message.z ?? 0, at: Date.now(), sequence: 0 },
         socket
       });
       socket.send(JSON.stringify({ type: "welcome", sessionId, tickRate: 10, authority: "render-zone" }));

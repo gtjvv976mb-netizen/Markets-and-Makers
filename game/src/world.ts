@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { BUSINESS, ISLANDS, PLOTS, SUNMARK_CODE } from "./data";
 import type { GameState } from "./state";
+import type { RemotePlayer } from "./network";
 
 interface WorldCallbacks {
   onPlotSelected: (plotId: string) => void;
@@ -64,6 +65,8 @@ export class World3D {
   private readonly plotDecor = new Map<string, THREE.Group>();
   private readonly groundMeshes = new Map<string, THREE.Mesh>();
   private readonly citizens: Citizen[] = [];
+  private readonly peers = new Map<string, { group: THREE.Group; target: THREE.Vector3; seen: number }>();
+  private readonly peerRoot = new THREE.Group();
   private readonly avatar = new THREE.Group();
   private readonly cameraTarget = new THREE.Vector3();
   private readonly walkMarker = new THREE.Mesh(
@@ -193,6 +196,7 @@ export class World3D {
 
     this.avatar.position.set(0, 1.02, 34);
     this.scene.add(this.avatar);
+    this.scene.add(this.peerRoot);
   }
 
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
@@ -524,6 +528,101 @@ export class World3D {
     }
   }
 
+  /** Colour derived from the peer id so the same player looks the same to everyone. */
+  private peerColor(playerId: string): THREE.Color {
+    let hash = 0;
+    for (let i = 0; i < playerId.length; i += 1) hash = (hash * 31 + playerId.charCodeAt(i)) >>> 0;
+    return new THREE.Color().setHSL((hash % 360) / 360, 0.52, 0.56);
+  }
+
+  private makePeerAvatar(playerId: string): THREE.Group {
+    const group = new THREE.Group();
+    const tint = this.peerColor(playerId);
+
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.78, 20),
+      new THREE.MeshBasicMaterial({ color: 0x0d3b3f, transparent: true, opacity: 0.2, depthWrite: false }),
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = -0.98;
+    group.add(shadow);
+
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.42, 0.86, 4, 10),
+      new THREE.MeshStandardMaterial({ color: tint, roughness: 0.72 }),
+    );
+    body.position.y = 0.12;
+    group.add(body);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.36, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0xf0d0ae, roughness: 0.86 }),
+    );
+    head.position.y = 1.02;
+    group.add(head);
+
+    const marker = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22, 0.42, 10),
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.9 }),
+    );
+    marker.position.y = 1.86;
+    marker.rotation.x = Math.PI;
+    marker.userData.peerMarker = true;
+    group.add(marker);
+
+    return group;
+  }
+
+  /** Apply one authoritative island snapshot. Positions are eased, not snapped. */
+  setRemotePlayers(players: RemotePlayer[]): void {
+    const now = performance.now();
+    for (const player of players) {
+      let peer = this.peers.get(player.playerId);
+      if (!peer) {
+        const group = this.makePeerAvatar(player.playerId);
+        group.position.set(player.x, 1.02, player.z);
+        this.peerRoot.add(group);
+        peer = { group, target: new THREE.Vector3(player.x, 1.02, player.z), seen: now };
+        this.peers.set(player.playerId, peer);
+      }
+      peer.target.set(player.x, 1.02, player.z);
+      peer.seen = now;
+    }
+    for (const [id, peer] of this.peers) {
+      if (now - peer.seen < 8000) continue;
+      this.peerRoot.remove(peer.group);
+      peer.group.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
+        else material?.dispose();
+      });
+      this.peers.delete(id);
+    }
+  }
+
+  get peerCount(): number { return this.peers.size; }
+
+  /** The server may reject a step; when it does we accept its position. */
+  applyCorrection(x: number, z: number, state: GameState): void {
+    this.avatar.position.x = x;
+    this.avatar.position.z = z;
+    state.player.x = x;
+    state.player.z = z;
+    this.clickTarget = null;
+  }
+
+  private updatePeers(delta: number, elapsed: number): void {
+    const ease = Math.min(1, delta * 7.5);
+    for (const peer of this.peers.values()) {
+      peer.group.position.lerp(peer.target, ease);
+      peer.group.position.y = 1.02 + Math.sin(elapsed * 2.4 + peer.group.position.x) * 0.02;
+      const marker = peer.group.children.find((child) => child.userData.peerMarker);
+      if (marker) marker.position.y = 1.86 + Math.sin(elapsed * 3 + peer.group.position.z) * 0.08;
+    }
+  }
+
   setPositionCheckpoint(callback: () => void): void {
     this.onPositionCheckpoint = callback;
   }
@@ -727,6 +826,7 @@ export class World3D {
       const delta = Math.min(0.05, this.clock.getDelta());
       this.updateMovement(delta, state);
       this.updateCitizens(this.clock.elapsedTime);
+      this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, this.keys.size > 0 || Boolean(this.clickTarget));
       this.updateCamera(delta);
       this.saveAccumulator += delta;

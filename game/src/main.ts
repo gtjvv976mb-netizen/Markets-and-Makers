@@ -1,7 +1,7 @@
 import { BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
-import { detectDeployment } from "./network";
+import { detectDeployment, RealmConnection, type RealmStatus } from "./network";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -17,17 +17,6 @@ const interiorModal = element<HTMLElement>("#interiorModal");
 const travelOverlay = element<HTMLElement>("#travelOverlay");
 const toastStack = element<HTMLElement>("#toastStack");
 const canvas = element<HTMLCanvasElement>("#worldCanvas");
-
-void detectDeployment().then((status) => {
-  const network = element<HTMLElement>("#networkValue");
-  network.textContent = status.label;
-  network.classList.toggle("status-local", status.mode !== "unavailable");
-  network.classList.toggle("status-unavailable", status.mode === "unavailable");
-}).catch(() => {
-  const network = element<HTMLElement>("#networkValue");
-  network.textContent = "Local fallback";
-  network.classList.add("status-local");
-});
 
 let activeTab = "guide";
 let interiorOpen = false;
@@ -55,6 +44,45 @@ const world = new World3D(canvas, {
 });
 
 world.setPositionCheckpoint(() => store.savePosition());
+
+let peerCount = 0;
+
+function paintNetwork(label: string, healthy: boolean): void {
+  const network = element<HTMLElement>("#networkValue");
+  network.textContent = peerCount > 0 ? `${label} · ${peerCount} nearby` : label;
+  network.classList.toggle("status-local", healthy);
+  network.classList.toggle("status-unavailable", !healthy);
+}
+
+const realm = new RealmConnection({
+  onStatus: (status: RealmStatus, detail: string) => {
+    if (status !== "live") peerCount = 0;
+    paintNetwork(detail, status === "live" || status === "disabled");
+  },
+  position: () => ({ x: store.state.player.x, z: store.state.player.z }),
+  onPeers: (peers) => {
+    world.setRemotePlayers(peers);
+    if (peers.length !== peerCount) {
+      peerCount = peers.length;
+      paintNetwork("Render authority", true);
+    }
+  },
+}, store.state.island);
+
+void detectDeployment().then((status) => {
+  paintNetwork(status.label, status.mode !== "unavailable");
+  if (status.mode === "render") realm.connect();
+}).catch(() => paintNetwork("Local fallback", true));
+
+// Report our position at the server's tick rate, and obey any correction it sends back.
+window.setInterval(() => {
+  realm.setIsland(store.state.island);
+  realm.sendMove(store.state.player.x, store.state.player.z);
+  const correction = realm.takeCorrection();
+  if (correction) world.applyCorrection(correction.x, correction.z, store.state);
+}, 100);
+
+window.addEventListener("beforeunload", () => realm.dispose());
 
 function formatNumber(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
