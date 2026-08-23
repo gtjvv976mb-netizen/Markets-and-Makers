@@ -23,7 +23,7 @@ let activeTab = "guide";
 let interiorOpen = false;
 let movedOnce = false;
 let activeBusinessStage: "Recommended" | BusinessStage = "Recommended";
-let marketFilter: "all" | "needed" | "owned" = "all";
+let marketFilter: "all" | "needed" | "owned" = "needed";
 
 const RECOMMENDED_LICENSES: LicenseKey[] = ["greenhouse", "workshop", "shop"];
 
@@ -90,6 +90,17 @@ function markerModels(): MarkerModel[] {
     }
   }
 
+  const shock = store.districtEvent(state.island);
+  if (shock) {
+    const hoursLeft = Math.max(1, Math.round((shock.endsAt - Date.now()) / 3_600_000));
+    models.push({
+      id: "event", kind: "event", label: `Paying +${Math.round((shock.multiplier - 1) * 100)}%`,
+      title: RESOURCES[shock.resource].name,
+      detail: `${shock.reason} · ${hoursLeft}h left`,
+      x: island.x, z: island.z + 16,
+    });
+  }
+
   // The stall tells you what this district is paying well for right now.
   const wanted = store.demandHighlights(1)[0];
   if (wanted) {
@@ -150,20 +161,40 @@ function syncMarkers(): void {
   // Anything the camera cannot see goes into a rail down the right edge, so the world
   // doubles as the map without the pins piling on top of one another.
   let railIndex = 0;
+  const placed: Array<{ node: HTMLElement; x: number; y: number }> = [];
   for (const point of projected) {
     const node = markerLayer.querySelector<HTMLElement>(`[data-marker="${point.id}"]`);
     if (!node) continue;
-    const offEdge = point.sx < 60 || point.sx > width - 60 || point.sy < 150 || point.sy > height - 90;
+    // Only genuinely off-canvas pins go to the rail. Anything the camera can see stays
+    // on its plot, nudged down so it clears the floating top bar.
+    const offCanvas = point.sx < 8 || point.sx > width - 8 || point.sy < 8 || point.sy > height - 8;
     node.style.display = "block";
-    node.classList.toggle("far", offEdge);
-    if (offEdge) {
-      node.style.left = `${width - 96}px`;
-      node.style.top = `${172 + railIndex * 62}px`;
+    node.classList.toggle("far", offCanvas);
+    if (offCanvas) {
+      placed.push({ node, x: width - 104, y: 196 + railIndex * 84 });
       railIndex += 1;
     } else {
-      node.style.left = `${point.sx}px`;
-      node.style.top = `${point.sy}px`;
+      placed.push({
+        node,
+        x: Math.min(Math.max(point.sx, 80), Math.max(80, width - 80)),
+        y: Math.max(point.sy, 160),
+      });
     }
+  }
+
+  // Two pins can project to nearly the same spot. Nudge the later one clear rather than
+  // letting them render on top of each other.
+  placed.sort((a, b) => a.y - b.y);
+  for (let i = 0; i < placed.length; i += 1) {
+    const current = placed[i]!;
+    for (let j = 0; j < i; j += 1) {
+      const other = placed[j]!;
+      if (Math.abs(current.x - other.x) < 150 && Math.abs(current.y - other.y) < 80) {
+        current.y = other.y + 80;
+      }
+    }
+    current.node.style.left = `${current.x}px`;
+    current.node.style.top = `${Math.min(current.y, Math.max(160, height - 8))}px`;
   }
 }
 
@@ -265,9 +296,17 @@ function report(result: ActionResult): void {
   toast(result.message, !result.ok);
 }
 
+const SHEET_TITLE: Record<string, string> = {
+  shop: "Your business",
+  trade: "Buy, sell and orders",
+  world: "Islands and progress",
+};
+
 function switchTab(requested: string): void {
   const tab = TAB_FOR.get(requested) ?? requested;
   activeTab = tab;
+  const title = document.querySelector("#sheetTitle");
+  if (title) title.textContent = SHEET_TITLE[tab] ?? "Your business";
   openSheet();
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
     const active = button.dataset.tab === tab;
@@ -345,13 +384,6 @@ function renderTutorial(): void {
   go.dataset.action = key === "moved" ? "walk-plaza" : "tab";
   go.dataset.target = step?.tab ?? "world";
   element("#nextStep").classList.toggle("complete", !next);
-
-  // Tabs appear as they become useful, so nothing is on screen before it means anything.
-  const unlocked = { shop: true, trade: store.state.buildingPlaced, world: Boolean(store.state.tutorial.sold) };
-  for (const [tab, open] of Object.entries(unlocked)) {
-    const button = document.querySelector<HTMLButtonElement>(`[data-tab="${tab}"]`);
-    if (button) button.hidden = !open;
-  }
 
   element("#guidePanel").innerHTML = `
     <div class="section-title">Your progress</div>
@@ -697,16 +729,28 @@ function renderMap(): void {
     return `<button class="map-node ${current ? "current" : ""}" style="--map-x:${x}%;--map-y:${y}%;--island-color:${island.color}" data-action="travel" data-island="${island.id}" ${current ? "disabled" : ""} aria-label="Travel to ${island.name}"><i></i><span>${island.name}</span></button>`;
   }).join("");
   element("#mapPanel").innerHTML = `
-    <h2>Islands</h2><p class="lead">Your business keeps running while you travel.</p>
+    <h2>Islands</h2><p class="lead">Prices differ by island. Carry goods to where they are wanted.</p>
     <div class="archipelago-map"><div class="trade-ring ring-one"></div><div class="trade-ring ring-two"></div>${mapNodes}<div class="map-compass">N</div></div>
-    <div class="card-list">${ISLANDS.map((island) => `<div class="island-row" style="--island-color:${island.color}"><i class="island-dot"></i><div><strong>${island.name}</strong><small>${island.district} · ${island.economy}</small></div><button data-action="travel" data-island="${island.id}" ${store.state.island === island.id ? "disabled" : ""}>${store.state.island === island.id ? "Here" : store.state.tutorial.traveled ? `10 ${SUNMARK_CODE}` : "Free"}</button></div>`).join("")}</div>
+    <div class="card-list">${[...ISLANDS].sort((a, b) => Number(Boolean(store.districtEvent(b.id))) - Number(Boolean(store.districtEvent(a.id)))).map((island) => {
+      const event = store.districtEvent(island.id);
+      const here = store.state.island === island.id;
+      return `<div class="island-row ${event ? "has-event" : ""}" style="--island-color:${island.color}"><i class="island-dot"></i><div><strong>${island.name}</strong>${event
+        ? `<small class="island-event">Paying <b>+${Math.round((event.multiplier - 1) * 100)}%</b> for ${RESOURCES[event.resource].short} — ${event.reason}</small>`
+        : `<small>${island.district}</small>`}</div><button data-action="travel" data-island="${island.id}" ${here ? "disabled" : ""}>${here ? "Here" : store.state.tutorial.traveled ? `10 ${SUNMARK_CODE}` : "Free"}</button></div>`;
+    }).join("")}</div>
   `;
 }
 
 function renderResources(): void {
-  element("#resourceDock").innerHTML = (Object.keys(RESOURCES) as ResourceKey[]).map((key) => {
+  // Only what you are actually holding, plus what the current recipe still needs.
+  const licence = store.state.license;
+  const needed = licence ? (Object.keys(BUSINESS[licence].inputs) as ResourceKey[]) : [];
+  const shown = (Object.keys(RESOURCES) as ResourceKey[])
+    .filter((key) => store.state.inventory[key] > 0 || needed.includes(key));
+  element("#resourceDock").innerHTML = shown.map((key) => {
     const resource = RESOURCES[key];
-    return `<div class="resource-chip" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${store.state.inventory[key]}</strong></div><span>${store.marketBuyPrice(key)} ${SUNMARK_CODE}</span></div>`;
+    const held = store.state.inventory[key];
+    return `<div class="resource-chip ${held === 0 ? "empty" : ""}" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${held}</strong></div><span>${store.marketBuyPrice(key)} ${SUNMARK_CODE}</span></div>`;
   }).join("");
 }
 
@@ -829,6 +873,7 @@ document.body.addEventListener("click", (event) => {
     else switchTab("trade");
   }
   else if (action === "marker" && button.dataset.plot === "market") switchTab("trade");
+  else if (action === "marker" && button.dataset.plot === "event") switchTab("world");
   else if (action === "marker") {
     const plotId = button.dataset.plot ?? "";
     if (store.state.portfolio[plotId]) { if (plotId !== store.state.ownedPlotId) store.switchBusiness(plotId); }

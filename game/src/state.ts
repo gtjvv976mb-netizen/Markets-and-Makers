@@ -2,7 +2,8 @@ import {
   AUTO_BUY_PREMIUM, AUTO_MAINTAIN_AT, AUTO_MAINTAIN_COST, AUTO_SELL_BROKER_FEE, BREAKDOWN_CONDITION,
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
   BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
-  DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET, INITIAL_CITIZEN_POOL,
+  DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
+  EVENT_DAYS, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   SUNMARK_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
@@ -16,6 +17,7 @@ export interface ContractOffer {
 }
 export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; visits: number; claimed: boolean; }
 export interface EpochProgress { id: number; contribution: number; claimed: boolean; }
+export interface DistrictEvent { islandId: string; resource: ResourceKey; multiplier: number; reason: string; endsAt: number; }
 export interface Operations { autoProduce: boolean; autoBuy: boolean; autoSell: boolean; }
 
 /**
@@ -342,12 +344,12 @@ export class GameStore {
     return this.result(true, "Business built.");
   }
 
-  marketBuyPrice(key: ResourceKey): number { return Math.max(1, Math.round(RESOURCES[key].governmentPrice * this.state.marketPressure[key])); }
+  marketBuyPrice(key: ResourceKey): number { return Math.max(1, Math.round(RESOURCES[key].governmentPrice * this.state.marketPressure[key] * this.eventMultiplier(key))); }
   marketSellPrice(key: ResourceKey): number {
     const appeal = 1 + this.state.upgrades.appeal * .05;
     const stabilizer = RESOURCES[key].buyer === "government" ? this.stabilizerMultiplier() : 1;
     const quality = this.state.specialization === "premium" ? 1.08 : 1;
-    return Math.max(1, Math.round(RESOURCES[key].procurementPrice * this.state.marketPressure[key] * appeal * stabilizer * quality));
+    return Math.max(1, Math.round(RESOURCES[key].procurementPrice * this.state.marketPressure[key] * appeal * stabilizer * quality * this.eventMultiplier(key)));
   }
 
   buyResource(key: ResourceKey, quantity = 1): ActionResult {
@@ -907,6 +909,58 @@ export class GameStore {
       this.commit(`While you were away: ${report.jobs} job${report.jobs === 1 ? "" : "s"}, ${report.produced} units made, ${report.revenue} ${SUNMARK_CODE} net.`, "success");
     }
     return report;
+  }
+
+  // ---------------------------------------------------------------------
+  // District demand shocks
+  // ---------------------------------------------------------------------
+
+  /** Same answer for everyone on the same day: derived, never stored. */
+  private static hash(seed: string): number {
+    let value = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      value ^= seed.charCodeAt(i);
+      value = Math.imul(value, 16777619) >>> 0;
+    }
+    return value >>> 0;
+  }
+
+  /** The shock running on one island right now, if any. */
+  districtEvent(islandId: string, now = Date.now()): DistrictEvent | null {
+    const period = Math.floor(now / (EVENT_DAYS * 86_400_000));
+    const islandIndex = ISLANDS.findIndex((entry) => entry.id === islandId);
+    if (islandIndex < 0) return null;
+
+    // Only a few islands run a shock at once, so travelling somewhere means something.
+    // One island is always guaranteed: without it roughly one period in twenty has no
+    // shock anywhere, and there is nowhere worth sailing to.
+    const anchor = GameStore.hash(`${period}:anchor`) % ISLANDS.length;
+    const draw = GameStore.hash(`${period}:${islandId}`);
+    if (islandIndex !== anchor && draw % ISLANDS.length >= EVENT_ISLANDS) return null;
+
+    const tradable = resourceKeys.filter((key) => RESOURCES[key].civicSupply !== false);
+    const resource = tradable[GameStore.hash(`${period}:${islandId}:res`) % tradable.length]!;
+    const span = EVENT_MAX_BONUS - EVENT_MIN_BONUS;
+    const bonus = EVENT_MIN_BONUS + (GameStore.hash(`${period}:${islandId}:bonus`) % 1000) / 1000 * span;
+    const reason = EVENT_REASONS[GameStore.hash(`${period}:${islandId}:why`) % EVENT_REASONS.length]!;
+
+    return {
+      islandId, resource,
+      multiplier: 1 + Math.round(bonus * 100) / 100,
+      reason,
+      endsAt: (period + 1) * EVENT_DAYS * 86_400_000,
+    };
+  }
+
+  /** Every island's shock, for the ferry map. */
+  districtEvents(now = Date.now()): DistrictEvent[] {
+    return ISLANDS.map((island) => this.districtEvent(island.id, now)).filter((entry): entry is DistrictEvent => entry !== null);
+  }
+
+  /** How much a shock moves a price on the island the player is standing on. */
+  private eventMultiplier(key: ResourceKey): number {
+    const event = this.districtEvent(this.state.island);
+    return event && event.resource === key ? event.multiplier : 1;
   }
 
   /**

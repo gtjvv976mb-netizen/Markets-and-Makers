@@ -61,16 +61,13 @@
             <button id="leaseAction">Lease plot</button>
             <button id="buildAction">Build business</button>
             <button id="enterAction">Enter business</button>
+            <button data-action="tab" data-target="world">Map</button>
           </div>
         </div>
 
         <aside class="control-panel" id="sheet" data-open="false">
           <button class="sheet-close" id="sheetClose" aria-label="Back to the world">✕</button>
-          <nav class="tabs" aria-label="Game panels">
-            <button class="active" data-tab="shop" aria-selected="true"><span aria-hidden="true">▥</span><em>Business</em></button>
-            <button data-tab="trade" aria-selected="false" hidden><span aria-hidden="true">⇄</span><em>Trade</em></button>
-            <button data-tab="world" aria-selected="false" hidden><span aria-hidden="true">◇</span><em>World</em></button>
-          </nav>
+          <div class="sheet-title" id="sheetTitle">Your business</div>
           <div class="panel-scroll">
             <section class="panel active" data-panel="shop">
               <div id="buildPanel"></div>

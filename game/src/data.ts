@@ -306,6 +306,25 @@ export const BREAKDOWN_CONDITION = 18;
 export const BREAKDOWN_REPAIR_COST = 60;
 export const BREAKDOWN_REPAIR_PARTS = 2;
 
+// ---------------------------------------------------------------------------
+// District demand shocks.
+//
+// A shock raises the local price of ONE good on ONE island for a couple of days.
+// It scales what the city pays AND what it charges, so a same-island round trip
+// stays unprofitable exactly as before; the only way to profit is to bring the
+// good in from somewhere else. That is spatial arbitrage — a merchant's job —
+// and it is bounded by the daily allowance, the ferry fare and the clock.
+// ---------------------------------------------------------------------------
+export const EVENT_ISLANDS = 3;
+export const EVENT_DAYS = 2;
+export const EVENT_MIN_BONUS = 0.22;
+export const EVENT_MAX_BONUS = 0.48;
+
+export const EVENT_REASONS = [
+  "a festival", "a building push", "a supply failure upriver",
+  "a new workshop opening", "a visiting fleet", "storm repairs",
+] as const;
+
 export const TAX_RATE = 0.05;
 export const SUNMARK_NAME = "Sunmark";
 export const SUNMARK_CODE = "SM";

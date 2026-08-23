@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -290,6 +290,64 @@ describe("Markets & Makers economy", () => {
     expect(restored.ownedPlotIds()).toEqual(["garden-row", "seabreeze"]);
     expect(restored.state.portfolio["garden-row"]!.license).toBe("workshop");
     expect(restored.state.portfolio.seabreeze!.license).toBe("greenhouse");
+  });
+
+  it("runs demand shocks on a few islands, identically for everyone", () => {
+    const a = new GameStore(createFreshState());
+    const b = new GameStore(createFreshState());
+    const at = Date.UTC(2026, 7, 24, 12);
+
+    // Derived from the calendar, never stored, so two players always agree.
+    for (const island of ISLANDS) {
+      expect(a.districtEvent(island.id, at)).toEqual(b.districtEvent(island.id, at));
+    }
+    const live = a.districtEvents(at);
+    expect(live.length).toBeGreaterThan(0);
+    expect(live.length).toBeLessThanOrEqual(ISLANDS.length);
+    for (const event of live) {
+      expect(event.multiplier).toBeGreaterThanOrEqual(1 + EVENT_MIN_BONUS);
+      expect(event.multiplier).toBeLessThanOrEqual(1 + EVENT_MAX_BONUS);
+      expect(event.endsAt).toBeGreaterThan(at);
+      // A shock never lands on something the civic supplier will not sell.
+      expect(RESOURCES[event.resource].civicSupply).not.toBe(false);
+    }
+  });
+
+  it("keeps a shocked island unprofitable to trade against itself", () => {
+    // A shock lifts what the city PAYS and what it CHARGES together, so the only way
+    // to profit from it is to bring the good in from somewhere else.
+    const store = new GameStore(createFreshState());
+    const event = store.districtEvents()[0];
+    if (!event) return;
+    store.state.island = event.islandId;
+    store.state.upgrades.appeal = 3;
+
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+      const buy = store.marketBuyPrice(key);
+      const sell = store.marketSellPrice(key);
+      const net = sell - Math.floor(sell * 0.05) - buy;
+      expect(net, `${key} round-trips at a profit on a shocked island`).toBeLessThanOrEqual(0);
+    }
+  });
+
+  it("pays a real but bounded premium for hauling goods to a shocked island", () => {
+    const store = new GameStore(createFreshState());
+    const event = store.districtEvents()[0];
+    if (!event) return;
+
+    store.state.island = "hearth";
+    const homeBuy = store.marketBuyPrice(event.resource);
+    store.state.island = event.islandId;
+    const shockedSell = store.marketSellPrice(event.resource);
+
+    if (event.islandId !== "hearth") {
+      // Worth the trip...
+      expect(shockedSell).toBeGreaterThan(store.marketSellPrice(event.resource) / event.multiplier);
+      // ...but the day's allowance caps how much of it you can do.
+      const perUnit = shockedSell - Math.floor(shockedSell * 0.05) - homeBuy;
+      const ceiling = perUnit * store.dailyQuota(event.resource);
+      expect(ceiling).toBeLessThan(4_000);
+    }
   });
 
   it("never runs an unattended shift at a loss, for any licence", () => {
