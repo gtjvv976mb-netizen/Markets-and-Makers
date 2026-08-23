@@ -1,4 +1,4 @@
-import { BUSINESS, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment } from "./network";
@@ -283,11 +283,23 @@ function renderMarket(): void {
     <p class="lead">All daily prices, wages and taxes use <strong>Sunmarks (${SUNMARK_CODE})</strong>. $MM is the scarce reserve asset held for long-term wealth and currency backing.</p>
     <div class="economic-dashboard"><div><small>Market price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening basket</span></div><div><small>Consumer confidence</small><strong>${confidence}</strong><span>Wages, visits and liquidity</span></div><div><small>Business cycle</small><strong>${store.economicPhase()}</strong><span>Activity trend ${store.economyTrend()}</span></div><div><small>Monetary policy</small><strong>${store.monetaryPolicyPhase()}</strong><span>${store.reserveBackingRatio().toFixed(2)}% $MM reserve coverage</span></div></div>
     <section class="reserve-desk">
-      <div class="reserve-heading"><div><small>Civic Reserve Board</small><strong>$MM Vault</strong></div><span>1B fixed supply</span></div>
-      <p>Convert only at the Reserve Desk. Buying $MM retires Sunmarks; returning $MM issues Sunmarks. A 2% spread builds a protection margin.</p>
-      <div class="reserve-balance"><div><small>Your reserve wealth</small><strong>${formatNumber(store.state.mmHoldings)} $MM</strong></div><div><small>Civic vault</small><strong>${formatNumber(store.state.mmReserve)} $MM</strong></div><div><small>Reference parity</small><strong>1 $MM = 1 ${SUNMARK_CODE}</strong></div><div><small>Sunmarks circulating</small><strong>${formatNumber(store.totalMoneySupply())} ${SUNMARK_CODE}</strong></div></div>
-      <div class="reserve-actions"><button data-action="buy-mm">Acquire ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveBuyCost()} ${SUNMARK_CODE}</small></button><button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Return ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${SUNMARK_CODE}</small></button></div>
-      <small class="reserve-boundary">Prototype accounting only: these are not on-chain transfers or a promise of redemption, price, or profit.</small>
+      <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(EPOCH_MM_BUDGET)} $MM budget</span></div>
+      <p>$MM is <strong>earned, never bought</strong>. Each epoch pays out one fixed budget, divided by contribution share &mdash; so working harder raises <em>your slice</em>, never the amount released.</p>
+      <div class="epoch-meter" role="img" aria-label="Your share of this epoch's contribution pool: ${(store.epochShare() * 100).toFixed(2)} percent">
+        <div class="epoch-fill" style="width:${Math.min(100, store.epochShare() * 100).toFixed(2)}%"></div>
+      </div>
+      <div class="reserve-balance">
+        <div><small>Your contribution</small><strong>${formatNumber(Math.round(store.state.epoch.contribution))}</strong></div>
+        <div><small>Your share</small><strong>${(store.epochShare() * 100).toFixed(2)}%</strong></div>
+        <div><small>Projected payout</small><strong>${formatNumber(store.projectedEpochMM())} $MM</strong></div>
+        <div><small>Held / lifetime earned</small><strong>${formatNumber(store.state.mmHoldings)} / ${formatNumber(store.state.lifetimeMMEarned)}</strong></div>
+      </div>
+      <p class="epoch-note">Fulfilling a named buyer's order is worth <strong>10&times;</strong> what dumping the same value on the civic supplier is. Everyone else in the realm is contributing too &mdash; their effort dilutes your share, and yours dilutes theirs.</p>
+      <div class="reserve-actions">
+        <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
+        <button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Spend ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${SUNMARK_CODE}</small></button>
+      </div>
+      <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
     <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
     <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${SUNMARK_CODE}</span><span>Trade</span></div>
@@ -296,7 +308,7 @@ function renderMarket(): void {
         const resource = RESOURCES[key];
         const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
         const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
-        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Citizen demand" : `Civic quota ${store.procurementRemaining(key)}/${store.procurementQuota()}`}</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} <small>buy</small></strong><span>${store.marketSellPrice(key)} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><button class="sell" data-action="sell" data-resource="${key}">Sell 1</button></div></div>`;
+        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} <small>buy</small></strong><span>${store.marketSellPrice(key)} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><button class="sell" data-action="sell" data-resource="${key}">Sell 1</button></div></div>`;
       }).join("")}
       ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
     </div>
@@ -461,7 +473,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "quick-buy") report(store.buyResource(button.dataset.resource as ResourceKey, Number(button.dataset.quantity ?? 1)));
   else if (action === "buy") report(store.buyResource(button.dataset.resource as ResourceKey));
   else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
-  else if (action === "buy-mm") report(store.buyMMFromReserve());
+  else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "sell-mm") report(store.sellMMToReserve());
   else if (action === "accept-contract") report(store.acceptContract(button.dataset.contract ?? ""));
   else if (action === "fulfill-contract") report(store.fulfillContract());
@@ -486,7 +498,7 @@ document.body.addEventListener("click", (event) => {
 });
 
 element("#resetButton").addEventListener("click", () => {
-  if (!window.confirm("Reset the local prototype save and begin again?")) return;
+  if (!window.confirm("Reset the current local world and begin again?")) return;
   store.reset();
   window.location.reload();
 });

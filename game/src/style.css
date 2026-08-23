@@ -301,6 +301,12 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .reserve-actions button.secondary { color: #4d5e58; background: #e4e6da; }
 .reserve-actions button small { display: block; margin-top: 2px; color: inherit; font-size: 7px; opacity: .82; }
 .reserve-boundary { display: block; margin-top: 8px; color: #7d725f; font-size: 7px; line-height: 1.4; }
+.epoch-meter { position: relative; height: 9px; margin: 2px 0 10px; overflow: hidden; border: 1px solid rgba(145,113,43,.28); border-radius: 999px; background: repeating-linear-gradient(135deg,rgba(255,255,255,.7) 0 5px,rgba(238,242,220,.7) 5px 10px); }
+.epoch-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#c8922f,#efc55d); box-shadow: 0 0 8px rgba(212,168,64,.55); transition: width .45s cubic-bezier(.22,.61,.36,1); }
+.epoch-note { margin: 9px 0 0; padding: 7px 8px; border-left: 3px solid #c8922f; border-radius: 0 8px 8px 0; background: rgba(255,255,255,.6); color: #6f6450; font-size: 8px; line-height: 1.5; }
+.epoch-note strong { color: #8a5f1c; }
+.reserve-actions button[disabled] { opacity: .48; cursor: not-allowed; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .epoch-fill { transition: none; } }
 .model-note { margin-top: 10px; padding: 8px; border-left: 3px solid #d5a43d; background: #f5efdc; color: #6b6559; font-size: 8px; line-height: 1.45; }
 .island-row { display: grid; grid-template-columns: 15px minmax(0,1fr) auto; gap: 9px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: white; }
 .island-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--island-color); box-shadow: 0 0 0 4px color-mix(in srgb, var(--island-color), transparent 70%); }

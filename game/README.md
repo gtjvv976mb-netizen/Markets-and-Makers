@@ -1,6 +1,16 @@
 # Markets & Makers — playable browser vertical slice
 
-This is the first working game implementation of **Markets & Makers**. It uses the original Sunwoven Reach V1 archipelago and the original B01–B08 Blender structures instead of the later tile experiments.
+This is the **v1.0 playable vertical slice** of **Markets & Makers**. It uses the original Sunwoven Reach V1 archipelago and the original B01–B08 Blender structures instead of the later tile experiments.
+
+## Founder release (v1.0)
+
+- Added a Trade Guild contracts board with household and civic orders, explicit buyers, demand premiums, reputation and career XP.
+- Added six career levels and three permanent company specializations: Lean Operations, Quality House and Community Enterprise.
+- Added daily enterprise goals for production, contracts and trade; the dividend is transferred from the civic treasury and never mints money.
+- Added daily government procurement quotas, targeted contract demand, business-cycle phases, economic history and stronger anti-inflation tests.
+- Expanded the MMO-style navigation to six destinations and improved desktop/mobile onboarding around one recommended action.
+- Added a durable PostgreSQL migration for progression, contract settlement, verified daily progress, procurement ceilings and realm economic snapshots.
+- Documented the complete play-and-earn loop, safeguards, telemetry and real-token boundary in `docs/PLAY_AND_EARN_ECONOMY.md`.
 
 ## Dual-currency pass (v0.5)
 
@@ -15,7 +25,7 @@ This is the first working game implementation of **Markets & Makers**. It uses t
 ## MMO interface and world-life pass (v0.4)
 
 - Rebuilt the founder guide around one clear next action, two upcoming steps, and a collapsible complete roadmap.
-- Added icon-and-label navigation, keyboard shortcuts (`Alt+1` through `Alt+5`), larger touch targets, and a responsive management layout.
+- Added icon-and-label navigation, keyboard shortcuts (`Alt+1` through `Alt+6`), larger touch targets, and a responsive management layout.
 - Opens business selection on three recommended starter roles, with the full fifteen licenses available through six economic-stage filters.
 - Reworked license cards into concise input → output summaries with optional supply-chain details.
 - Added production readiness, exact missing-input calculations, one-click shortfall purchasing, clearer job state, and a stronger collect/start action hierarchy.
@@ -77,6 +87,7 @@ The game must be opened through the local server; opening `dist/index.html` dire
 - Enter the business interface and improve yield, capacity, speed, or customer appeal.
 - Maintain equipment condition, build reputation, attract more citizens, and travel by ferry between islands.
 - Continue after refresh using a versioned local save.
+- Accept targeted household or public contracts, complete daily enterprise goals, gain career levels, and choose a permanent operating specialization.
 
 ## Important economic boundary
 
@@ -101,6 +112,7 @@ Before any real-token test, the simulation needs an independent legal review, au
 - `docs/REAL_ECONOMY_MODEL.md` — sources, formulas, safeguards and production-network design used by v0.3
 - `docs/MMO_UI_REFERENCE.md` — MMO economy-interface references and the specific interaction patterns translated into v0.4
 - `docs/DUAL_CURRENCY_SYSTEM.md` — Sunmark balance sheet, `$MM` reserve rules, monetary controls and deployment boundary used by v0.5
+- `docs/PLAY_AND_EARN_ECONOMY.md` — circular-economy loop, progression, contracts, sources/sinks, telemetry and live-value guardrails used by v1.0
 
 ## Render, Helius, and Cloudflare
 

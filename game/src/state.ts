@@ -1,6 +1,8 @@
 import {
-  BUSINESS, CAREER_LEVELS, DAILY_GOALS, INITIAL_CITIZEN_POOL, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE,
-  MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE, MM_REFERENCE_RATE, PLOTS, PROCUREMENT_BASE_QUOTA, RESOURCES, SAVE_KEY, SPECIALIZATIONS,
+  BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
+  DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET, INITIAL_CITIZEN_POOL,
+  INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
+  MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SPECIALIZATIONS,
   SUNMARK_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
 } from "./data";
 
@@ -11,6 +13,7 @@ export interface ContractOffer {
   buyerName: string; bonusPercent: number; reputationReward: number; xpReward: number;
 }
 export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; claimed: boolean; }
+export interface EpochProgress { id: number; contribution: number; claimed: boolean; }
 export interface ProcurementLedger { date: string; used: Record<ResourceKey, number>; }
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
@@ -20,6 +23,7 @@ export interface GameState {
   mmHoldings: number; mmReserve: number; mmExchangeVolume: number;
   experience: number; specialization: SpecializationKey | null; contractsCompleted: number; contractSequence: number;
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
+  epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
@@ -34,6 +38,7 @@ const resourceKeys = Object.keys(RESOURCES) as ResourceKey[];
 const upgradeKeys: UpgradeKey[] = ["yield", "capacity", "speed", "appeal"];
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const utcDay = (now = Date.now()): string => new Date(now).toISOString().slice(0, 10);
+const epochId = (now = Date.now()): number => Math.floor(now / (EPOCH_LENGTH_DAYS * 86_400_000));
 
 function blankInventory(): Record<ResourceKey, number> {
   return Object.fromEntries(resourceKeys.map((key) => [key, 0])) as Record<ResourceKey, number>;
@@ -64,6 +69,8 @@ export function createFreshState(): GameState {
     contractSequence: 0,
     activeContract: null,
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, claimed: false },
+    epoch: { id: epochId(), contribution: 0, claimed: false },
+    lifetimeContribution: 0, lifetimeMMEarned: 0,
     procurement: { date: today, used: blankProcurement() },
     economyHistory: [],
     taxPaid: 0,
@@ -100,7 +107,7 @@ function finite(value: unknown, fallback: number, min = 0, max = Number.MAX_SAFE
 export function loadState(): GameState {
   const fresh = createFreshState();
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem("markets-makers-3d-browser-v4");
     if (!raw) return fresh;
     const saved = JSON.parse(raw) as Partial<GameState>;
     const island = ISLANDS.some((entry) => entry.id === saved.island) ? saved.island! : fresh.island;
@@ -158,6 +165,11 @@ export function loadState(): GameState {
       contractSequence: Math.floor(finite(saved.contractSequence, 0, 0, 1_000_000)),
       activeContract,
       daily,
+      epoch: saved.epoch && Math.floor(finite(saved.epoch.id, -1, 0)) === epochId()
+        ? { id: epochId(), contribution: finite(saved.epoch.contribution, 0), claimed: Boolean(saved.epoch.claimed) }
+        : { id: epochId(), contribution: 0, claimed: false },
+      lifetimeContribution: finite(saved.lifetimeContribution, 0),
+      lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
       economyHistory: Array.isArray(saved.economyHistory) ? saved.economyHistory.slice(-24).map((entry) => ({
         at: finite(entry.at, Date.now()), priceIndex: finite(entry.priceIndex, 100, 60, 180), confidence: finite(entry.confidence, 90, 50, 150),
@@ -194,6 +206,8 @@ export class GameStore {
     const today = utcDay(now);
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, claimed: false };
     if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
+    const epoch = epochId(now);
+    if (this.state.epoch.id !== epoch) this.state.epoch = { id: epoch, contribution: 0, claimed: false };
   }
 
   private addExperience(amount: number): void {
@@ -280,6 +294,7 @@ export class GameStore {
     this.rollCalendar();
     this.rebalanceMarket();
     const amount = Math.max(1, Math.floor(quantity));
+    if (RESOURCES[key].civicSupply === false) return this.result(false, `${RESOURCES[key].name} is recovered from production, not sold by the civic supplier.`);
     const unitPrice = this.marketBuyPrice(key); const cost = unitPrice * amount;
     if (this.state.wallet < cost) return this.result(false, `You need ${cost} ${SUNMARK_CODE}.`);
     this.state.wallet -= cost; this.state.governmentTreasury += cost; this.state.inventory[key] += amount; this.state.daily.trades += amount; this.moveMarket(key, 1, amount);
@@ -306,7 +321,10 @@ export class GameStore {
     this.state.wallet -= laborCost; this.state.citizenPool += laborCost; this.state.laborPaid += laborCost;
     const operations = this.state.specialization === "efficient" ? .9 : 1;
     const speed = Math.max(.52, (1 - this.state.upgrades.speed * .12) * operations);
-    this.state.job = { license: this.state.license, startedAt: now, completeAt: now + config.duration * speed * 1000, cycles, laborCost };
+    // Extra batches take extra time: capacity raises throughput, it is not free output.
+    const batchLoad = 1 + CAPACITY_DURATION_STEP * (cycles - 1);
+    const duration = config.duration * speed * batchLoad;
+    this.state.job = { license: this.state.license, startedAt: now, completeAt: now + duration * 1000, cycles, laborCost };
     this.commit(`${config.name} began ${cycles} cycle${cycles === 1 ? "" : "s"}; ${laborCost} ${SUNMARK_CODE} entered citizen households as wages.`, "success");
     return this.result(true, "Job started.");
   }
@@ -360,24 +378,21 @@ export class GameStore {
     const amount = Math.max(1, Math.floor(quantity));
     if (this.state.inventory[key] < amount) return this.result(false, `You do not hold ${amount} ${RESOURCES[key].short}.`);
     const citizenDemand = RESOURCES[key].buyer === "citizens";
-    if (!citizenDemand && amount > this.procurementRemaining(key)) return this.result(false, `Today's civic procurement quota has ${this.procurementRemaining(key)} ${RESOURCES[key].short} remaining. Use a contract or wait for the next civic day.`);
-    const unitPrice = this.marketSellPrice(key); const gross = unitPrice * amount; const tax = Math.floor(gross * TAX_RATE);
+    const sale = this.demandSaleGross(key, amount);
+    const gross = sale.gross; const tax = Math.floor(gross * TAX_RATE);
     const buyerPool = citizenDemand ? this.state.citizenPool : this.state.governmentTreasury;
     if (buyerPool < gross) return this.result(false, `${citizenDemand ? "AI-citizen demand" : "Government procurement"} is temporarily exhausted.`);
     this.state.inventory[key] -= amount;
     if (citizenDemand) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
     this.state.wallet += gross - tax; this.state.governmentTreasury += tax; this.state.taxPaid += tax; this.state.lifetimeRevenue += gross;
-    if (!citizenDemand) this.state.procurement.used[key] += amount;
+    this.state.procurement.used[key] += amount;
+    this.addContribution(gross, citizenDemand ? "household" : "civic");
     this.state.daily.trades += amount; this.addExperience(Math.max(2, amount * 2));
     this.state.reputation += Math.max(1, Math.floor(amount / 2)); this.state.tutorial.sold = true; this.moveMarket(key, -1, amount);
     this.recordEconomy();
-    this.commit(`${citizenDemand ? "AI citizens" : "Civic procurement"} bought ${amount} ${RESOURCES[key].short} at ${unitPrice} ${SUNMARK_CODE}; ${tax} ${SUNMARK_CODE} tax returned to government.`, "success");
+    const softened = sale.lastUnit < sale.firstUnit ? ` Local demand softened to ${sale.lastUnit} by the last unit.` : "";
+    this.commit(`${citizenDemand ? "AI citizens" : "Civic procurement"} bought ${amount} ${RESOURCES[key].short} for ${gross} ${SUNMARK_CODE}; ${tax} ${SUNMARK_CODE} tax returned to government.${softened}`, "success");
     return this.result(true, "Sale settled.");
-  }
-
-  reserveBuyCost(amount = MM_EXCHANGE_BUNDLE): number {
-    const principal = Math.round(amount * MM_REFERENCE_RATE);
-    return principal + Math.max(1, Math.ceil(principal * MM_EXCHANGE_FEE_RATE));
   }
 
   reserveSellPayout(amount = MM_EXCHANGE_BUNDLE): number {
@@ -385,20 +400,37 @@ export class GameStore {
     return Math.max(0, principal - Math.max(1, Math.ceil(principal * MM_EXCHANGE_FEE_RATE)));
   }
 
-  buyMMFromReserve(amount = MM_EXCHANGE_BUNDLE): ActionResult {
-    const units = Math.floor(amount);
-    if (units < MM_EXCHANGE_BUNDLE || units > 1_000 || units % MM_EXCHANGE_BUNDLE !== 0) return this.result(false, `Reserve trades use ${MM_EXCHANGE_BUNDLE} $MM bundles, up to 1,000 per order.`);
-    if (this.state.mmReserve - units < MIN_MM_RESERVE) return this.result(false, "The Civic Vault reserve floor has been reached. New redemptions are paused.");
-    const cost = this.reserveBuyCost(units);
-    if (this.state.wallet < cost) return this.result(false, `You need ${cost} ${SUNMARK_CODE} for this reserve order.`);
-    const fee = cost - Math.round(units * MM_REFERENCE_RATE);
-    this.state.wallet -= cost;
-    this.state.governmentTreasury += fee;
+  /** Your share of this epoch's fixed budget. Grinding harder raises your share, never the budget. */
+  epochShare(): number {
+    const mine = this.state.epoch.contribution;
+    return mine <= 0 ? 0 : mine / (mine + COHORT_CONTRIBUTION_BASE);
+  }
+
+  projectedEpochMM(): number {
+    const budgeted = Math.floor(EPOCH_MM_BUDGET * this.epochShare());
+    return Math.max(0, Math.min(budgeted, this.state.mmReserve - MIN_MM_RESERVE));
+  }
+
+  epochEndsAt(): number { return (this.state.epoch.id + 1) * EPOCH_LENGTH_DAYS * 86_400_000; }
+
+  /**
+   * $MM cannot be bought. It is distributed once per epoch from a fixed budget, divided by
+   * contribution share, so a larger or busier population dilutes every payout rather than
+   * draining the vault faster. This is the whole anti-farm property of the design.
+   */
+  claimEpochRewards(now = Date.now()): ActionResult {
+    this.rollCalendar(now);
+    if (this.state.epoch.claimed) return this.result(false, "This epoch's distribution is already claimed.");
+    if (this.state.epoch.contribution <= 0) return this.result(false, "Fulfil an order or supply the district to earn a contribution share.");
+    const units = this.projectedEpochMM();
+    if (units <= 0) return this.result(false, "Your contribution share does not yet round to a whole $MM.");
     this.state.mmReserve -= units;
     this.state.mmHoldings += units;
-    this.state.mmExchangeVolume += units;
-    this.commit(`${units} $MM moved from the Civic Vault to your reserve holdings. ${units * MM_REFERENCE_RATE} ${SUNMARK_CODE} were retired and ${fee} ${SUNMARK_CODE} entered the stabilization fund.`, "success");
-    return this.result(true, "$MM reserve acquired.");
+    this.state.lifetimeMMEarned += units;
+    this.state.epoch.claimed = true;
+    this.addExperience(40);
+    this.commit(`Epoch distribution paid ${units} $MM for a ${(this.epochShare() * 100).toFixed(2)}% contribution share of the ${EPOCH_MM_BUDGET.toLocaleString()} $MM budget.`, "success");
+    return this.result(true, "Epoch rewards claimed.");
   }
 
   sellMMToReserve(amount = MM_EXCHANGE_BUNDLE): ActionResult {
@@ -455,14 +487,51 @@ export class GameStore {
     return this.result(true, "Specialization selected.");
   }
 
-  procurementQuota(): number {
-    return PROCUREMENT_BASE_QUOTA + (this.careerLevel().level - 1) * 4 + this.state.upgrades.appeal * 2;
+  /**
+   * Units of one resource that clear at full price today, derived from a daily VALUE budget.
+   * Cheap bulk goods therefore get a large unit allowance and capital goods a small one,
+   * which is what stops a utility from flooding its own market on the first job.
+   */
+  dailyQuota(key: ResourceKey): number {
+    const budget = RESOURCES[key].buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET;
+    const growth = 1 + (this.careerLevel().level - 1) * .18 + this.state.upgrades.appeal * .1;
+    return Math.max(4, Math.round((budget * growth) / RESOURCES[key].procurementPrice));
   }
+
+  procurementQuota(): number { return this.dailyQuota("part"); }
 
   procurementRemaining(key: ResourceKey): number {
     this.rollCalendar();
-    if (RESOURCES[key].buyer === "citizens") return 99_999;
-    return Math.max(0, this.procurementQuota() - this.state.procurement.used[key]);
+    return Math.max(0, this.dailyQuota(key) - this.state.procurement.used[key]);
+  }
+
+  /**
+   * Local demand softens instead of stopping. Every further tranche the size of the daily
+   * quota clears at DEMAND_TRANCHE_DECAY of the previous one, never below DEMAND_PRICE_FLOOR,
+   * so saturating a market costs you margin but never bricks the business for the day.
+   */
+  demandSaleGross(key: ResourceKey, amount: number): { gross: number; firstUnit: number; lastUnit: number } {
+    const quota = Math.max(1, this.dailyQuota(key));
+    const unit = this.marketSellPrice(key);
+    let used = this.state.procurement.used[key];
+    let gross = 0, firstUnit = 0, lastUnit = 0;
+    for (let i = 0; i < amount; i += 1) {
+      const tranche = Math.floor(used / quota);
+      const multiplier = Math.max(DEMAND_PRICE_FLOOR, Math.pow(DEMAND_TRANCHE_DECAY, tranche));
+      const price = Math.max(1, Math.round(unit * multiplier));
+      if (i === 0) firstUnit = price;
+      lastUnit = price;
+      gross += price;
+      used += 1;
+    }
+    return { gross, firstUnit, lastUnit };
+  }
+
+  /** Contribution is what converts into $MM. Serving a named buyer's order counts most. */
+  private addContribution(gross: number, kind: keyof typeof CONTRIBUTION_WEIGHT): void {
+    const gained = gross * CONTRIBUTION_WEIGHT[kind];
+    this.state.epoch.contribution += gained;
+    this.state.lifetimeContribution += gained;
   }
 
   contractOffers(): ContractOffer[] {
@@ -529,6 +598,7 @@ export class GameStore {
     this.state.lifetimeRevenue += contract.grossReward;
     this.state.reputation += contract.reputationReward;
     this.addExperience(contract.xpReward);
+    this.addContribution(contract.grossReward, "contract");
     this.state.contractsCompleted += 1;
     this.state.daily.contracts += 1;
     this.state.daily.trades += contract.quantity;

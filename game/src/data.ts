@@ -7,7 +7,7 @@ export type BusinessStage = "Infrastructure" | "Primary" | "Manufacturing" | "Co
 export interface ResourceConfig {
   name: string; short: string; icon: string; governmentPrice: number; procurementPrice: number; color: string;
   buyer: "government" | "citizens"; tier: "civic" | "raw" | "intermediate" | "capital" | "consumer" | "recovered";
-  volatility: number; indexWeight: number;
+  volatility: number; indexWeight: number; civicSupply?: boolean;
 }
 
 export interface BusinessConfig {
@@ -36,20 +36,20 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   equipment: { name: "Capital Equipment", short: "Equipment", icon: "⚒", governmentPrice: 86, procurementPrice: 72, color: "#447a82", buyer: "government", tier: "capital", volatility: .12, indexWeight: 8 },
   material: { name: "Building Module", short: "Modules", icon: "▦", governmentPrice: 58, procurementPrice: 48, color: "#c27452", buyer: "government", tier: "capital", volatility: .12, indexWeight: 7 },
   supply: { name: "Retail Supply", short: "Supplies", icon: "◈", governmentPrice: 25, procurementPrice: 20, color: "#a975a7", buyer: "citizens", tier: "consumer", volatility: .2, indexWeight: 11 },
-  waste: { name: "Recoverable Scrap", short: "Scrap", icon: "♻", governmentPrice: 5, procurementPrice: 4, color: "#74875d", buyer: "government", tier: "recovered", volatility: .06, indexWeight: 2 },
+  waste: { name: "Recoverable Scrap", short: "Scrap", icon: "♻", governmentPrice: 12, procurementPrice: 4, color: "#74875d", buyer: "government", tier: "recovered", volatility: .06, indexWeight: 2 },
 };
 
 export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   aquaworks: {
     name: "Tideglass AquaWorks", sector: "Water utility", stage: "Infrastructure", islandAffinity: "Tideglass", icon: "≈", color: "#4eaeb7", model: "./assets/structures/b04-aquaworks.glb",
     copy: "Purifies and distributes water credits used by homes, farms, mines and service businesses.", duration: 18, licenseCost: 20, laborCost: 8,
-    inputs: { power: 1, part: 1 }, output: { water: 8 }, starter: { power: 1, part: 1 },
+    inputs: { power: 1, part: 1 }, output: { water: 30 }, starter: { power: 1, part: 1 },
     ecosystem: { upstream: "SunGrid and workshops", process: "Purification and distribution", downstream: "Farms, mines, factories and citizens" },
   },
   sungrid: {
     name: "Sunwell Microgrid", sector: "Energy utility", stage: "Infrastructure", islandAffinity: "Sunwell", icon: "☀", color: "#dda942", model: "./assets/structures/b03-sungrid-utility.glb",
     copy: "Operates a renewable microgrid that powers every productive and public-facing business.", duration: 20, licenseCost: 25, laborCost: 9,
-    inputs: { part: 1, material: 1 }, output: { power: 10 }, starter: { part: 1, material: 1 },
+    inputs: { part: 1, material: 1 }, output: { power: 40 }, starter: { part: 1, material: 1 },
     ecosystem: { upstream: "Workshops and builders", process: "Generation and storage", downstream: "Every island industry" },
   },
   greenhouse: {
@@ -61,13 +61,13 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   mine: {
     name: "Stonewake Mine", sector: "Mineral extraction", stage: "Primary", islandAffinity: "Stonewake", icon: "◆", color: "#8d806d", model: "./assets/structures/b06-maker-workshop.glb",
     copy: "Extracts mineral feedstock for workshops, equipment factories and civic construction.", duration: 20, licenseCost: 25, laborCost: 11,
-    inputs: { part: 1, power: 2, water: 1 }, output: { ore: 5 }, wastePerCycle: 1, starter: { part: 1, power: 2, water: 1 },
+    inputs: { part: 1, power: 2, water: 1 }, output: { ore: 12 }, wastePerCycle: 1, starter: { part: 1, power: 2, water: 1 },
     ecosystem: { upstream: "Parts, SunGrid and AquaWorks", process: "Low-impact extraction", downstream: "Workshops and factories" },
   },
   timberworks: {
     name: "Timbercoast Works", sector: "Regenerative forestry", stage: "Primary", islandAffinity: "Greenloom", icon: "▤", color: "#9a754d", model: "./assets/structures/b05-canopy-greenhouse.glb",
     copy: "Produces traceable timber for packaging, construction modules and public works.", duration: 18, licenseCost: 22, laborCost: 10,
-    inputs: { part: 1, power: 1, water: 1 }, output: { timber: 5 }, wastePerCycle: 1, starter: { part: 1, power: 1, water: 1 },
+    inputs: { part: 1, power: 1, water: 1 }, output: { timber: 11 }, wastePerCycle: 1, starter: { part: 1, power: 1, water: 1 },
     ecosystem: { upstream: "Utilities and repair shops", process: "Regrowth and milling", downstream: "Crate mills and builders" },
   },
   cratemill: {
@@ -91,43 +91,43 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   construction: {
     name: "Civic Construction Co.", sector: "Building systems", stage: "Manufacturing", islandAffinity: "Hearthmarket", icon: "▦", color: "#b46f4f", model: "./assets/structures/b06-maker-workshop.glb",
     copy: "Combines timber, parts and equipment into modular upgrades for plots and infrastructure.", duration: 26, licenseCost: 45, laborCost: 18,
-    inputs: { timber: 2, part: 2, equipment: 1 }, output: { material: 3 }, wastePerCycle: 1, starter: { timber: 2, part: 2, equipment: 1 },
+    inputs: { timber: 2, part: 2, equipment: 1 }, output: { material: 7 }, wastePerCycle: 1, starter: { timber: 2, part: 2, equipment: 1 },
     ecosystem: { upstream: "Timber, workshops and factories", process: "Modular construction", downstream: "Utilities, plots and public works" },
   },
   freight: {
     name: "Copper Quay Freight", sector: "Logistics service", stage: "Commerce", islandAffinity: "Copper Quay", icon: "↔", color: "#b68758", model: "./assets/structures/b01-ferry-terminal.glb",
     copy: "Fulfils delivery contracts and turns physical production into dependable island-wide trade.", duration: 14, licenseCost: 25, laborCost: 10,
-    inputs: { crate: 1, part: 1, power: 2 }, output: {}, servicePayout: 18, baseVisitors: 4, priceElasticity: .8, starter: { crate: 1, part: 1, power: 2 },
+    inputs: { crate: 1, part: 1, power: 2 }, output: {}, servicePayout: 30, baseVisitors: 4, priceElasticity: .8, starter: { crate: 1, part: 1, power: 2 },
     ecosystem: { upstream: "Crate mills, workshops and energy", process: "Storage and delivery", downstream: "Every buyer and seller" },
   },
   shop: {
     name: "Supply Shop & Café", sector: "Retail production", stage: "Commerce", islandAffinity: "Lantern Row", icon: "S", color: "#b886c6", model: "./assets/structures/b07-starter-shop-cafe.glb",
     copy: "Packages food, parts and crates into consumer supplies purchased by citizens and services.", duration: 14, licenseCost: 25, laborCost: 10,
-    inputs: { food: 2, crate: 1, part: 1, power: 1 }, output: { supply: 5 }, wastePerCycle: 1, starter: { food: 2, crate: 1, part: 1, power: 1 },
+    inputs: { food: 2, crate: 1, part: 1, power: 1 }, output: { supply: 9 }, wastePerCycle: 1, starter: { food: 2, crate: 1, part: 1, power: 1 },
     ecosystem: { upstream: "Greenhouses, workshops and logistics", process: "Packing and merchandising", downstream: "Citizens, gyms and cinemas" },
   },
   restaurant: {
     name: "Sunset Market Kitchen", sector: "Hospitality service", stage: "Services", islandAffinity: "Lantern Row", icon: "R", color: "#d47d5b", model: "./assets/structures/b07-starter-shop-cafe.glb",
     copy: "Serves price-sensitive citizen demand and turns local food into district footfall.", duration: 13, licenseCost: 28, laborCost: 12,
-    inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 10, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
+    inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 13, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Greenhouses, shops and utilities", process: "Hospitality and dining", downstream: "Citizens and district demand" },
   },
   gym: {
     name: "Harbor Gym", sector: "Wellness service", stage: "Services", islandAffinity: "Pulsegrove", icon: "H", color: "#4d9487", model: "./assets/structures/b08-harbor-gym.glb",
     copy: "Consumes supplies and utilities to serve citizens; equipment and appeal increase attendance.", duration: 12, licenseCost: 30, laborCost: 11,
-    inputs: { supply: 1, water: 1, power: 1 }, output: {}, servicePayout: 9, baseVisitors: 5, priceElasticity: 1.15, starter: { supply: 1, water: 1, power: 1 },
+    inputs: { supply: 1, water: 1, power: 1 }, output: {}, servicePayout: 12, baseVisitors: 5, priceElasticity: 1.15, starter: { supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Retail, water and power", process: "Training and recovery", downstream: "Healthy workers and local demand" },
   },
   cinema: {
     name: "Lantern Cinema", sector: "Entertainment service", stage: "Services", islandAffinity: "Lantern Row", icon: "C", color: "#d39a45", model: "./assets/structures/b02-market-pavilion.glb",
     copy: "Runs screenings and events; ticket price, quality and appeal determine audience demand.", duration: 18, licenseCost: 35, laborCost: 13,
-    inputs: { supply: 2, power: 2 }, output: {}, servicePayout: 8, baseVisitors: 9, priceElasticity: 1.35, starter: { supply: 2, power: 2 },
+    inputs: { supply: 2, power: 2 }, output: {}, servicePayout: 11, baseVisitors: 9, priceElasticity: 1.35, starter: { supply: 2, power: 2 },
     ecosystem: { upstream: "Retailers and SunGrid", process: "Screenings and concessions", downstream: "Watchers and nightlife" },
   },
   recycler: {
     name: "Tideglass Reclamation Hub", sector: "Resource recovery", stage: "Circular", islandAffinity: "Tideglass", icon: "♻", color: "#718c62", model: "./assets/structures/b04-aquaworks.glb",
     copy: "Closes the material loop by recovering useful parts and building modules from business scrap.", duration: 20, licenseCost: 35, laborCost: 12,
-    inputs: { waste: 3, power: 1 }, output: { material: 2, part: 1 }, starter: { waste: 3, power: 1 },
+    inputs: { waste: 3, power: 1 }, output: { material: 1, part: 1 }, starter: { waste: 3, power: 1 },
     ecosystem: { upstream: "Every producing business", process: "Sorting and remanufacture", downstream: "Construction, utilities and repairs" },
   },
 };
@@ -208,6 +208,27 @@ export const TUTORIAL = [
   ["traveled", "Use the ferry map", "Visit another specialist island in the shared world."],
 ] as const;
 
+// --- Operating capacity now costs time: each extra batch adds 45% of the base duration.
+export const CAPACITY_DURATION_STEP = 0.45;
+
+// --- Civic and household demand soften instead of stopping dead. Each further tranche the
+//     size of the daily quota clears at a lower price, never below the floor. A business can
+//     therefore always run; it just earns less once it saturates local demand.
+export const DEMAND_TRANCHE_DECAY = 0.72;
+export const DEMAND_PRICE_FLOOR = 0.34;
+// A district absorbs a VALUE of each good per day, not a unit count: 400 Sunmarks of
+// water is a lot of water and very little capital equipment. Unit quotas are derived.
+export const CIVIC_DEMAND_BUDGET = 420;
+export const CITIZEN_DEMAND_BUDGET = 560;
+
+// --- Play-to-earn: $MM is EARNED from a budgeted per-epoch pool, never purchased.
+//     Your payout is your share of the epoch budget, so a bigger grind dilutes rather
+//     than extracts. See game/docs/ECONOMY_V2.md.
+export const EPOCH_LENGTH_DAYS = 7;
+export const EPOCH_MM_BUDGET = 60_000;
+export const COHORT_CONTRIBUTION_BASE = 45_000;
+export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, civic: 0.1 } as const;
+
 export const TAX_RATE = 0.05;
 export const SUNMARK_NAME = "Sunmark";
 export const SUNMARK_CODE = "SM";
@@ -219,4 +240,4 @@ export const MM_REFERENCE_RATE = 1;
 export const MM_EXCHANGE_BUNDLE = 100;
 export const MM_EXCHANGE_FEE_RATE = 0.02;
 export const MIN_MM_RESERVE = 25_000_000;
-export const SAVE_KEY = "markets-makers-3d-browser-v5";
+export const SAVE_KEY = "markets-makers-3d-browser-v6";

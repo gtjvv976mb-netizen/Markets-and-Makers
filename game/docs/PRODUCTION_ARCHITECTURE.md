@@ -43,6 +43,19 @@ One persistent realm should share a single economy and plot namespace, but each 
 - Static player-built plots are published as content-hashed snapshots over a CDN; realtime state contains only nearby movement and dynamic overlays.
 - Redis may cache routing/presence, but can never be the source of truth for money, land, inventory, or jobs.
 
+## Economy command boundary
+
+The v1.0 contract, progression, and procurement rules are represented by `server/sql/003_progression_contracts.sql`. A production command handler must perform each of the following in one PostgreSQL transaction:
+
+1. lock the relevant player, buyer currency account, inventory balance, contract/job, and quota row;
+2. reject a reused idempotency key by returning the stored `command_receipt`;
+3. verify ownership, expiry, quantity, treasury/household funds, and the server clock;
+4. append balanced currency and item ledger entries and update cached balances;
+5. update career, daily activity, contract/job state, quota usage, and the outbox/audit event;
+6. commit before broadcasting the resulting state revision.
+
+The browser implementation mirrors these rules behind a local `GameStore` so the gameplay can be tested now, but it is not a security boundary. No real-value settlement may use local storage, client timestamps, or client-calculated prices.
+
 ## Suggested implementation stages
 
 1. **Network proof:** one island, 16–32 concurrent users, WebSocket movement, authoritative checkout, reconnect and restart tests.
@@ -54,3 +67,5 @@ One persistent realm should share a single economy and plot namespace, but each 
 ## Token boundary
 
 If `$MM` later becomes transferable, chain settlement should be asynchronous and limited to explicitly eligible balances after anti-fraud review. Gameplay jobs, utilities, prices, land leases, consumables, and server clocks should remain off-chain. Treasury and citizen spending require daily/weekly caps, transparent reports, circuit breakers, and a reserve policy that remains solvent under worst-case player behavior.
+
+See `PLAY_AND_EARN_ECONOMY.md` for the player-facing value loop, anti-inflation rules, telemetry, and launch guardrails.

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BUSINESS, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BUSINESS, CAPACITY_DURATION_STEP, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -27,27 +27,46 @@ describe("Markets & Makers economy", () => {
     expect(store.monetaryPolicyPhase()).toBe("Fully covered");
   });
 
-  it("retires Sunmarks when $MM leaves the vault and issues fewer Sunmarks when it returns", () => {
+  it("issues Sunmarks when earned $MM is spent back into the economy", () => {
     const store = new GameStore(createFreshState());
     const openingSunmarks = store.totalMoneySupply();
-    const openingTreasury = store.state.governmentTreasury;
-    expect(store.buyMMFromReserve().ok).toBe(true);
-    expect(store.state.mmHoldings).toBe(100);
-    expect(store.state.mmReserve).toBe(INITIAL_MM_RESERVE - 100);
-    expect(store.state.governmentTreasury).toBe(openingTreasury + 2);
-    expect(store.totalMoneySupply()).toBe(openingSunmarks - 100);
-    expect(store.totalMMInGameVaults()).toBe(INITIAL_MM_RESERVE);
+    store.state.mmHoldings = 100;
+    store.state.mmReserve = INITIAL_MM_RESERVE - 100;
     expect(store.sellMMToReserve().ok).toBe(true);
     expect(store.state.mmHoldings).toBe(0);
     expect(store.state.mmReserve).toBe(INITIAL_MM_RESERVE);
-    expect(store.totalMoneySupply()).toBe(openingSunmarks - 2);
-    expect(store.reserveBackingRatio()).toBeGreaterThan(100);
+    expect(store.totalMoneySupply()).toBe(openingSunmarks + 98);
+  });
+
+  it("cannot be bought: $MM is only distributed against contribution", () => {
+    const store = new GameStore(createFreshState());
+    expect("buyMMFromReserve" in store).toBe(false);
+    expect(store.epochShare()).toBe(0);
+    expect(store.projectedEpochMM()).toBe(0);
+    expect(store.claimEpochRewards().ok).toBe(false);
+    expect(store.state.mmHoldings).toBe(0);
+  });
+
+  it("pays a share of a FIXED epoch budget, so more grinding cannot release more $MM", () => {
+    const modest = new GameStore(createFreshState());
+    modest.state.epoch.contribution = COHORT_CONTRIBUTION_BASE;      // equal to the rest of the realm
+    const grinder = new GameStore(createFreshState());
+    grinder.state.epoch.contribution = COHORT_CONTRIBUTION_BASE * 50; // fifty times the effort
+
+    expect(modest.epochShare()).toBeCloseTo(0.5, 6);
+    expect(grinder.epochShare()).toBeCloseTo(50 / 51, 6);
+
+    // 50x the work yields well under 2x the payout, and never more than the budget.
+    expect(grinder.projectedEpochMM()).toBeLessThan(modest.projectedEpochMM() * 2);
+    expect(grinder.projectedEpochMM()).toBeLessThanOrEqual(EPOCH_MM_BUDGET);
   });
 
   it("protects the civic $MM reserve floor", () => {
     const store = new GameStore(createFreshState());
     store.state.mmReserve = MIN_MM_RESERVE;
-    expect(store.buyMMFromReserve().ok).toBe(false);
+    store.state.epoch.contribution = COHORT_CONTRIBUTION_BASE * 1_000;
+    expect(store.projectedEpochMM()).toBe(0);
+    expect(store.claimEpochRewards().ok).toBe(false);
     expect(store.state.mmReserve).toBe(MIN_MM_RESERVE);
     expect(store.state.mmHoldings).toBe(0);
   });
@@ -149,14 +168,90 @@ describe("Markets & Makers economy", () => {
     expect(store.state.experience).toBe(offer.xpReward);
   });
 
-  it("caps ordinary government procurement while leaving verified contracts available", () => {
+  it("softens local demand past the daily quota instead of refusing the sale", () => {
     const store = new GameStore(createFreshState());
-    const quota = store.procurementQuota();
-    store.state.inventory.ore = quota + 1;
+    const quota = store.dailyQuota("ore");
+    store.state.inventory.ore = quota * 4;
+    const fullPrice = store.marketSellPrice("ore");
+    expect(store.demandSaleGross("ore", 1).firstUnit).toBe(fullPrice);
+
+    // Fill well past the day's full-price allowance in one order.
+    const bulk = store.demandSaleGross("ore", quota * 3);
+    expect(bulk.firstUnit).toBe(fullPrice);
+    expect(bulk.lastUnit).toBeLessThan(fullPrice);
+    expect(bulk.lastUnit).toBeGreaterThanOrEqual(Math.floor(fullPrice * DEMAND_PRICE_FLOOR));
+
+    // Saturated demand still clears — it just pays less. This is what stops an
+    // upgraded business from being unable to operate at all.
+    expect(store.sellResource("ore", quota * 3).ok).toBe(true);
+    expect(store.state.inventory.ore).toBe(quota);
     expect(store.sellResource("ore", quota).ok).toBe(true);
-    expect(store.procurementRemaining("ore")).toBe(0);
-    expect(store.sellResource("ore", 1).ok).toBe(false);
     expect(store.contractOffers()).toHaveLength(3);
+  });
+
+  it("never lets an upgraded business become unable to produce", () => {
+    for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
+      const state = createFreshState();
+      state.wallet = 500_000;
+      state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
+      state.upgrades = { yield: 3, capacity: 3, speed: 3, appeal: 3 };
+      const store = new GameStore(state);
+      const config = BUSINESS[license];
+      const cycles = 4;
+      for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+        const need = (config.inputs[key] ?? 0) * cycles;
+        if (need) store.state.inventory[key] = need;
+      }
+      expect(store.startJob().ok, `${license} could not start a fully upgraded job`).toBe(true);
+    }
+  });
+
+  it("makes every licence viable at level zero on civic-priced inputs", () => {
+    const losers: string[] = [];
+    for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
+      const state = createFreshState();
+      state.wallet = 500_000;
+      state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
+      const store = new GameStore(state);
+      const config = BUSINESS[license];
+      for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+        const need = config.inputs[key] ?? 0;
+        if (need) store.buyResource(key, need);
+      }
+      const opening = store.state.wallet;
+      expect(store.startJob().ok).toBe(true);
+      expect(store.collectJob(store.state.job!.completeAt).ok).toBe(true);
+      for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+        const spare = store.state.inventory[key];
+        if (spare > 0) store.sellResource(key, spare);
+      }
+      const net = store.state.wallet - opening;
+      if (net <= 0) losers.push(`${license} (${net})`);
+    }
+    // A licence a new player cannot profit from is a trap, not a choice.
+    expect(losers, `unprofitable licences at level 0: ${losers.join(", ")}`).toEqual([]);
+  });
+
+  it("charges time for extra capacity rather than giving free throughput", () => {
+    const build = (capacity: 0 | 3) => {
+      const state = createFreshState();
+      state.wallet = 500_000;
+      state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
+      state.upgrades = { yield: 0, capacity, speed: 0, appeal: 0 };
+      const store = new GameStore(state);
+      for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+        const need = (BUSINESS.factory.inputs[key] ?? 0) * (1 + capacity);
+        if (need) store.state.inventory[key] = need;
+      }
+      const at = Date.now();
+      expect(store.startJob(at).ok).toBe(true);
+      return (store.state.job!.completeAt - at) / 1000;
+    };
+    const base = build(0);
+    const wide = build(3);
+    // 4 batches take 2.35x the time, not 1x.
+    expect(wide).toBeCloseTo(base * (1 + CAPACITY_DURATION_STEP * 3), 5);
+    expect(wide).toBeGreaterThan(base);
   });
 
   it("pays the daily enterprise dividend from the civic treasury rather than minting money", () => {
