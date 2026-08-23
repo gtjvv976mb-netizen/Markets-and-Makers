@@ -279,6 +279,8 @@ export const OFFLINE_MAX_HOURS = 26;
 export const PRODUCTION_TIME_SCALE = 240;
 export const OPENING_JOBS = 6;
 export const OPENING_TIME_SCALE = 0.12;
+/** A first job must finish while the player is still watching, or they never see the loop close. */
+export const OPENING_MAX_SECONDS = 40;
 
 /** Warehouse units before production halts. This is the reason to come back. */
 export const STORAGE_BASE_CAPACITY = 240;

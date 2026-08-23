@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, OFFLINE_MAX_HOURS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -417,12 +417,23 @@ describe("Markets & Makers economy", () => {
     expect(losers, `unprofitable licences at level 0: ${losers.join(", ")}`).toEqual([]);
   });
 
+  it("finishes a first job while the player is still watching", () => {
+    // An eight-minute wait on job one means a new player never sees the loop close.
+    for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
+      const state = createFreshState();
+      state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
+      const store = new GameStore(state);
+      expect(store.jobDuration(license), `${license} opening job is too long`).toBeLessThanOrEqual(OPENING_MAX_SECONDS);
+    }
+  });
+
   it("charges time for extra capacity rather than giving free throughput", () => {
     const build = (capacity: 0 | 3) => {
       const state = createFreshState();
       state.wallet = 500_000;
       state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
       state.upgrades = { yield: 0, capacity, speed: 0, appeal: 0 };
+      state.jobsCompleted = OPENING_JOBS;   // past the accelerated opening
       const store = new GameStore(state);
       for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
         const need = (BUSINESS.factory.inputs[key] ?? 0) * (1 + capacity);
@@ -467,7 +478,8 @@ describe("Markets & Makers economy", () => {
     // whatever the absolute time scale happens to be.
     const plain = new GameStore(createFreshState());
     plain.state.ownedPlotId = "garden-row"; plain.state.license = "workshop"; plain.state.buildingPlaced = true;
-    plain.state.jobsCompleted = store.state.jobsCompleted;
+    store.state.jobsCompleted = OPENING_JOBS;   // past the accelerated opening
+    plain.state.jobsCompleted = OPENING_JOBS;
     expect(store.jobDuration("workshop")).toBeLessThan(plain.jobDuration("workshop"));
   });
 

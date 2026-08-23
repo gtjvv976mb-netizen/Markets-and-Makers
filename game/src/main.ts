@@ -316,13 +316,24 @@ function renderBuild(): void {
   `;
 }
 
+/** Humans do not count in seconds past about a minute. */
+function formatWait(ms: number): string {
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 function jobMarkup(): string {
   const state = store.state;
   if (!state.job || !state.license) return `<button class="operation-cta" data-action="start-job">Start production job</button>`;
   const remaining = Math.max(0, state.job.completeAt - Date.now());
   const total = Math.max(1, state.job.completeAt - state.job.startedAt);
   const progress = Math.min(100, Math.round((1 - remaining / total) * 100));
-  return `<div class="job-status"><div><strong>${remaining > 0 ? "Production underway" : "Output ready"}</strong><span>${progress}%</span></div><div class="meter"><span style="width:${progress}%"></span></div><p>${remaining > 0 ? `${Math.ceil(remaining / 1000)} seconds remaining` : "Collect the finished output and choose its next market."}</p><button class="operation-cta" data-action="collect-job" ${remaining > 0 ? "disabled" : ""}>${remaining > 0 ? "Working…" : "Collect output"}</button></div>`;
+  return `<div class="job-status"><div><strong>${remaining > 0 ? "Working" : "Ready to collect"}</strong><span>${progress}%</span></div><div class="meter"><span style="width:${progress}%"></span></div><p>${remaining > 0 ? `${formatWait(remaining)} left` : "Your goods are ready."}</p><button class="operation-cta" data-action="collect-job" ${remaining > 0 ? "disabled" : ""}>${remaining > 0 ? `Working · ${formatWait(remaining)}` : "Collect your goods"}</button></div>`;
 }
 
 const HALT_COPY: Record<string, string> = {
@@ -352,52 +363,56 @@ function shiftReportMarkup(): string {
 
 function renderBusiness(): void {
   const state = store.state;
-  if (!state.buildingPlaced || !state.license) {
-    element("#businessPanel").innerHTML = "";
-    return;
-  }
+  if (!state.buildingPlaced || !state.license) { element("#businessPanel").innerHTML = ""; return; }
+
   const config = BUSINESS[state.license];
   const cycles = 1 + state.upgrades.capacity;
-  const requiredInputs = Object.entries(config.inputs) as Array<[ResourceKey, number]>;
-  const missingInputs = requiredInputs.map(([key, amount]) => ({ key, amount: Math.max(0, amount * cycles - state.inventory[key]) })).filter(({ amount }) => amount > 0);
-  const inputMarkup = resourceCosts(Object.fromEntries(Object.entries(config.inputs).map(([key, value]) => [key, (value ?? 0) * cycles])));
   const economics = store.unitEconomics()!;
-  const qualityBonus = state.specialization === "premium" ? .1 : 0;
-  const outputMarkup = config.servicePayout
-    ? `<span>${economics.visitors} expected visits · ${economics.expectedRevenue} ${SUNMARK_CODE} gross</span>`
-    : `${resourceCosts(Object.fromEntries(Object.entries(config.output).map(([key, value]) => [key, Math.max((value ?? 0) * cycles, Math.round((value ?? 0) * cycles * (1 + state.upgrades.yield * .12 + qualityBonus)))])))}${config.wastePerCycle ? `<span>♻ ${config.wastePerCycle * cycles} Scrap</span>` : ""}`;
+  const missing = (Object.entries(config.inputs) as Array<[ResourceKey, number]>)
+    .map(([key, amount]) => ({ key, amount: Math.max(0, amount * cycles - state.inventory[key]) }))
+    .filter(({ amount }) => amount > 0);
+  const shortfall = missing.reduce((total, { key, amount }) => total + store.marketBuyPrice(key) * amount, 0);
+
+  // Everything except the thing you act on right now is folded away.
   element("#businessPanel").innerHTML = `
     <h2>${config.name}</h2>
     ${portfolioMarkup()}
-    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Equipment failed and production has stopped. An emergency crew needs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
+    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
-    <div class="section-title">Runs by itself</div>
-    <article class="game-card operations-card">
-      <p>Runs by itself while you are away. Stops when it needs you.</p>
-      <div class="storage-meter" role="img" aria-label="Warehouse ${Math.round(store.storedUnits())} of ${store.storageCapacity()} units">
-        <div class="storage-fill" style="width:${Math.min(100, (store.storedUnits() / store.storageCapacity()) * 100).toFixed(1)}%"></div>
+
+    <article class="job-card">
+      <div class="job-flow">
+        <div><small>Uses</small>${resourceCosts(Object.fromEntries(Object.entries(config.inputs).map(([key, value]) => [key, (value ?? 0) * cycles]))) || "<span>Nothing</span>"}</div>
+        <b>→</b>
+        <div><small>Makes</small>${config.servicePayout ? `<span>${economics.visitors} visits</span>` : resourceCosts(Object.fromEntries(Object.entries(config.output).map(([key, value]) => [key, Math.max((value ?? 0) * cycles, Math.round((value ?? 0) * cycles * (1 + state.upgrades.yield * .12)))]))) }</div>
       </div>
-      <small class="storage-label">Warehouse ${formatNumber(store.storedUnits())} / ${formatNumber(store.storageCapacity())} units${store.storageFull() ? " · full, production halted" : ""}</small>
-      <div class="ops-toggles">
-        ${([["autoProduce","Continuous production","Keep running jobs unattended"],["autoBuy","Standing input orders","Buy missing inputs at a 6% premium"],["autoSell","Broker sales","Sell output while away; the broker keeps 12%"]] as const).map(([key, name, hint]) => `<button class="ops-toggle ${state.operations[key] ? "on" : "off"}" data-action="operation" data-operation="${key}" aria-pressed="${state.operations[key]}"><span class="ops-dot"></span><span><strong>${name}</strong><small>${hint}</small></span></button>`).join("")}
-      </div>
-      <small class="ops-note">Selling by hand pays more. Orders pay most.</small>
+      <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${SUNMARK_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${SUNMARK_CODE}</b></span></div>
+      ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${SUNMARK_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${SUNMARK_CODE} in total</small>` : ""}</div>` : ""}
+      ${jobMarkup()}
     </article>
-    <div class="stat-grid">
-      <div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div>
-      <div class="stat"><small>Jobs completed</small><strong>${state.jobsCompleted}</strong></div>
-      <div class="stat"><small>Lifetime revenue</small><strong>${formatNumber(state.lifetimeRevenue)} ${SUNMARK_CODE}</strong></div>
-      <div class="stat"><small>Visitors served</small><strong>${formatNumber(state.visitorsServed)}</strong></div>
-    </div>
-    <div class="section-title">Next operating job · ${cycles} cycle${cycles === 1 ? "" : "s"}</div>
-    <article class="game-card operation-card"><div class="readiness ${missingInputs.length ? "blocked" : "ready"}"><i>${missingInputs.length ? "!" : "✓"}</i><div><strong>${missingInputs.length ? "Inputs missing" : "Ready to operate"}</strong><small>${missingInputs.length ? "Buy the exact shortfall below." : `Payroll of ${economics.laborCost} ${SUNMARK_CODE} will return to AI-citizen households.`}</small></div></div><small>Inputs</small><div class="cost-row">${inputMarkup || "<span>No input</span>"}</div>${missingInputs.length ? `<div class="quick-buy"><small>Quick buy</small>${missingInputs.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">${RESOURCES[key].icon} Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${SUNMARK_CODE}</button>`).join("")}</div>` : ""}<small>Output / settlement</small><div class="cost-row">${outputMarkup || "<span>Service income</span>"}</div>${jobMarkup()}</article>
-    <div class="section-title">Per job</div>
-    <div class="stat-grid economics-grid"><div class="stat"><small>Input cost</small><strong>${economics.inputCost}</strong></div><div class="stat"><small>Payroll</small><strong>${economics.laborCost}</strong></div><div class="stat"><small>Gross revenue</small><strong>${economics.expectedRevenue}</strong></div><div class="stat ${economics.expectedProfit >= 0 ? "positive" : "negative"}"><small>Profit after 5% tax</small><strong>${economics.expectedProfit}</strong></div></div>
-    ${config.servicePayout ? `<div class="section-title">Your price</div><article class="game-card"><p>Charge more per visit, or attract more visitors.</p><div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div></article>` : ""}
-    <div class="section-title">Specialisation</div>
-    ${state.specialization ? `<article class="specialization-selected" style="--special-color:${SPECIALIZATIONS[state.specialization].color}"><i>${SPECIALIZATIONS[state.specialization].icon}</i><div><small>Permanent company model</small><strong>${SPECIALIZATIONS[state.specialization].name}</strong><p>${SPECIALIZATIONS[state.specialization].summary}</p></div></article>` : `<div class="specialization-grid">${(Object.keys(SPECIALIZATIONS) as SpecializationKey[]).map((key) => { const option = SPECIALIZATIONS[key]; return `<article style="--special-color:${option.color}"><i>${option.icon}</i><strong>${option.name}</strong><p>${option.summary}</p><small>${option.tradeoff}</small><button data-action="specialize" data-specialization="${key}" ${store.careerLevel().level < 2 ? "disabled" : ""}>${store.careerLevel().level < 2 ? `Unlocks at ${store.nextCareerLevel()?.name ?? "level 2"}` : "Choose permanently"}</button></article>`; }).join("")}</div>`}
-    <div class="section-title">Building</div>
-    <article class="game-card two-up"><button data-action="interior">Open upgrades</button><button class="secondary" data-action="maintain">Repair &middot; 20 ${SUNMARK_CODE}</button></article>
+
+    <details class="fold"><summary>Runs by itself<span>${state.operations.autoProduce ? "On" : "Paused"}</span></summary>
+      <div class="storage-meter"><div class="storage-fill" style="width:${Math.min(100, (store.storedUnits() / store.storageCapacity()) * 100).toFixed(1)}%"></div></div>
+      <small class="storage-label">Warehouse ${formatNumber(store.storedUnits())} / ${formatNumber(store.storageCapacity())}${store.storageFull() ? " · full" : ""}</small>
+      <div class="ops-toggles">
+        ${([["autoProduce","Keep working","Run jobs while you are away"],["autoBuy","Restock","Buy what it needs, 3% extra"],["autoSell","Auto-sell","A broker sells for you, keeps 7%"]] as const).map(([key, name, hint]) => `<button class="ops-toggle ${state.operations[key] ? "on" : "off"}" data-action="operation" data-operation="${key}" aria-pressed="${state.operations[key]}"><span class="ops-dot"></span><span><strong>${name}</strong><small>${hint}</small></span></button>`).join("")}
+      </div>
+    </details>
+
+    <details class="fold"><summary>Improve<span>Lv ${Object.values(state.upgrades).reduce((a, b) => a + b, 0)}</span></summary>
+      <div class="game-card two-up"><button data-action="interior">Upgrades</button><button class="secondary" data-action="maintain">Repair · 20 ${SUNMARK_CODE}</button></div>
+      ${config.servicePayout ? `<div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div>` : ""}
+      ${state.specialization
+        ? `<article class="specialization-selected" style="--special-color:${SPECIALIZATIONS[state.specialization].color}"><i>${SPECIALIZATIONS[state.specialization].icon}</i><div><strong>${SPECIALIZATIONS[state.specialization].name}</strong><p>${SPECIALIZATIONS[state.specialization].summary}</p></div></article>`
+        : store.careerLevel().level < 2
+          ? `<small class="hint-line">A permanent company style unlocks at level 2.</small>`
+          : `<div class="specialization-grid">${(Object.keys(SPECIALIZATIONS) as SpecializationKey[]).map((key) => { const option = SPECIALIZATIONS[key]; return `<article style="--special-color:${option.color}"><i>${option.icon}</i><strong>${option.name}</strong><p>${option.summary}</p><button data-action="specialize" data-specialization="${key}">Choose</button></article>`; }).join("")}</div>`}
+    </details>
+
+    <details class="fold"><summary>Numbers<span>${state.jobsCompleted} jobs</span></summary>
+      <div class="stat-grid"><div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div><div class="stat"><small>Jobs</small><strong>${state.jobsCompleted}</strong></div><div class="stat"><small>Earned</small><strong>${formatNumber(state.lifetimeRevenue)}</strong></div><div class="stat"><small>Visitors</small><strong>${formatNumber(state.visitorsServed)}</strong></div></div>
+      <div class="stat-grid economics-grid"><div class="stat"><small>Inputs</small><strong>${economics.inputCost}</strong></div><div class="stat"><small>Wages</small><strong>${economics.laborCost}</strong></div><div class="stat"><small>Revenue</small><strong>${economics.expectedRevenue}</strong></div><div class="stat ${economics.expectedProfit >= 0 ? "positive" : "negative"}"><small>Profit</small><strong>${economics.expectedProfit}</strong></div></div>
+    </details>
   `;
 }
 
