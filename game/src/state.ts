@@ -484,8 +484,11 @@ export class GameStore {
     this.state.daily.trades += amount; this.addExperience(Math.max(2, amount * 2));
     this.state.reputation += Math.max(1, Math.floor(amount / 2)); this.state.tutorial.sold = true; this.moveMarket(key, -1, amount);
     this.recordEconomy();
-    const softened = sale.lastUnit < sale.firstUnit ? ` Local demand softened to ${sale.lastUnit} by the last unit.` : "";
-    this.commit(`${citizenDemand ? "AI citizens" : "Civic procurement"} bought ${amount} ${RESOURCES[key].short} for ${gross} ${SUNMARK_CODE}; ${tax} ${SUNMARK_CODE} tax returned to government.${softened}`, "success");
+    const buyer = citizenDemand ? "Households" : "The city";
+    const softened = sale.lastUnit < sale.firstUnit
+      ? ` They had enough by the end — the last ones only fetched ${sale.lastUnit} each.`
+      : ` They will take ${this.procurementRemaining(key)} more at this price today.`;
+    this.commit(`${buyer} bought ${amount} ${RESOURCES[key].short} for ${gross} ${SUNMARK_CODE}.${softened}`, "success");
     return this.result(true, "Sale settled.");
   }
 
@@ -981,6 +984,38 @@ export class GameStore {
       });
     }
     return offers;
+  }
+
+  /**
+   * The order a player can most plausibly fill right now: best pay per unit still
+   * missing. This is what the world pin advertises, so the highest-paying action is
+   * also the most visible one.
+   */
+  bestOffer(): ContractOffer | null {
+    const offers = this.contractOffers();
+    if (!offers.length) return null;
+    const score = (offer: ContractOffer): number => {
+      const missing = Math.max(0, offer.quantity - this.state.inventory[offer.resource]);
+      const perUnit = offer.grossReward / Math.max(1, offer.quantity);
+      // Prefer good money, and prefer orders you can nearly fill already.
+      return perUnit * (1 + (offer.quantity - missing) / Math.max(1, offer.quantity));
+    };
+    return offers.reduce((best, offer) => (score(offer) > score(best) ? offer : best), offers[0]!);
+  }
+
+  /** What this district is paying well for today, and how much it will still absorb. */
+  demandHighlights(limit = 3): Array<{ key: ResourceKey; price: number; remaining: number; held: number }> {
+    return resourceKeys
+      .filter((key) => RESOURCES[key].civicSupply !== false || this.state.inventory[key] > 0)
+      .map((key) => ({
+        key,
+        price: this.marketSellPrice(key),
+        remaining: this.procurementRemaining(key),
+        held: this.state.inventory[key],
+      }))
+      .filter((row) => row.remaining > 0)
+      .sort((a, b) => (b.price * Math.min(b.remaining, 40)) - (a.price * Math.min(a.remaining, 40)))
+      .slice(0, limit);
   }
 
   acceptContract(id: string): ActionResult {

@@ -62,7 +62,46 @@ interface MarkerModel { id: string; kind: string; label: string; title: string; 
 
 function markerModels(): MarkerModel[] {
   const state = store.state;
-  return PLOTS.filter((plot) => plot.island === state.island).map((plot) => {
+  const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0]!;
+  const models: MarkerModel[] = [];
+
+  // A named buyer standing in the district. Filling their order is the best-paying
+  // action in the game, so it is also the most visible thing in the world.
+  const active = state.activeContract;
+  if (active) {
+    const held = Math.min(state.inventory[active.resource], active.quantity);
+    const ready = held >= active.quantity;
+    models.push({
+      id: "order", kind: ready ? "ready" : "buyer",
+      label: ready ? "Deliver now" : "Order accepted",
+      title: active.buyerName,
+      detail: ready ? `${active.grossReward} ${SUNMARK_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
+      x: island.x + 15, z: island.z - 6,
+    });
+  } else {
+    const offer = store.bestOffer();
+    if (offer) {
+      models.push({
+        id: "order", kind: "buyer", label: "Wants to buy",
+        title: `${offer.quantity} ${RESOURCES[offer.resource].short}`,
+        detail: `pays ${offer.grossReward} ${SUNMARK_CODE}`,
+        x: island.x + 15, z: island.z - 6,
+      });
+    }
+  }
+
+  // The stall tells you what this district is paying well for right now.
+  const wanted = store.demandHighlights(1)[0];
+  if (wanted) {
+    models.push({
+      id: "market", kind: "market", label: "Best price here",
+      title: `${RESOURCES[wanted.key].short} ${wanted.price} ${SUNMARK_CODE}`,
+      detail: `wants ${wanted.remaining} more`,
+      x: island.x - 15, z: island.z - 6,
+    });
+  }
+
+  return models.concat(PLOTS.filter((plot) => plot.island === state.island).map((plot) => {
     const record = state.portfolio[plot.id];
     if (!record) {
       return { id: plot.id, kind: "vacant", label: "For lease", title: plot.name.replace(" Plot", ""),
@@ -86,7 +125,7 @@ function markerModels(): MarkerModel[] {
         : { id: plot.id, kind: "ready", label: "Ready", title: config.name, detail: "Collect your goods", x: plot.x, z: plot.z };
     }
     return { id: plot.id, kind: "owned", label: "Idle", title: config.name, detail: "Tap to run a job", x: plot.x, z: plot.z };
-  });
+  }));
 }
 
 let markerSignature = "";
@@ -108,17 +147,23 @@ function syncMarkers(): void {
   const projected = world.project(models.map((model) => ({ id: model.id, x: model.x, y: 2.6, z: model.z })));
   const width = markerLayer.clientWidth;
   const height = markerLayer.clientHeight;
+  // Anything the camera cannot see goes into a rail down the right edge, so the world
+  // doubles as the map without the pins piling on top of one another.
+  let railIndex = 0;
   for (const point of projected) {
     const node = markerLayer.querySelector<HTMLElement>(`[data-marker="${point.id}"]`);
     if (!node) continue;
-    // Off-frame plots stay on screen, pinned to the edge and dimmed, so the world doubles
-    // as the map: you can always see where your land is.
+    const offEdge = point.sx < 60 || point.sx > width - 60 || point.sy < 150 || point.sy > height - 90;
     node.style.display = "block";
-    node.style.left = `${Math.min(Math.max(point.sx, 74), Math.max(74, width - 74))}px`;
-    // The pin renders upward from its anchor, so the floor must clear the top bar plus
-    // the pin's own height or the label hides behind the chrome.
-    node.style.top = `${Math.min(Math.max(point.sy, 164), Math.max(164, height - 120))}px`;
-    node.classList.toggle("far", point.sx < 0 || point.sx > width || point.sy < 0 || point.sy > height);
+    node.classList.toggle("far", offEdge);
+    if (offEdge) {
+      node.style.left = `${width - 96}px`;
+      node.style.top = `${172 + railIndex * 62}px`;
+      railIndex += 1;
+    } else {
+      node.style.left = `${point.sx}px`;
+      node.style.top = `${point.sy}px`;
+    }
   }
 }
 
@@ -777,6 +822,13 @@ document.body.addEventListener("click", (event) => {
   else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "switch-business") report(store.switchBusiness(button.dataset.plot ?? ""));
+  else if (action === "marker" && button.dataset.plot === "order") {
+    const active = store.state.activeContract;
+    if (active && store.state.inventory[active.resource] >= active.quantity) report(store.fulfillContract());
+    else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
+    else switchTab("trade");
+  }
+  else if (action === "marker" && button.dataset.plot === "market") switchTab("trade");
   else if (action === "marker") {
     const plotId = button.dataset.plot ?? "";
     if (store.state.portfolio[plotId]) { if (plotId !== store.state.ownedPlotId) store.switchBusiness(plotId); }

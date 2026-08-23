@@ -570,9 +570,17 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .marker.ready .marker-pin { background: linear-gradient(140deg, rgba(150,110,26,.96), rgba(196,150,44,.92)); }
 .marker.ready .marker-pin::after { background: rgba(196,150,44,.94); }
 .marker:hover .marker-pin { filter: brightness(1.1); }
+.marker.buyer .marker-pin { background: linear-gradient(140deg, rgba(70,52,132,.95), rgba(96,74,164,.9)); }
+.marker.buyer .marker-pin::after { background: rgba(96,74,164,.92); }
+.marker.market .marker-pin { background: linear-gradient(140deg, rgba(24,88,96,.95), rgba(32,116,120,.9)); }
+.marker.market .marker-pin::after { background: rgba(32,116,120,.92); }
 .marker.far { opacity: .62; }
-.marker.far .marker-pin { min-width: 0; padding: 6px 9px; }
-.marker.far .marker-pin span, .marker.far .marker-pin::after { display: none; }
+.marker.far .marker-pin { min-width: 150px; padding: 6px 10px; }
+.marker.far .marker-pin small { font-size: 10px; }
+.marker.far .marker-pin strong { font-size: 12.5px; }
+.marker.far .marker-pin span { font-size: 11.5px; }
+.marker.far .marker-pin::after { display: none; }
+.marker.far.vacant .marker-pin span { display: none; }
 
 /* ================= the sheet ================= */
 .control-panel { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: min(430px, 100%); display: flex; flex-direction: column; padding: 12px; border-left: 1px solid rgba(255,255,255,.7); box-shadow: -18px 0 46px rgba(9,48,50,.24); transform: translateX(102%); transition: transform .34s cubic-bezier(.22,.61,.36,1); }
