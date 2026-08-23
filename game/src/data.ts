@@ -315,4 +315,4 @@ export const MM_REFERENCE_RATE = 1;
 export const MM_EXCHANGE_BUNDLE = 100;
 export const MM_EXCHANGE_FEE_RATE = 0.02;
 export const MIN_MM_RESERVE = 25_000_000;
-export const SAVE_KEY = "markets-makers-3d-browser-v7";
+export const SAVE_KEY = "markets-makers-3d-browser-v8";

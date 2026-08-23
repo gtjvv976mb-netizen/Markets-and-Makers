@@ -307,6 +307,15 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .epoch-note strong { color: #8a5f1c; }
 .reserve-actions button[disabled] { opacity: .48; cursor: not-allowed; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .epoch-fill { transition: none; } }
+/* ---- portfolio switcher ---- */
+.portfolio-strip { display: flex; gap: 6px; margin: 9px 0 4px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: none; }
+.portfolio-strip::-webkit-scrollbar { display: none; }
+.portfolio-chip { display: flex; align-items: center; gap: 7px; flex: none; min-height: 42px; padding: 6px 10px 6px 7px; border: 1px solid rgba(120,140,110,.32); border-radius: 11px; background: rgba(255,255,255,.68); text-align: left; }
+.portfolio-chip i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--chip-color); color: #fff; font-style: normal; font-size: 11px; font-weight: 900; }
+.portfolio-chip strong { display: block; max-width: 116px; overflow: hidden; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-chip small { display: block; color: var(--muted); font-size: 7px; }
+.portfolio-chip.active { border-color: var(--chip-color); background: #fff; box-shadow: 0 0 0 1px var(--chip-color) inset, 0 3px 9px rgba(60,80,60,.1); }
+
 /* ---- shared district board ---- */
 .district-board { margin: 10px 0; padding: 11px 12px; border: 1px solid #9fc2c6; border-radius: 14px; background: linear-gradient(150deg,#eef7f8,#e3eff1); }
 .district-head { display: flex; align-items: center; justify-content: space-between; }

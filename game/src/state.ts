@@ -1,7 +1,7 @@
 import {
   AUTO_BUY_PREMIUM, AUTO_MAINTAIN_AT, AUTO_MAINTAIN_COST, AUTO_SELL_BROKER_FEE, BREAKDOWN_CONDITION,
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
-  BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
+  BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
@@ -17,6 +17,17 @@ export interface ContractOffer {
 export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; visits: number; claimed: boolean; }
 export interface EpochProgress { id: number; contribution: number; claimed: boolean; }
 export interface Operations { autoProduce: boolean; autoBuy: boolean; autoSell: boolean; }
+
+/**
+ * One owned business. The top-level GameState fields are a live VIEW of whichever of
+ * these is active, so every existing panel keeps reading the shape it always did; the
+ * portfolio is the durable record.
+ */
+export interface BusinessRecord {
+  plotId: string; license: LicenseKey | null; buildingPlaced: boolean;
+  job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
+  condition: number; brokenDown: boolean; jobsCompleted: number;
+}
 export type HaltReason = "running" | "storage" | "demand" | "inputs" | "funds" | "breakdown" | "idle";
 export interface ShiftReport {
   hours: number; jobs: number; produced: number; sold: number;
@@ -33,6 +44,7 @@ export interface GameState {
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
+  portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
@@ -80,6 +92,7 @@ export function createFreshState(): GameState {
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
+    portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
     lifetimeContribution: 0, lifetimeMMEarned: 0,
     procurement: { date: today, used: blankProcurement() },
@@ -188,6 +201,23 @@ export function loadState(): GameState {
       lastTickAt: finite(saved.lastTickAt, Date.now()),
       brokenDown: Boolean(saved.brokenDown),
       lastShift: null,
+      portfolio: (() => {
+        const restored: Record<string, BusinessRecord> = {};
+        for (const [plotId, entry] of Object.entries(saved.portfolio ?? {})) {
+          if (!PLOTS.some((plot) => plot.id === plotId) || !entry) continue;
+          const record = entry as Partial<BusinessRecord>;
+          const licence = record.license && record.license in BUSINESS ? record.license : null;
+          const levels = { yield: 0, capacity: 0, speed: 0, appeal: 0 } as Record<UpgradeKey, number>;
+          for (const key of upgradeKeys) levels[key] = Math.floor(finite(record.upgrades?.[key], 0, 0, 3));
+          restored[plotId] = {
+            plotId, license: licence, buildingPlaced: Boolean(record.buildingPlaced && licence),
+            job: record.job && licence && record.job.license === licence ? record.job : null,
+            upgrades: levels, condition: finite(record.condition, 100, 0, 100),
+            brokenDown: Boolean(record.brokenDown), jobsCompleted: Math.floor(finite(record.jobsCompleted, 0)),
+          };
+        }
+        return restored;
+      })(),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -243,6 +273,7 @@ export class GameStore {
   }
 
   private commit(message?: string, tone: GameState["feed"][number]["tone"] = "normal"): void {
+    this.syncActive();
     this.rollCalendar();
     if (message) {
       this.state.feed.unshift({ text: message, tone, at: Date.now() });
@@ -274,10 +305,19 @@ export class GameStore {
   leaseSelectedPlot(): ActionResult {
     const plot = PLOTS.find((entry) => entry.id === this.state.selectedPlotId);
     if (!plot) return this.result(false, "Select a starter plot first.");
-    if (this.state.ownedPlotId) return this.result(false, "The prototype allows one active city lease.");
+    if (this.state.portfolio[plot.id]) return this.result(false, "You already hold that plot.");
+    const held = this.ownedPlotIds().length;
+    if (held >= this.plotAllowance()) return this.result(false, `Your civic standing supports ${this.plotAllowance()} plot${this.plotAllowance() === 1 ? "" : "s"}. Reach ${this.nextCareerLevel()?.name ?? "the next career level"} to lease another.`);
     if (this.state.island !== plot.island) return this.result(false, "Travel to the plot's island before leasing it.");
     if (this.state.wallet < plot.price) return this.result(false, `You do not have enough ${SUNMARK_CODE} for the lease.`);
-    this.state.wallet -= plot.price; this.state.governmentTreasury += plot.price; this.state.ownedPlotId = plot.id; this.state.tutorial.leased = true; this.addExperience(10);
+    this.state.wallet -= plot.price; this.state.governmentTreasury += plot.price; this.state.tutorial.leased = true; this.addExperience(10);
+    this.syncActive();
+    this.state.portfolio[plot.id] = {
+      plotId: plot.id, license: null, buildingPlaced: false, job: null,
+      upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 },
+      condition: 100, brokenDown: false, jobsCompleted: 0,
+    };
+    this.loadBusiness(plot.id);
     this.commit(`You leased ${plot.name} for ${plot.price} ${SUNMARK_CODE}.`, "success");
     return this.result(true, "Plot leased.");
   }
@@ -543,6 +583,55 @@ export class GameStore {
   // Passive operations
   // ---------------------------------------------------------------------
 
+  /** Write the live view back into the durable record. Called before every save. */
+  private syncActive(): void {
+    const plotId = this.state.ownedPlotId;
+    if (!plotId) return;
+    this.state.portfolio[plotId] = {
+      plotId,
+      license: this.state.license,
+      buildingPlaced: this.state.buildingPlaced,
+      job: this.state.job,
+      upgrades: { ...this.state.upgrades },
+      condition: this.state.condition,
+      brokenDown: this.state.brokenDown,
+      jobsCompleted: this.state.jobsCompleted,
+    };
+  }
+
+  /** Make one owned business the live view. */
+  private loadBusiness(plotId: string): boolean {
+    const record = this.state.portfolio[plotId];
+    if (!record) return false;
+    this.state.ownedPlotId = plotId;
+    this.state.license = record.license;
+    this.state.buildingPlaced = record.buildingPlaced;
+    this.state.job = record.job;
+    this.state.upgrades = { ...record.upgrades };
+    this.state.condition = record.condition;
+    this.state.brokenDown = record.brokenDown;
+    this.state.jobsCompleted = record.jobsCompleted;
+    return true;
+  }
+
+  /** Plots a player may hold at once, earned through civic standing. */
+  plotAllowance(): number {
+    return BASE_PLOT_ALLOWANCE + Math.floor(this.careerLevel().level * PLOTS_PER_CAREER_LEVEL);
+  }
+
+  ownedPlotIds(): string[] {
+    return PLOTS.filter((plot) => this.state.portfolio[plot.id]).map((plot) => plot.id);
+  }
+
+  switchBusiness(plotId: string): ActionResult {
+    if (plotId === this.state.ownedPlotId) return this.result(false, "That business is already open.");
+    this.syncActive();
+    if (!this.loadBusiness(plotId)) return this.result(false, "You do not hold that plot.");
+    const plot = PLOTS.find((entry) => entry.id === plotId)!;
+    this.commit(`Now managing ${plot.name}.`, "success");
+    return this.result(true, "Business switched.");
+  }
+
   storageCapacity(): number {
     return STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
   }
@@ -607,7 +696,42 @@ export class GameStore {
    * clock; the run stops at the first thing that genuinely needs a person — a full
    * warehouse, an unaffordable input, or a breakdown.
    */
+  /**
+   * Replay the absence for EVERY owned business, then restore whichever one was open.
+   * Each replays the same wall-clock window; they compete for the same district demand,
+   * so a second shop on the same island genuinely cannibalises the first.
+   */
   catchUp(now = Date.now()): ShiftReport {
+    const owned = this.ownedPlotIds();
+    if (owned.length <= 1) return this.catchUpOne(now);
+
+    const openAt = this.state.ownedPlotId;
+    const windowStart = this.state.lastTickAt;
+    const total: ShiftReport = { hours: 0, jobs: 0, produced: 0, sold: 0, revenue: 0, spent: 0, wages: 0, halted: "idle" };
+
+    for (const plotId of owned) {
+      this.syncActive();
+      if (!this.loadBusiness(plotId)) continue;
+      this.state.lastTickAt = windowStart;
+      const one = this.catchUpOne(now);
+      total.hours = Math.max(total.hours, one.hours);
+      total.jobs += one.jobs;
+      total.produced += one.produced;
+      total.sold += one.sold;
+      total.revenue += one.revenue;
+      total.spent += one.spent;
+      total.wages += one.wages;
+      if (one.halted !== "idle" && total.halted === "idle") total.halted = one.halted;
+    }
+
+    this.syncActive();
+    if (openAt) this.loadBusiness(openAt);
+    this.state.lastTickAt = now;
+    this.state.lastShift = total;
+    return total;
+  }
+
+  private catchUpOne(now = Date.now()): ShiftReport {
     const report: ShiftReport = { hours: 0, jobs: 0, produced: 0, sold: 0, revenue: 0, spent: 0, wages: 0, halted: "idle" };
     const license = this.state.license;
     if (!license || !this.state.buildingPlaced) { this.state.lastTickAt = now; return report; }

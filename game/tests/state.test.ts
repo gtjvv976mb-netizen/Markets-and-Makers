@@ -206,6 +206,92 @@ describe("Markets & Makers economy", () => {
     }
   });
 
+  it("gates how many plots a player may hold on civic standing", () => {
+    const store = new GameStore(createFreshState());
+    store.state.wallet = 50_000;
+    expect(store.plotAllowance()).toBe(1);
+
+    store.state.selectedPlotId = "garden-row";
+    expect(store.leaseSelectedPlot().ok).toBe(true);
+    store.state.selectedPlotId = "seabreeze";
+    expect(store.leaseSelectedPlot().ok).toBe(false);
+    expect(store.ownedPlotIds()).toEqual(["garden-row"]);
+
+    // Career progress buys room for another shop.
+    store.state.experience = 5_000;
+    expect(store.plotAllowance()).toBeGreaterThan(1);
+    expect(store.leaseSelectedPlot().ok).toBe(true);
+    expect(store.ownedPlotIds()).toEqual(["garden-row", "seabreeze"]);
+  });
+
+  it("keeps each business's own equipment and upgrades when switching between them", () => {
+    const store = new GameStore(createFreshState());
+    store.state.wallet = 50_000;
+    store.state.experience = 5_000;
+    store.state.selectedPlotId = "garden-row";
+    store.leaseSelectedPlot();
+    store.chooseLicense("workshop");
+    store.placeBuilding();
+    store.state.condition = 61;
+
+    store.state.selectedPlotId = "seabreeze";
+    store.leaseSelectedPlot();
+    store.chooseLicense("greenhouse");
+    store.placeBuilding();
+    store.state.condition = 94;
+
+    expect(store.state.license).toBe("greenhouse");
+    expect(store.switchBusiness("garden-row").ok).toBe(true);
+    expect(store.state.license).toBe("workshop");
+    expect(store.state.condition).toBe(61);
+
+    expect(store.switchBusiness("seabreeze").ok).toBe(true);
+    expect(store.state.license).toBe("greenhouse");
+    expect(store.state.condition).toBe(94);
+  });
+
+  it("runs every owned business during one unattended shift", () => {
+    const build = (plots: Array<[string, LicenseKey]>) => {
+      const store = new GameStore(createFreshState());
+      store.state.wallet = 60_000;
+      store.state.experience = 5_000;
+      for (const [plotId, licence] of plots) {
+        store.state.selectedPlotId = plotId;
+        expect(store.leaseSelectedPlot().ok, `could not lease ${plotId}`).toBe(true);
+        expect(store.chooseLicense(licence).ok).toBe(true);
+        store.placeBuilding();
+      }
+      store.state.lastTickAt = Date.now() - 24 * 3_600_000;
+      const opening = store.state.wallet;
+      const report = store.catchUp();
+      return { report, net: store.state.wallet - opening, store };
+    };
+    const one = build([["garden-row", "workshop"]]);
+    const two = build([["garden-row", "workshop"], ["seabreeze", "cratemill"]]);
+
+    expect(two.report.jobs).toBeGreaterThan(one.report.jobs);
+    expect(two.net).toBeGreaterThan(one.net);
+    // The business that was open before the shift is still the one open after it.
+    expect(two.store.state.ownedPlotId).toBe("seabreeze");
+    expect(two.store.ownedPlotIds()).toHaveLength(2);
+  });
+
+  it("restores a whole portfolio from a saved game", () => {
+    const store = new GameStore(createFreshState());
+    store.state.wallet = 50_000;
+    store.state.experience = 5_000;
+    store.state.selectedPlotId = "garden-row";
+    store.leaseSelectedPlot(); store.chooseLicense("workshop"); store.placeBuilding();
+    store.state.selectedPlotId = "seabreeze";
+    store.leaseSelectedPlot(); store.chooseLicense("greenhouse"); store.placeBuilding();
+    store.purchaseUpgrade("yield");
+
+    const restored = new GameStore(loadState());
+    expect(restored.ownedPlotIds()).toEqual(["garden-row", "seabreeze"]);
+    expect(restored.state.portfolio["garden-row"]!.license).toBe("workshop");
+    expect(restored.state.portfolio.seabreeze!.license).toBe("greenhouse");
+  });
+
   it("never runs an unattended shift at a loss, for any licence", () => {
     const losers: string[] = [];
     for (const license of Object.keys(BUSINESS) as LicenseKey[]) {
