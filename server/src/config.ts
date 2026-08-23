@@ -8,7 +8,10 @@ const schema = z.object({
   SOLANA_NETWORK: z.enum(["devnet", "mainnet"]).default("devnet"),
   HELIUS_API_KEY: z.string().optional().default(""),
   HELIUS_WEBHOOK_SECRET: z.string().optional().default(""),
-  MM_TOKEN_MINT: z.string().optional().default("")
+  MM_TOKEN_MINT: z.string().optional().default(""),
+  // The market commands trust the playerId in the request body. That is only safe once
+  // sessions are bound to a verified wallet, so they stay OFF until that exists.
+  MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(0)
 });
 
 const env = schema.parse(process.env);
@@ -21,7 +24,8 @@ export const config = {
   solanaNetwork: env.SOLANA_NETWORK,
   heliusApiKey: env.HELIUS_API_KEY,
   heliusWebhookSecret: env.HELIUS_WEBHOOK_SECRET,
-  tokenMint: env.MM_TOKEN_MINT
+  tokenMint: env.MM_TOKEN_MINT,
+  marketRoutes: env.MM_MARKET_ROUTES === 1
 };
 
 export function heliusRpcUrl(): string {

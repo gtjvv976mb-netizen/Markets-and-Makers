@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { config, heliusRpcUrl } from "./config.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
+import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 
 interface Presence {
   sessionId: string;
@@ -108,7 +109,8 @@ const server = createServer(async (req, res) => {
         tickRate: 10,
         chainNetwork: config.solanaNetwork,
         tokenMint: config.tokenMint || null,
-        tokenMode: "read-only"
+        tokenMode: "read-only",
+        marketRoutes: config.marketRoutes ? "enabled" : "disabled"
       });
       return;
     }
@@ -119,6 +121,58 @@ const server = createServer(async (req, res) => {
       json(res, 200, await tokenBalance(owner));
       return;
     }
+    if (url.pathname.startsWith("/api/market/")) {
+      if (!config.marketRoutes) { json(res, 404, { error: "market-disabled" }); return; }
+      try {
+        if (req.method === "GET" && url.pathname === "/api/market/book") {
+          const island = url.searchParams.get("island") ?? "hearth";
+          const item = url.searchParams.get("item") ?? undefined;
+          json(res, 200, { listings: await readBook("sunwoven-1", island, item) });
+          return;
+        }
+        if (req.method === "POST") {
+          const key = req.headers["idempotency-key"];
+          if (typeof key !== "string" || !/^[0-9a-f-]{36}$/i.test(key)) {
+            json(res, 400, { error: "idempotency-key-required" }); return;
+          }
+          const payload = (await body(req, 4_000)) as Record<string, unknown> | null;
+          if (!payload) { json(res, 400, { error: "body-required" }); return; }
+          const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const player = String(payload.playerId ?? "");
+          if (!uuid.test(player)) { json(res, 400, { error: "invalid-player" }); return; }
+          if (url.pathname !== "/api/market/list") {
+            const listing = String(payload.listingId ?? "");
+            if (!uuid.test(listing)) { json(res, 400, { error: "invalid-listing" }); return; }
+          }
+
+          if (url.pathname === "/api/market/list") {
+            json(res, 200, await listItem({
+              idempotencyKey: key, realmId: "sunwoven-1",
+              islandId: String(payload.islandId ?? "hearth"), sellerPlayerId: player,
+              itemKey: String(payload.itemKey ?? ""), quantity: Number(payload.quantity),
+              unitPrice: Number(payload.unitPrice),
+            }));
+            return;
+          }
+          if (url.pathname === "/api/market/cancel") {
+            json(res, 200, await cancelListing({
+              idempotencyKey: key, listingId: String(payload.listingId ?? ""), sellerPlayerId: player }));
+            return;
+          }
+          if (url.pathname === "/api/market/buy") {
+            json(res, 200, await buyListing({
+              idempotencyKey: key, listingId: String(payload.listingId ?? ""), buyerPlayerId: player }));
+            return;
+          }
+        }
+        json(res, 404, { error: "not-found" });
+      } catch (error) {
+        if (error instanceof MarketError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/webhooks/helius") {
       if (!secretMatches(req.headers.authorization, config.heliusWebhookSecret)) { json(res, 401, { error: "unauthorized" }); return; }
       const payload = await body(req);
