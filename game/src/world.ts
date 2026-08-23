@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { BUSINESS, ISLANDS, PLOTS, SUNMARK_CODE } from "./data";
+import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
 
@@ -19,35 +20,7 @@ interface Citizen {
   centerZ: number;
 }
 
-const SOLARPUNK_MATERIALS: Record<string, string> = {
-  MAT_TERRAIN_GRASS_SAGE: "#73a83f",
-  MAT_TERRAIN_GRASS_DRY: "#b39b49",
-  MAT_TERRAIN_SAND: "#dec98f",
-  MAT_TERRAIN_LIMESTONE: "#d9caa0",
-  MAT_TERRAIN_CLIFF: "#8e6c4d",
-  MAT_TERRAIN_PATH: "#d0b786",
-  MAT_TERRAIN_GRAVEL: "#77796d",
-  MAT_TERRAIN_ROCK: "#686d65",
-  MAT_TERRAIN_TERRACOTTA: "#c96f3c",
-  MAT_TERRAIN_TIMBER: "#a96f38",
-  MAT_TERRAIN_TIMBER_DARK: "#5f402c",
-  MAT_WATER_SHALLOW: "#16afc2",
-  MAT_MM_STONE: "#cfc7ad",
-  MAT_MM_CREAM: "#f0e4c7",
-  MAT_MM_TIMBER: "#a96934",
-  MAT_MM_TIMBER_DARK: "#5f3e29",
-  MAT_MM_TEAL: "#267f82",
-  MAT_MM_GLASS: "#73c9d2",
-  MAT_MM_METAL: "#70828a",
-  MAT_MM_CHARCOAL: "#30454a",
-  MAT_MM_GREEN: "#66a348",
-  MAT_MM_SOIL: "#4f3829",
-  MAT_MM_CORAL: "#df7655",
-  MAT_MM_OCEAN_BLUE: "#287e9d",
-  MAT_MM_MUSTARD: "#e0ad3d",
-  MAT_MM_WATER: "#21b8c4",
-  MAT_MM_TERRACOTTA: "#bf623c",
-};
+const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
 
 export class World3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -82,7 +55,7 @@ export class World3D {
   private buildingLoadToken = 0;
   private cameraYaw = Math.PI / 4;
   private cameraDistance = 38;
-  private cameraHeight = 32.7;
+  private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
   private running = false;
   private saveAccumulator = 0;
@@ -93,14 +66,15 @@ export class World3D {
     this.callbacks = callbacks;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMapping = THREE.AgXToneMapping;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = this.dynamicShadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x0fa8bb, 1);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 780 ? 1.15 : 1.45));
     this.camera = new THREE.OrthographicCamera(-30, 30, 20, -20, 0.1, 900);
-    this.camera.position.set(32, 36, 32);
+    const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
+    this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
     this.scene.background = new THREE.Color(0x0fa8bb);
     this.scene.fog = new THREE.FogExp2(0x68c9cf, 0.00048);
     this.setupLighting();
@@ -236,7 +210,7 @@ export class World3D {
     this.canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
       this.cameraDistance = THREE.MathUtils.clamp(this.cameraDistance + Math.sign(event.deltaY) * 4, 24, 72);
-      this.cameraHeight = this.cameraDistance * 0.86;
+      this.cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
       this.resize();
     }, { passive: false });
   }

@@ -1,4 +1,12 @@
 {
+  "manifest_scope": "source-package metadata plus the bundled browser runtime artifact",
+  "runtime_status": "temporary-placeholder",
+  "path_note": "Source artifact paths below are provenance records. The browser loads runtime_glb.",
+  "runtime_glb": {
+    "file": "sunwoven-reach-v1.glb",
+    "bytes": 3567164,
+    "sha256": "11c4f7a63020d97d17a834db337bca469523b59c72e94da14f27837c8bd4ed76"
+  },
   "artifacts": {
     "blend": {
       "bytes": 1122171,

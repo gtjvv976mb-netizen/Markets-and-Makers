@@ -3,6 +3,8 @@
 Date: 2026-08-23  
 Applied release: browser game v0.2.0
 
+> **Production authority update (2026-08-24):** The tracked building references in `../../art/official-v1` and the rules in `../../ART-DIRECTION.md` supersede all earlier exploratory building styles. The runtime palette work documented here remains valid, but the current B01–B08 GLBs are placeholders until fifteen unique approved models are delivered.
+
 ## Visual target
 
 Markets & Makers should read as an optimistic, inhabited, technology-positive archipelago at three distances:
@@ -56,11 +58,12 @@ References: [web.dev Canvas performance](https://web.dev/articles/canvas-perform
 
 ## Next visual priorities
 
-1. Add three shared landscaping kits—tree, shrub/flower bed and street planter—using instancing and district-specific palettes.
-2. Add one shared rigged citizen/avatar GLB with walk, idle, wave and carry animations.
-3. Add island landmark signs and business state icons generated through pooled atlases/SDF text.
-4. Produce LOD1/LOD2 for the world structures and stream satellites by ferry destination.
-5. Create a 1024–2048 px shared material atlas with subtle baked AO and KTX2 compression.
-6. Give each business interior a small real 3D room kit after the authoritative upgrade loop is connected to Render.
+1. Replace the eight reused placeholder archetypes with fifteen unique GLBs matching `art/official-v1/manifest.json` at exact 2 m tile scale.
+2. Add authoritative footprint classes and remove runtime auto-scaling before accepting production building GLBs.
+3. Add three shared landscaping kits—tree, shrub/flower bed and street planter—using instancing and the official palette.
+4. Add one shared rigged citizen/avatar GLB with walk, idle, wave and carry animations.
+5. Produce LOD1/LOD2 for approved world structures and stream satellites by ferry destination.
+6. Create a 1024–2048 px shared material atlas with subtle baked AO and KTX2 compression.
+7. Give each business interior a small real 3D room kit after the authoritative upgrade loop is connected to Render.
 
 All additions must preserve the lite-browser gates: useful interaction before the full world finishes streaming, at least 30 FPS on the target low-end device, bounded memory after island travel and no unique texture/material per player business.

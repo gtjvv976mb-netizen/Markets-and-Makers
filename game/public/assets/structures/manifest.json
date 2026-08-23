@@ -1,5 +1,19 @@
 {
-  "canonical_front": "-Y",
+  "manifest_scope": "source-package metadata plus the bundled browser placeholder map",
+  "runtime_status": "temporary-placeholder",
+  "path_note": "Nested source-package paths are provenance records. The browser loads the bundled runtime_files paths below.",
+  "source_customer_front": "-Y",
+  "canonical_front": "+Z",
+  "runtime_files": [
+    { "id": "B01", "file": "b01-ferry-terminal.glb", "bytes": 395596, "sha256": "086224dd25cda1c2f8cfaa058b2cef3c8b0ad5cdc882b0cd8cd630abce9002fa" },
+    { "id": "B02", "file": "b02-market-pavilion.glb", "bytes": 182536, "sha256": "a72b2d139a17d4d9e8d4c269c35b164e4dd112c26b0ee00abb1b3de5e6dcf8ff" },
+    { "id": "B03", "file": "b03-sungrid-utility.glb", "bytes": 152728, "sha256": "b65e7f496fe79c29722039d085ea2b449f8c1d07c437f8a846a37a8a4a33a76a" },
+    { "id": "B04", "file": "b04-aquaworks.glb", "bytes": 140640, "sha256": "e30cf767362d701c2855d7d76a2575c6f45b3bfae0a088174cac12045f7bc238" },
+    { "id": "B05", "file": "b05-canopy-greenhouse.glb", "bytes": 422456, "sha256": "ae65c5b7c41fac6e6f9c1a8d9a355eae07c9ec2ddbbb2adf7a2c88cdaaa68922" },
+    { "id": "B06", "file": "b06-maker-workshop.glb", "bytes": 116300, "sha256": "54d52c0f5e517ff0f667d5159511137162adff4f772a6df3fc8fe868f45a51f6" },
+    { "id": "B07", "file": "b07-starter-shop-cafe.glb", "bytes": 135740, "sha256": "ced0a8a9b35a5b9774ac39ad0db15a20440af764de652b76d287948ddc377805" },
+    { "id": "B08", "file": "b08-harbor-gym.glb", "bytes": 280656, "sha256": "b7dae27fc126e47797fb6cc27e64093fcfc458dca2ed42a0d111de42033d66f9" }
+  ],
   "combined": {
     "bytes": 1804776,
     "file": "mm_structures_core_v1.glb",

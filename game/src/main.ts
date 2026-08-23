@@ -136,7 +136,8 @@ function report(result: ActionResult): void {
   toast(result.message, !result.ok);
 }
 
-function switchTab(tab: string): void {
+function switchTab(requested: string): void {
+  const tab = TAB_FOR.get(requested) ?? requested;
   activeTab = tab;
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
     const active = button.dataset.tab === tab;
@@ -156,71 +157,84 @@ function resourceCosts(costs: Partial<Record<ResourceKey, number>>): string {
 
 function renderHeader(): void {
   const state = store.state;
+  // Treasury, citizens and the $MM vault moved into World > Realm figures: a new player
+  // cannot act on them, so they were noise in the permanent header.
   element("#walletValue").textContent = `${formatNumber(state.wallet)} ${SUNMARK_CODE}`;
-  element("#treasuryValue").textContent = `${formatNumber(state.governmentTreasury)} ${SUNMARK_CODE}`;
-  element("#citizenValue").textContent = formatNumber(store.citizenCount());
-  element("#reserveValue").textContent = `${formatNumber(state.mmReserve)} $MM`;
-  element("#careerValue").textContent = `${store.careerLevel().name} · Lv ${store.careerLevel().level}`;
+  element("#careerValue").textContent = `Lv ${store.careerLevel().level} · ${store.careerLevel().name}`;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
   element("#districtLabel").textContent = island.district;
   element("#islandLabel").textContent = island.name;
   element("#islandEconomy").textContent = island.economy;
 }
 
+const TAB_FOR = new Map<string, string>([
+  ["build", "shop"], ["business", "shop"],
+  ["market", "trade"], ["contracts", "trade"],
+  ["map", "world"], ["guide", "world"],
+]);
+
+/** One instruction at a time: what to do, where, and a button that takes you there. */
+const STEP_ACTION: Record<string, { tab: string; label: string; hint: string }> = {
+  moved:      { tab: "shop",  label: "Show me",      hint: "Click the ground to walk there." },
+  leased:     { tab: "shop",  label: "Pick a plot",  hint: "Choose a glowing plot, then sign the lease." },
+  licensed:   { tab: "shop",  label: "Choose a trade", hint: "Pick what your business will make." },
+  built:      { tab: "shop",  label: "Build it",     hint: "Put your building on the plot." },
+  produced:   { tab: "shop",  label: "Start a job",  hint: "Buy what the recipe needs, then run it." },
+  upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building." },
+  sold:       { tab: "trade", label: "Sell",         hint: "Sell what you made, or serve customers." },
+  contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most." },
+  traveled:   { tab: "world", label: "Take a ferry", hint: "Visit another island." },
+};
+
 function renderTutorial(): void {
-  const complete = Object.values(store.state.tutorial).filter(Boolean).length;
+  const done = Object.values(store.state.tutorial).filter(Boolean).length;
   const next = store.nextTutorial();
-  const nextIndex = next ? TUTORIAL.findIndex(([key]) => key === next[0]) : TUTORIAL.length;
-  element("#tutorialProgress").textContent = `${complete} / ${TUTORIAL.length}`;
-  element<HTMLSpanElement>("#tutorialMeter").style.width = `${Math.round((complete / TUTORIAL.length) * 100)}%`;
-  element("#tutorialTitle").textContent = next?.[1] ?? "Vertical slice complete";
-  element("#tutorialCopy").textContent = next?.[2] ?? "Keep building, trading and exploring the archipelago.";
-  const nextKey = next?.[0];
-  const objective = nextKey === "moved"
-    ? { action: "walk-plaza", target: "", label: "Walk to the plaza", icon: "◎" }
-    : nextKey === "leased" || nextKey === "licensed" || nextKey === "built"
-      ? { action: "tab", target: "build", label: "Open the build desk", icon: "⌂" }
-      : nextKey === "produced" || nextKey === "upgraded"
-        ? { action: "tab", target: "business", label: nextKey === "upgraded" ? "Open upgrade console" : "Run your business", icon: "▥" }
-        : nextKey === "sold"
-          ? { action: "tab", target: "market", label: "Visit the Civic Exchange", icon: "⇄" }
-          : nextKey === "contracted"
-            ? { action: "tab", target: "contracts", label: "Open the Contracts Board", icon: "✓" }
-            : nextKey === "traveled"
-              ? { action: "tab", target: "map", label: "Open the ferry map", icon: "◇" }
-              : { action: "tab", target: "contracts", label: "Check today's orders", icon: "↗" };
-  const objectiveAction = element<HTMLButtonElement>("#objectiveAction");
-  objectiveAction.dataset.action = objective.action;
-  objectiveAction.dataset.target = objective.target;
-  objectiveAction.textContent = "Go";
-  const visibleSteps = TUTORIAL.slice(Math.max(0, nextIndex), Math.min(TUTORIAL.length, nextIndex + 3));
+  const key = next?.[0];
+  const step = key ? STEP_ACTION[key] : undefined;
+
+  element("#nextLabel").textContent = next ? `Step ${done + 1} of ${TUTORIAL.length}` : "All set";
+  element("#nextTitle").textContent = next?.[1] ?? "You know the ropes";
+  element("#nextHint").textContent = step?.hint ?? "Grow your business however you like.";
+  element<HTMLSpanElement>("#nextMeter").style.width = `${Math.round((done / TUTORIAL.length) * 100)}%`;
+
+  const go = element<HTMLButtonElement>("#nextGo");
+  go.textContent = step?.label ?? "Explore";
+  go.dataset.action = key === "moved" ? "walk-plaza" : "tab";
+  go.dataset.target = step?.tab ?? "world";
+  element("#nextStep").classList.toggle("complete", !next);
+
+  // Tabs appear as they become useful, so nothing is on screen before it means anything.
+  const unlocked = { shop: true, trade: store.state.buildingPlaced, world: Boolean(store.state.tutorial.sold) };
+  for (const [tab, open] of Object.entries(unlocked)) {
+    const button = document.querySelector<HTMLButtonElement>(`[data-tab="${tab}"]`);
+    if (button) button.hidden = !open;
+  }
+
   element("#guidePanel").innerHTML = `
-    <div class="panel-kicker">Founder journey · ${complete} of ${TUTORIAL.length}</div><h2>Your next best action</h2>
-    <p class="lead">The guide keeps the economy readable by showing one meaningful decision at a time.</p>
-    <article class="mission-hero">
-      <i>${objective.icon}</i><div><small>${next ? `Step ${nextIndex + 1}` : "Journey complete"}</small><strong>${next?.[1] ?? "Build your own strategy"}</strong><p>${next?.[2] ?? "Specialize, trade, upgrade and expand across the Reach."}</p></div>
-      <button class="mission-button" data-action="${objective.action}" data-target="${objective.target}">${objective.label}<span>→</span></button>
-    </article>
-    ${visibleSteps.length > 1 ? `<div class="section-title">Coming next</div><div class="roadmap-preview">
-      ${visibleSteps.slice(1).map(([key, title], offset) => `<div><span>${nextIndex + offset + 2}</span><p><strong>${title}</strong><small>${store.state.tutorial[key] ? "Completed" : "Unlocks after the current objective"}</small></p></div>`).join("")}
-    </div>` : ""}
-    <details class="journey-details"><summary>View the complete founder roadmap <span>${complete}/${TUTORIAL.length}</span></summary><div class="card-list">
-      ${TUTORIAL.map(([key, title, copy], index) => `<article class="game-card ${store.state.tutorial[key] ? "done" : index === nextIndex ? "current" : ""}"><div class="card-head"><i class="card-icon" style="--card-color:${store.state.tutorial[key] ? "#62a876" : index === nextIndex ? "#d5a43d" : "#79918c"}">${store.state.tutorial[key] ? "✓" : index + 1}</i><div class="card-copy"><strong>${title}</strong><small>${copy}</small></div></div></article>`).join("")}
-    </div></details>
-    <div class="section-title">Company progression</div>
+    <div class="section-title">Your progress</div>
     <article class="career-card">
-      <div class="career-heading"><i>${store.careerLevel().level}</i><div><small>Career level</small><strong>${store.careerLevel().name}</strong><span>${store.state.experience} XP${store.nextCareerLevel() ? ` · ${store.nextCareerLevel()!.xp - store.state.experience} to ${store.nextCareerLevel()!.name}` : " · Maximum rank"}</span></div><b>${store.careerProgress()}%</b></div>
+      <div class="career-heading"><i>${store.careerLevel().level}</i><div><small>Level</small><strong>${store.careerLevel().name}</strong><span>${store.nextCareerLevel() ? `${store.nextCareerLevel()!.xp - store.state.experience} XP to ${store.nextCareerLevel()!.name}` : "Top rank"}</span></div><b>${store.careerProgress()}%</b></div>
       <div class="meter"><span style="width:${store.careerProgress()}%"></span></div>
-      <div class="career-stats"><span>Net worth <strong>${formatNumber(store.netWorth())} ${SUNMARK_CODE}</strong></span><span>Contracts <strong>${store.state.contractsCompleted}</strong></span><span>Reputation <strong>${store.state.reputation}</strong></span></div>
+      <div class="career-stats"><span>Worth <strong>${formatNumber(store.netWorth())} ${SUNMARK_CODE}</strong></span><span>Orders <strong>${store.state.contractsCompleted}</strong></span><span>Plots <strong>${store.ownedPlotIds().length}/${store.plotAllowance()}</strong></span></div>
     </article>
-    <div class="section-title">Today's enterprise goals</div>
+
+    <div class="section-title">Today</div>
     <article class="daily-card ${store.dailyComplete() ? "complete" : ""}">
-      <div class="daily-goals"><span class="${store.state.daily.jobs >= DAILY_GOALS.jobs ? "done" : ""}">Production <b>${Math.min(store.state.daily.jobs, DAILY_GOALS.jobs)}/${DAILY_GOALS.jobs}</b></span><span class="${store.state.daily.contracts >= DAILY_GOALS.contracts ? "done" : ""}">Contracts <b>${Math.min(store.state.daily.contracts, DAILY_GOALS.contracts)}/${DAILY_GOALS.contracts}</b></span><span class="${store.state.daily.trades >= DAILY_GOALS.trades ? "done" : ""}">Trades <b>${Math.min(store.state.daily.trades, DAILY_GOALS.trades)}/${DAILY_GOALS.trades}</b></span></div>
-      <div class="daily-reward"><div><small>Civic development dividend</small><strong>${DAILY_GOALS.reward} ${SUNMARK_CODE} · ${DAILY_GOALS.xp} XP</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim reward"}</button></div>
+      <div class="daily-goals"><span class="${store.state.daily.jobs >= DAILY_GOALS.jobs ? "done" : ""}">Jobs <b>${Math.min(store.state.daily.jobs, DAILY_GOALS.jobs)}/${DAILY_GOALS.jobs}</b></span><span class="${store.state.daily.contracts >= DAILY_GOALS.contracts ? "done" : ""}">Orders <b>${Math.min(store.state.daily.contracts, DAILY_GOALS.contracts)}/${DAILY_GOALS.contracts}</b></span><span class="${store.state.daily.trades >= DAILY_GOALS.trades ? "done" : ""}">Trades <b>${Math.min(store.state.daily.trades, DAILY_GOALS.trades)}/${DAILY_GOALS.trades}</b></span></div>
+      <div class="daily-reward"><div><small>Daily bonus</small><strong>${DAILY_GOALS.reward} ${SUNMARK_CODE}</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim"}</button></div>
     </article>
-    <div class="section-title">Economic activity</div>
+
+    <details class="journey-details"><summary>All steps <span>${done}/${TUTORIAL.length}</span></summary><div class="card-list">
+      ${TUTORIAL.map(([entry, title], index) => `<article class="game-card ${store.state.tutorial[entry] ? "done" : ""}"><div class="card-head"><i class="card-icon" style="--card-color:${store.state.tutorial[entry] ? "#62a876" : "#79918c"}">${store.state.tutorial[entry] ? "✓" : index + 1}</i><div class="card-copy"><strong>${title}</strong></div></div></article>`).join("")}
+    </div></details>
+
+    <details class="journey-details"><summary>Realm figures</summary>
+      <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)}</strong></div><div class="stat"><small>Citizens</small><strong>${formatNumber(store.citizenCount())}</strong></div><div class="stat"><small>$MM vault</small><strong>${formatNumber(store.state.mmReserve)}</strong></div><div class="stat"><small>Reputation</small><strong>${store.state.reputation}</strong></div></div>
+    </details>
+
+    <div class="section-title">Recent</div>
     <div class="activity-feed">
-      ${store.state.feed.slice(0, 5).map((entry) => `<div class="feed-item ${entry.tone}">${entry.text}</div>`).join("")}
+      ${store.state.feed.slice(0, 4).map((entry) => `<div class="feed-item ${entry.tone}">${entry.text}</div>`).join("")}
     </div>
   `;
 }
@@ -257,7 +271,7 @@ function renderBuild(): void {
   let intro = "Select a glowing 16 × 14 m starter plot in Hearthmarket.";
   if (owned) intro = `${owned.name} is leased. Choose the role this plot will serve in the regional economy.`;
   element("#buildPanel").innerHTML = `
-    <div class="panel-kicker">Enterprise builder</div><h2>Plot &amp; business</h2>
+    <h2>Your plot</h2>
     <p class="lead">${intro}</p>
     ${!state.ownedPlotId ? `<article class="game-card selected">
       <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${SUNMARK_CODE}` : "Click a plot in the 3D world"}</small></div></div>
@@ -280,7 +294,7 @@ function renderBuild(): void {
         <button data-action="license" data-license="${key}" aria-label="Choose ${config.name}" ${!state.ownedPlotId || Boolean(state.license) || state.buildingPlaced ? "disabled" : ""}>${selected ? "Selected · license locked" : state.license ? "Another license selected" : `Choose ${config.name}`}</button>
       </article>`;
     }).join("")}</div>
-    ${state.license && !state.buildingPlaced ? `<div class="section-title">Publish the structure</div><article class="game-card selected"><p>The corresponding official B01–B08 3D model will be fitted to your leased plot.</p><button data-action="build">Build ${BUSINESS[state.license].name}</button></article>` : ""}
+    ${state.license && !state.buildingPlaced ? `<div class="section-title">Publish the structure</div><article class="game-card selected"><p>A temporary prototype structure will be fitted to this plot. Its unique production design is locked in the official art library.</p><button data-action="build">Build ${BUSINESS[state.license].name}</button></article>` : ""}
   `;
 }
 
@@ -321,7 +335,7 @@ function shiftReportMarkup(): string {
 function renderBusiness(): void {
   const state = store.state;
   if (!state.buildingPlaced || !state.license) {
-    element("#businessPanel").innerHTML = `<h2>Business operations</h2><p class="lead">Lease a plot, choose a license and construct a building to unlock production.</p><button class="primary-button" data-action="tab" data-target="build">Open build panel</button>`;
+    element("#businessPanel").innerHTML = "";
     return;
   }
   const config = BUSINESS[state.license];
@@ -335,13 +349,13 @@ function renderBusiness(): void {
     ? `<span>${economics.visitors} expected visits · ${economics.expectedRevenue} ${SUNMARK_CODE} gross</span>`
     : `${resourceCosts(Object.fromEntries(Object.entries(config.output).map(([key, value]) => [key, Math.max((value ?? 0) * cycles, Math.round((value ?? 0) * cycles * (1 + state.upgrades.yield * .12 + qualityBonus)))])))}${config.wastePerCycle ? `<span>♻ ${config.wastePerCycle * cycles} Scrap</span>` : ""}`;
   element("#businessPanel").innerHTML = `
-    <div class="panel-kicker">Operations center</div><h2>${config.name}</h2><p class="lead">${config.copy}</p>
+    <h2>${config.name}</h2>
     ${portfolioMarkup()}
     ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Equipment failed and production has stopped. An emergency crew needs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
-    <div class="section-title">Standing operations</div>
+    <div class="section-title">Runs by itself</div>
     <article class="game-card operations-card">
-      <p>Your business runs on a clock while you are away. It stops on its own when the district stops paying — that is your cue to come back and make a decision.</p>
+      <p>Runs by itself while you are away. Stops when it needs you.</p>
       <div class="storage-meter" role="img" aria-label="Warehouse ${Math.round(store.storedUnits())} of ${store.storageCapacity()} units">
         <div class="storage-fill" style="width:${Math.min(100, (store.storedUnits() / store.storageCapacity()) * 100).toFixed(1)}%"></div>
       </div>
@@ -349,7 +363,7 @@ function renderBusiness(): void {
       <div class="ops-toggles">
         ${([["autoProduce","Continuous production","Keep running jobs unattended"],["autoBuy","Standing input orders","Buy missing inputs at a 6% premium"],["autoSell","Broker sales","Sell output while away; the broker keeps 12%"]] as const).map(([key, name, hint]) => `<button class="ops-toggle ${state.operations[key] ? "on" : "off"}" data-action="operation" data-operation="${key}" aria-pressed="${state.operations[key]}"><span class="ops-dot"></span><span><strong>${name}</strong><small>${hint}</small></span></button>`).join("")}
       </div>
-      <small class="ops-note">Selling by hand and filling contracts always pays more than the broker — and contracts are worth <strong>20&times;</strong> as much contribution toward your $MM share.</small>
+      <small class="ops-note">Selling by hand pays more. Orders pay most.</small>
     </article>
     <div class="stat-grid">
       <div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div>
@@ -359,14 +373,13 @@ function renderBusiness(): void {
     </div>
     <div class="section-title">Next operating job · ${cycles} cycle${cycles === 1 ? "" : "s"}</div>
     <article class="game-card operation-card"><div class="readiness ${missingInputs.length ? "blocked" : "ready"}"><i>${missingInputs.length ? "!" : "✓"}</i><div><strong>${missingInputs.length ? "Inputs missing" : "Ready to operate"}</strong><small>${missingInputs.length ? "Buy the exact shortfall below." : `Payroll of ${economics.laborCost} ${SUNMARK_CODE} will return to AI-citizen households.`}</small></div></div><small>Inputs</small><div class="cost-row">${inputMarkup || "<span>No input</span>"}</div>${missingInputs.length ? `<div class="quick-buy"><small>Quick buy</small>${missingInputs.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">${RESOURCES[key].icon} Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${SUNMARK_CODE}</button>`).join("")}</div>` : ""}<small>Output / settlement</small><div class="cost-row">${outputMarkup || "<span>Service income</span>"}</div>${jobMarkup()}</article>
-    <div class="section-title">Expected unit economics</div>
+    <div class="section-title">Per job</div>
     <div class="stat-grid economics-grid"><div class="stat"><small>Input cost</small><strong>${economics.inputCost}</strong></div><div class="stat"><small>Payroll</small><strong>${economics.laborCost}</strong></div><div class="stat"><small>Gross revenue</small><strong>${economics.expectedRevenue}</strong></div><div class="stat ${economics.expectedProfit >= 0 ? "positive" : "negative"}"><small>Profit after 5% tax</small><strong>${economics.expectedProfit}</strong></div></div>
-    ${config.servicePayout ? `<div class="section-title">Citizen-facing price</div><article class="game-card"><p>Higher prices earn more per visit but reduce attendance according to this service's demand elasticity (${config.priceElasticity?.toFixed(2)}).</p><div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div></article>` : ""}
-    <div class="section-title">Operating specialization</div>
+    ${config.servicePayout ? `<div class="section-title">Your price</div><article class="game-card"><p>Charge more per visit, or attract more visitors.</p><div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div></article>` : ""}
+    <div class="section-title">Specialisation</div>
     ${state.specialization ? `<article class="specialization-selected" style="--special-color:${SPECIALIZATIONS[state.specialization].color}"><i>${SPECIALIZATIONS[state.specialization].icon}</i><div><small>Permanent company model</small><strong>${SPECIALIZATIONS[state.specialization].name}</strong><p>${SPECIALIZATIONS[state.specialization].summary}</p></div></article>` : `<div class="specialization-grid">${(Object.keys(SPECIALIZATIONS) as SpecializationKey[]).map((key) => { const option = SPECIALIZATIONS[key]; return `<article style="--special-color:${option.color}"><i>${option.icon}</i><strong>${option.name}</strong><p>${option.summary}</p><small>${option.tradeoff}</small><button data-action="specialize" data-specialization="${key}" ${store.careerLevel().level < 2 ? "disabled" : ""}>${store.careerLevel().level < 2 ? `Unlocks at ${store.nextCareerLevel()?.name ?? "level 2"}` : "Choose permanently"}</button></article>`; }).join("")}</div>`}
-    <div class="section-title">Building access</div>
-    <article class="game-card"><p>Walk near your 3D building to enter and improve its equipment, capacity, speed or customer appeal.</p><button data-action="interior">Enter business interior</button></article>
-    <article class="game-card"><p>Equipment condition falls as production runs. Maintenance costs 20 ${SUNMARK_CODE} and one Utility Part.</p><button class="secondary" data-action="maintain">Run maintenance</button></article>
+    <div class="section-title">Building</div>
+    <article class="game-card two-up"><button data-action="interior">Open upgrades</button><button class="secondary" data-action="maintain">Repair &middot; 20 ${SUNMARK_CODE}</button></article>
   `;
 }
 
@@ -380,14 +393,14 @@ function walletMarkup(): string {
         <div><small>Everyone else</small><strong>${formatNumber(Math.round(standing.cohort))}</strong></div>
         <div><small>Epoch budget</small><strong>${formatNumber(standing.budget)} $MM</strong></div>
       </div>
-      <small class="wallet-note">These are live realm figures. Your share is your slice of what every player actually did this epoch.</small>
+      <small class="wallet-note">Live realm figures.</small>
     </div>`;
   }
   if (principal) {
     return `<div class="wallet-linked"><div class="wallet-head"><span class="wallet-dot"></span><div><strong>Linked wallet</strong><small>${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}</small></div><button class="wallet-out" data-action="wallet-disconnect">Unlink</button></div></div>`;
   }
   return `<div class="wallet-connect">
-    <p>Link a Solana wallet to earn against the <strong>live realm</strong> rather than a local estimate. Signing proves the wallet is yours &mdash; it authorises no transfer and costs no fee.</p>
+    <p>Link a wallet to earn against the live realm. Signing moves nothing and costs nothing.</p>
     <button data-action="wallet-connect" ${walletAvailable() ? "" : "disabled"}>${walletAvailable() ? "Link Solana wallet" : "No wallet detected"}</button>
   </div>`;
 }
@@ -417,7 +430,7 @@ function districtBoardMarkup(): string {
   const anyTrade = busiest.some((row) => row.soldToday > 0);
   return `<section class="district-board">
     <div class="district-head"><div><small>Live district board</small><strong>${island?.name ?? districtIsland}</strong></div><span>shared by everyone here</span></div>
-    <p>These prices belong to the district, not to you. Every sale made on this island moves them and uses up the same daily allowance.</p>
+    <p>Shared with everyone on this island. Every sale here moves them.</p>
     <div class="district-rows">
       ${busiest.map((row) => {
         const used = Math.min(100, (row.soldToday / Math.max(1, row.districtQuota)) * 100);
@@ -443,12 +456,13 @@ function renderMarket(): void {
       ? allKeys.filter((key) => store.state.inventory[key] > 0)
       : allKeys;
   element("#marketPanel").innerHTML = `
-    <div class="panel-kicker">Regional marketplace</div><h2>Civic Exchange</h2>
-    <p class="lead">All daily prices, wages and taxes use <strong>Sunmarks (${SUNMARK_CODE})</strong>. $MM is the scarce reserve asset held for long-term wealth and currency backing.</p>
-    <div class="economic-dashboard"><div><small>Market price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening basket</span></div><div><small>Consumer confidence</small><strong>${confidence}</strong><span>Wages, visits and liquidity</span></div><div><small>Business cycle</small><strong>${store.economicPhase()}</strong><span>Activity trend ${store.economyTrend()}</span></div><div><small>Monetary policy</small><strong>${store.monetaryPolicyPhase()}</strong><span>${store.reserveBackingRatio().toFixed(2)}% $MM reserve coverage</span></div></div>
+    <h2>Buy &amp; sell</h2>
+    <details class="journey-details"><summary>Market conditions</summary>
+      <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely citizens spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
+    </details>
     <section class="reserve-desk">
       <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(EPOCH_MM_BUDGET)} $MM budget</span></div>
-      <p>$MM is <strong>earned, never bought</strong>. Each epoch pays out one fixed budget, divided by contribution share &mdash; so working harder raises <em>your slice</em>, never the amount released.</p>
+      <p>$MM is <strong>earned, never bought</strong>. Each week one fixed pot is shared out by how much you contributed.</p>
       <div class="epoch-meter" role="img" aria-label="Your share of this epoch's contribution pool: ${(store.epochShare() * 100).toFixed(2)} percent">
         <div class="epoch-fill" style="width:${Math.min(100, store.epochShare() * 100).toFixed(2)}%"></div>
       </div>
@@ -459,7 +473,7 @@ function renderMarket(): void {
         <div><small>Held / lifetime earned</small><strong>${formatNumber(store.state.mmHoldings)} / ${formatNumber(store.state.lifetimeMMEarned)}</strong></div>
       </div>
       ${walletMarkup()}
-      <p class="epoch-note">Fulfilling a named buyer's order is worth <strong>10&times;</strong> what dumping the same value on the civic supplier is. Everyone else in the realm is contributing too &mdash; their effort dilutes your share, and yours dilutes theirs.</p>
+      <p class="epoch-note">Orders are worth <strong>10&times;</strong> what dumping stock on the city is.</p>
       <div class="reserve-actions">
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
         <button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Spend ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${SUNMARK_CODE}</small></button>
@@ -490,8 +504,8 @@ function renderContracts(): void {
   const activeResource = active ? RESOURCES[active.resource] : null;
   const shortfall = active ? Math.max(0, active.quantity - store.state.inventory[active.resource]) : 0;
   element("#contractsPanel").innerHTML = `
-    <div class="panel-kicker">Trade Guild order book</div><h2>Contracts Board</h2>
-    <p class="lead">Orders turn market demand into clear objectives. Payment always comes from an existing household or public budget—contract rewards never mint Sunmarks.</p>
+    <h2>Orders</h2>
+    <p class="lead">Filling a buyer's order pays more than selling loose stock.</p>
     <div class="economic-dashboard"><div><small>Economic cycle</small><strong>${store.economicPhase()}</strong><span>Trend ${store.economyTrend()}</span></div><div><small>Company rank</small><strong>Level ${store.careerLevel().level}</strong><span>${store.careerLevel().name}</span></div><div><small>Track record</small><strong>${store.state.contractsCompleted}</strong><span>Completed orders</span></div></div>
     ${active && activeResource ? `<div class="section-title">Active commitment</div><article class="active-contract" style="--contract-color:${activeResource.color}">
       <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${SUNMARK_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
@@ -518,7 +532,7 @@ function renderMap(): void {
     return `<button class="map-node ${current ? "current" : ""}" style="--map-x:${x}%;--map-y:${y}%;--island-color:${island.color}" data-action="travel" data-island="${island.id}" ${current ? "disabled" : ""} aria-label="Travel to ${island.name}"><i></i><span>${island.name}</span></button>`;
   }).join("");
   element("#mapPanel").innerHTML = `
-    <div class="panel-kicker">Nine connected economies</div><h2>The Sunwoven Reach</h2><p class="lead">Ferries link the civic heart to eight specialist districts. Your business keeps producing while you explore.</p>
+    <h2>Islands</h2><p class="lead">Your business keeps running while you travel.</p>
     <div class="archipelago-map"><div class="trade-ring ring-one"></div><div class="trade-ring ring-two"></div>${mapNodes}<div class="map-compass">N</div></div>
     <div class="card-list">${ISLANDS.map((island) => `<div class="island-row" style="--island-color:${island.color}"><i class="island-dot"></i><div><strong>${island.name}</strong><small>${island.district} · ${island.economy}</small></div><button data-action="travel" data-island="${island.id}" ${store.state.island === island.id ? "disabled" : ""}>${store.state.island === island.id ? "Here" : store.state.tutorial.traveled ? `10 ${SUNMARK_CODE}` : "Free"}</button></div>`).join("")}</div>
   `;
@@ -536,7 +550,7 @@ function renderInterior(): void {
   const config = BUSINESS[store.state.license];
   element("#interiorTitle").textContent = config.name;
   element("#interiorStage").innerHTML = `<div class="interior-room"><h3>${config.name}</h3><p>${config.copy} Installed modules visibly represent the systems that improve yield, capacity, turnaround and citizen demand.</p><div class="machine-grid">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => `<div class="machine" style="--machine-color:${config.color}"><i>${UPGRADE_NAMES[key].icon}</i><strong>${UPGRADE_NAMES[key].name}</strong><small>${UPGRADE_NAMES[key].effect}<br>Installed level: ${store.state.upgrades[key]} / 3</small></div>`).join("")}</div></div>`;
-  element("#interiorConsole").innerHTML = `<h2>Equipment upgrades</h2><p class="lead">Improvements consume Sunmarks and player-economy resources.</p><div class="upgrade-list">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
+  element("#interiorConsole").innerHTML = `<h2>Upgrades</h2><div class="upgrade-list">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
     const level = store.state.upgrades[key];
     const next = Math.min(3, level + 1);
     const cost = UPGRADE_COSTS[next];

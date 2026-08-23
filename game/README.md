@@ -2,6 +2,12 @@
 
 This is the **v1.0 playable vertical slice** of **Markets & Makers**. It uses the original Sunwoven Reach V1 archipelago and the original B01–B08 Blender structures instead of the later tile experiments.
 
+## Official visual standard
+
+The approved production art direction is defined by [`../ART-DIRECTION.md`](../ART-DIRECTION.md) and the tracked reference library in [`../art/official-v1`](../art/official-v1). These references are now the authority for every building, terrain tile, interior, prop, vehicle, avatar, UI illustration, and marketing image.
+
+The current world and B01–B08 GLBs remain **temporary technical placeholders**. They prove streaming, scale, interaction, and placement, but they are not the final visual standard. Fifteen unique production business GLBs will replace the reused archetypes after they are modeled and validated against `art/official-v1/manifest.json`.
+
 ## Founder release (v1.0)
 
 - Added a Trade Guild contracts board with household and civic orders, explicit buyers, demand premiums, reputation and career XP.
@@ -78,7 +84,7 @@ The game must be opened through the local server; opening `dist/index.html` dire
 - Explore all nine islands of the original Sunwoven Reach in an isometric Three.js world.
 - Move with WASD/arrow keys or click-to-move, rotate with Q/E, and zoom with the mouse wheel.
 - Lease one of three Hearthmarket plots and select one of fifteen connected business ecosystems.
-- Construct the corresponding original Blender building on the selected plot.
+- Construct a working placeholder building on the selected plot; fifteen unique approved production designs are locked in `art/official-v1` for progressive GLB replacement.
 - Run timestamp-based production or price-sensitive AI-citizen service jobs.
 - Buy basic inputs from government infrastructure, sell productive resources to government procurement, and sell services/supplies into AI-citizen demand.
 - Pay licenses, payroll, maintenance and a 5% transaction tax in Sunmarks while reserve conversion separately contracts or expands the monetary base.
@@ -98,7 +104,9 @@ Before any real-token test, the simulation needs an independent legal review, au
 ## Asset provenance
 
 - World: `public/assets/world/sunwoven-reach-v1.glb`
-- Structures: `public/assets/structures/b01-…b08-….glb`
+- Temporary runtime structures: `public/assets/structures/b01-…b08-….glb`
+- Official visual authority: `../art/official-v1/manifest.json`
+- Official art and GLB contract: `../ART-DIRECTION.md`
 - Source packages remain in the workspace `outputs/markets-and-makers-complete-blender-world-v1` and `outputs/markets-and-makers-blender-structures-v1`.
 
 ## Project map

@@ -23,15 +23,12 @@
       <header class="topbar">
         <div class="brand">
           <div class="brand-icon">M<span>&amp;</span>M</div>
-          <div><strong>Markets &amp; Makers</strong><small>Sunwoven Reach · Founder preview</small></div>
+          <div><strong>Markets &amp; Makers</strong><small>Sunwoven Reach</small></div>
         </div>
         <div class="economy-strip">
-          <div><small>Sunmarks</small><strong id="walletValue">750 SM</strong></div>
-          <div><small>Civic treasury</small><strong id="treasuryValue">45.0M SM</strong></div>
-          <div><small>AI citizens</small><strong id="citizenValue">120</strong></div>
-          <div><small>$MM reserve</small><strong id="reserveValue">50.0M</strong></div>
-          <div><small>Career</small><strong id="careerValue">New Maker · Lv 1</strong></div>
-          <div><small>Network</small><strong class="status-local" id="networkValue">Local authority</strong></div>
+          <div class="money"><small>Your money</small><strong id="walletValue">750 SM</strong></div>
+          <div><small>Level</small><strong id="careerValue">New Maker · Lv 1</strong></div>
+          <div class="quiet"><small>Network</small><strong class="status-local" id="networkValue">Local</strong></div>
         </div>
         <button class="soft-button" id="resetButton" title="Reset the local prototype">New world</button>
       </header>
@@ -45,12 +42,7 @@
             <strong id="islandLabel">Hearthmarket</strong>
             <span id="islandEconomy">Markets, starter plots and city demand</span>
           </div>
-          <div class="world-hint" id="worldHint">WASD / arrows to move · Click ground to walk · Q/E rotate · Wheel zoom</div>
-          <div class="tutorial-card" id="tutorialCard" aria-live="polite">
-            <span id="tutorialProgress">0 / 8</span>
-            <div><small>Founder objective</small><strong id="tutorialTitle">Explore Hearthmarket</strong><p id="tutorialCopy">Move with WASD, arrows, or click the world.</p><div class="objective-meter"><span id="tutorialMeter"></span></div></div>
-            <button class="objective-action" id="objectiveAction" data-action="walk-plaza">Go</button>
-          </div>
+          <div class="world-hint" id="worldHint">Click the ground to walk</div>
           <div class="selected-card" id="selectedCard">
             <div><small>Selected plot</small><strong id="selectedPlotName">Garden Row Plot</strong></div>
             <span id="selectedPlotStatus">Available · 120 SM</span>
@@ -63,21 +55,33 @@
         </div>
 
         <aside class="control-panel">
+          <div class="next-step" id="nextStep" aria-live="polite">
+            <div class="next-copy">
+              <small id="nextLabel">Step 1 of 9</small>
+              <strong id="nextTitle">Explore Hearthmarket</strong>
+              <span id="nextHint">Click the ground to walk.</span>
+            </div>
+            <button class="next-go" id="nextGo" data-action="walk-plaza">Show me</button>
+            <div class="next-meter"><span id="nextMeter"></span></div>
+          </div>
           <nav class="tabs" aria-label="Game panels">
-            <button class="active" data-tab="guide" aria-selected="true"><span aria-hidden="true">◎</span><em>Guide</em></button>
-            <button data-tab="build" aria-selected="false"><span aria-hidden="true">⌂</span><em>Build</em></button>
-            <button data-tab="business" aria-selected="false"><span aria-hidden="true">▥</span><em>Business</em></button>
-            <button data-tab="market" aria-selected="false"><span aria-hidden="true">⇄</span><em>Market</em></button>
-            <button data-tab="contracts" aria-selected="false"><span aria-hidden="true">✓</span><em>Orders</em></button>
-            <button data-tab="map" aria-selected="false"><span aria-hidden="true">◇</span><em>Map</em></button>
+            <button class="active" data-tab="shop" aria-selected="true"><span aria-hidden="true">▥</span><em>Business</em></button>
+            <button data-tab="trade" aria-selected="false" hidden><span aria-hidden="true">⇄</span><em>Trade</em></button>
+            <button data-tab="world" aria-selected="false" hidden><span aria-hidden="true">◇</span><em>World</em></button>
           </nav>
           <div class="panel-scroll">
-            <section class="panel active" data-panel="guide" id="guidePanel"></section>
-            <section class="panel" data-panel="build" id="buildPanel"></section>
-            <section class="panel" data-panel="business" id="businessPanel"></section>
-            <section class="panel" data-panel="market" id="marketPanel"></section>
-            <section class="panel" data-panel="contracts" id="contractsPanel"></section>
-            <section class="panel" data-panel="map" id="mapPanel"></section>
+            <section class="panel active" data-panel="shop">
+              <div id="buildPanel"></div>
+              <div id="businessPanel"></div>
+            </section>
+            <section class="panel" data-panel="trade">
+              <div id="contractsPanel"></div>
+              <div id="marketPanel"></div>
+            </section>
+            <section class="panel" data-panel="world">
+              <div id="guidePanel"></div>
+              <div id="mapPanel"></div>
+            </section>
           </div>
         </aside>
       </section>

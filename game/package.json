@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build",
+    "validate:art": "node ../scripts/validate-official-art.mjs",
+    "build": "npm run validate:art && tsc --noEmit && vite build",
     "deploy:cloudflare": "npm run build && wrangler deploy",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run"
