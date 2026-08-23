@@ -417,6 +417,22 @@ describe("Markets & Makers economy", () => {
     expect(losers, `unprofitable licences at level 0: ${losers.join(", ")}`).toEqual([]);
   });
 
+  it("credits the guide for work the automation did", () => {
+    // The passive path used to leave tutorial progress untouched, so a player whose
+    // business ran itself stayed stuck on "Run production" forever.
+    const state = createFreshState();
+    state.wallet = 20_000;
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.lastTickAt = Date.now() - 6 * 3_600_000;
+    const store = new GameStore(state);
+    expect(store.state.tutorial.produced).toBe(false);
+
+    const report = store.catchUp();
+    expect(report.jobs).toBeGreaterThan(0);
+    expect(store.state.tutorial.produced).toBe(true);
+    expect(store.state.tutorial.sold).toBe(true);
+  });
+
   it("finishes a first job while the player is still watching", () => {
     // An eight-minute wait on job one means a new player never sees the loop close.
     for (const license of Object.keys(BUSINESS) as LicenseKey[]) {

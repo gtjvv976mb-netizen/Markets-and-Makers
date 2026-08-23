@@ -349,8 +349,10 @@ const HALT_COPY: Record<string, string> = {
 function shiftReportMarkup(): string {
   const shift = store.state.lastShift;
   if (!shift || shift.jobs <= 0) return "";
+  const plural = (value: number, unit: string) => `${value} ${unit}${value === 1 ? "" : "s"}`;
+  const span = shift.hours >= 1 ? plural(Math.round(shift.hours), "hour") : plural(Math.max(1, Math.round(shift.hours * 60)), "minute");
   return `<article class="shift-card">
-    <div class="shift-head"><small>While you were away</small><strong>${shift.hours.toFixed(1)} hours of trading</strong></div>
+    <div class="shift-head"><small>Your business worked</small><strong>${span} of trading</strong></div>
     <div class="shift-grid">
       <div><small>Jobs</small><strong>${shift.jobs}</strong></div>
       <div><small>Made</small><strong>${formatNumber(shift.produced)}</strong></div>

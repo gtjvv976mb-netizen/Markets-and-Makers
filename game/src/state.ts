@@ -688,6 +688,7 @@ export class GameStore {
     this.state.taxPaid += tax;
     this.state.lifetimeRevenue += gross;
     this.state.procurement.used[key] += amount;
+    this.state.tutorial.sold = true;
     this.addContribution(gross, "auto");
     this.moveMarket(key, -1, amount);
     return { sold: amount, revenue: gross - tax };
@@ -749,7 +750,11 @@ export class GameStore {
     // Finish whatever was already on the floor.
     if (this.state.job && this.state.job.completeAt <= until) {
       clock = Math.max(clock, this.state.job.completeAt);
+      // Count what the in-flight job actually yielded, so the report cannot read
+      // "1 job, 0 made".
+      const before = this.storedUnits();
       this.collectJob(this.state.job.completeAt);
+      report.produced += Math.max(0, this.storedUnits() - before);
       report.jobs += 1;
     }
 
@@ -865,6 +870,7 @@ export class GameStore {
           const served = this.serviceVisitors(config, cycles);
           this.state.visitorsServed += served;
           this.state.daily.visits += served;
+          this.state.tutorial.sold = true;
           this.addContribution(gross, "auto");
           report.revenue += gross - tax;
         }
@@ -887,6 +893,7 @@ export class GameStore {
       this.state.condition = Math.max(0, this.state.condition - 3 - cycles * 2);
       this.state.jobsCompleted += 1;
       this.state.daily.jobs += 1;
+      this.state.tutorial.produced = true;
       report.jobs += 1;
       if (this.state.condition <= BREAKDOWN_CONDITION) { this.state.brokenDown = true; report.halted = "breakdown"; break; }
     }
