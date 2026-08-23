@@ -46,6 +46,90 @@ const world = new World3D(canvas, {
 
 world.setPositionCheckpoint(() => store.savePosition());
 
+// ---------------------------------------------------------------------------
+// The world is the interface. Plots and businesses carry their own labels, and
+// the panel only slides in when you ask something a question.
+// ---------------------------------------------------------------------------
+const sheet = element<HTMLElement>("#sheet");
+const markerLayer = element<HTMLElement>("#worldMarkers");
+
+function openSheet(): void { sheet.dataset.open = "true"; }
+function closeSheet(): void { sheet.dataset.open = "false"; }
+element("#sheetClose").addEventListener("click", closeSheet);
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
+
+interface MarkerModel { id: string; kind: string; label: string; title: string; detail: string; x: number; z: number }
+
+function markerModels(): MarkerModel[] {
+  const state = store.state;
+  return PLOTS.filter((plot) => plot.island === state.island).map((plot) => {
+    const record = state.portfolio[plot.id];
+    if (!record) {
+      return { id: plot.id, kind: "vacant", label: "For lease", title: plot.name.replace(" Plot", ""),
+               detail: `${plot.price} ${SUNMARK_CODE}`, x: plot.x, z: plot.z };
+    }
+    if (!record.license) {
+      return { id: plot.id, kind: "owned", label: "Yours", title: plot.name.replace(" Plot", ""),
+               detail: "Choose a trade", x: plot.x, z: plot.z };
+    }
+    const config = BUSINESS[record.license];
+    if (record.brokenDown) {
+      return { id: plot.id, kind: "alert", label: "Broken down", title: config.name, detail: "Needs a repair crew", x: plot.x, z: plot.z };
+    }
+    if (!record.buildingPlaced) {
+      return { id: plot.id, kind: "owned", label: "Ready to build", title: config.name, detail: "Tap to build", x: plot.x, z: plot.z };
+    }
+    if (record.job) {
+      const left = record.job.completeAt - Date.now();
+      return left > 0
+        ? { id: plot.id, kind: "owned", label: "Working", title: config.name, detail: formatWait(left), x: plot.x, z: plot.z }
+        : { id: plot.id, kind: "ready", label: "Ready", title: config.name, detail: "Collect your goods", x: plot.x, z: plot.z };
+    }
+    return { id: plot.id, kind: "owned", label: "Idle", title: config.name, detail: "Tap to run a job", x: plot.x, z: plot.z };
+  });
+}
+
+let markerSignature = "";
+
+function syncMarkers(): void {
+  const models = markerModels();
+  const signature = models.map((m) => `${m.id}:${m.kind}:${m.label}:${m.detail}`).join("|");
+  if (signature !== markerSignature) {
+    markerSignature = signature;
+    markerLayer.innerHTML = models.map((model) => `
+      <div class="marker ${model.kind}" data-marker="${model.id}">
+        <button class="marker-pin" data-action="marker" data-plot="${model.id}">
+          <small>${model.label}</small><strong>${model.title}</strong><span>${model.detail}</span>
+        </button>
+      </div>`).join("");
+  }
+  // Anchor just above the plot, then keep the pin inside the frame so a label never
+  // slides off the top edge while its plot is plainly visible.
+  const projected = world.project(models.map((model) => ({ id: model.id, x: model.x, y: 2.6, z: model.z })));
+  const width = markerLayer.clientWidth;
+  const height = markerLayer.clientHeight;
+  for (const point of projected) {
+    const node = markerLayer.querySelector<HTMLElement>(`[data-marker="${point.id}"]`);
+    if (!node) continue;
+    // Off-frame plots stay on screen, pinned to the edge and dimmed, so the world doubles
+    // as the map: you can always see where your land is.
+    node.style.display = "block";
+    node.style.left = `${Math.min(Math.max(point.sx, 74), Math.max(74, width - 74))}px`;
+    // The pin renders upward from its anchor, so the floor must clear the top bar plus
+    // the pin's own height or the label hides behind the chrome.
+    node.style.top = `${Math.min(Math.max(point.sy, 164), Math.max(164, height - 120))}px`;
+    node.classList.toggle("far", point.sx < 0 || point.sx > width || point.sy < 0 || point.sy > height);
+  }
+}
+
+let lastMarkerSync = 0;
+world.setFrameCallback(() => {
+  const now = performance.now();
+  if (now - lastMarkerSync < 90) return;
+  lastMarkerSync = now;
+  syncMarkers();
+});
+
 // Replay the time the player was away, on load and whenever they come back to the tab.
 store.catchUp();
 document.addEventListener("visibilitychange", () => {
@@ -139,6 +223,7 @@ function report(result: ActionResult): void {
 function switchTab(requested: string): void {
   const tab = TAB_FOR.get(requested) ?? requested;
   activeTab = tab;
+  openSheet();
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
     const active = button.dataset.tab === tab;
     button.classList.toggle("active", active);
@@ -692,6 +777,13 @@ document.body.addEventListener("click", (event) => {
   else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "switch-business") report(store.switchBusiness(button.dataset.plot ?? ""));
+  else if (action === "marker") {
+    const plotId = button.dataset.plot ?? "";
+    if (store.state.portfolio[plotId]) { if (plotId !== store.state.ownedPlotId) store.switchBusiness(plotId); }
+    else store.selectPlot(plotId);
+    switchTab(store.state.portfolio[plotId]?.buildingPlaced ? "shop" : "shop");
+    openSheet();
+  }
   else if (action === "wallet-connect") {
     signIn().then((who) => { principal = who; toast(`Wallet linked: ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
       .catch((error: Error) => toast(error.message));

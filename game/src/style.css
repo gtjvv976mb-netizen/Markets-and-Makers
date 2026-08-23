@@ -39,8 +39,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .loading-bar { overflow: hidden; height: 10px; border-radius: 99px; background: rgba(255,255,255,.16); }
 .loading-bar span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f1bb4b, #83d29a); transition: width .25s ease; }
 
-.app-shell { width: min(1780px, 100%); min-height: 100svh; margin: 0 auto; padding: 12px; }
-.topbar { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; gap: 12px; align-items: center; margin-bottom: 12px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.82); border-radius: 20px; background: linear-gradient(110deg, rgba(255,252,240,.96), rgba(243,246,222,.93)); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
+.app-shell { position: relative; width: 100%; height: 100svh; margin: 0; padding: 0; overflow: hidden; }
+.topbar { position: absolute; z-index: 6; top: 10px; right: 10px; left: 10px; display: grid; grid-template-columns: minmax(200px, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid rgba(255,255,255,.82); border-radius: 20px; background: linear-gradient(110deg, rgba(255,252,240,.96), rgba(243,246,222,.93)); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
 .brand { display: flex; min-width: 0; align-items: center; gap: 11px; }
 .brand-icon { width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px; font-size: 17.5px; }
 .brand strong, .brand small { display: block; }
@@ -55,20 +55,21 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .status-unavailable { color: #b75b43; }
 .soft-button { padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: white; font-size: 14.5px; font-weight: 900; }
 
-.game-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(390px, 30vw, 430px); gap: 12px; }
-.world-frame, .control-panel { overflow: hidden; border: 1px solid rgba(255,255,255,.85); border-radius: 22px; background: var(--paper); box-shadow: var(--shadow); }
-.world-frame { position: relative; min-height: 700px; isolation: isolate; background: #10a9bb; }
+.game-layout { position: absolute; inset: 0; display: block; }
+.control-panel { overflow: hidden; background: var(--paper); }
+.world-frame { overflow: hidden; }
+.world-frame { position: absolute; inset: 0; isolation: isolate; background: #10a9bb; }
 .world-frame::before { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; box-shadow: inset 0 0 75px rgba(7,54,58,.17), inset 0 -55px 80px rgba(3,65,72,.12); }
 .world-frame::after { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255,240,176,.08), transparent 26%, transparent 72%, rgba(10,71,76,.08)); mix-blend-mode: soft-light; }
-#worldCanvas { display: block; width: 100%; height: min(80vh, 840px); min-height: 700px; cursor: crosshair; touch-action: none; }
+#worldCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .world-label, .world-hint, .tutorial-card, .selected-card, .daylight-chip { position: absolute; z-index: 4; color: white; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(135deg, rgba(14,70,73,.92), rgba(17,81,81,.84)); box-shadow: 0 14px 32px rgba(6,46,49,.24); backdrop-filter: blur(12px); }
-.world-label { top: 12px; left: 12px; max-width: 260px; padding: 11px 13px; border-radius: 14px; }
+.world-label { top: 84px; left: 12px; max-width: 190px; padding: 9px 12px; border-radius: 13px; }
 .world-label small, .world-label strong, .world-label span { display: block; }
 .world-label small { color: #bfe5d6; font-size: 12.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-.world-label strong { margin-top: 2px; font-size: 23px; }
+.world-label strong { margin-top: 2px; font-size: 19px; }
 .world-label span { margin-top: 3px; font-size: 13.5px; color: #def0e7; }
 .world-hint { right: 12px; bottom: 12px; padding: 8px 11px; border-radius: 11px; font-size: 13.5px; font-weight: 750; }
-.daylight-chip { top: 92px; left: 12px; display: grid; grid-template-columns: 9px auto auto; gap: 7px; align-items: center; padding: 7px 9px; border-radius: 10px; font-size: 12.5px; }
+.daylight-chip { top: 150px; left: 12px; display: grid; grid-template-columns: 9px auto auto; gap: 7px; align-items: center; padding: 7px 9px; border-radius: 10px; font-size: 12.5px; }
 .daylight-chip i { width: 9px; height: 9px; border-radius: 50%; background: #ffd45d; box-shadow: 0 0 0 4px rgba(255,212,93,.16), 0 0 13px #ffd45d; }
 .daylight-chip span { color: #c8e8d8; font-weight: 800; text-transform: uppercase; }
 .daylight-chip strong { color: #fff4c7; }
@@ -513,7 +514,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
   .economy-strip { grid-column: 1 / -1; overflow-x: auto; }
   .economy-strip > div { min-width: 110px; }
   .brand small { display: none; }
-  .world-frame, #worldCanvas { min-height: 540px; height: 68svh; }
+  .world-frame, #worldCanvas { min-height: 0; height: 100%; }
   .daylight-chip { display: none; }
   .tutorial-card { top: auto; right: 10px; bottom: 66px; left: 10px; width: auto; grid-template-columns: 40px minmax(0,1fr) 42px; }
   .world-hint { display: none; }
@@ -552,3 +553,40 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* ================= world-space labels ================= */
+.world-markers { position: absolute; z-index: 5; inset: 0; pointer-events: none; }
+.marker { position: absolute; transform: translate(-50%, -100%); pointer-events: auto; }
+.marker-pin { display: grid; gap: 2px; min-width: 118px; padding: 8px 11px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; background: linear-gradient(140deg, rgba(16,74,77,.95), rgba(19,88,86,.9)); color: #fff; box-shadow: 0 12px 26px rgba(6,46,49,.34); backdrop-filter: blur(10px); text-align: left; }
+.marker-pin small { color: #a9dcc9; font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.marker-pin strong { font-size: 14px; line-height: 1.2; }
+.marker-pin span { color: #ffd980; font-size: 12.5px; font-weight: 800; }
+.marker-pin::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg); border-right: 1px solid rgba(255,255,255,.2); border-bottom: 1px solid rgba(255,255,255,.2); background: rgba(19,88,86,.92); }
+.marker.owned .marker-pin { background: linear-gradient(140deg, rgba(38,104,72,.95), rgba(52,124,84,.9)); }
+.marker.owned .marker-pin::after { background: rgba(52,124,84,.92); }
+.marker.alert .marker-pin { background: linear-gradient(140deg, rgba(150,52,42,.95), rgba(178,72,58,.9)); }
+.marker.alert .marker-pin::after { background: rgba(178,72,58,.92); }
+.marker.ready .marker-pin { background: linear-gradient(140deg, rgba(150,110,26,.96), rgba(196,150,44,.92)); }
+.marker.ready .marker-pin::after { background: rgba(196,150,44,.94); }
+.marker:hover .marker-pin { filter: brightness(1.1); }
+.marker.far { opacity: .62; }
+.marker.far .marker-pin { min-width: 0; padding: 6px 9px; }
+.marker.far .marker-pin span, .marker.far .marker-pin::after { display: none; }
+
+/* ================= the sheet ================= */
+.control-panel { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: min(430px, 100%); display: flex; flex-direction: column; padding: 12px; border-left: 1px solid rgba(255,255,255,.7); box-shadow: -18px 0 46px rgba(9,48,50,.24); transform: translateX(102%); transition: transform .34s cubic-bezier(.22,.61,.36,1); }
+.control-panel[data-open="true"] { transform: translateX(0); }
+.sheet-close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 36px; height: 36px; border-radius: 50%; background: var(--paper-2); color: var(--ink); font-size: 16px; font-weight: 900; }
+.sheet-close:hover { background: #e6e2cd; }
+@media (prefers-reduced-motion: reduce) { .control-panel { transition: none; } }
+
+@media (max-width: 900px) {
+  .control-panel { top: auto; width: 100%; max-height: 78svh; border-left: 0; border-top-left-radius: 20px; border-top-right-radius: 20px; transform: translateY(102%); }
+  .control-panel[data-open="true"] { transform: translateY(0); }
+  .topbar { grid-template-columns: 1fr auto; }
+}
+
+/* the instruction floats over the world, not inside the sheet */
+.world-next { position: absolute; z-index: 6; right: 12px; bottom: 12px; left: auto; width: min(420px, calc(100% - 24px)); margin: 0; }
+@media (max-width: 900px) { .world-next { right: 10px; left: 10px; width: auto; bottom: 76px; } }

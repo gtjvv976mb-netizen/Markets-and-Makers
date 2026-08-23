@@ -60,6 +60,7 @@ export class World3D {
   private running = false;
   private saveAccumulator = 0;
   private onPositionCheckpoint: (() => void) | null = null;
+  private onFrame: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement, callbacks: WorldCallbacks) {
     this.canvas = canvas;
@@ -597,6 +598,33 @@ export class World3D {
     }
   }
 
+  /** Called once per rendered frame, so screen-space labels can track the camera. */
+  setFrameCallback(callback: () => void): void {
+    this.onFrame = callback;
+  }
+
+  /**
+   * Project world points into canvas pixels so HTML labels can sit over the scene.
+   * Anything behind the camera or off-canvas is reported as off-screen.
+   */
+  project(points: Array<{ id: string; x: number; y: number; z: number }>): Array<{ id: string; sx: number; sy: number; onScreen: boolean }> {
+    const width = Math.max(1, this.canvas.clientWidth);
+    const height = Math.max(1, this.canvas.clientHeight);
+    const vector = new THREE.Vector3();
+    return points.map((point) => {
+      vector.set(point.x, point.y, point.z).project(this.camera);
+      const sx = (vector.x * 0.5 + 0.5) * width;
+      const sy = (-vector.y * 0.5 + 0.5) * height;
+      const onScreen = vector.z < 1 && sx > -80 && sy > -60 && sx < width + 80 && sy < height + 60;
+      return { id: point.id, sx, sy, onScreen };
+    });
+  }
+
+  /** Ground position of the player, for placing a "you are here" marker. */
+  playerPoint(): { x: number; y: number; z: number } {
+    return { x: this.avatar.position.x, y: this.avatar.position.y + 2.4, z: this.avatar.position.z };
+  }
+
   setPositionCheckpoint(callback: () => void): void {
     this.onPositionCheckpoint = callback;
   }
@@ -767,8 +795,10 @@ export class World3D {
       if (!decor.visible) continue;
       const pulse = 1 + Math.sin(elapsed * 2.2 + id.length) * 0.025;
       decor.scale.set(pulse, 1, pulse);
+      // The interactive HTML markers carry this text now; the in-scene sign would
+      // otherwise render the same words twice, stacked.
       const label = decor.children.find((child) => child.userData.plotLabel);
-      if (label) label.position.y = 3.8 + Math.sin(elapsed * 2 + id.length) * 0.12;
+      if (label) label.visible = false;
     }
     for (const material of this.waterMaterials) material.opacity = 0.82 + Math.sin(elapsed * 0.7) * 0.035;
   }
@@ -803,6 +833,7 @@ export class World3D {
       this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, this.keys.size > 0 || Boolean(this.clickTarget));
       this.updateCamera(delta);
+      this.onFrame?.();
       this.saveAccumulator += delta;
       if (this.saveAccumulator >= 3) {
         this.saveAccumulator = 0;
