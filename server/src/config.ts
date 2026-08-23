@@ -9,9 +9,9 @@ const schema = z.object({
   HELIUS_API_KEY: z.string().optional().default(""),
   HELIUS_WEBHOOK_SECRET: z.string().optional().default(""),
   MM_TOKEN_MINT: z.string().optional().default(""),
-  // The market commands trust the playerId in the request body. That is only safe once
-  // sessions are bound to a verified wallet, so they stay OFF until that exists.
-  MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(0)
+  // Market and settlement commands now derive the player from a wallet-signed session,
+  // so they are safe to serve. The flag remains as an operational circuit breaker.
+  MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(1)
 });
 
 const env = schema.parse(process.env);

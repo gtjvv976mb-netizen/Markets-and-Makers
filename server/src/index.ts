@@ -6,6 +6,8 @@ import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
+import { buyFromCivic, sellToDistrict } from "./settlement.js";
+import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
 
 interface Presence {
   sessionId: string;
@@ -122,6 +124,44 @@ const server = createServer(async (req, res) => {
       json(res, 200, await tokenBalance(owner));
       return;
     }
+    if (url.pathname.startsWith("/api/auth/")) {
+      try {
+        if (req.method === "POST" && url.pathname === "/api/auth/challenge") {
+          const payload = (await body(req, 2_000)) as { walletAddress?: unknown } | null;
+          json(res, 200, await createChallenge(String(payload?.walletAddress ?? "")));
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/auth/verify") {
+          const payload = (await body(req, 4_000)) as Record<string, unknown> | null;
+          const session = await verifyChallenge({
+            walletAddress: String(payload?.walletAddress ?? ""),
+            nonce: String(payload?.nonce ?? ""),
+            signature: String(payload?.signature ?? ""),
+            displayName: payload?.displayName ? String(payload.displayName) : undefined,
+          });
+          json(res, 200, session);
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/auth/me") {
+          const who = await authenticate(bearerFrom(req.headers.authorization));
+          if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+          json(res, 200, who);
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+          const token = bearerFrom(req.headers.authorization);
+          if (token) await revokeSession(token);
+          json(res, 200, { ok: true });
+          return;
+        }
+        json(res, 404, { error: "not-found" });
+      } catch (error) {
+        if (error instanceof AuthError) { json(res, 401, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
     // Prices are public information: anyone may read the district board.
     if (req.method === "GET" && url.pathname === "/api/economy/board") {
       try {
@@ -135,12 +175,35 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/economy/standing") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      json(res, 200, await epochStanding("sunwoven-1", who.playerId));
+      return;
+    }
+
+    // Settlement: the district prices the trade and the ledger moves the value.
+    if (req.method === "POST" && (url.pathname === "/api/economy/sell" || url.pathname === "/api/economy/buy")) {
       if (!config.marketRoutes) { json(res, 404, { error: "market-disabled" }); return; }
-      const owner = url.searchParams.get("playerId") ?? "";
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(owner)) {
-        json(res, 400, { error: "invalid-player" }); return;
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const key = req.headers["idempotency-key"];
+      if (typeof key !== "string" || !/^[0-9a-f-]{36}$/i.test(key)) { json(res, 400, { error: "idempotency-key-required" }); return; }
+      const payload = (await body(req, 2_000)) as Record<string, unknown> | null;
+      if (!payload) { json(res, 400, { error: "body-required" }); return; }
+      const args = {
+        idempotencyKey: key, playerId: who.playerId,
+        islandId: String(payload.islandId ?? "hearth"),
+        itemKey: String(payload.itemKey ?? ""),
+        quantity: Number(payload.quantity),
+      };
+      try {
+        json(res, 200, url.pathname.endsWith("/sell") ? await sellToDistrict(args) : await buyFromCivic(args));
+      } catch (error) {
+        if (error instanceof EconomyError || error instanceof MarketError) {
+          json(res, 409, { error: error.code, message: error.message }); return;
+        }
+        throw error;
       }
-      json(res, 200, await epochStanding("sunwoven-1", owner));
       return;
     }
 
@@ -161,8 +224,10 @@ const server = createServer(async (req, res) => {
           const payload = (await body(req, 4_000)) as Record<string, unknown> | null;
           if (!payload) { json(res, 400, { error: "body-required" }); return; }
           const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          const player = String(payload.playerId ?? "");
-          if (!uuid.test(player)) { json(res, 400, { error: "invalid-player" }); return; }
+          // Identity comes from the signed session. A client cannot assert who it is.
+          const principal: Principal | null = await authenticate(bearerFrom(req.headers.authorization));
+          if (!principal) { json(res, 401, { error: "unauthenticated" }); return; }
+          const player = principal.playerId;
           if (url.pathname !== "/api/market/list") {
             const listing = String(payload.listingId ?? "");
             if (!uuid.test(listing)) { json(res, 400, { error: "invalid-listing" }); return; }

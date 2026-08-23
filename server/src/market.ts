@@ -20,7 +20,7 @@ function db(): NonNullable<typeof pool> {
  * One economic command: a single transaction, replay-safe. A repeated idempotency key
  * returns the first response verbatim and performs no further movement.
  */
-async function command<T>(
+export async function command<T>(
   key: string, type: string, playerId: string | null,
   run: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
@@ -49,7 +49,7 @@ async function command<T>(
   }
 }
 
-async function takeItems(
+export async function takeItems(
   client: PoolClient, realmId: string, commandId: string, itemKey: string,
   quantity: number, from: Owner, to: Owner, reason: string,
 ): Promise<void> {
@@ -91,7 +91,7 @@ async function accountId(client: PoolClient, realmId: string, owner: Owner): Pro
   return row.id;
 }
 
-async function moveCurrency(
+export async function moveCurrency(
   client: PoolClient, realmId: string, commandId: string, amount: number,
   from: Owner, to: Owner, reason: string,
 ): Promise<void> {

@@ -2,6 +2,7 @@ import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, BUSINESS_STAGE
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
+import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal } from "./wallet";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -57,6 +58,16 @@ window.setInterval(() => { if (store.catchUp().jobs > 0) renderAll(); }, 60_000)
 
 let peerCount = 0;
 let districtBoard: DistrictQuote[] | null = null;
+let principal: Principal | null = null;
+let standing: EpochStanding | null = null;
+
+async function refreshWallet(): Promise<void> {
+  principal = await currentPrincipal();
+  standing = principal ? await fetchStanding() : null;
+  renderAll();
+}
+void refreshWallet();
+window.setInterval(() => { if (principal) void refreshWallet(); }, 60_000);
 let districtIsland = "";
 
 async function refreshDistrictBoard(): Promise<void> {
@@ -359,6 +370,28 @@ function renderBusiness(): void {
   `;
 }
 
+function walletMarkup(): string {
+  if (principal && standing) {
+    return `<div class="wallet-linked">
+      <div class="wallet-head"><span class="wallet-dot"></span><div><strong>Linked wallet</strong><small>${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}</small></div>
+      <button class="wallet-out" data-action="wallet-disconnect">Unlink</button></div>
+      <div class="wallet-grid">
+        <div><small>Realm contributors</small><strong>${standing.contributors}</strong></div>
+        <div><small>Everyone else</small><strong>${formatNumber(Math.round(standing.cohort))}</strong></div>
+        <div><small>Epoch budget</small><strong>${formatNumber(standing.budget)} $MM</strong></div>
+      </div>
+      <small class="wallet-note">These are live realm figures. Your share is your slice of what every player actually did this epoch.</small>
+    </div>`;
+  }
+  if (principal) {
+    return `<div class="wallet-linked"><div class="wallet-head"><span class="wallet-dot"></span><div><strong>Linked wallet</strong><small>${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}</small></div><button class="wallet-out" data-action="wallet-disconnect">Unlink</button></div></div>`;
+  }
+  return `<div class="wallet-connect">
+    <p>Link a Solana wallet to earn against the <strong>live realm</strong> rather than a local estimate. Signing proves the wallet is yours &mdash; it authorises no transfer and costs no fee.</p>
+    <button data-action="wallet-connect" ${walletAvailable() ? "" : "disabled"}>${walletAvailable() ? "Link Solana wallet" : "No wallet detected"}</button>
+  </div>`;
+}
+
 function portfolioMarkup(): string {
   const owned = store.ownedPlotIds();
   if (owned.length <= 1) return "";
@@ -420,11 +453,12 @@ function renderMarket(): void {
         <div class="epoch-fill" style="width:${Math.min(100, store.epochShare() * 100).toFixed(2)}%"></div>
       </div>
       <div class="reserve-balance">
-        <div><small>Your contribution</small><strong>${formatNumber(Math.round(store.state.epoch.contribution))}</strong></div>
-        <div><small>Your share</small><strong>${(store.epochShare() * 100).toFixed(2)}%</strong></div>
-        <div><small>Projected payout</small><strong>${formatNumber(store.projectedEpochMM())} $MM</strong></div>
+        <div><small>Your contribution</small><strong>${formatNumber(Math.round(standing ? standing.mine : store.state.epoch.contribution))}</strong></div>
+        <div><small>Your share</small><strong>${((standing ? standing.share : store.epochShare()) * 100).toFixed(2)}%</strong></div>
+        <div><small>Projected payout</small><strong>${formatNumber(standing ? standing.projected : store.projectedEpochMM())} $MM</strong></div>
         <div><small>Held / lifetime earned</small><strong>${formatNumber(store.state.mmHoldings)} / ${formatNumber(store.state.lifetimeMMEarned)}</strong></div>
       </div>
+      ${walletMarkup()}
       <p class="epoch-note">Fulfilling a named buyer's order is worth <strong>10&times;</strong> what dumping the same value on the civic supplier is. Everyone else in the realm is contributing too &mdash; their effort dilutes your share, and yours dilutes theirs.</p>
       <div class="reserve-actions">
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
@@ -608,6 +642,13 @@ document.body.addEventListener("click", (event) => {
   else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "switch-business") report(store.switchBusiness(button.dataset.plot ?? ""));
+  else if (action === "wallet-connect") {
+    signIn().then((who) => { principal = who; toast(`Wallet linked: ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
+      .catch((error: Error) => toast(error.message));
+  }
+  else if (action === "wallet-disconnect") {
+    void signOut().then(() => { principal = null; standing = null; toast("Wallet unlinked."); renderAll(); });
+  }
   else if (action === "operation") {
     const key = button.dataset.operation as "autoProduce" | "autoBuy" | "autoSell";
     report(store.setOperation(key, !store.state.operations[key]));

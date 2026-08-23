@@ -9,7 +9,7 @@ export type Buyer = "government" | "citizens";
 export type Tier = "civic" | "raw" | "intermediate" | "capital" | "consumer" | "recovered";
 
 export interface ResourceSpec {
-  governmentPrice: number; procurementPrice: number; buyer: Buyer; tier: Tier; volatility: number;
+  governmentPrice: number; procurementPrice: number; buyer: Buyer; tier: Tier; volatility: number; civicSupply?: boolean;
 }
 
 export const RESOURCES: Record<string, ResourceSpec> = {
@@ -23,7 +23,8 @@ export const RESOURCES: Record<string, ResourceSpec> = {
   equipment: { governmentPrice: 86, procurementPrice: 72, buyer: "government", tier: "capital",      volatility: .12 },
   material:  { governmentPrice: 58, procurementPrice: 48, buyer: "government", tier: "capital",      volatility: .12 },
   supply:    { governmentPrice: 25, procurementPrice: 20, buyer: "citizens",   tier: "consumer",     volatility: .20 },
-  waste:     { governmentPrice: 12, procurementPrice: 4,  buyer: "government", tier: "recovered",    volatility: .06 },
+  // Scrap is a by-product of production, never sold by the civic supplier. This MUST match data.ts.
+  waste:     { governmentPrice: 12, procurementPrice: 4,  buyer: "government", tier: "recovered",    volatility: .06, civicSupply: false },
 };
 
 export const PRESSURE_MIN = 0.72;

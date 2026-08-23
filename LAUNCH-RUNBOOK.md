@@ -506,7 +506,11 @@ After written approval, mainnet should use a **separate** Render environment, He
 
 ### Required for the full economy
 
-- Accounts/authentication and secure wallet linking
+- ~~Accounts/authentication and secure wallet linking~~ — done: wallet-signed
+  challenge/response sessions (`/api/auth/*`), one wallet to one player, tokens
+  stored only as a hash. `MM_MARKET_ROUTES` remains as a circuit breaker.
+- ~~Shared prices, demand and settlement~~ — done: districts own price and demand
+  state, and `/api/economy/sell|buy` settle on the ledger inside one transaction.
 - Server-authoritative plot leasing/build validation
 - Business interiors, equipment upgrades, capacity, and recipes
 - Inventory, production jobs, market, NPC demand, taxes, and government procurement

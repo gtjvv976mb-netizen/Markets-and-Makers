@@ -88,18 +88,25 @@ export async function islandBoard(realmId: string, islandId: string): Promise<Qu
  * player's selling moves the price and consumes the allowance that every other player in
  * that district is trading against.
  */
-export async function recordSale(input: {
+export interface SalePricing { gross: number; firstUnit: number; lastUnit: number; pressure: number; contribution: number }
+
+export interface SaleInput {
   realmId: string; islandId: string; itemKey: string; quantity: number;
   playerId: string; contributionWeight: number; at?: number;
-}): Promise<{ gross: number; firstUnit: number; lastUnit: number; pressure: number; contribution: number }> {
+}
+
+/**
+ * Price a sale, consume district demand and credit contribution, INSIDE a caller's
+ * transaction. Settlement must do this in the same transaction that moves the goods and
+ * the money, or a replayed command re-prices the market even though the ledger is
+ * idempotent — which moves prices for everyone twice for one sale.
+ */
+export async function applySaleWithin(client: PoolClient, input: SaleInput): Promise<SalePricing> {
   const spec = RESOURCES[input.itemKey];
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${input.itemKey}`);
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new EconomyError("bad-quantity", "Quantity must be a positive whole number.");
-
   const at = input.at ?? Date.now();
-  const client = await db().connect();
-  try {
-    await client.query("begin");
+  {
     const pressure = await currentPressure(client, input.realmId, input.islandId, input.itemKey);
     const day = utcDay(at);
     const soldRow = await client.query<{ units: string }>(
@@ -134,8 +141,18 @@ export async function recordSale(input: {
        do update set contribution = contribution_epoch.contribution + excluded.contribution`,
       [input.realmId, epoch, input.playerId, contribution]);
 
-    await client.query("commit");
     return { gross, firstUnit, lastUnit, pressure: moved, contribution };
+  }
+}
+
+/** Standalone sale in its own transaction, for callers that are not already in one. */
+export async function recordSale(input: SaleInput): Promise<SalePricing> {
+  const client = await db().connect();
+  try {
+    await client.query("begin");
+    const result = await applySaleWithin(client, input);
+    await client.query("commit");
+    return result;
   } catch (error) {
     await client.query("rollback");
     throw error;
@@ -143,20 +160,25 @@ export async function recordSale(input: {
 }
 
 /** Buying from the civic supplier pushes the district price up for everyone. */
-export async function recordPurchase(input: {
-  realmId: string; islandId: string; itemKey: string; quantity: number;
-}): Promise<{ cost: number; pressure: number }> {
+export interface PurchaseInput { realmId: string; islandId: string; itemKey: string; quantity: number }
+
+export async function applyPurchaseWithin(client: PoolClient, input: PurchaseInput): Promise<{ cost: number; pressure: number }> {
   const spec = RESOURCES[input.itemKey];
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${input.itemKey}`);
+  const pressure = await currentPressure(client, input.realmId, input.islandId, input.itemKey);
+  const cost = Math.max(1, Math.round(spec.governmentPrice * pressure)) * input.quantity;
+  const moved = clamp(pressure + spec.volatility * Math.sqrt(input.quantity) * .09, PRESSURE_MIN, PRESSURE_MAX);
+  await writePressure(client, input.realmId, input.islandId, input.itemKey, moved);
+  return { cost, pressure: moved };
+}
+
+export async function recordPurchase(input: PurchaseInput): Promise<{ cost: number; pressure: number }> {
   const client = await db().connect();
   try {
     await client.query("begin");
-    const pressure = await currentPressure(client, input.realmId, input.islandId, input.itemKey);
-    const cost = Math.max(1, Math.round(spec.governmentPrice * pressure)) * input.quantity;
-    const moved = clamp(pressure + spec.volatility * Math.sqrt(input.quantity) * .09, PRESSURE_MIN, PRESSURE_MAX);
-    await writePressure(client, input.realmId, input.islandId, input.itemKey, moved);
+    const result = await applyPurchaseWithin(client, input);
     await client.query("commit");
-    return { cost, pressure: moved };
+    return result;
   } catch (error) {
     await client.query("rollback");
     throw error;
