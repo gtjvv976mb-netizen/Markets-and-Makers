@@ -1,0 +1,81 @@
+{
+  "artifact": "Markets & Makers playable browser vertical slice",
+  "version": "0.5.0",
+  "date": "2026-08-23",
+  "status": "PASS",
+  "automated": {
+    "typescript": "PASS",
+    "vite_production_build": "PASS",
+    "server_build": "PASS",
+    "vitest": {
+      "status": "PASS",
+      "game_tests": 12,
+      "server_tests": 3,
+      "coverage_intent": [
+        "fully covered opening Sunmark base and fixed $MM vault allocation",
+        "Sunmark retirement on $MM acquisition and issuance on return",
+        "Civic Vault reserve-floor protection",
+        "malformed-save reserve-accounting reconstruction",
+        "closed-ledger government purchase",
+        "lease-build-produce-upgrade-sell loop",
+        "starter-kit duplication exploit regression",
+        "AI-citizen service settlement, wages and tax",
+        "inter-island value conservation",
+        "scarcity price response",
+        "service price elasticity",
+        "producer-and-user coverage for all eleven resources"
+      ]
+    }
+  },
+  "economy_catalog": {
+    "businesses": 15,
+    "resources": 11,
+    "stages": 6,
+    "all_resources_have_producer": true,
+    "all_resources_have_business_use_or_final_buyer": true,
+    "opening_sunmark_supply": 50000000,
+    "mm_fixed_total_supply": 1000000000,
+    "opening_civic_mm_reserve": 50000000,
+    "reserve_exchange_spread_percent": 2,
+    "minimum_civic_mm_reserve": 25000000,
+    "real_token_settlement": false
+  },
+  "browser_playtest": {
+    "browser": "Codex in-app browser",
+    "console_errors_on_v0_5_reload": 0,
+    "desktop": "PASS — MMO-style management hierarchy and enriched original 3D world",
+    "mobile_390x844": "PASS — no horizontal overflow and 52 px primary navigation targets",
+    "verified": [
+      "single active founder objective plus two-step preview and collapsible roadmap",
+      "five icon-and-label management destinations",
+      "three recommended starter licenses shown by default",
+      "four manufacturing licenses shown after category filtering",
+      "all fifteen licenses remain accessible across six economic-stage filters",
+      "eleven market goods show buyer class, quotes, stock and scarcity state",
+      "Needed now and My stock filters provide purposeful empty states",
+      "production readiness and exact missing-input quick purchase controls render",
+      "instanced trees, shrubs, civic lamps and Sunwell solar props render without new asset downloads",
+      "mobile document width remains within the viewport",
+      "no new browser errors"
+      ,"Sunmark wallet, Civic treasury, citizen pool and $MM vault render as distinct balances"
+      ,"Reserve Desk acquires 100 $MM for 102 SM and returns 100 $MM for 98 SM"
+      ,"buying reserve $MM retires the 100 SM principal; returning it leaves a 2 SM protection margin"
+    ]
+  },
+  "release": {
+    "files": 15,
+    "dist_kib": 10208,
+    "initial_world_bytes": 3567164,
+    "index": { "bytes": 5782, "sha256": "40826324d3750645aa5a7df487483f563174e5c3cedd551ce2da33f10d6f19f9" },
+    "javascript": { "bytes": 655986, "gzip_bytes": 172671, "sha256": "d38918fbcddecc7b1e5550167a75bc007745e70d505e659d8ef1e19a117999a4" },
+    "css": { "bytes": 30494, "gzip_bytes": 7288, "sha256": "2f450706ae7142aefd9c5028599759b461ffa8e430491913ffc4316719efa939" },
+    "world": { "sha256": "11c4f7a63020d97d17a834db337bca469523b59c72e94da14f27837c8bd4ed76" }
+  },
+  "boundaries": {
+    "prototype_sunmark_and_internal_mm_accounting_only": true,
+    "wallet_or_chain_connection": false,
+    "multiplayer_server_connected": false,
+    "durable_server_database_connected": false,
+    "note": "This release remains a local vertical slice. The Reserve Desk is an off-chain accounting simulation, not a redemption promise. All currency commands must move behind authoritative, audited server transactions before multiplayer or any transferable-token experiment."
+  }
+}

@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: markets-and-makers-authority
+    runtime: node
+    rootDir: server
+    region: singapore
+    plan: starter
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run migrate
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: markets-and-makers-db
+          property: connectionString
+      - key: SOLANA_NETWORK
+        value: devnet
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: HELIUS_WEBHOOK_SECRET
+        generateValue: true
+      - key: MM_TOKEN_MINT
+        sync: false
+
+databases:
+  - name: markets-and-makers-db
+    region: singapore
+    plan: basic-256mb
+    databaseName: markets_makers
+    user: markets_makers
+    ipAllowList: []
+    storageAutoscalingEnabled: true

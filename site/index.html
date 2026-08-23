@@ -1,0 +1,555 @@
+<title>Markets &amp; Makers</title>
+<meta name="description" content="A cozy isometric light MMO where players build businesses, supply their neighbours, and shape a shared solarpunk archipelago — one shop at a time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+/* ============ tokens: screen-print inks on paper stock ============ */
+:root{
+  --paper:#F2F5EC; --stock:#FFFFFF; --stock-2:#E7EDDE;
+  --ink:#101F1B; --ink-2:#33473F; --muted:#5E7368;
+  --rule:#D2DCC7; --rule-2:#B4C4A6;
+  --marine:#0A4E60; --marine-2:#0D6B80;
+  --sun:#DE9A16; --leaf:#4A8B3C; --coral:#C9503A;
+  --sky-1:#F6D79A; --sky-2:#EFB264; --sky-3:#D9E4CC;
+  --sea:#0A4E60; --sea-2:#0D6377;
+  --shadow:0 2px 0 var(--rule-2);
+  --shadow-lift:0 1px 2px rgba(16,31,27,.07), 0 14px 34px -22px rgba(16,31,27,.4);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#081113; --stock:#0F1C1F; --stock-2:#152629;
+    --ink:#E7EFE7; --ink-2:#B7C8C1; --muted:#84998F;
+    --rule:#1D3034; --rule-2:#2A4146;
+    --marine:#63C3D4; --marine-2:#8AD6E3;
+    --sun:#EFB84D; --leaf:#7CBE68; --coral:#E27A62;
+    --sky-1:#1B3038; --sky-2:#2A4A50; --sky-3:#12232A;
+    --sea:#061217; --sea-2:#0A1E25;
+    --shadow:0 2px 0 var(--rule-2);
+    --shadow-lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -22px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#081113; --stock:#0F1C1F; --stock-2:#152629;
+  --ink:#E7EFE7; --ink-2:#B7C8C1; --muted:#84998F;
+  --rule:#1D3034; --rule-2:#2A4146;
+  --marine:#63C3D4; --marine-2:#8AD6E3;
+  --sun:#EFB84D; --leaf:#7CBE68; --coral:#E27A62;
+  --sky-1:#1B3038; --sky-2:#2A4A50; --sky-3:#12232A;
+  --sea:#061217; --sea-2:#0A1E25;
+  --shadow:0 2px 0 var(--rule-2);
+  --shadow-lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -22px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+.wrap{max-width:1200px; margin:0 auto; padding:0 clamp(20px,4vw,48px)}
+.narrow{max-width:64ch}
+
+h1,h2,h3,.display{font-family:"Bricolage Grotesque","Public Sans",sans-serif; font-weight:800; letter-spacing:-.028em; text-wrap:balance}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.kicker{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11.5px; font-weight:600;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--marine);
+}
+
+/* ============ nav ============ */
+nav{
+  position:sticky; top:0; z-index:60; background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--rule);
+}
+.nav-in{display:flex; align-items:center; gap:22px; padding:13px 0; max-width:1200px; margin:0 auto; padding-inline:clamp(20px,4vw,48px)}
+.brand{display:flex; align-items:center; gap:10px; font-family:"Bricolage Grotesque",sans-serif; font-weight:800; font-size:17px; letter-spacing:-.03em; margin-right:auto; text-decoration:none; color:var(--ink)}
+.brand-mark{width:22px; height:22px; flex:none}
+.nav-links{display:none; gap:22px}
+@media (min-width:880px){ .nav-links{display:flex} }
+.nav-links a{color:var(--ink-2); text-decoration:none; font-size:14.5px; font-weight:500}
+.nav-links a:hover{color:var(--marine)}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:14.5px;
+  padding:9px 18px; border-radius:2px; text-decoration:none; border:1.5px solid var(--ink);
+  background:var(--sun); color:#151F14; box-shadow:3px 3px 0 var(--ink); transition:transform .12s ease, box-shadow .12s ease;
+}
+.btn:hover{transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--ink)}
+.btn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink)}
+.btn.ghost{background:transparent; color:var(--ink); box-shadow:3px 3px 0 var(--rule-2)}
+.btn.ghost:hover{box-shadow:4px 4px 0 var(--rule-2)}
+
+/* ============ hero ============ */
+.hero{position:relative; overflow:hidden; border-bottom:1.5px solid var(--ink)}
+.scene{position:absolute; inset:0; z-index:0}
+.scene canvas{width:100%; height:100%; display:block}
+.hero-in{position:relative; z-index:2; padding:clamp(64px,11vw,132px) 0 clamp(52px,8vw,96px)}
+.hero h1{
+  font-size:clamp(44px,8.4vw,104px); line-height:.94; margin:20px 0 0; max-width:13ch;
+}
+.hero h1 .ink-sun{color:var(--sun); -webkit-text-stroke:1.5px var(--ink)}
+:root[data-theme="dark"] .hero h1 .ink-sun,
+:root:not([data-theme="light"]) .hero h1 .ink-sun{-webkit-text-stroke:0}
+@media (prefers-color-scheme:light){ :root:not([data-theme="dark"]) .hero h1 .ink-sun{-webkit-text-stroke:1.5px var(--ink)} }
+.hero p.lede{
+  font-size:clamp(17.5px,2.2vw,22px); line-height:1.5; color:var(--ink-2);
+  max-width:52ch; margin:26px 0 0;
+}
+.hero-cta{display:flex; flex-wrap:wrap; gap:14px; margin-top:34px}
+.hero-facts{
+  display:flex; flex-wrap:wrap; gap:10px 30px; margin-top:44px; padding-top:22px;
+  border-top:1px solid var(--rule); font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--muted);
+}
+.hero-facts b{color:var(--ink); font-weight:600}
+
+/* ============ ticker ============ */
+.ticker{
+  background:var(--ink); color:var(--paper); border-bottom:1.5px solid var(--ink);
+  overflow:hidden; padding:11px 0;
+}
+.ticker-track{
+  display:flex; gap:44px; width:max-content;
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.09em; text-transform:uppercase;
+  animation:slide 44s linear infinite;
+}
+.ticker-track span{display:flex; align-items:center; gap:44px; white-space:nowrap}
+.ticker-track i{font-style:normal; color:var(--sun)}
+@keyframes slide{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+@media (prefers-reduced-motion:reduce){ .ticker-track{animation:none} }
+
+/* ============ generic section ============ */
+section.band{padding:clamp(64px,9vw,116px) 0; border-bottom:1px solid var(--rule)}
+section.band.tint{background:var(--stock-2)}
+.sec-head{max-width:60ch; margin-bottom:44px}
+.sec-head h2{font-size:clamp(29px,4.6vw,50px); line-height:1.04; margin:14px 0 0}
+.sec-head p{color:var(--ink-2); font-size:17.5px; margin:16px 0 0}
+
+/* ============ supply chain ribbon ============ */
+.chain-scroll{overflow-x:auto; padding-bottom:10px; margin:0 -4px}
+.chain{display:flex; align-items:stretch; gap:0; min-width:max-content; padding:4px}
+.node{
+  position:relative; background:var(--stock); border:1.5px solid var(--ink); padding:16px 20px 15px;
+  min-width:158px; box-shadow:4px 4px 0 var(--ink);
+}
+.node + .node{margin-left:26px}
+.node + .node::before{
+  content:""; position:absolute; left:-26px; top:50%; width:26px; height:2px; background:var(--ink);
+}
+.node + .node::after{
+  content:""; position:absolute; left:-9px; top:50%; width:8px; height:8px; transform:translateY(-50%) rotate(45deg);
+  border-top:2px solid var(--ink); border-right:2px solid var(--ink);
+}
+.node .n-i{font-size:23px; line-height:1; display:block; margin-bottom:9px}
+.node .n-n{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:15.5px; letter-spacing:-.015em; display:block}
+.node .n-s{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--muted); display:block; margin-top:4px}
+.node.is-flow{animation:pulseNode 4.4s ease-in-out infinite}
+.node:nth-child(1){animation-delay:0s} .node:nth-child(2){animation-delay:.35s}
+.node:nth-child(3){animation-delay:.7s} .node:nth-child(4){animation-delay:1.05s}
+.node:nth-child(5){animation-delay:1.4s} .node:nth-child(6){animation-delay:1.75s}
+@keyframes pulseNode{ 0%,72%,100%{box-shadow:4px 4px 0 var(--ink)} 12%{box-shadow:4px 4px 0 var(--sun)} }
+@media (prefers-reduced-motion:reduce){ .node.is-flow{animation:none} }
+
+/* ============ pillars ============ */
+.grid{display:grid; gap:20px}
+@media (min-width:700px){ .cols-2{grid-template-columns:repeat(2,1fr)} }
+@media (min-width:960px){ .cols-3{grid-template-columns:repeat(3,1fr)} }
+.card{
+  background:var(--stock); border:1.5px solid var(--ink); padding:26px 26px 24px;
+  box-shadow:5px 5px 0 var(--ink); transition:transform .16s ease, box-shadow .16s ease;
+}
+.card:hover{transform:translate(-2px,-2px); box-shadow:7px 7px 0 var(--ink)}
+.card h3{font-size:20px; margin:12px 0 9px; line-height:1.2}
+.card p{margin:0; color:var(--ink-2); font-size:15.6px}
+.card .num{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:600; letter-spacing:.16em;
+  color:var(--marine);
+}
+
+/* ============ islands ============ */
+.isles{display:grid; gap:14px}
+@media (min-width:640px){ .isles{grid-template-columns:repeat(2,1fr)} }
+@media (min-width:1000px){ .isles{grid-template-columns:repeat(3,1fr)} }
+.isle{
+  background:var(--stock); border:1.5px solid var(--ink); padding:20px 22px;
+  display:grid; grid-template-columns:auto 1fr; gap:3px 14px; align-items:center;
+  box-shadow:4px 4px 0 var(--ink); transition:transform .16s ease, box-shadow .16s ease;
+}
+.isle:hover{transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--ink)}
+.dot{width:16px; height:16px; border:1.5px solid var(--ink); border-radius:50%; grid-row:1/3}
+.isle .nm{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:17.5px; letter-spacing:-.02em}
+.isle .ds{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.isle .ec{grid-column:1/-1; margin-top:11px; font-size:14.6px; color:var(--ink-2); line-height:1.5}
+
+/* ============ table ============ */
+.tw{overflow-x:auto; border:1.5px solid var(--ink); background:var(--stock); box-shadow:5px 5px 0 var(--ink)}
+table{border-collapse:collapse; width:100%; font-size:14.6px; min-width:620px}
+th,td{text-align:left; padding:12px 16px; border-bottom:1px solid var(--rule)}
+thead th{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--paper); background:var(--ink); border-bottom:none;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--stock-2)}
+td.io{font-family:"IBM Plex Mono",monospace; font-size:13px; white-space:nowrap}
+td .arrow{color:var(--sun); font-weight:700; padding:0 5px}
+td .nm2{font-weight:600}
+
+/* ============ loop ============ */
+.loop{display:grid; gap:0; counter-reset:step}
+.loop li{
+  list-style:none; counter-increment:step; display:grid; grid-template-columns:auto 1fr; gap:20px;
+  padding:19px 0; border-bottom:1px solid var(--rule); align-items:baseline;
+}
+.loop li:last-child{border-bottom:none}
+.loop li::before{
+  content:counter(step,decimal-leading-zero);
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; font-weight:600; color:var(--sun);
+  border:1.5px solid var(--ink); background:var(--ink); padding:3px 8px; align-self:start; margin-top:3px;
+}
+.loop b{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:17.5px; letter-spacing:-.015em; display:block; margin-bottom:3px}
+.loop span{color:var(--ink-2); font-size:15.6px}
+
+/* ============ promise band ============ */
+.promise{background:var(--ink); color:var(--paper); border-bottom:1.5px solid var(--ink)}
+.promise .sec-head h2{color:var(--paper)}
+.promise .sec-head p{color:color-mix(in srgb, var(--paper) 76%, transparent)}
+.promise .kicker{color:var(--sun)}
+.vows{display:grid; gap:0}
+@media (min-width:860px){ .vows{grid-template-columns:repeat(2,1fr); column-gap:52px} }
+.vow{padding:20px 0; border-bottom:1px solid color-mix(in srgb, var(--paper) 20%, transparent); display:flex; gap:15px; align-items:flex-start}
+.vow .mk{color:var(--sun); font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:15px; flex:none; margin-top:1px}
+.vow b{display:block; font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:17px; letter-spacing:-.015em; margin-bottom:3px}
+.vow p{margin:0; font-size:15.2px; color:color-mix(in srgb, var(--paper) 74%, transparent)}
+
+/* ============ roadmap ============ */
+.road{display:grid; gap:16px}
+@media (min-width:900px){ .road{grid-template-columns:repeat(4,1fr)} }
+.stop{border-top:3px solid var(--rule-2); padding-top:18px}
+.stop.now{border-top-color:var(--sun)}
+.stop .ph{font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--muted)}
+.stop.now .ph{color:var(--sun)}
+.stop h3{font-size:18px; margin:8px 0 8px; line-height:1.22}
+.stop p{margin:0; font-size:14.8px; color:var(--ink-2)}
+
+/* ============ cta ============ */
+.finale{padding:clamp(70px,10vw,124px) 0; text-align:center; background:var(--stock-2)}
+.finale h2{font-size:clamp(32px,6vw,66px); line-height:1.02; margin:16px auto 0; max-width:16ch}
+.finale p{color:var(--ink-2); font-size:18px; max-width:50ch; margin:20px auto 0}
+.finale .hero-cta{justify-content:center}
+
+footer{padding:40px 0 56px; border-top:1.5px solid var(--ink); background:var(--paper)}
+.foot{display:flex; flex-wrap:wrap; gap:14px 34px; align-items:center; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted)}
+.foot a{color:var(--muted); text-decoration:none} .foot a:hover{color:var(--marine)}
+.foot .sp{margin-left:auto}
+a:focus-visible,button:focus-visible{outline:2.5px solid var(--marine); outline-offset:3px}
+</style>
+
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="#top">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="8.5" r="4.6" fill="var(--sun)" stroke="var(--ink)" stroke-width="1.5"/>
+        <path d="M2 17.5h20M4.5 21h15" stroke="var(--marine)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      Markets &amp; Makers
+    </a>
+    <div class="nav-links">
+      <a href="#world">World</a><a href="#chain">Supply</a><a href="#islands">Islands</a>
+      <a href="#loop">Play</a><a href="#promise">Promise</a><a href="#road">Roadmap</a>
+    </div>
+    <a class="btn" href="#finale">Follow development</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="scene" aria-hidden="true"><canvas id="sky"></canvas></div>
+  <div class="wrap hero-in">
+    <p class="kicker">A cozy solarpunk business MMO · No combat</p>
+    <h1>Build a shop.<br>Supply a <span class="ink-sun">neighbourhood.</span><br>Grow an archipelago.</h1>
+    <p class="lede">Nine islands are being restored into a new civilisation. You lease a plot, pick a trade, and turn water, sunlight and reclaimed material into something the people next door actually need.</p>
+    <div class="hero-cta">
+      <a class="btn" href="#finale">Follow development</a>
+      <a class="btn ghost" href="#chain">See the economy</a>
+    </div>
+    <p class="hero-facts">
+      <span><b>9</b> islands</span><span><b>15</b> industries</span><span><b>11</b> resources</span>
+      <span><b>6</b> economic stages</span><span><b>20–40</b> players per neighbourhood</span>
+    </p>
+  </div>
+</header>
+
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span>
+      Sunwell microgrid online <i>◆</i> Greenloom produce +6 <i>◆</i> Tideglass water credits steady <i>◆</i>
+      Copper Quay freight departing <i>◆</i> Kilnrise parts in demand <i>◆</i> Lantern Row nightfall trade <i>◆</i>
+      Stonewake mineral run <i>◆</i> Pulsegrove class fully booked <i>◆</i> Reclamation hub sorting scrap <i>◆</i>
+    </span>
+    <span>
+      Sunwell microgrid online <i>◆</i> Greenloom produce +6 <i>◆</i> Tideglass water credits steady <i>◆</i>
+      Copper Quay freight departing <i>◆</i> Kilnrise parts in demand <i>◆</i> Lantern Row nightfall trade <i>◆</i>
+      Stonewake mineral run <i>◆</i> Pulsegrove class fully booked <i>◆</i> Reclamation hub sorting scrap <i>◆</i>
+    </span>
+  </div>
+</div>
+
+<section class="band" id="world">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="kicker">The world</p>
+      <h2>Every business matters, because someone is waiting on it.</h2>
+      <p>There is no combat here. The challenge is scarcity, specialisation, shifting demand and the fact that your greenhouse cannot run without somebody else's water.</p>
+    </div>
+    <div class="grid cols-3">
+      <div class="card"><span class="num">01</span><h3>Every business matters</h3><p>Each one produces something other players or simulated residents genuinely need. Nothing you make is decoration.</p></div>
+      <div class="card"><span class="num">02</span><h3>Easy in, deep to master</h3><p>A session runs ten to twenty minutes. Pricing, layout, contracts, quality and logistics keep going for months.</p></div>
+      <div class="card"><span class="num">03</span><h3>The world shows its makers</h3><p>Shops, signs, products and community projects visibly transform each district. The skyline is a record of who built it.</p></div>
+      <div class="card"><span class="num">04</span><h3>Cooperation pays, never forced</h3><p>Municipal wholesalers stop deadlocks, but a player supplier will always beat them on price, quality and reliability.</p></div>
+      <div class="card"><span class="num">05</span><h3>Earn by contributing</h3><p>Real earning comes from things other players choose to buy — not from holding land, and not from holding a token.</p></div>
+      <div class="card"><span class="num">06</span><h3>Distance is real</h3><p>Regional markets, ferries and freight mean a crate has to physically get somewhere. That gap is somebody's whole business.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band tint" id="chain">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="kicker">The supply chain</p>
+      <h2>Sunlight becomes water becomes dinner.</h2>
+      <p>Six stages, each one a different player's livelihood. Break any link and the whole street feels it.</p>
+    </div>
+    <div class="chain-scroll">
+      <div class="chain">
+        <div class="node is-flow"><span class="n-i">☀</span><span class="n-n">Sunwell Microgrid</span><span class="n-s">Energy</span></div>
+        <div class="node is-flow"><span class="n-i">≈</span><span class="n-n">Tideglass AquaWorks</span><span class="n-s">Water</span></div>
+        <div class="node is-flow"><span class="n-i">♧</span><span class="n-n">Greenloom Greenhouse</span><span class="n-s">Produce</span></div>
+        <div class="node is-flow"><span class="n-i">◈</span><span class="n-n">Supply Shop &amp; Café</span><span class="n-s">Retail</span></div>
+        <div class="node is-flow"><span class="n-i">⌁</span><span class="n-n">Harbor Gym</span><span class="n-s">Service</span></div>
+        <div class="node is-flow"><span class="n-i">♥</span><span class="n-n">Citizens</span><span class="n-s">Demand</span></div>
+      </div>
+    </div>
+
+    <div class="sec-head" style="margin-top:60px; margin-bottom:26px">
+      <p class="kicker">Fifteen trades</p>
+      <h2 style="font-size:clamp(24px,3.2vw,34px)">Pick one. Become the reason it exists.</h2>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Business</th><th>Sector</th><th>Takes</th><th>Makes</th></tr></thead>
+      <tbody>
+        <tr><td class="nm2">Sunwell Microgrid</td><td>Energy utility</td><td class="io">1 part · 1 module</td><td class="io"><span class="arrow">→</span>10 power</td></tr>
+        <tr><td class="nm2">Tideglass AquaWorks</td><td>Water utility</td><td class="io">1 power · 1 part</td><td class="io"><span class="arrow">→</span>8 water</td></tr>
+        <tr><td class="nm2">Greenloom Greenhouse</td><td>Bio-production</td><td class="io">2 water · 1 power</td><td class="io"><span class="arrow">→</span>6 produce</td></tr>
+        <tr><td class="nm2">Stonewake Mine</td><td>Extraction</td><td class="io">1 part · 2 power · 1 water</td><td class="io"><span class="arrow">→</span>5 mineral</td></tr>
+        <tr><td class="nm2">Timbercoast Works</td><td>Regenerative forestry</td><td class="io">1 part · 1 power · 1 water</td><td class="io"><span class="arrow">→</span>5 timber</td></tr>
+        <tr><td class="nm2">Freight Crate Mill</td><td>Packaging</td><td class="io">2 timber · 1 power</td><td class="io"><span class="arrow">→</span>4 crates</td></tr>
+        <tr><td class="nm2">Maker Workshop</td><td>Components</td><td class="io">2 mineral · 1 crate · 1 power</td><td class="io"><span class="arrow">→</span>2 parts</td></tr>
+        <tr><td class="nm2">Sunwoven Factory</td><td>Capital equipment</td><td class="io">3 mineral · 1 part · 2 power</td><td class="io"><span class="arrow">→</span>2 equipment</td></tr>
+        <tr><td class="nm2">Civic Construction Co.</td><td>Building systems</td><td class="io">2 timber · 2 parts · 1 equipment</td><td class="io"><span class="arrow">→</span>3 modules</td></tr>
+        <tr><td class="nm2">Supply Shop &amp; Café</td><td>Retail</td><td class="io">2 produce · 1 crate · 1 part</td><td class="io"><span class="arrow">→</span>5 supplies</td></tr>
+        <tr><td class="nm2">Sunset Market Kitchen</td><td>Hospitality</td><td class="io">2 produce · 1 supply · 1 water</td><td class="io"><span class="arrow">→</span>diners</td></tr>
+        <tr><td class="nm2">Harbor Gym</td><td>Wellness</td><td class="io">1 supply · 1 water · 1 power</td><td class="io"><span class="arrow">→</span>members</td></tr>
+        <tr><td class="nm2">Lantern Cinema</td><td>Entertainment</td><td class="io">2 supplies · 2 power</td><td class="io"><span class="arrow">→</span>audiences</td></tr>
+        <tr><td class="nm2">Copper Quay Freight</td><td>Logistics</td><td class="io">1 crate · 1 part · 2 power</td><td class="io"><span class="arrow">→</span>deliveries</td></tr>
+        <tr><td class="nm2">Tideglass Reclamation</td><td>Resource recovery</td><td class="io">3 scrap · 1 power</td><td class="io"><span class="arrow">→</span>modules &amp; parts</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section class="band" id="islands">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="kicker">The Sunwoven Reach</p>
+      <h2>Nine islands, nine specialities, one shared market.</h2>
+      <p>Ferries connect them. Prices don't move instantly between them — which is exactly why freight is a career.</p>
+    </div>
+    <div class="isles">
+      <div class="isle"><span class="dot" style="background:#8fc66b"></span><span class="nm">Hearthmarket</span><span class="ds">Civic heart</span><span class="ec">Markets, construction, starter plots and final demand.</span></div>
+      <div class="isle"><span class="dot" style="background:#d6ad51"></span><span class="nm">Sunwell</span><span class="ds">Energy frontier</span><span class="ec">Power, batteries and solar services.</span></div>
+      <div class="isle"><span class="dot" style="background:#65b9b1"></span><span class="nm">Tideglass</span><span class="ds">Water works</span><span class="ec">Water, sanitation and material recovery.</span></div>
+      <div class="isle"><span class="dot" style="background:#78a85d"></span><span class="nm">Greenloom</span><span class="ds">Bio-production belt</span><span class="ec">Food, timber and greenhouse production.</span></div>
+      <div class="isle"><span class="dot" style="background:#c27657"></span><span class="nm">Kilnrise</span><span class="ds">Industrial belt</span><span class="ec">Parts, equipment and construction modules.</span></div>
+      <div class="isle"><span class="dot" style="background:#b68c5d"></span><span class="nm">Copper Quay</span><span class="ds">Freight district</span><span class="ec">Packaging, storage and delivery.</span></div>
+      <div class="isle"><span class="dot" style="background:#df9267"></span><span class="nm">Lantern Row</span><span class="ds">Consumer district</span><span class="ec">Shops, dining, cinema and hospitality.</span></div>
+      <div class="isle"><span class="dot" style="background:#67a98c"></span><span class="nm">Pulsegrove</span><span class="ds">Wellness district</span><span class="ec">Gyms, clinics and recreation.</span></div>
+      <div class="isle"><span class="dot" style="background:#8fae8c"></span><span class="nm">Kitecrest</span><span class="ds">Innovation frontier</span><span class="ec">Blueprints, automation and research.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="band tint" id="loop">
+  <div class="wrap" style="display:grid; gap:52px">
+    <div class="sec-head" style="margin-bottom:0">
+      <p class="kicker">A session</p>
+      <h2>Ten minutes, start to profit.</h2>
+      <p>Long enough to matter, short enough for a lunch break. Production runs on a clock, so the world keeps working while you're away.</p>
+    </div>
+    <ol class="loop">
+      <li><b>Read the street</b><span>Check stock, open orders, what the neighbourhood is short of, and who's been trading.</span></li>
+      <li><b>Buy your inputs</b><span>From another player if you can, from the expensive municipal supplier if you must.</span></li>
+      <li><b>Set the floor running</b><span>Configure recipes, capacity and schedules, then start the batch.</span></li>
+      <li><b>Keep the machines honest</b><span>Equipment wears with every job. Maintenance costs coin, parts and somebody's labour.</span></li>
+      <li><b>Sell, serve, deliver</b><span>Through your shop, a standing contract, a delivery run or a public event.</span></li>
+      <li><b>Reinvest</b><span>Into the business, the property, and the neighbourhood project everyone benefits from.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="promise band" id="promise">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="kicker">The honest part</p>
+      <h2>What we will and won't do with the economy.</h2>
+      <p>Markets &amp; Makers is being built to become a play-to-earn game on Solana. That makes the rules below more important than the features above.</p>
+    </div>
+    <div class="vows">
+      <div class="vow"><span class="mk">✓</span><div><b>Earning follows contribution</b><p>Rewards come from what other players choose to buy from you, and from work the world actually needed doing.</p></div></div>
+      <div class="vow"><span class="mk">✗</span><div><b>No passive yield, ever</b><p>Holding land, a licence or a token earns nothing on its own. There is no staking dressed up as a business.</p></div></div>
+      <div class="vow"><span class="mk">✓</span><div><b>A budgeted reward pool</b><p>Emission is a fixed schedule shared out by contribution — so the pool cannot be drained by whoever grinds hardest.</p></div></div>
+      <div class="vow"><span class="mk">✗</span><div><b>No promises of profit</b><p>No projected returns, no guaranteed demand, no talk of price. It's a game, and it has to be fun without the token.</p></div></div>
+      <div class="vow"><span class="mk">✓</span><div><b>The server owns the ledger</b><p>Currency, inventory, land and production settle on an audited double-entry ledger, not in your browser.</p></div></div>
+      <div class="vow"><span class="mk">✗</span><div><b>Land is never an investment product</b><p>Plots, utilities and progression are gameplay. They are not sold as assets that pay you.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="road">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="kicker">Where it stands</p>
+      <h2>Built in the open, gated at every step.</h2>
+      <p>Each phase has to prove itself before the next one starts. The token is last, not first.</p>
+    </div>
+    <div class="road">
+      <div class="stop now"><p class="ph">Now · in progress</p><h3>Playable vertical slice</h3><p>The world, nine islands, fifteen industries and the full production loop running in a browser.</p></div>
+      <div class="stop"><p class="ph">Next</p><h3>Server-owned economy</h3><p>Every coin, crate and lease moved onto an authoritative ledger with idempotent commands.</p></div>
+      <div class="stop"><p class="ph">Then</p><h3>Player markets</h3><p>Regional order books with real escrow, standing contracts, and freight that carries goods between them.</p></div>
+      <div class="stop"><p class="ph">Last</p><h3>On-chain rewards</h3><p>Budgeted emission on Solana, after legal and independent security review. Devnet first, no cash-out.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="finale" id="finale">
+  <div class="wrap">
+    <p class="kicker">The Sunwoven Reach is opening</p>
+    <h2>Come build something the street needs.</h2>
+    <p>Development updates, playtest invitations and economy notes — posted as they happen, no hype cycle.</p>
+    <div class="hero-cta">
+      <a class="btn" href="#" data-cta>Join the playtest list</a>
+      <a class="btn ghost" href="#" data-cta>Read the devlog</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span>Markets &amp; Makers</span>
+    <span>The Sunwoven Reach</span>
+    <span>In development · no token has launched</span>
+    <span class="sp"><a href="#top">Back to top ↑</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var canvas = document.getElementById("sky");
+  if (!canvas) return;
+  var ctx = canvas.getContext("2d");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), t = 0;
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function resize() {
+    var r = canvas.parentElement.getBoundingClientRect();
+    w = r.width; h = r.height;
+    canvas.width = Math.max(1, w * dpr); canvas.height = Math.max(1, h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // island silhouettes: [xFactor, widthFactor, heightPx, depth]
+  var isles = [
+    [0.14, 0.30, 66, 0.30], [0.44, 0.26, 92, 0.52], [0.74, 0.34, 74, 0.40],
+    [0.94, 0.22, 54, 0.24], [-0.04, 0.20, 48, 0.20]
+  ];
+
+  function draw() {
+    if (!w || !h) return;
+    var sky1 = css("--sky-1"), sky2 = css("--sky-2"), sky3 = css("--sky-3");
+    var sea = css("--sea"), sea2 = css("--sea-2"), sun = css("--sun"), ink = css("--ink");
+
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, sky3); g.addColorStop(0.52, sky1); g.addColorStop(1, sky2);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+
+    // sun disc, slow rise
+    var bob = reduce ? 0 : Math.sin(t * 0.00021) * 16;
+    var sx = w * 0.78, sy = h * 0.40 + bob, sr = Math.max(48, Math.min(w, h) * 0.13);
+    ctx.globalAlpha = 0.30;
+    ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(sx, sy, sr * 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // layered island bands
+    var base = h * 0.80;
+    for (var i = 0; i < isles.length; i++) {
+      var is = isles[i];
+      var drift = reduce ? 0 : Math.sin(t * 0.00013 + i) * 7;
+      var cx = w * is[0] + drift, bw = w * is[1], bh = is[2] * (0.7 + is[3] * 0.6);
+      ctx.globalAlpha = 0.20 + is[3] * 0.55;
+      ctx.fillStyle = i % 2 ? sea2 : sea;
+      ctx.beginPath();
+      ctx.moveTo(cx - bw, base);
+      ctx.quadraticCurveTo(cx - bw * 0.42, base - bh, cx, base - bh * 0.86);
+      ctx.quadraticCurveTo(cx + bw * 0.46, base - bh * 1.05, cx + bw, base);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // water
+    var wg = ctx.createLinearGradient(0, base - 4, 0, h);
+    wg.addColorStop(0, sea); wg.addColorStop(1, sea2);
+    ctx.fillStyle = wg; ctx.fillRect(0, base - 2, w, h - base + 2);
+
+    // glitter lines
+    ctx.strokeStyle = sun; ctx.lineWidth = 1.4;
+    for (var k = 0; k < 16; k++) {
+      var yy = base + 8 + k * ((h - base) / 15);
+      var ph = reduce ? 0 : Math.sin(t * 0.0009 + k * 0.7);
+      var half = (18 + k * 7) * (0.65 + 0.35 * Math.abs(ph));
+      ctx.globalAlpha = 0.34 - k * 0.017;
+      if (ctx.globalAlpha <= 0) break;
+      ctx.beginPath(); ctx.moveTo(sx - half, yy); ctx.lineTo(sx + half, yy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // horizon rule
+    ctx.strokeStyle = ink; ctx.globalAlpha = 0.16; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(w, base); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function frame(now) { t = now; draw(); if (!reduce) requestAnimationFrame(frame); }
+  var ro = new ResizeObserver(function () { resize(); draw(); });
+  ro.observe(canvas.parentElement);
+  resize();
+  if (reduce) draw(); else requestAnimationFrame(frame);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+
+  document.querySelectorAll("[data-cta]").forEach(function (el) {
+    el.addEventListener("click", function (e) {
+      if (el.getAttribute("href") === "#") {
+        e.preventDefault();
+        el.textContent = "Link not set yet";
+        setTimeout(function () { el.textContent = el.dataset.label || "Join the playtest list"; }, 1600);
+      }
+    });
+    el.dataset.label = el.textContent;
+  });
+})();
+</script>

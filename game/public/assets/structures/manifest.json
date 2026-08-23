@@ -1,0 +1,1371 @@
+{
+  "canonical_front": "-Y",
+  "combined": {
+    "bytes": 1804776,
+    "file": "mm_structures_core_v1.glb",
+    "sha256": "da62750f8c73b1412b88b1c425ce617e9fe7dd86263dc14d8447bdd1150ad50e"
+  },
+  "export_axes": {
+    "east": "+X",
+    "north": "-Z",
+    "up": "+Y"
+  },
+  "generator": "Blender 5.1.2",
+  "kit_version": "1.0.0",
+  "schema_version": 1,
+  "source_axes": {
+    "east": "+X",
+    "north": "+Y",
+    "up": "+Z"
+  },
+  "structures": [
+    {
+      "asset_id": "mm.str.b01.ferry_terminal.a.v1",
+      "category": "travel",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            15.0,
+            11.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b01-ferry-terminal.png",
+      "footprint_m": [
+        16.0,
+        12.0
+      ],
+      "footprint_tiles": [
+        8,
+        6
+      ],
+      "id": "B01",
+      "key": "ferry_terminal",
+      "lod0": {
+        "bounds_max": [
+          8.0,
+          6.0,
+          6.9
+        ],
+        "bounds_min": [
+          -8.0,
+          -6.0,
+          0.0
+        ],
+        "bytes": 395596,
+        "file": "structures/mm_str_b01_ferry_terminal_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TIMBER_DARK",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_METAL",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "086224dd25cda1c2f8cfaa058b2cef3c8b0ad5cdc882b0cd8cd630abce9002fa",
+        "triangles": 5226,
+        "vertices": 2932
+      },
+      "lod0_cap": 7000,
+      "lods": [
+        {
+          "bounds_max": [
+            8.0,
+            6.0,
+            6.1
+          ],
+          "bounds_min": [
+            -8.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 9248,
+          "file": "lods/mm_str_b01_ferry_terminal_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TIMBER",
+            "MAT_MM_TEAL",
+            "MAT_MM_GLASS"
+          ],
+          "sha256": "104e9016bf8b22686743e191b775a0fc000d926199e33d2e77ce81759a94d4e8",
+          "triangles": 72,
+          "vertices": 56
+        },
+        {
+          "bounds_max": [
+            8.0,
+            6.0,
+            5.05
+          ],
+          "bounds_min": [
+            -8.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 6340,
+          "file": "lods/mm_str_b01_ferry_terminal_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TIMBER",
+            "MAT_MM_GLASS"
+          ],
+          "sha256": "2058a74f48ce2d89c82b0276a395c6394e90f09232779f9d85144503e0defd82",
+          "triangles": 40,
+          "vertices": 32
+        }
+      ],
+      "name": "Ferry Terminal",
+      "ownership": "public",
+      "sockets": [
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -6.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            8.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            6.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            8.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -6.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B01_FERRY_TERMINAL_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -6.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b02.market_pavilion.a.v1",
+      "category": "market",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            15.0,
+            15.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b02-market-pavilion.png",
+      "footprint_m": [
+        16.0,
+        16.0
+      ],
+      "footprint_tiles": [
+        8,
+        8
+      ],
+      "id": "B02",
+      "key": "market_pavilion",
+      "lod0": {
+        "bounds_max": [
+          8.0,
+          8.0,
+          6.0
+        ],
+        "bounds_min": [
+          -8.0,
+          -8.0,
+          0.0
+        ],
+        "bytes": 182536,
+        "file": "structures/mm_str_b02_market_pavilion_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_CORAL",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "a72b2d139a17d4d9e8d4c269c35b164e4dd112c26b0ee00abb1b3de5e6dcf8ff",
+        "triangles": 2392,
+        "vertices": 1456
+      },
+      "lod0_cap": 8000,
+      "lods": [
+        {
+          "bounds_max": [
+            8.0,
+            8.0,
+            5.575
+          ],
+          "bounds_min": [
+            -8.0,
+            -8.0,
+            0.0
+          ],
+          "bytes": 18440,
+          "file": "lods/mm_str_b02_market_pavilion_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TIMBER",
+            "MAT_MM_TEAL"
+          ],
+          "sha256": "a42435b225e7775ebf52244ac3fe77db24a7b008187ccc36271acf72f70405c6",
+          "triangles": 228,
+          "vertices": 136
+        },
+        {
+          "bounds_max": [
+            8.0,
+            8.0,
+            5.575
+          ],
+          "bounds_min": [
+            -8.0,
+            -8.0,
+            0.0
+          ],
+          "bytes": 7324,
+          "file": "lods/mm_str_b02_market_pavilion_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TEAL"
+          ],
+          "sha256": "b429c4ab31d3f37e936e2e1fd23f877926c7da1edc7be7602f68b137efa4eaa6",
+          "triangles": 68,
+          "vertices": 40
+        }
+      ],
+      "name": "Market Pavilion",
+      "ownership": "public",
+      "sockets": [
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -8.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            8.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            8.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            8.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -8.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B02_MARKET_PAVILION_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -8.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b03.sungrid_utility.a.v1",
+      "category": "energy",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            11.0,
+            11.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b03-sungrid-utility.png",
+      "footprint_m": [
+        12.0,
+        12.0
+      ],
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "id": "B03",
+      "key": "sungrid_utility",
+      "lod0": {
+        "bounds_max": [
+          6.0,
+          6.0,
+          4.48253
+        ],
+        "bounds_min": [
+          -6.0,
+          -6.0,
+          0.0
+        ],
+        "bytes": 152728,
+        "file": "structures/mm_str_b03_sungrid_utility_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_OCEAN_BLUE",
+          "MAT_MM_GLASS",
+          "MAT_MM_MUSTARD",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "b65e7f496fe79c29722039d085ea2b449f8c1d07c437f8a846a37a8a4a33a76a",
+        "triangles": 1916,
+        "vertices": 1140
+      },
+      "lod0_cap": 5000,
+      "lods": [
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            4.50735
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 9556,
+          "file": "lods/mm_str_b03_sungrid_utility_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_OCEAN_BLUE"
+          ],
+          "sha256": "34ad018b02f512d9849a64c2a9555b7cd27d36bdca66e953ab03e138f6514b0e",
+          "triangles": 96,
+          "vertices": 64
+        },
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            4.94085
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 5372,
+          "file": "lods/mm_str_b03_sungrid_utility_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_OCEAN_BLUE"
+          ],
+          "sha256": "6c3a2a3c7972e47b7904c57fd1597e231fa62a42a93756e8b1e9880349c05c0f",
+          "triangles": 36,
+          "vertices": 24
+        }
+      ],
+      "name": "SunGrid Utility",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -6.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            6.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            6.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            6.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -6.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B03_SUNGRID_UTILITY_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -6.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b04.aquaworks.a.v1",
+      "category": "water",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            11.0,
+            11.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b04-aquaworks.png",
+      "footprint_m": [
+        12.0,
+        12.0
+      ],
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "id": "B04",
+      "key": "aquaworks",
+      "lod0": {
+        "bounds_max": [
+          6.0,
+          6.0,
+          4.825
+        ],
+        "bounds_min": [
+          -6.0,
+          -6.0,
+          0.0
+        ],
+        "bytes": 140640,
+        "file": "structures/mm_str_b04_aquaworks_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_OCEAN_BLUE",
+          "MAT_MM_GLASS",
+          "MAT_MM_WATER",
+          "MAT_MM_METAL",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "e30cf767362d701c2855d7d76a2575c6f45b3bfae0a088174cac12045f7bc238",
+        "triangles": 1864,
+        "vertices": 1092
+      },
+      "lod0_cap": 5500,
+      "lods": [
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            3.775
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 13168,
+          "file": "lods/mm_str_b04_aquaworks_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_OCEAN_BLUE",
+            "MAT_MM_WATER"
+          ],
+          "sha256": "6e97c83f4cf66f90b87dd5fb21e071646da6dcc6ca21136159cd5f191276f0a2",
+          "triangles": 148,
+          "vertices": 88
+        },
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            3.775
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 11436,
+          "file": "lods/mm_str_b04_aquaworks_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_OCEAN_BLUE",
+            "MAT_MM_WATER"
+          ],
+          "sha256": "5515b3e856c616616b1da5582faf17543c1ada61645793358e76639d4c066cfe",
+          "triangles": 116,
+          "vertices": 72
+        }
+      ],
+      "name": "AquaWorks",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -6.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            6.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            6.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            6.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -6.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B04_AQUAWORKS_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -6.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b05.canopy_greenhouse.a.v1",
+      "category": "agriculture",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            11.0,
+            15.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b05-canopy-greenhouse.png",
+      "footprint_m": [
+        12.0,
+        16.0
+      ],
+      "footprint_tiles": [
+        6,
+        8
+      ],
+      "id": "B05",
+      "key": "canopy_greenhouse",
+      "lod0": {
+        "bounds_max": [
+          6.0,
+          8.0,
+          7.68
+        ],
+        "bounds_min": [
+          -6.0,
+          -8.0,
+          0.0
+        ],
+        "bytes": 422456,
+        "file": "structures/mm_str_b05_canopy_greenhouse_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_METAL",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "ae65c5b7c41fac6e6f9c1a8d9a355eae07c9ec2ddbbb2adf7a2c88cdaaa68922",
+        "triangles": 5592,
+        "vertices": 3128
+      },
+      "lod0_cap": 6500,
+      "lods": [
+        {
+          "bounds_max": [
+            6.0,
+            8.0,
+            7.18988
+          ],
+          "bounds_min": [
+            -6.0,
+            -8.0,
+            0.0
+          ],
+          "bytes": 7912,
+          "file": "lods/mm_str_b05_canopy_greenhouse_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TEAL",
+            "MAT_MM_GLASS"
+          ],
+          "sha256": "3f139cebc27caf5f95bdbca6de074d8b89d5098a76ebaa3e0246b0d80b7f15c7",
+          "triangles": 62,
+          "vertices": 52
+        },
+        {
+          "bounds_max": [
+            6.0,
+            8.0,
+            6.99856
+          ],
+          "bounds_min": [
+            -6.0,
+            -8.0,
+            0.0
+          ],
+          "bytes": 4992,
+          "file": "lods/mm_str_b05_canopy_greenhouse_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_GLASS"
+          ],
+          "sha256": "d1e851df71f377c21d331df996d1ebb80be697173db8c8f1c6b85af7d4f1ca4d",
+          "triangles": 30,
+          "vertices": 28
+        }
+      ],
+      "name": "Canopy Greenhouse",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -8.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            6.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            8.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            6.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -8.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B05_CANOPY_GREENHOUSE_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -8.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b06.maker_workshop.a.v1",
+      "category": "manufacturing",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            11.0,
+            11.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b06-maker-workshop.png",
+      "footprint_m": [
+        12.0,
+        12.0
+      ],
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "id": "B06",
+      "key": "maker_workshop",
+      "lod0": {
+        "bounds_max": [
+          6.0,
+          6.0,
+          7.18
+        ],
+        "bounds_min": [
+          -6.0,
+          -6.0,
+          0.0
+        ],
+        "bytes": 116300,
+        "file": "structures/mm_str_b06_maker_workshop_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_MUSTARD",
+          "MAT_MM_TERRACOTTA",
+          "MAT_MM_METAL",
+          "MAT_MM_CHARCOAL"
+        ],
+        "sha256": "54d52c0f5e517ff0f667d5159511137162adff4f772a6df3fc8fe868f45a51f6",
+        "triangles": 1452,
+        "vertices": 884
+      },
+      "lod0_cap": 5000,
+      "lods": [
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            6.85
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 8816,
+          "file": "lods/mm_str_b06_maker_workshop_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_TERRACOTTA",
+            "MAT_MM_CHARCOAL"
+          ],
+          "sha256": "4525565aa3f72fe9f72a8a788eb71a452a8f4c083921bdb635997f033bb277da",
+          "triangles": 92,
+          "vertices": 56
+        },
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            5.7
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 5200,
+          "file": "lods/mm_str_b06_maker_workshop_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_TERRACOTTA",
+            "MAT_MM_CHARCOAL"
+          ],
+          "sha256": "af08d55805948c5f37065b7a762d244638be780c6b259fb815b022d09644c064",
+          "triangles": 36,
+          "vertices": 24
+        }
+      ],
+      "name": "Maker Workshop",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -6.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            6.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            6.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            6.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -6.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B06_MAKER_WORKSHOP_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -6.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b07.starter_shop_cafe.a.v1",
+      "category": "retail",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            7.0,
+            7.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b07-starter-shop-cafe.png",
+      "footprint_m": [
+        8.0,
+        8.0
+      ],
+      "footprint_tiles": [
+        4,
+        4
+      ],
+      "id": "B07",
+      "key": "starter_shop_cafe",
+      "lod0": {
+        "bounds_max": [
+          4.0,
+          4.0,
+          4.728
+        ],
+        "bounds_min": [
+          -4.0,
+          -4.03476,
+          0.0
+        ],
+        "bytes": 135740,
+        "file": "structures/mm_str_b07_starter_shop_cafe_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TIMBER_DARK",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_CORAL",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "ced0a8a9b35a5b9774ac39ad0db15a20440af764de652b76d287948ddc377805",
+        "triangles": 1696,
+        "vertices": 952
+      },
+      "lod0_cap": 3500,
+      "lods": [
+        {
+          "bounds_max": [
+            4.0,
+            4.0,
+            4.07
+          ],
+          "bounds_min": [
+            -4.0,
+            -4.0,
+            0.0
+          ],
+          "bytes": 6924,
+          "file": "lods/mm_str_b07_starter_shop_cafe_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_CORAL",
+            "MAT_MM_GREEN"
+          ],
+          "sha256": "c3e9e559630ada09147ed2b4f910fbaa0c430240cb645b10ffa715ecd788bd8c",
+          "triangles": 48,
+          "vertices": 32
+        },
+        {
+          "bounds_max": [
+            4.0,
+            4.0,
+            3.825
+          ],
+          "bounds_min": [
+            -4.0,
+            -4.0,
+            0.0
+          ],
+          "bytes": 5368,
+          "file": "lods/mm_str_b07_starter_shop_cafe_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_CORAL"
+          ],
+          "sha256": "263475a806d7e074408a184e1ac0898fd5275396803249dabbd7db2fc2425a0c",
+          "triangles": 36,
+          "vertices": 24
+        }
+      ],
+      "name": "Starter Shop / Cafe",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -4.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            4.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            4.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            4.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -4.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B07_STARTER_SHOP_CAFE_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -4.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    },
+    {
+      "asset_id": "mm.str.b08.harbor_gym.a.v1",
+      "category": "wellness",
+      "collision": [
+        {
+          "center": [
+            0.0,
+            0.0,
+            2.0
+          ],
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_COL_MAIN",
+          "placeholder": true,
+          "size": [
+            11.0,
+            11.0,
+            4.0
+          ],
+          "type": "BOX"
+        }
+      ],
+      "concept_reference": "../building-b08-harbor-gym.png",
+      "footprint_m": [
+        12.0,
+        12.0
+      ],
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "id": "B08",
+      "key": "harbor_gym",
+      "lod0": {
+        "bounds_max": [
+          6.28,
+          6.0,
+          7.264
+        ],
+        "bounds_min": [
+          -6.0,
+          -6.0,
+          0.0
+        ],
+        "bytes": 280656,
+        "file": "structures/mm_str_b08_harbor_gym_a_v1.glb",
+        "materials": [
+          "MAT_MM_STONE",
+          "MAT_MM_CREAM",
+          "MAT_MM_TIMBER",
+          "MAT_MM_TEAL",
+          "MAT_MM_GLASS",
+          "MAT_MM_CHARCOAL",
+          "MAT_MM_GREEN",
+          "MAT_MM_SOIL"
+        ],
+        "sha256": "b7dae27fc126e47797fb6cc27e64093fcfc458dca2ed42a0d111de42033d66f9",
+        "triangles": 3684,
+        "vertices": 2088
+      },
+      "lod0_cap": 5000,
+      "lods": [
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            6.575
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 7708,
+          "file": "lods/mm_str_b08_harbor_gym_a_lod1_v1.glb",
+          "lod": 1,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TEAL",
+            "MAT_MM_GREEN"
+          ],
+          "sha256": "fd6c662f4736ec7935736779297dc52569194cf5963548cfeb3758b190fcda58",
+          "triangles": 60,
+          "vertices": 40
+        },
+        {
+          "bounds_max": [
+            6.0,
+            6.0,
+            6.35
+          ],
+          "bounds_min": [
+            -6.0,
+            -6.0,
+            0.0
+          ],
+          "bytes": 5128,
+          "file": "lods/mm_str_b08_harbor_gym_a_lod2_v1.glb",
+          "lod": 2,
+          "materials": [
+            "MAT_MM_STONE",
+            "MAT_MM_CREAM",
+            "MAT_MM_TEAL"
+          ],
+          "sha256": "efbae924768df7437619c76fffebd4226334fec655f574f1e724f07fb2e638f6",
+          "triangles": 36,
+          "vertices": 24
+        }
+      ],
+      "name": "Harbor Gym",
+      "ownership": "player",
+      "sockets": [
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_ENTRY_CUSTOMER_S",
+          "position": [
+            3.0,
+            -6.0,
+            0.0
+          ],
+          "type": "ENTRY_CUSTOMER_S"
+        },
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_SERVICE_E",
+          "position": [
+            6.0,
+            3.0,
+            0.0
+          ],
+          "type": "SERVICE_E"
+        },
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_UTILITY_N",
+          "position": [
+            -1.0,
+            6.0,
+            0.0
+          ],
+          "type": "UTILITY_N"
+        },
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_DELIVERY_E",
+          "position": [
+            6.0,
+            -1.0,
+            0.0
+          ],
+          "type": "DELIVERY_E"
+        },
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_SIGN_S",
+          "position": [
+            -1.0,
+            -6.0,
+            1.6
+          ],
+          "type": "SIGN_S"
+        },
+        {
+          "name": "MM_STR_B08_HARBOR_GYM_A_LOD0_SOCKET_INTERACT_S",
+          "position": [
+            3.0,
+            -6.7,
+            0.0
+          ],
+          "type": "INTERACT_S"
+        }
+      ]
+    }
+  ],
+  "tile_size_m": 2.0
+}

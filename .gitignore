@@ -1,0 +1,11 @@
+.DS_Store
+*.log
+*.zip
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules/
+**/.npm-cache/
+**/dist/
+outputs/
+work/

@@ -1,0 +1,51 @@
+{
+  "artifact": "Markets & Makers Render/Helius/Cloudflare production scaffold",
+  "date": "2026-08-23",
+  "status": "PASS_WITH_CONFIGURATION_REQUIRED",
+  "browser_client": {
+    "vitest": "12/12 passed",
+    "typescript": "passed",
+    "vite_build": "passed",
+    "cloudflare_wrangler_dry_run": "passed",
+    "cloudflare_assets_detected": 18,
+    "client_release": "0.5.0",
+    "responsive_browser_qa": "desktop and 390x844 passed",
+    "mmo_ui_reference_pass": "EVE Online, Albion Online, RuneScape Grand Exchange and Prosperous Universe patterns translated into the original solarpunk design",
+    "dual_currency_pass": "Sunmark operational ledger plus internal $MM reserve accounting and Reserve Desk interaction verified"
+  },
+  "authority_server": {
+    "vitest": "3/3 passed",
+    "typescript": "passed",
+    "health_smoke": "passed",
+    "public_config_smoke": "passed",
+    "unauthenticated_helius_webhook": "correctly rejected with HTTP 401",
+    "websocket_smoke": "welcome plus 10 Hz island snapshot passed",
+    "dependency_audit": "0 reported vulnerabilities"
+  },
+  "database": {
+    "migration_compiled": true,
+    "dual_currency_migration_compiled": true,
+    "live_render_database_tested": false,
+    "reason": "DATABASE_URL is intentionally absent until the owner applies the Render Blueprint"
+  },
+  "helius": {
+    "server_only_rpc": true,
+    "authenticated_webhook": true,
+    "duplicate_event_protection": "transaction signature primary key",
+    "live_api_tested": false,
+    "reason": "HELIUS_API_KEY and MM_TOKEN_MINT are intentionally absent"
+  },
+  "external_changes": {
+    "render_deployed": false,
+    "cloudflare_deployed": false,
+    "helius_webhook_created": false,
+    "credentials_stored": false
+  },
+  "github": {
+    "repository_created": false,
+    "ci_workflow": "syntax parsed; game and server jobs configured",
+    "cloudflare_workflow": "manual production deployment only",
+    "dependabot": "npm plus GitHub Actions configured",
+    "render_gate": "autoDeployTrigger checksPass"
+  }
+}

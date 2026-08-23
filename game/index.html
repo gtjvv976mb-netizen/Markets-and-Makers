@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#123f43" />
+    <meta name="description" content="Markets & Makers — a player-built open-world business economy." />
+    <title>Markets &amp; Makers — Solarpunk Business MMO</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loading-card">
+        <div class="logo-mark">M<span>&amp;</span>M</div>
+        <p>Markets &amp; Makers</p>
+        <h1>Opening the Sunwoven Reach</h1>
+        <div class="loading-bar"><span id="loadingBar"></span></div>
+        <small id="loadingLabel">Preparing the original world assets</small>
+      </div>
+    </div>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon">M<span>&amp;</span>M</div>
+          <div><strong>Markets &amp; Makers</strong><small>Sunwoven Reach · Founder preview</small></div>
+        </div>
+        <div class="economy-strip">
+          <div><small>Sunmarks</small><strong id="walletValue">750 SM</strong></div>
+          <div><small>Civic treasury</small><strong id="treasuryValue">45.0M SM</strong></div>
+          <div><small>AI citizens</small><strong id="citizenValue">120</strong></div>
+          <div><small>$MM reserve</small><strong id="reserveValue">50.0M</strong></div>
+          <div><small>Career</small><strong id="careerValue">New Maker · Lv 1</strong></div>
+          <div><small>Network</small><strong class="status-local" id="networkValue">Local authority</strong></div>
+        </div>
+        <button class="soft-button" id="resetButton" title="Reset the local prototype">New world</button>
+      </header>
+
+      <section class="game-layout">
+        <div class="world-frame">
+          <canvas id="worldCanvas" aria-label="3D Sunwoven Reach game world"></canvas>
+          <div class="daylight-chip"><i></i><span>Sun cycle</span><strong>09:42</strong></div>
+          <div class="world-label">
+            <small id="districtLabel">Civic heart</small>
+            <strong id="islandLabel">Hearthmarket</strong>
+            <span id="islandEconomy">Markets, starter plots and city demand</span>
+          </div>
+          <div class="world-hint" id="worldHint">WASD / arrows to move · Click ground to walk · Q/E rotate · Wheel zoom</div>
+          <div class="tutorial-card" id="tutorialCard" aria-live="polite">
+            <span id="tutorialProgress">0 / 8</span>
+            <div><small>Founder objective</small><strong id="tutorialTitle">Explore Hearthmarket</strong><p id="tutorialCopy">Move with WASD, arrows, or click the world.</p><div class="objective-meter"><span id="tutorialMeter"></span></div></div>
+            <button class="objective-action" id="objectiveAction" data-action="walk-plaza">Go</button>
+          </div>
+          <div class="selected-card" id="selectedCard">
+            <div><small>Selected plot</small><strong id="selectedPlotName">Garden Row Plot</strong></div>
+            <span id="selectedPlotStatus">Available · 120 SM</span>
+          </div>
+          <div class="world-actions">
+            <button id="leaseAction">Lease plot</button>
+            <button id="buildAction">Build business</button>
+            <button id="enterAction">Enter business</button>
+          </div>
+        </div>
+
+        <aside class="control-panel">
+          <nav class="tabs" aria-label="Game panels">
+            <button class="active" data-tab="guide" aria-selected="true"><span aria-hidden="true">◎</span><em>Guide</em></button>
+            <button data-tab="build" aria-selected="false"><span aria-hidden="true">⌂</span><em>Build</em></button>
+            <button data-tab="business" aria-selected="false"><span aria-hidden="true">▥</span><em>Business</em></button>
+            <button data-tab="market" aria-selected="false"><span aria-hidden="true">⇄</span><em>Market</em></button>
+            <button data-tab="contracts" aria-selected="false"><span aria-hidden="true">✓</span><em>Orders</em></button>
+            <button data-tab="map" aria-selected="false"><span aria-hidden="true">◇</span><em>Map</em></button>
+          </nav>
+          <div class="panel-scroll">
+            <section class="panel active" data-panel="guide" id="guidePanel"></section>
+            <section class="panel" data-panel="build" id="buildPanel"></section>
+            <section class="panel" data-panel="business" id="businessPanel"></section>
+            <section class="panel" data-panel="market" id="marketPanel"></section>
+            <section class="panel" data-panel="contracts" id="contractsPanel"></section>
+            <section class="panel" data-panel="map" id="mapPanel"></section>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="resource-dock" id="resourceDock"></footer>
+    </main>
+
+    <section class="modal" id="interiorModal" aria-hidden="true">
+      <div class="modal-shell interior-shell">
+        <header>
+          <div><small>Private business interior</small><h2 id="interiorTitle">Your business</h2></div>
+          <button class="close-button" id="closeInterior">Exit to world</button>
+        </header>
+        <div class="interior-grid">
+          <div class="interior-stage" id="interiorStage"></div>
+          <div class="interior-console" id="interiorConsole"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="travel-overlay" id="travelOverlay" aria-hidden="true">
+      <div class="ferry-card">
+        <div class="ferry-boat">⛴</div>
+        <small>Ferry route handoff</small>
+        <strong id="travelDestination">Hearthmarket</strong>
+        <div class="loading-bar"><span id="travelBar"></span></div>
+      </div>
+    </section>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
