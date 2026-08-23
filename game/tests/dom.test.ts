@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const root = resolve(__dirname, "..");
-const html = readFileSync(resolve(root, "index.html"), "utf8");
-const main = readFileSync(resolve(root, "src/main.ts"), "utf8");
+import html from "../index.html?raw";
+import main from "../src/main.ts?raw";
 
 describe("markup contract", () => {
   it("every element() selector main.ts requires actually exists in index.html", () => {

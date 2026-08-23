@@ -187,12 +187,25 @@ const STEP_ACTION: Record<string, { tab: string; label: string; hint: string }> 
 };
 
 function renderTutorial(): void {
+  // Self-heal: if a later step is finished, an earlier one cannot still be pending. A
+  // player who leased and built from the panel never "explored", and the guide would
+  // otherwise sit on step 1 while they ran a business.
+  const order = TUTORIAL.map(([entry]) => entry);
+  const lastDone = order.reduce((highest, entry, index) => store.state.tutorial[entry] ? index : highest, -1);
+  for (let i = 0; i < lastDone; i += 1) {
+    const entry = order[i]!;
+    if (!store.state.tutorial[entry]) store.markTutorial(entry);
+  }
+
   const done = Object.values(store.state.tutorial).filter(Boolean).length;
   const next = store.nextTutorial();
   const key = next?.[0];
   const step = key ? STEP_ACTION[key] : undefined;
 
-  element("#nextLabel").textContent = next ? `Step ${done + 1} of ${TUTORIAL.length}` : "All set";
+  // Number the step being shown, not the completion count — they disagree whenever a
+  // player finishes something out of order.
+  const stepIndex = next ? TUTORIAL.findIndex(([entry]) => entry === next[0]) : TUTORIAL.length - 1;
+  element("#nextLabel").textContent = next ? `Step ${stepIndex + 1} of ${TUTORIAL.length}` : "All set";
   element("#nextTitle").textContent = next?.[1] ?? "You know the ropes";
   element("#nextHint").textContent = step?.hint ?? "Grow your business however you like.";
   element<HTMLSpanElement>("#nextMeter").style.width = `${Math.round((done / TUTORIAL.length) * 100)}%`;
@@ -268,8 +281,14 @@ function renderBuild(): void {
     workshop: "Essential supplier with broad demand",
     shop: "Simple citizen-facing trading business",
   };
-  let intro = "Select a glowing 16 × 14 m starter plot in Hearthmarket.";
-  if (owned) intro = `${owned.name} is leased. Choose the role this plot will serve in the regional economy.`;
+  // Show one decision at a time: pick the land, then pick the trade. The licence chooser
+  // used to render before leasing, when none of it could be acted on.
+  const choosing = Boolean(state.ownedPlotId) && !state.license;
+  const settled = Boolean(state.license);
+  if (state.buildingPlaced) { element("#buildPanel").innerHTML = ""; return; }
+  let intro = "Pick a glowing plot in the world, then lease it.";
+  if (choosing) intro = `${owned?.name ?? "Your plot"} is yours. Now choose what it makes.`;
+  if (settled) intro = `${owned?.name ?? "Your plot"} · ${BUSINESS[state.license!].name}`;
   element("#buildPanel").innerHTML = `
     <h2>Your plot</h2>
     <p class="lead">${intro}</p>
@@ -277,24 +296,23 @@ function renderBuild(): void {
       <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${SUNMARK_CODE}` : "Click a plot in the 3D world"}</small></div></div>
       <button data-action="lease" ${selectedPlot ? "" : "disabled"}>Lease selected plot</button>
     </article>` : ""}
-    <div class="section-title">Choose a place in the economy</div>
-    <div class="supply-chain-strip" aria-label="Economic supply chain"><span>Utilities</span><b>→</b><span>Inputs</span><b>→</b><span>Industry</span><b>→</b><span>Commerce</span><b>→</b><span>Citizens</span><b>↺</b><span>Recovery</span></div>
+    ${!state.ownedPlotId ? `<p class="hint-line">Once it is yours, you choose what it makes.</p>` : ""}
+    ${choosing ? `<div class="section-title">What will it make?</div>
+    <div class="supply-chain-strip" aria-label="Supply chain"><span>Utilities</span><b>→</b><span>Inputs</span><b>→</b><span>Industry</span><b>→</b><span>Commerce</span><b>→</b><span>Citizens</span><b>↺</b><span>Recovery</span></div>
     <div class="filter-strip" aria-label="Business categories">${filters.map((filter) => `<button class="${activeBusinessStage === filter ? "active" : ""}" data-action="business-filter" data-filter="${filter}">${filter}</button>`).join("")}</div>
-    <div class="selection-summary"><strong>${activeBusinessStage}</strong><span>${visibleLicenses.length} ${visibleLicenses.length === 1 ? "license" : "licenses"}</span></div>
     <div class="business-grid">${visibleLicenses.map((key) => {
       const config = BUSINESS[key];
       const selected = state.license === key;
       return `<article class="game-card business-card ${selected ? "selected" : ""}" style="--card-color:${config.color}">
         <div class="card-head"><i class="card-icon">${config.icon}</i><div class="card-copy"><strong>${config.name}</strong><small>${config.stage} · ${config.islandAffinity}</small></div></div>
         ${recommendation[key] ? `<div class="recommendation">★ ${recommendation[key]}</div>` : ""}
-        <p>${config.copy}</p>
-        <div class="business-costs"><span>${config.licenseCost} ${SUNMARK_CODE} license</span><span>${config.laborCost} ${SUNMARK_CODE} payroll</span><span>${config.duration}s cycle</span></div>
+        <div class="business-costs"><span>${config.licenseCost} ${SUNMARK_CODE} to start</span><span>${config.laborCost} ${SUNMARK_CODE} wages</span></div>
         <div class="flow-row"><div><small>Uses</small>${resourceCosts(config.inputs) || "<span>Demand</span>"}</div><b>→</b><div><small>Makes</small>${resourceCosts(config.output) || "<span>Service</span>"}</div></div>
-        <details class="ecosystem-details"><summary>View supply-chain role</summary><div class="ecosystem"><div><small>Upstream</small><span>${config.ecosystem.upstream}</span></div><div><small>Process</small><span>${config.ecosystem.process}</span></div><div><small>Downstream</small><span>${config.ecosystem.downstream}</span></div></div></details>
-        <button data-action="license" data-license="${key}" aria-label="Choose ${config.name}" ${!state.ownedPlotId || Boolean(state.license) || state.buildingPlaced ? "disabled" : ""}>${selected ? "Selected · license locked" : state.license ? "Another license selected" : `Choose ${config.name}`}</button>
+        <details class="ecosystem-details"><summary>Who buys this</summary><div class="ecosystem"><div><small>Upstream</small><span>${config.ecosystem.upstream}</span></div><div><small>Process</small><span>${config.ecosystem.process}</span></div><div><small>Downstream</small><span>${config.ecosystem.downstream}</span></div></div></details>
+        <button data-action="license" data-license="${key}" aria-label="Choose ${config.name}" ${!state.ownedPlotId || Boolean(state.license) || state.buildingPlaced ? "disabled" : ""}>${selected ? "Chosen" : `Choose this`}</button>
       </article>`;
-    }).join("")}</div>
-    ${state.license && !state.buildingPlaced ? `<div class="section-title">Publish the structure</div><article class="game-card selected"><p>A temporary prototype structure will be fitted to this plot. Its unique production design is locked in the official art library.</p><button data-action="build">Build ${BUSINESS[state.license].name}</button></article>` : ""}
+    }).join("")}</div>` : ""}
+    ${state.license && !state.buildingPlaced ? `<article class="game-card selected"><button data-action="build">Build ${BUSINESS[state.license].name}</button></article>` : ""}
   `;
 }
 
@@ -642,6 +660,7 @@ document.body.addEventListener("click", (event) => {
       const plot = PLOTS.find((entry) => entry.id === store.state.ownedPlotId);
       if (plot) {
         store.updatePlayer(plot.island, plot.x, plot.z + plot.depth / 2 + 3);
+        store.markTutorial("moved");
         store.savePosition();
         world.teleportToState(store.state);
       }

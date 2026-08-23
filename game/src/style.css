@@ -307,6 +307,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .epoch-note strong { color: #8a5f1c; }
 .reserve-actions button[disabled] { opacity: .48; cursor: not-allowed; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .epoch-fill { transition: none; } }
+.hint-line { margin: 8px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+
 /* ---- one clear instruction, pinned above the tabs ---- */
 .next-step { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin: 0 0 8px; padding: 12px 13px 14px; overflow: hidden; border-radius: 14px; background: linear-gradient(140deg,#1d5b52,#2c7b63); color: #f2f8ef; box-shadow: 0 8px 20px -12px rgba(15,50,45,.7); }
 .next-step small { display: block; color: rgba(242,248,239,.68); font-size: 7.5px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
