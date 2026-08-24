@@ -397,6 +397,36 @@ describe("Markets & Makers economy", () => {
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
+  it("returns capital but never lets grinding be cashed out directly", () => {
+    // The anti-farm design lives in contribution-weighted emission. If gameplay
+    // Maker Dollars redeemed freely, grinding NPC sales would convert straight into
+    // $MM and walk around it.
+    const store = new GameStore(createFreshState());
+    store.state.wallet = 5_000_000;          // as if earned in game
+    expect(store.withdrawableCapitalMM()).toBe(0);
+    expect(store.exchangeMollarsForMM(1_000_000).ok).toBe(false);
+
+    // Bring capital in, and the bank will always give that back.
+    store.state.mmHoldings = 5_000;
+    expect(store.exchangeMMForMollars(5_000).ok).toBe(true);
+    expect(store.withdrawableCapitalMM()).toBe(5_000);
+
+    // Redeeming the whole wallet would exceed the capital owed, so it is refused...
+    expect(store.exchangeMollarsForMM(store.state.wallet).ok).toBe(false);
+
+    // ...but redeeming within the capital works.
+    const before = store.state.mmHoldings;
+    expect(store.exchangeMollarsForMM(400_000).ok).toBe(true);
+    const returned = store.state.mmHoldings - before;
+    expect(returned).toBeGreaterThan(0);
+    expect(returned).toBeLessThanOrEqual(5_000);
+    expect(store.withdrawableCapitalMM()).toBe(5_000 - returned);
+
+    // Once the capital is back, the door closes again.
+    store.state.mmWithdrawn = store.state.mmDeposited;
+    expect(store.exchangeMollarsForMM(100_000).ok).toBe(false);
+  });
+
   it("bills a business for water, power and wages whether it trades or not", () => {
     const state = createFreshState();
     state.wallet = 5_000;

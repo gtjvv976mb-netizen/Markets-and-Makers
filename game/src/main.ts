@@ -690,17 +690,18 @@ function renderMarket(): void {
         <div><small>This epoch</small><strong>${formatNumber(store.state.epochIssued)} issued</strong></div>
         <div><small>Rate</small><strong>$1 = ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}</strong></div>
         <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
+        <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
       </div>
       <div class="reserve-actions">
         <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mollarsForMM(100))} ${MOLLAR_CODE}</small></button>
-        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 ? "disabled" : ""}>Redeem 1,000 ${MOLLAR_CODE} <small>get ${store.mmForMollars(1000)} $MM</small></button>
+        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
       </div>
       <div class="city-strip">
         <div><small>Markians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
         <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}</strong></div>
         <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
       </div>
-      <small class="reserve-boundary">Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
+      <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
     </section>
 
     <section class="reserve-desk">

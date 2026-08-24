@@ -50,6 +50,7 @@ export interface GameState {
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
   staff: number; chargesSettledAt: number; suppliesCut: boolean;
+  mmDeposited: number; mmWithdrawn: number;
   sponsoredUntil: number; chartered: boolean;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
@@ -102,6 +103,7 @@ export function createFreshState(): GameState {
     bankTreasuryMM: BANK_TREASURY_MM,
     epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
     staff: 1, chargesSettledAt: Date.now(), suppliesCut: false,
+    mmDeposited: 0, mmWithdrawn: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -237,6 +239,8 @@ export function loadState(): GameState {
       staff: Math.floor(finite(saved.staff, 1, 0, 200)),
       chargesSettledAt: finite(saved.chargesSettledAt, Date.now()),
       suppliesCut: Boolean(saved.suppliesCut),
+      mmDeposited: finite(saved.mmDeposited, 0, 0),
+      mmWithdrawn: finite(saved.mmWithdrawn, 0, 0),
       chartered: Boolean(saved.chartered),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
@@ -607,8 +611,20 @@ export class GameStore {
     this.state.bankTreasuryMM += amount;
     this.state.wallet += credited;
     this.state.epochIssued += credited;
+    this.state.mmDeposited += amount;
     this.commit(`The Government Bank took ${amount} $MM and issued ${credited} ${MOLLAR_CODE}.`, "success");
     return this.result(true, "Converted.");
+  }
+
+  /**
+   * Capital the bank still owes this player: everything they brought in, less what they
+   * have already taken back out. The bank returns CAPITAL. Profit leaves by the weekly
+   * distribution instead, because that path is contribution-weighted — without this
+   * split, grinding NPC sales would convert straight into $MM and walk around the
+   * anti-farm design entirely.
+   */
+  withdrawableCapitalMM(): number {
+    return Math.max(0, this.state.mmDeposited - this.state.mmWithdrawn);
   }
 
   /** Redeem the other way; the Maker Dollars are destroyed, not recycled. */
@@ -618,10 +634,16 @@ export class GameStore {
     if (this.state.wallet < spend) return this.result(false, `You only hold ${this.state.wallet} ${MOLLAR_CODE}.`);
     const units = this.mmForMollars(spend);
     if (units <= 0) return this.result(false, "Redeem a larger amount to receive whole $MM.");
+    if (units > this.withdrawableCapitalMM()) {
+      return this.result(false, this.withdrawableCapitalMM() > 0
+        ? `The bank returns capital: ${this.withdrawableCapitalMM()} $MM left of what you brought in. Profit is paid out in the weekly distribution.`
+        : "You have no capital with the bank. Profit is paid out in the weekly distribution.");
+    }
     if (this.state.bankTreasuryMM < units) return this.result(false, "The bank is settling other redemptions.");
     this.state.wallet -= spend;
     this.state.bankTreasuryMM -= units;
     this.state.mmHoldings += units;
+    this.state.mmWithdrawn += units;
     const haircut = this.redemptionRate() < 1 ? ` Coverage is ${(this.collateralRatio() * 100).toFixed(0)}%, so redemptions are shared evenly.` : "";
     this.commit(`Redeemed ${spend} ${MOLLAR_CODE} for ${units} $MM.${haircut}`, "success");
     return this.result(true, "Redeemed.");
