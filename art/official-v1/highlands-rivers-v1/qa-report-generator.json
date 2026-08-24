@@ -1,0 +1,88 @@
+{
+  "checks": [
+    {
+      "detail": 24,
+      "name": "tile inventory T51-T74",
+      "passed": true
+    },
+    {
+      "detail": 434,
+      "name": "all source tile triangle budgets",
+      "passed": true
+    },
+    {
+      "detail": 256,
+      "name": "exact 256 terrain chunks",
+      "passed": true
+    },
+    {
+      "detail": 1222,
+      "name": "chunk triangle ceiling",
+      "passed": true
+    },
+    {
+      "detail": 9,
+      "name": "government buildings preserved",
+      "passed": true
+    },
+    {
+      "detail": [
+        18,
+        24
+      ],
+      "name": "empty plots preserved and expanded",
+      "passed": true
+    },
+    {
+      "detail": 893,
+      "name": "three watershed outlet graphs",
+      "passed": true
+    },
+    {
+      "detail": -0.06,
+      "name": "no uphill natural edge over tolerance",
+      "passed": true
+    },
+    {
+      "detail": [
+        32,
+        24
+      ],
+      "name": "semantic layout roles consolidated to canonical tiles",
+      "passed": true
+    },
+    {
+      "detail": [
+        14,
+        15,
+        12,
+        27
+      ],
+      "name": "waterfall and rapid edge semantics",
+      "passed": true
+    },
+    {
+      "detail": 259,
+      "name": "all required GLBs rendered",
+      "passed": true
+    },
+    {
+      "detail": 26,
+      "name": "all required PNGs rendered",
+      "passed": true
+    }
+  ],
+  "schema": "markets-and-makers.highlands-rivers-world.generator-qa.v1",
+  "status": "PASS",
+  "summary": {
+    "checks": 12,
+    "passed": 12
+  },
+  "warnings": [
+    {
+      "code": "SOURCE_TILE_DRAW_CAP_AUTHORING_VARIANCE",
+      "detail": "Individual T51-T74 GLBs preserve approved multi-material authoring fidelity and may exceed nominal source draw caps; browser runtime must stream the compiled chunk GLBs.",
+      "severity": "warning"
+    }
+  ]
+}

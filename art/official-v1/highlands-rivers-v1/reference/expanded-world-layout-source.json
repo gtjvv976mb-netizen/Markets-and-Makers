@@ -1,0 +1,4902 @@
+{
+  "schema": "markets-and-makers.expanded-open-world.layout.v1",
+  "version": "1.0.0",
+  "status": "DESIGN_VALIDATED",
+  "coordinate_contract": {
+    "source_axes": {
+      "east": "+X",
+      "north": "+Y",
+      "up": "+Z"
+    },
+    "tile_size_m": 2.0,
+    "cell_anchor": "integer cell center",
+    "base_walk_z_m": 1.0,
+    "elevation_step_m": 1.0,
+    "water_inset_below_walk_m": 0.32,
+    "river_water_z_formula": "0.62 + elevation_level",
+    "civic_canal_water_z_m": 0.68,
+    "ocean_z_m": -0.18,
+    "rotation_degrees": [
+      0,
+      90,
+      180,
+      270
+    ],
+    "rasterization": {
+      "polylines": "integer supercover Bresenham; every touched cell included",
+      "polygons": "cell center inside or on boundary",
+      "road_width_2": "centerline plus +X for N/S-dominant reach, plus +Y for E/W-dominant reach; union at turns",
+      "water_width": "centerline expanded perpendicular to flow; odd widths centered; union at turns",
+      "priority_high_to_low": [
+        "bridge",
+        "waterfall",
+        "water",
+        "road_or_path",
+        "plot",
+        "elevation",
+        "base_land",
+        "ocean"
+      ]
+    }
+  },
+  "source_city": {
+    "layout": "outputs/markets-and-makers-government-city-center-v1/layout.json",
+    "layout_sha256": "0c612716e59a626f7fd268fdadb514ac3ede2876b4af88b14244446081123aef",
+    "protected_bounds_cells": {
+      "inclusive": true,
+      "max": [
+        47,
+        39
+      ],
+      "min": [
+        -48,
+        -40
+      ]
+    },
+    "protected_building_ids": [
+      "CV01",
+      "CV02",
+      "CV03",
+      "CV04",
+      "CV05",
+      "CV06",
+      "CV07",
+      "CV08",
+      "CV09"
+    ],
+    "protected_plot_ids": [
+      "N01",
+      "N02",
+      "N03",
+      "N04",
+      "N05",
+      "N06",
+      "W01",
+      "W02",
+      "W03",
+      "W04",
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "S01",
+      "S02",
+      "S03",
+      "S04"
+    ],
+    "preserve_counts": {
+      "government_buildings": 9,
+      "empty_city_plots": 18
+    },
+    "allowed_terrain_edits": {
+      "river_corridor_polyline": [
+        [
+          14,
+          44
+        ],
+        [
+          8,
+          42
+        ],
+        [
+          2,
+          40
+        ],
+        [
+          -3,
+          38
+        ],
+        [
+          -3,
+          23
+        ],
+        [
+          6,
+          23
+        ],
+        [
+          14,
+          23
+        ],
+        [
+          14,
+          19
+        ]
+      ],
+      "extended_outlet_cells": [
+        [
+          14,
+          -40
+        ],
+        [
+          14,
+          -41
+        ],
+        [
+          14,
+          -42
+        ],
+        [
+          14,
+          -43
+        ],
+        [
+          14,
+          -44
+        ]
+      ],
+      "all_other_core_terrain_locked": true
+    },
+    "player_owned_buildings": 0
+  },
+  "world": {
+    "id": "sunwoven_open_world_v1",
+    "name": "Sunwoven Island",
+    "bounds_cells": {
+      "min": [
+        -128,
+        -80
+      ],
+      "max": [
+        127,
+        175
+      ],
+      "inclusive": true
+    },
+    "dimensions_cells": [
+      256,
+      256
+    ],
+    "dimensions_m": [
+      512,
+      512
+    ],
+    "chunk_size_cells": [
+      16,
+      16
+    ],
+    "chunk_size_m": [
+      32,
+      32
+    ],
+    "chunk_grid": [
+      16,
+      16
+    ],
+    "terrain_chunk_count": 256,
+    "macroregion_size_chunks": [
+      4,
+      4
+    ],
+    "macroregion_grid": [
+      4,
+      4
+    ],
+    "macroregion_count": 16,
+    "land_polygon": [
+      [
+        -112,
+        -45
+      ],
+      [
+        -82,
+        -52
+      ],
+      [
+        -50,
+        -47
+      ],
+      [
+        -25,
+        -43
+      ],
+      [
+        0,
+        -45
+      ],
+      [
+        26,
+        -43
+      ],
+      [
+        52,
+        -48
+      ],
+      [
+        84,
+        -51
+      ],
+      [
+        112,
+        -42
+      ],
+      [
+        119,
+        -20
+      ],
+      [
+        120,
+        20
+      ],
+      [
+        116,
+        55
+      ],
+      [
+        121,
+        88
+      ],
+      [
+        111,
+        120
+      ],
+      [
+        93,
+        147
+      ],
+      [
+        65,
+        165
+      ],
+      [
+        35,
+        172
+      ],
+      [
+        0,
+        174
+      ],
+      [
+        -34,
+        170
+      ],
+      [
+        -67,
+        163
+      ],
+      [
+        -94,
+        146
+      ],
+      [
+        -114,
+        121
+      ],
+      [
+        -122,
+        89
+      ],
+      [
+        -118,
+        55
+      ],
+      [
+        -121,
+        22
+      ],
+      [
+        -119,
+        -14
+      ]
+    ],
+    "coast_rule": "T13-T15 natural shore except government harbor T16-T19 and three RV11 mouths",
+    "southern_city_coast_preserved": true
+  },
+  "tile_program": {
+    "reuse": {
+      "base_land_coast_elevation": "T01-T19",
+      "civic_canal": "T20-T25",
+      "pond_compatibility": "T26",
+      "paths_plazas_plots": "T27-T38",
+      "bridges": "T39-T43",
+      "docks_harbor": "T44-T50",
+      "city_roads": "C01-C36"
+    },
+    "new_mountain_tiles": [
+      {
+        "id": "MT01",
+        "key": "alpine_ground_flat",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT02",
+        "key": "natural_slope_straight",
+        "footprint": [
+          1,
+          2
+        ],
+        "delta": 1
+      },
+      {
+        "id": "MT03",
+        "key": "natural_slope_outer",
+        "footprint": [
+          2,
+          2
+        ],
+        "delta": 1
+      },
+      {
+        "id": "MT04",
+        "key": "natural_slope_inner",
+        "footprint": [
+          2,
+          2
+        ],
+        "delta": 1
+      },
+      {
+        "id": "MT05",
+        "key": "ridge_straight",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT06",
+        "key": "ridge_corner",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT07",
+        "key": "saddle_pass",
+        "footprint": [
+          2,
+          2
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT08",
+        "key": "summit_cap",
+        "footprint": [
+          2,
+          2
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT09",
+        "key": "talus_straight",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT10",
+        "key": "talus_corner",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT11",
+        "key": "rock_outcrop",
+        "footprint": [
+          1,
+          1
+        ],
+        "delta": 0
+      },
+      {
+        "id": "MT12",
+        "key": "cave_portal_transition",
+        "footprint": [
+          2,
+          1
+        ],
+        "delta": 0
+      }
+    ],
+    "new_river_tiles": [
+      {
+        "id": "RV01",
+        "key": "spring_source",
+        "connections": [
+          "S"
+        ]
+      },
+      {
+        "id": "RV02",
+        "key": "narrow_straight",
+        "connections": [
+          "N",
+          "S"
+        ]
+      },
+      {
+        "id": "RV03",
+        "key": "narrow_corner",
+        "connections": [
+          "N",
+          "E"
+        ]
+      },
+      {
+        "id": "RV04",
+        "key": "narrow_t_confluence",
+        "connections": [
+          "N",
+          "E",
+          "S"
+        ]
+      },
+      {
+        "id": "RV05",
+        "key": "wide_straight",
+        "connections": [
+          "N",
+          "S"
+        ]
+      },
+      {
+        "id": "RV06",
+        "key": "wide_corner",
+        "connections": [
+          "N",
+          "E"
+        ]
+      },
+      {
+        "id": "RV07",
+        "key": "wide_t_confluence",
+        "connections": [
+          "N",
+          "E",
+          "S"
+        ]
+      },
+      {
+        "id": "RV08",
+        "key": "narrow_to_wide",
+        "connections": [
+          "N",
+          "S"
+        ]
+      },
+      {
+        "id": "RV09",
+        "key": "rapids_straight",
+        "connections": [
+          "N",
+          "S"
+        ]
+      },
+      {
+        "id": "RV10",
+        "key": "bridge_threshold_ford",
+        "connections": [
+          "N",
+          "S",
+          "E",
+          "W"
+        ]
+      },
+      {
+        "id": "RV11",
+        "key": "natural_ocean_mouth",
+        "connections": [
+          "N",
+          "S"
+        ]
+      }
+    ],
+    "new_lake_tiles": [
+      {
+        "id": "LK01",
+        "key": "lake_full_water"
+      },
+      {
+        "id": "LK02",
+        "key": "lake_shore_straight"
+      },
+      {
+        "id": "LK03",
+        "key": "lake_shore_outer"
+      },
+      {
+        "id": "LK04",
+        "key": "lake_shore_inner"
+      },
+      {
+        "id": "LK05",
+        "key": "lake_river_inlet_outlet"
+      }
+    ],
+    "new_waterfall_tiles": [
+      {
+        "id": "WF01",
+        "key": "waterfall_crest",
+        "elevation_delta": 1
+      },
+      {
+        "id": "WF02",
+        "key": "waterfall_face_stackable",
+        "elevation_delta": 1
+      },
+      {
+        "id": "WF03",
+        "key": "waterfall_plunge_pool",
+        "elevation_delta": 0
+      },
+      {
+        "id": "WF04",
+        "key": "stepped_cascade",
+        "elevation_delta": 1
+      }
+    ],
+    "all_new_tiles_rotation_complete": true,
+    "style": "approved logo-world solarpunk: warm limestone, sage grass, teal water, dark 0.04m keyline border"
+  },
+  "elevation": {
+    "assignment": "highest containing level polygon wins, then hydrology and road-cut overrides",
+    "levels": [
+      {
+        "level": 1,
+        "walk_z_m": 2.0,
+        "polygons": [
+          [
+            [
+              -115,
+              104
+            ],
+            [
+              -106,
+              92
+            ],
+            [
+              -93,
+              85
+            ],
+            [
+              -78,
+              82
+            ],
+            [
+              -62,
+              86
+            ],
+            [
+              -47,
+              83
+            ],
+            [
+              -31,
+              90
+            ],
+            [
+              -14,
+              85
+            ],
+            [
+              2,
+              91
+            ],
+            [
+              18,
+              84
+            ],
+            [
+              35,
+              90
+            ],
+            [
+              50,
+              84
+            ],
+            [
+              68,
+              88
+            ],
+            [
+              84,
+              83
+            ],
+            [
+              101,
+              91
+            ],
+            [
+              114,
+              105
+            ],
+            [
+              111,
+              121
+            ],
+            [
+              99,
+              141
+            ],
+            [
+              78,
+              158
+            ],
+            [
+              53,
+              168
+            ],
+            [
+              23,
+              173
+            ],
+            [
+              -8,
+              174
+            ],
+            [
+              -38,
+              169
+            ],
+            [
+              -67,
+              161
+            ],
+            [
+              -92,
+              147
+            ],
+            [
+              -109,
+              128
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 2,
+        "walk_z_m": 3.0,
+        "polygons": [
+          [
+            [
+              -106,
+              111
+            ],
+            [
+              -95,
+              101
+            ],
+            [
+              -80,
+              96
+            ],
+            [
+              -64,
+              99
+            ],
+            [
+              -48,
+              94
+            ],
+            [
+              -34,
+              103
+            ],
+            [
+              -18,
+              96
+            ],
+            [
+              0,
+              104
+            ],
+            [
+              18,
+              96
+            ],
+            [
+              34,
+              104
+            ],
+            [
+              50,
+              97
+            ],
+            [
+              66,
+              102
+            ],
+            [
+              82,
+              96
+            ],
+            [
+              99,
+              104
+            ],
+            [
+              105,
+              116
+            ],
+            [
+              96,
+              135
+            ],
+            [
+              77,
+              149
+            ],
+            [
+              54,
+              158
+            ],
+            [
+              24,
+              164
+            ],
+            [
+              -7,
+              164
+            ],
+            [
+              -35,
+              159
+            ],
+            [
+              -61,
+              152
+            ],
+            [
+              -84,
+              140
+            ],
+            [
+              -100,
+              127
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 3,
+        "walk_z_m": 4.0,
+        "polygons": [
+          [
+            [
+              -97,
+              119
+            ],
+            [
+              -84,
+              108
+            ],
+            [
+              -67,
+              112
+            ],
+            [
+              -52,
+              106
+            ],
+            [
+              -37,
+              116
+            ],
+            [
+              -22,
+              109
+            ],
+            [
+              -4,
+              118
+            ],
+            [
+              14,
+              110
+            ],
+            [
+              30,
+              118
+            ],
+            [
+              47,
+              110
+            ],
+            [
+              64,
+              115
+            ],
+            [
+              80,
+              108
+            ],
+            [
+              94,
+              118
+            ],
+            [
+              96,
+              128
+            ],
+            [
+              87,
+              141
+            ],
+            [
+              68,
+              150
+            ],
+            [
+              46,
+              155
+            ],
+            [
+              19,
+              159
+            ],
+            [
+              -12,
+              156
+            ],
+            [
+              -38,
+              151
+            ],
+            [
+              -62,
+              144
+            ],
+            [
+              -83,
+              135
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 4,
+        "walk_z_m": 5.0,
+        "polygons": [
+          [
+            [
+              -96,
+              122
+            ],
+            [
+              -85,
+              113
+            ],
+            [
+              -69,
+              115
+            ],
+            [
+              -54,
+              119
+            ],
+            [
+              -38,
+              127
+            ],
+            [
+              -29,
+              141
+            ],
+            [
+              -34,
+              153
+            ],
+            [
+              -49,
+              162
+            ],
+            [
+              -68,
+              164
+            ],
+            [
+              -86,
+              154
+            ],
+            [
+              -98,
+              139
+            ]
+          ],
+          [
+            [
+              -26,
+              121
+            ],
+            [
+              -15,
+              113
+            ],
+            [
+              -1,
+              116
+            ],
+            [
+              13,
+              112
+            ],
+            [
+              29,
+              122
+            ],
+            [
+              33,
+              138
+            ],
+            [
+              25,
+              156
+            ],
+            [
+              8,
+              166
+            ],
+            [
+              -10,
+              160
+            ],
+            [
+              -25,
+              143
+            ]
+          ],
+          [
+            [
+              36,
+              122
+            ],
+            [
+              47,
+              113
+            ],
+            [
+              61,
+              115
+            ],
+            [
+              75,
+              112
+            ],
+            [
+              91,
+              121
+            ],
+            [
+              98,
+              137
+            ],
+            [
+              91,
+              153
+            ],
+            [
+              75,
+              164
+            ],
+            [
+              57,
+              165
+            ],
+            [
+              42,
+              155
+            ],
+            [
+              33,
+              140
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 5,
+        "walk_z_m": 6.0,
+        "polygons": [
+          [
+            [
+              -88,
+              127
+            ],
+            [
+              -77,
+              120
+            ],
+            [
+              -62,
+              122
+            ],
+            [
+              -48,
+              128
+            ],
+            [
+              -38,
+              140
+            ],
+            [
+              -42,
+              151
+            ],
+            [
+              -55,
+              157
+            ],
+            [
+              -70,
+              157
+            ],
+            [
+              -83,
+              149
+            ],
+            [
+              -91,
+              137
+            ]
+          ],
+          [
+            [
+              -18,
+              126
+            ],
+            [
+              -7,
+              119
+            ],
+            [
+              4,
+              122
+            ],
+            [
+              15,
+              118
+            ],
+            [
+              25,
+              128
+            ],
+            [
+              26,
+              141
+            ],
+            [
+              17,
+              154
+            ],
+            [
+              4,
+              160
+            ],
+            [
+              -10,
+              153
+            ],
+            [
+              -19,
+              139
+            ]
+          ],
+          [
+            [
+              44,
+              127
+            ],
+            [
+              54,
+              118
+            ],
+            [
+              66,
+              121
+            ],
+            [
+              78,
+              117
+            ],
+            [
+              88,
+              126
+            ],
+            [
+              91,
+              139
+            ],
+            [
+              83,
+              151
+            ],
+            [
+              70,
+              158
+            ],
+            [
+              56,
+              157
+            ],
+            [
+              46,
+              147
+            ],
+            [
+              40,
+              137
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 6,
+        "walk_z_m": 7.0,
+        "polygons": [
+          [
+            [
+              -79,
+              132
+            ],
+            [
+              -68,
+              127
+            ],
+            [
+              -56,
+              130
+            ],
+            [
+              -47,
+              138
+            ],
+            [
+              -49,
+              148
+            ],
+            [
+              -59,
+              153
+            ],
+            [
+              -70,
+              151
+            ],
+            [
+              -78,
+              143
+            ]
+          ],
+          [
+            [
+              -11,
+              132
+            ],
+            [
+              -2,
+              124
+            ],
+            [
+              8,
+              128
+            ],
+            [
+              17,
+              125
+            ],
+            [
+              21,
+              135
+            ],
+            [
+              16,
+              147
+            ],
+            [
+              5,
+              154
+            ],
+            [
+              -6,
+              148
+            ],
+            [
+              -13,
+              140
+            ]
+          ],
+          [
+            [
+              51,
+              132
+            ],
+            [
+              61,
+              124
+            ],
+            [
+              72,
+              127
+            ],
+            [
+              82,
+              124
+            ],
+            [
+              87,
+              135
+            ],
+            [
+              83,
+              146
+            ],
+            [
+              72,
+              152
+            ],
+            [
+              59,
+              149
+            ],
+            [
+              50,
+              141
+            ]
+          ]
+        ]
+      },
+      {
+        "level": 7,
+        "walk_z_m": 8.0,
+        "polygons": [
+          [
+            [
+              -69,
+              136
+            ],
+            [
+              -60,
+              133
+            ],
+            [
+              -52,
+              140
+            ],
+            [
+              -55,
+              148
+            ],
+            [
+              -63,
+              151
+            ],
+            [
+              -71,
+              146
+            ]
+          ],
+          [
+            [
+              -5,
+              137
+            ],
+            [
+              4,
+              130
+            ],
+            [
+              12,
+              136
+            ],
+            [
+              11,
+              146
+            ],
+            [
+              3,
+              151
+            ],
+            [
+              -5,
+              145
+            ]
+          ],
+          [
+            [
+              59,
+              137
+            ],
+            [
+              68,
+              130
+            ],
+            [
+              77,
+              135
+            ],
+            [
+              79,
+              144
+            ],
+            [
+              70,
+              149
+            ],
+            [
+              61,
+              146
+            ]
+          ]
+        ]
+      }
+    ],
+    "max_level": 7,
+    "max_walk_z_m": 8.0,
+    "road_cut_half_width_cells": 2,
+    "river_cut_half_width_cells": 2,
+    "no_vertical_cliff_over_one_level_without_MT_or_T07_T09_stack": true
+  },
+  "hydrology": {
+    "watersheds": [
+      {
+        "id": "WS01_VERDANT_RUN",
+        "name": "Verdant Run Watershed",
+        "outlet": {
+          "cell": [
+            -96,
+            -49
+          ],
+          "kind": "ocean_mouth",
+          "tile_id": "RV11"
+        },
+        "main_channel": {
+          "id": "verdant_run",
+          "raster": "supercover_bresenham_between_stations",
+          "width_by_reach_cells": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "stations": [
+            {
+              "cell": [
+                -62,
+                148
+              ],
+              "level": 7,
+              "kind": "spring"
+            },
+            {
+              "cell": [
+                -64,
+                144
+              ],
+              "level": 6,
+              "kind": "rapids"
+            },
+            {
+              "cell": [
+                -66,
+                139
+              ],
+              "level": 6,
+              "kind": "stream"
+            },
+            {
+              "cell": [
+                -68,
+                135
+              ],
+              "level": 5,
+              "kind": "rapids"
+            },
+            {
+              "cell": [
+                -70,
+                132
+              ],
+              "level": 5,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                -70,
+                129
+              ],
+              "level": 4,
+              "kind": "waterfall_pool_lake_inlet"
+            },
+            {
+              "cell": [
+                -81,
+                118
+              ],
+              "level": 4,
+              "kind": "lake_outlet"
+            },
+            {
+              "cell": [
+                -83,
+                115
+              ],
+              "level": 4,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                -84,
+                113
+              ],
+              "level": 3,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                -87,
+                107
+              ],
+              "level": 3,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -88,
+                102
+              ],
+              "level": 3,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                -88,
+                100
+              ],
+              "level": 2,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                -89,
+                94
+              ],
+              "level": 2,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -89,
+                88
+              ],
+              "level": 2,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                -88,
+                86
+              ],
+              "level": 1,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                -87,
+                80
+              ],
+              "level": 1,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -86,
+                76
+              ],
+              "level": 1,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                -86,
+                74
+              ],
+              "level": 0,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                -85,
+                68
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -82,
+                60
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                -79,
+                48
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -78,
+                36
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -80,
+                24
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -83,
+                12
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -86,
+                0
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -89,
+                -12
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -92,
+                -24
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -95,
+                -38
+              ],
+              "level": 0,
+              "kind": "estuary"
+            },
+            {
+              "cell": [
+                -96,
+                -45
+              ],
+              "level": 0,
+              "kind": "tidal"
+            },
+            {
+              "cell": [
+                -96,
+                -49
+              ],
+              "level": 0,
+              "kind": "ocean_mouth"
+            }
+          ]
+        },
+        "tributaries": [
+          {
+            "id": "copper_creek",
+            "width_cells": 1,
+            "stations": [
+              {
+                "cell": [
+                  -82,
+                  146
+                ],
+                "level": 6,
+                "kind": "spring"
+              },
+              {
+                "cell": [
+                  -80,
+                  140
+                ],
+                "level": 5,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  -78,
+                  135
+                ],
+                "level": 5,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  -76,
+                  131
+                ],
+                "level": 4,
+                "kind": "lake_inlet"
+              }
+            ]
+          }
+        ],
+        "lakes": [
+          {
+            "id": "mirrorleaf_lake",
+            "water_level": 4,
+            "water_z_m": 4.62,
+            "polygon": [
+              [
+                -80,
+                128
+              ],
+              [
+                -76,
+                131
+              ],
+              [
+                -70,
+                131
+              ],
+              [
+                -65,
+                128
+              ],
+              [
+                -63,
+                124
+              ],
+              [
+                -65,
+                119
+              ],
+              [
+                -70,
+                116
+              ],
+              [
+                -77,
+                116
+              ],
+              [
+                -82,
+                119
+              ],
+              [
+                -84,
+                124
+              ]
+            ],
+            "inlets": [
+              [
+                -70,
+                129
+              ],
+              [
+                -76,
+                131
+              ]
+            ],
+            "outlet": [
+              -81,
+              118
+            ]
+          }
+        ]
+      },
+      {
+        "id": "WS02_HEARTH_RIVER",
+        "name": "Hearth River Watershed",
+        "outlet": {
+          "cell": [
+            14,
+            -44
+          ],
+          "kind": "ocean_mouth",
+          "tile_id": "RV11"
+        },
+        "main_channel": {
+          "id": "hearth_river",
+          "raster": "supercover_bresenham_between_stations",
+          "width_by_reach_cells": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "stations": [
+            {
+              "cell": [
+                4,
+                150
+              ],
+              "level": 7,
+              "kind": "spring"
+            },
+            {
+              "cell": [
+                6,
+                146
+              ],
+              "level": 7,
+              "kind": "stream"
+            },
+            {
+              "cell": [
+                8,
+                142
+              ],
+              "level": 6,
+              "kind": "rapids"
+            },
+            {
+              "cell": [
+                10,
+                137
+              ],
+              "level": 6,
+              "kind": "stream"
+            },
+            {
+              "cell": [
+                10,
+                132
+              ],
+              "level": 5,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                9,
+                129
+              ],
+              "level": 5,
+              "kind": "cascade"
+            },
+            {
+              "cell": [
+                9,
+                127
+              ],
+              "level": 4,
+              "kind": "lake_inlet"
+            },
+            {
+              "cell": [
+                10,
+                116
+              ],
+              "level": 4,
+              "kind": "lake_outlet"
+            },
+            {
+              "cell": [
+                10,
+                115
+              ],
+              "level": 4,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                11,
+                113
+              ],
+              "level": 3,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                11,
+                110
+              ],
+              "level": 3,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                12,
+                106
+              ],
+              "level": 3,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                12,
+                104
+              ],
+              "level": 2,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                13,
+                98
+              ],
+              "level": 2,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                13,
+                92
+              ],
+              "level": 2,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                14,
+                90
+              ],
+              "level": 1,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                14,
+                86
+              ],
+              "level": 1,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                14,
+                84
+              ],
+              "level": 0,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                14,
+                80
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                14,
+                76
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                14,
+                68
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                14,
+                60
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                14,
+                56
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                14,
+                52
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                14,
+                44
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                8,
+                42
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                2,
+                40
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -3,
+                38
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                -3,
+                32
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                -3,
+                27
+              ],
+              "level": 0,
+              "kind": "footbridge_crossing"
+            },
+            {
+              "cell": [
+                -3,
+                25
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                -3,
+                23
+              ],
+              "level": 0,
+              "kind": "engineered_bend"
+            },
+            {
+              "cell": [
+                6,
+                23
+              ],
+              "level": 0,
+              "kind": "engineered_channel"
+            },
+            {
+              "cell": [
+                14,
+                23
+              ],
+              "level": 0,
+              "kind": "engineered_bend"
+            },
+            {
+              "cell": [
+                14,
+                21
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                14,
+                20
+              ],
+              "level": 0,
+              "kind": "canal_confluence"
+            },
+            {
+              "cell": [
+                14,
+                19
+              ],
+              "level": 0,
+              "kind": "canal_t"
+            },
+            {
+              "cell": [
+                14,
+                4
+              ],
+              "level": 0,
+              "kind": "existing_canal"
+            },
+            {
+              "cell": [
+                14,
+                -7
+              ],
+              "level": 0,
+              "kind": "existing_canal"
+            },
+            {
+              "cell": [
+                14,
+                -31
+              ],
+              "level": 0,
+              "kind": "existing_canal"
+            },
+            {
+              "cell": [
+                14,
+                -40
+              ],
+              "level": 0,
+              "kind": "former_mouth_now_channel"
+            },
+            {
+              "cell": [
+                14,
+                -44
+              ],
+              "level": 0,
+              "kind": "ocean_mouth"
+            }
+          ]
+        },
+        "tributaries": [],
+        "lakes": [
+          {
+            "id": "hearthmere",
+            "water_level": 4,
+            "water_z_m": 4.62,
+            "polygon": [
+              [
+                2,
+                128
+              ],
+              [
+                7,
+                131
+              ],
+              [
+                12,
+                130
+              ],
+              [
+                16,
+                126
+              ],
+              [
+                16,
+                121
+              ],
+              [
+                13,
+                117
+              ],
+              [
+                7,
+                115
+              ],
+              [
+                2,
+                117
+              ],
+              [
+                -1,
+                121
+              ],
+              [
+                -1,
+                125
+              ]
+            ],
+            "inlets": [
+              [
+                9,
+                127
+              ]
+            ],
+            "outlet": [
+              10,
+              116
+            ]
+          }
+        ],
+        "city_integration": {
+          "replace_tile_at_14_19": {
+            "from": "T21",
+            "to": "T22",
+            "reason": "natural river joins civic canal"
+          },
+          "replace_tile_at_14_minus40": {
+            "from": "T25",
+            "to": "T20",
+            "reason": "extend outlet four cells"
+          },
+          "new_ocean_mouth": {
+            "cell": [
+              14,
+              -44
+            ],
+            "tile": "RV11"
+          },
+          "protected_core_channel_route": [
+            [
+              14,
+              44
+            ],
+            [
+              8,
+              42
+            ],
+            [
+              2,
+              40
+            ],
+            [
+              -3,
+              38
+            ],
+            [
+              -3,
+              23
+            ],
+            [
+              6,
+              23
+            ],
+            [
+              14,
+              23
+            ],
+            [
+              14,
+              19
+            ]
+          ],
+          "preserve_all_buildings_plots_and_non_crossing_routes": true
+        }
+      },
+      {
+        "id": "WS03_SUNFALL_RIVER",
+        "name": "Sunfall River Watershed",
+        "outlet": {
+          "cell": [
+            96,
+            -47
+          ],
+          "kind": "ocean_mouth",
+          "tile_id": "RV11"
+        },
+        "main_channel": {
+          "id": "sunfall_river",
+          "raster": "supercover_bresenham_between_stations",
+          "width_by_reach_cells": [
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "stations": [
+            {
+              "cell": [
+                68,
+                149
+              ],
+              "level": 7,
+              "kind": "spring"
+            },
+            {
+              "cell": [
+                70,
+                145
+              ],
+              "level": 6,
+              "kind": "rapids"
+            },
+            {
+              "cell": [
+                72,
+                141
+              ],
+              "level": 6,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                73,
+                139
+              ],
+              "level": 5,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                73,
+                137
+              ],
+              "level": 5,
+              "kind": "lake_inlet"
+            },
+            {
+              "cell": [
+                77,
+                131
+              ],
+              "level": 5,
+              "kind": "lake_outlet"
+            },
+            {
+              "cell": [
+                79,
+                129
+              ],
+              "level": 5,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                80,
+                127
+              ],
+              "level": 4,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                83,
+                121
+              ],
+              "level": 4,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                85,
+                117
+              ],
+              "level": 4,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                86,
+                115
+              ],
+              "level": 3,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                87,
+                109
+              ],
+              "level": 3,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                88,
+                104
+              ],
+              "level": 3,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                88,
+                102
+              ],
+              "level": 2,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                89,
+                96
+              ],
+              "level": 2,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                90,
+                90
+              ],
+              "level": 2,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                90,
+                88
+              ],
+              "level": 1,
+              "kind": "waterfall_pool"
+            },
+            {
+              "cell": [
+                91,
+                82
+              ],
+              "level": 1,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                92,
+                78
+              ],
+              "level": 1,
+              "kind": "waterfall_crest"
+            },
+            {
+              "cell": [
+                92,
+                76
+              ],
+              "level": 0,
+              "kind": "tributary_confluence"
+            },
+            {
+              "cell": [
+                94,
+                68
+              ],
+              "level": 0,
+              "kind": "bridge_crossing"
+            },
+            {
+              "cell": [
+                95,
+                58
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                93,
+                48
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                90,
+                38
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                89,
+                28
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                91,
+                18
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                92,
+                8
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                93,
+                -2
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                94,
+                -12
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                95,
+                -22
+              ],
+              "level": 0,
+              "kind": "river"
+            },
+            {
+              "cell": [
+                96,
+                -32
+              ],
+              "level": 0,
+              "kind": "estuary"
+            },
+            {
+              "cell": [
+                96,
+                -42
+              ],
+              "level": 0,
+              "kind": "tidal"
+            },
+            {
+              "cell": [
+                96,
+                -47
+              ],
+              "level": 0,
+              "kind": "ocean_mouth"
+            }
+          ]
+        },
+        "tributaries": [
+          {
+            "id": "amber_brook",
+            "width_cells": 1,
+            "stations": [
+              {
+                "cell": [
+                  45,
+                  153
+                ],
+                "level": 5,
+                "kind": "spring"
+              },
+              {
+                "cell": [
+                  42,
+                  146
+                ],
+                "level": 4,
+                "kind": "bridge_crossing"
+              },
+              {
+                "cell": [
+                  52,
+                  141
+                ],
+                "level": 4,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  57,
+                  134
+                ],
+                "level": 4,
+                "kind": "rapids"
+              },
+              {
+                "cell": [
+                  63,
+                  126
+                ],
+                "level": 4,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  69,
+                  117
+                ],
+                "level": 3,
+                "kind": "rapids"
+              },
+              {
+                "cell": [
+                  76,
+                  107
+                ],
+                "level": 3,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  82,
+                  97
+                ],
+                "level": 2,
+                "kind": "rapids"
+              },
+              {
+                "cell": [
+                  87,
+                  87
+                ],
+                "level": 1,
+                "kind": "stream"
+              },
+              {
+                "cell": [
+                  92,
+                  76
+                ],
+                "level": 0,
+                "kind": "confluence"
+              }
+            ]
+          }
+        ],
+        "lakes": [
+          {
+            "id": "sunmirror_tarn",
+            "water_level": 5,
+            "water_z_m": 5.62,
+            "polygon": [
+              [
+                68,
+                140
+              ],
+              [
+                73,
+                142
+              ],
+              [
+                78,
+                140
+              ],
+              [
+                80,
+                136
+              ],
+              [
+                78,
+                132
+              ],
+              [
+                73,
+                130
+              ],
+              [
+                68,
+                132
+              ],
+              [
+                66,
+                136
+              ]
+            ],
+            "inlets": [
+              [
+                73,
+                137
+              ]
+            ],
+            "outlet": [
+              77,
+              131
+            ]
+          }
+        ]
+      }
+    ],
+    "flow_rule": "station elevation levels never increase downstream; equal-level reaches receive a -0.01m visual water gradient only",
+    "lake_rule": "each lake has one or more inlets and exactly one outlet",
+    "river_end_rule": "only spring heads and declared ocean mouths may be degree-one endpoints",
+    "bank_buffer_cells_no_build": 3,
+    "waterfall_count": 14,
+    "ocean_mouths": [
+      [
+        -96,
+        -49
+      ],
+      [
+        14,
+        -44
+      ],
+      [
+        96,
+        -47
+      ]
+    ]
+  },
+  "transport": {
+    "roads": [
+      {
+        "id": "west_growth_spine",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            -45,
+            24
+          ],
+          [
+            -45,
+            38
+          ],
+          [
+            -45,
+            55
+          ],
+          [
+            -46,
+            63
+          ]
+        ],
+        "connects_to_existing": "west_service + north_rear_loading",
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "west_fields_avenue",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            -72,
+            32
+          ],
+          [
+            -45,
+            32
+          ]
+        ],
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "east_growth_spine",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            43,
+            24
+          ],
+          [
+            43,
+            38
+          ],
+          [
+            43,
+            55
+          ],
+          [
+            44,
+            63
+          ]
+        ],
+        "connects_to_existing": "east_service + north_rear_loading",
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "east_fields_avenue",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            43,
+            32
+          ],
+          [
+            78,
+            32
+          ]
+        ],
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "north_valley_avenue",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            -30,
+            56
+          ],
+          [
+            60,
+            56
+          ]
+        ],
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "foothill_avenue",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            -30,
+            80
+          ],
+          [
+            64,
+            80
+          ]
+        ],
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "west_scenic_road",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            -46,
+            56
+          ],
+          [
+            -60,
+            58
+          ],
+          [
+            -72,
+            59
+          ],
+          [
+            -82,
+            60
+          ],
+          [
+            -90,
+            70
+          ],
+          [
+            -94,
+            88
+          ],
+          [
+            -90,
+            104
+          ],
+          [
+            -83,
+            114
+          ]
+        ],
+        "tile_family": "C01-C08 + C08 at elevation transitions"
+      },
+      {
+        "id": "east_scenic_road",
+        "kind": "two_lane_solar_road",
+        "width_cells": 2,
+        "polyline": [
+          [
+            43,
+            55
+          ],
+          [
+            58,
+            57
+          ],
+          [
+            73,
+            61
+          ],
+          [
+            86,
+            65
+          ],
+          [
+            94,
+            68
+          ],
+          [
+            105,
+            73
+          ]
+        ],
+        "tile_family": "C01-C08"
+      },
+      {
+        "id": "makers_gap_road",
+        "kind": "two_lane_mountain_pass",
+        "width_cells": 2,
+        "polyline": [
+          [
+            28,
+            38
+          ],
+          [
+            28,
+            55
+          ],
+          [
+            27,
+            70
+          ],
+          [
+            28,
+            86
+          ],
+          [
+            31,
+            100
+          ],
+          [
+            34,
+            112
+          ],
+          [
+            34,
+            126
+          ],
+          [
+            36,
+            138
+          ],
+          [
+            43,
+            148
+          ],
+          [
+            55,
+            158
+          ],
+          [
+            69,
+            164
+          ]
+        ],
+        "road_elevation_stations": [
+          {
+            "cell": [
+              28,
+              38
+            ],
+            "level": 0
+          },
+          {
+            "cell": [
+              28,
+              70
+            ],
+            "level": 0
+          },
+          {
+            "cell": [
+              28,
+              86
+            ],
+            "level": 1
+          },
+          {
+            "cell": [
+              31,
+              100
+            ],
+            "level": 2
+          },
+          {
+            "cell": [
+              34,
+              112
+            ],
+            "level": 3
+          },
+          {
+            "cell": [
+              34,
+              126
+            ],
+            "level": 3
+          },
+          {
+            "cell": [
+              36,
+              138
+            ],
+            "level": 4
+          },
+          {
+            "cell": [
+              43,
+              148
+            ],
+            "level": 4
+          },
+          {
+            "cell": [
+              55,
+              158
+            ],
+            "level": 3
+          },
+          {
+            "cell": [
+              69,
+              164
+            ],
+            "level": 2
+          }
+        ],
+        "tile_family": "C01-C08 + MT02 + MT07"
+      },
+      {
+        "id": "copperglass_mine_spur",
+        "kind": "single_lane_service_road",
+        "width_cells": 1,
+        "polyline": [
+          [
+            -83,
+            114
+          ],
+          [
+            -72,
+            110
+          ],
+          [
+            -61,
+            112
+          ],
+          [
+            -52,
+            117
+          ],
+          [
+            -46,
+            122
+          ]
+        ],
+        "tile_family": "C01-C08 + MT02"
+      }
+    ],
+    "bridges": [
+      {
+        "id": "BR_C01",
+        "road": "north_boulevard",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            -3,
+            24
+          ],
+          [
+            -3,
+            25
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_C02",
+        "road": "north_rear_loading",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            -3,
+            37
+          ],
+          [
+            -3,
+            38
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_C03",
+        "road": "north_valley_avenue",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            14,
+            55
+          ],
+          [
+            14,
+            56
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_C04",
+        "road": "foothill_avenue",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            14,
+            79
+          ],
+          [
+            14,
+            80
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_C05",
+        "road": "north_customer_walk",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            -3,
+            27
+          ]
+        ],
+        "axis": "E-W",
+        "type": "foot",
+        "tiles": [
+          "T39",
+          "T40"
+        ]
+      },
+      {
+        "id": "BR_C06",
+        "road": "north_civic_service",
+        "water": "hearth_river",
+        "deck_cells": [
+          [
+            14,
+            20
+          ],
+          [
+            14,
+            21
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_W01",
+        "road": "west_scenic_road",
+        "water": "verdant_run",
+        "deck_cells": [
+          [
+            -84,
+            60
+          ],
+          [
+            -83,
+            60
+          ],
+          [
+            -82,
+            60
+          ],
+          [
+            -81,
+            60
+          ],
+          [
+            -80,
+            60
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart_long",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_E01",
+        "road": "east_scenic_road",
+        "water": "sunfall_river",
+        "deck_cells": [
+          [
+            92,
+            68
+          ],
+          [
+            93,
+            68
+          ],
+          [
+            94,
+            68
+          ],
+          [
+            95,
+            68
+          ],
+          [
+            96,
+            68
+          ]
+        ],
+        "axis": "E-W",
+        "type": "cart_long",
+        "tiles": [
+          "T42",
+          "T43"
+        ]
+      },
+      {
+        "id": "BR_M01",
+        "road": "makers_gap_road",
+        "water": "amber_brook",
+        "deck_cells": [
+          [
+            42,
+            146
+          ],
+          [
+            43,
+            146
+          ]
+        ],
+        "axis": "E-W",
+        "type": "stone_arch",
+        "tiles": [
+          "RV10",
+          "T42",
+          "T43"
+        ]
+      }
+    ],
+    "trails": [
+      {
+        "id": "hearth_river_greenway",
+        "width_cells": 1,
+        "polyline": [
+          [
+            18,
+            39
+          ],
+          [
+            18,
+            56
+          ],
+          [
+            18,
+            76
+          ],
+          [
+            18,
+            92
+          ],
+          [
+            17,
+            108
+          ],
+          [
+            15,
+            116
+          ]
+        ],
+        "connects": [
+          "existing_north_customer_walk",
+          "hearthmere_loop"
+        ],
+        "tile_family": "T27-T33"
+      },
+      {
+        "id": "hearthmere_loop",
+        "width_cells": 1,
+        "closed_polyline": [
+          [
+            -3,
+            120
+          ],
+          [
+            1,
+            114
+          ],
+          [
+            8,
+            112
+          ],
+          [
+            15,
+            115
+          ],
+          [
+            19,
+            121
+          ],
+          [
+            18,
+            128
+          ],
+          [
+            12,
+            134
+          ],
+          [
+            4,
+            134
+          ],
+          [
+            -2,
+            130
+          ],
+          [
+            -3,
+            120
+          ]
+        ],
+        "tile_family": "T27-T33"
+      },
+      {
+        "id": "mirrorleaf_loop",
+        "width_cells": 1,
+        "closed_polyline": [
+          [
+            -87,
+            118
+          ],
+          [
+            -83,
+            112
+          ],
+          [
+            -75,
+            110
+          ],
+          [
+            -66,
+            113
+          ],
+          [
+            -60,
+            119
+          ],
+          [
+            -60,
+            127
+          ],
+          [
+            -65,
+            134
+          ],
+          [
+            -75,
+            136
+          ],
+          [
+            -84,
+            132
+          ],
+          [
+            -87,
+            118
+          ]
+        ],
+        "tile_family": "T27-T33"
+      },
+      {
+        "id": "sunmirror_climb",
+        "width_cells": 1,
+        "polyline": [
+          [
+            69,
+            111
+          ],
+          [
+            64,
+            120
+          ],
+          [
+            63,
+            130
+          ],
+          [
+            65,
+            140
+          ],
+          [
+            68,
+            145
+          ]
+        ],
+        "tile_family": "T27-T33 + T11-T12"
+      }
+    ],
+    "city_routes_preserved": true,
+    "all_new_districts_connected_to_civic_network": true
+  },
+  "plots": {
+    "existing_city_plots_preserved": [
+      "N01",
+      "N02",
+      "N03",
+      "N04",
+      "N05",
+      "N06",
+      "W01",
+      "W02",
+      "W03",
+      "W04",
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "S01",
+      "S02",
+      "S03",
+      "S04"
+    ],
+    "added_plot_count": 24,
+    "added": [
+      {
+        "id": "WF01",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -70,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -70,
+            34
+          ],
+          "max": [
+            -65,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -67,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "WF02",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -62,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -62,
+            34
+          ],
+          "max": [
+            -57,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -59,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "WF03",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -54,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -54,
+            34
+          ],
+          "max": [
+            -49,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -51,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "WF04",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -70,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -70,
+            23
+          ],
+          "max": [
+            -65,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          -67,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "WF05",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -62,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -62,
+            23
+          ],
+          "max": [
+            -57,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          -59,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "WF06",
+        "district": "west_fields",
+        "anchor_cell_sw": [
+          -54,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -54,
+            23
+          ],
+          "max": [
+            -49,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          -51,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF01",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          50,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            50,
+            34
+          ],
+          "max": [
+            55,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          53,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF02",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          58,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            58,
+            34
+          ],
+          "max": [
+            63,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          61,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF03",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          68,
+          34
+        ],
+        "footprint_tiles": [
+          6,
+          6
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            68,
+            34
+          ],
+          "max": [
+            73,
+            39
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          71,
+          33
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF04",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          50,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            50,
+            23
+          ],
+          "max": [
+            55,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          53,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF05",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          58,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            58,
+            23
+          ],
+          "max": [
+            63,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          61,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "EF06",
+        "district": "east_fields",
+        "anchor_cell_sw": [
+          68,
+          23
+        ],
+        "footprint_tiles": [
+          6,
+          7
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            68,
+            23
+          ],
+          "max": [
+            73,
+            29
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "N",
+        "service_edge": "S",
+        "utility_connection_cell": [
+          71,
+          30
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV01",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          -26,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -26,
+            58
+          ],
+          "max": [
+            -21,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -23,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV02",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          -18,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -18,
+            58
+          ],
+          "max": [
+            -13,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -15,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV03",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          -10,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -10,
+            58
+          ],
+          "max": [
+            -5,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -7,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV04",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          34,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            34,
+            58
+          ],
+          "max": [
+            39,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          37,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV05",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          42,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            42,
+            58
+          ],
+          "max": [
+            47,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          45,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "NV06",
+        "district": "north_valley",
+        "anchor_cell_sw": [
+          50,
+          58
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            50,
+            58
+          ],
+          "max": [
+            55,
+            65
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          53,
+          57
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH01",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          -26,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -26,
+            82
+          ],
+          "max": [
+            -21,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -23,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH02",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          -18,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -18,
+            82
+          ],
+          "max": [
+            -13,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -15,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH03",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          -10,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            -10,
+            82
+          ],
+          "max": [
+            -5,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          -7,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH04",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          40,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            40,
+            82
+          ],
+          "max": [
+            45,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          43,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH05",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          48,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            48,
+            82
+          ],
+          "max": [
+            53,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          51,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      },
+      {
+        "id": "FH06",
+        "district": "foothill_terraces",
+        "anchor_cell_sw": [
+          56,
+          82
+        ],
+        "footprint_tiles": [
+          6,
+          8
+        ],
+        "occupied_bounds_cells": {
+          "min": [
+            56,
+            82
+          ],
+          "max": [
+            61,
+            89
+          ],
+          "inclusive": true
+        },
+        "customer_edge": "S",
+        "service_edge": "N",
+        "utility_connection_cell": [
+          59,
+          81
+        ],
+        "surface_tile": "T34",
+        "border_tiles": [
+          "T35",
+          "T36"
+        ],
+        "entrance_tile": "T37",
+        "utility_verge_tile": "T38",
+        "owner_type": "unowned",
+        "ownership": "unowned",
+        "purchasable": true,
+        "leaseable": true,
+        "status": "available",
+        "structures": []
+      }
+    ],
+    "total_empty_plot_count": 42,
+    "player_buildings": []
+  },
+  "biomes": [
+    {
+      "id": "BF01",
+      "name": "West Coastal Grove",
+      "density": 0.38,
+      "polygon": [
+        [
+          -112,
+          75
+        ],
+        [
+          -100,
+          60
+        ],
+        [
+          -89,
+          62
+        ],
+        [
+          -82,
+          77
+        ],
+        [
+          -85,
+          93
+        ],
+        [
+          -96,
+          107
+        ],
+        [
+          -110,
+          101
+        ]
+      ],
+      "exclude": [
+        "water_buffer_3",
+        "road_buffer_2",
+        "plots"
+      ]
+    },
+    {
+      "id": "BF02",
+      "name": "Mirrorleaf Forest",
+      "density": 0.55,
+      "polygon": [
+        [
+          -102,
+          108
+        ],
+        [
+          -91,
+          99
+        ],
+        [
+          -78,
+          98
+        ],
+        [
+          -61,
+          107
+        ],
+        [
+          -53,
+          122
+        ],
+        [
+          -59,
+          140
+        ],
+        [
+          -77,
+          148
+        ],
+        [
+          -96,
+          138
+        ],
+        [
+          -105,
+          123
+        ]
+      ],
+      "exclude": [
+        "water_buffer_3",
+        "road_buffer_2",
+        "plots",
+        "mine_spur"
+      ]
+    },
+    {
+      "id": "BF03",
+      "name": "Central Orchard Woods",
+      "density": 0.32,
+      "polygon": [
+        [
+          -50,
+          74
+        ],
+        [
+          -36,
+          65
+        ],
+        [
+          -19,
+          70
+        ],
+        [
+          -10,
+          87
+        ],
+        [
+          -21,
+          102
+        ],
+        [
+          -40,
+          100
+        ],
+        [
+          -52,
+          89
+        ]
+      ],
+      "exclude": [
+        "water_buffer_3",
+        "road_buffer_2",
+        "plots"
+      ]
+    },
+    {
+      "id": "BF04",
+      "name": "East Cloud Forest",
+      "density": 0.58,
+      "polygon": [
+        [
+          42,
+          113
+        ],
+        [
+          55,
+          101
+        ],
+        [
+          74,
+          103
+        ],
+        [
+          92,
+          114
+        ],
+        [
+          101,
+          132
+        ],
+        [
+          93,
+          151
+        ],
+        [
+          78,
+          162
+        ],
+        [
+          58,
+          159
+        ],
+        [
+          45,
+          146
+        ]
+      ],
+      "exclude": [
+        "water_buffer_3",
+        "road_buffer_2",
+        "plots"
+      ]
+    },
+    {
+      "id": "BF05",
+      "name": "Sunfall Riparian Grove",
+      "density": 0.44,
+      "polygon": [
+        [
+          72,
+          62
+        ],
+        [
+          84,
+          53
+        ],
+        [
+          102,
+          57
+        ],
+        [
+          111,
+          72
+        ],
+        [
+          106,
+          94
+        ],
+        [
+          92,
+          102
+        ],
+        [
+          77,
+          91
+        ]
+      ],
+      "exclude": [
+        "water_buffer_3",
+        "road_buffer_2",
+        "plots"
+      ]
+    }
+  ],
+  "points_of_interest": [
+    {
+      "id": "POI_MINE_01",
+      "name": "Copperglass Cave and Survey Mine",
+      "kind": "natural_cave_government_survey_site",
+      "portal_anchor_cell": [
+        -45,
+        125
+      ],
+      "portal_facing": "S",
+      "portal_tile": "MT12",
+      "level": 4,
+      "surface_pad_bounds": {
+        "min": [
+          -51,
+          119
+        ],
+        "max": [
+          -44,
+          124
+        ],
+        "inclusive": true
+      },
+      "access_road": "copperglass_mine_spur",
+      "player_owned": false,
+      "commercial_operation_active": false
+    },
+    {
+      "id": "POI_OVERLOOK_01",
+      "name": "Makers Gap Overlook",
+      "kind": "scenic_pass",
+      "anchor_cell": [
+        43,
+        148
+      ],
+      "level": 4,
+      "player_owned": false
+    },
+    {
+      "id": "POI_FALLS_01",
+      "name": "Hearthmere Falls",
+      "kind": "waterfall",
+      "anchor_cell": [
+        10,
+        115
+      ],
+      "level_top": 4,
+      "level_bottom": 3,
+      "player_owned": false
+    }
+  ],
+  "streaming": {
+    "chunk_id_formula": "cx=floor((x+128)/16), cy=floor((y+80)/16), id=CH_cx_cy",
+    "macroregion_id_formula": "rx=floor(cx/4), ry=floor(cy/4), id=MR_rx_ry",
+    "macroregions": [
+      [
+        "MR_0_0",
+        "southwest_ocean"
+      ],
+      [
+        "MR_1_0",
+        "west_estuary"
+      ],
+      [
+        "MR_2_0",
+        "civic_southwest"
+      ],
+      [
+        "MR_3_0",
+        "civic_southeast"
+      ],
+      [
+        "MR_0_1",
+        "west_coast"
+      ],
+      [
+        "MR_1_1",
+        "west_fields"
+      ],
+      [
+        "MR_2_1",
+        "civic_core"
+      ],
+      [
+        "MR_3_1",
+        "east_fields"
+      ],
+      [
+        "MR_0_2",
+        "west_lowlands"
+      ],
+      [
+        "MR_1_2",
+        "mirrorleaf_valley"
+      ],
+      [
+        "MR_2_2",
+        "hearth_valley"
+      ],
+      [
+        "MR_3_2",
+        "sunfall_valley"
+      ],
+      [
+        "MR_0_3",
+        "northwest_range"
+      ],
+      [
+        "MR_1_3",
+        "central_range"
+      ],
+      [
+        "MR_2_3",
+        "makers_gap"
+      ],
+      [
+        "MR_3_3",
+        "northeast_range"
+      ]
+    ],
+    "load_radius_chunks": 2,
+    "preload_radius_chunks": 3,
+    "keepalive_regions": [
+      "MR_2_1"
+    ],
+    "lod": [
+      {
+        "distance_m": [
+          0,
+          64
+        ],
+        "terrain": "LOD0",
+        "props": "LOD0",
+        "water": "full"
+      },
+      {
+        "distance_m": [
+          64,
+          128
+        ],
+        "terrain": "LOD1",
+        "props": "LOD1",
+        "water": "reduced"
+      },
+      {
+        "distance_m": [
+          128,
+          224
+        ],
+        "terrain": "LOD2",
+        "props": "billboard_or_cull",
+        "water": "static"
+      },
+      {
+        "distance_m": [
+          224,
+          10000
+        ],
+        "terrain": "macro_mesh",
+        "props": "culled",
+        "water": "macro_plane"
+      }
+    ],
+    "water_seam_rule": "duplicate bank skirt and water edge in adjacent chunks; owning chunk selected by lower packed chunk id",
+    "terrain_compile_rule": "merge static geometry by chunk, elevation level, and material; preserve collision mesh separately",
+    "interactive_assets_separate": [
+      "bridges",
+      "mine_portal",
+      "plot_markers",
+      "road_signals"
+    ]
+  },
+  "validation_contract": {
+    "require_source_city_sha256": "0c612716e59a626f7fd268fdadb514ac3ede2876b4af88b14244446081123aef",
+    "require_government_buildings": 9,
+    "require_existing_city_plots": 18,
+    "require_added_plots": 24,
+    "require_total_empty_plots": 42,
+    "forbid_player_buildings": true,
+    "require_watersheds": 3,
+    "require_lakes": 3,
+    "require_ocean_mouths": 3,
+    "require_no_uphill_flow": true,
+    "require_no_untyped_river_dead_ends": true,
+    "require_all_road_water_crossings_bridged": true,
+    "require_city_routes_unblocked": true,
+    "require_plot_water_buffer_cells": 3,
+    "require_plot_road_clearance_cells": 1,
+    "require_16_cell_chunk_alignment": true
+  }
+}

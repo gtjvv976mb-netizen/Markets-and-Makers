@@ -1,0 +1,48 @@
+{
+  "city_material_manifest": {
+    "file": "outputs/markets-and-makers-city-tiles-bordered-v2/manifest.json",
+    "sha256": "85b84bfa6532ef4d54aa452ec7d8f00bb75839def876245a53459373917a7489"
+  },
+  "expanded_world_design_qa": {
+    "file": "work/expanded-world-layout-v1/qa-report.json",
+    "sha256": "a0c0bbe6894ac5176376ec2643ceeda5174200b1d3af20c222669ba2bb394a37"
+  },
+  "expanded_world_layout": {
+    "file": "work/expanded-world-layout-v1/expanded-world-layout-v1.json",
+    "sha256": "c19e838cf650f8e8f7fbfa11221627c22b5a271c05c3f0603e559a293908ce89"
+  },
+  "expansion_spec": {
+    "file": "outputs/markets-and-makers-mountain-river-expansion-spec-v1/manifest.json",
+    "sha256": "c69089a4d71e09c50324a8d180831e6b09bee001d565c3cf2daf432a1726e8dc"
+  },
+  "government_city_archive": {
+    "file": "outputs/markets-and-makers-government-city-center-v1.zip",
+    "sha256": "4cdb235241505141d3b45be0af34924181da89765375e945965f16e9dcd4ba70"
+  },
+  "government_city_layout": {
+    "file": "outputs/markets-and-makers-government-city-center-v1/layout.json",
+    "sha256": "0c612716e59a626f7fd268fdadb514ac3ede2876b4af88b14244446081123aef"
+  },
+  "government_city_manifest": {
+    "file": "outputs/markets-and-makers-government-city-center-v1/manifest.json",
+    "sha256": "1b934b2e15bf3967486c81c4633a1d6b1616ba926f3c73bedbf57473b8541956"
+  },
+  "schema": "markets-and-makers.highlands-rivers-world.source-lock.v1",
+  "status": "LOCKED",
+  "street_prop_manifest": {
+    "file": "outputs/markets-and-makers-street-props-v1/manifest.json",
+    "sha256": "a94fb26867350b3dd0642433a27de854d1c622a6aa18a10a3625fb2e2c6f5361"
+  },
+  "v5_texture_manifest": {
+    "file": "outputs/markets-and-makers-logo-world-tiles-v5/textures/manifest.json",
+    "sha256": "9973de07c70be12972eb753a03a39c4966e9b3578f37ad562549fddace34e6eb"
+  },
+  "v5_tile_blend": {
+    "file": "outputs/markets-and-makers-logo-world-tiles-v5/markets-and-makers-logo-world-tiles-v5.blend",
+    "sha256": "8e9158614f2facbdbc3a93086d925c8752d9db6d1c8b02dc49916846e63053cf"
+  },
+  "v5_tile_manifest": {
+    "file": "outputs/markets-and-makers-logo-world-tiles-v5/manifest.json",
+    "sha256": "4e97559c72c02fd60cd56f3ec6e7d9931ce03195b577177441ce44ea28afc644"
+  }
+}

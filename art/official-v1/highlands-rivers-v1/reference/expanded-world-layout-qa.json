@@ -1,0 +1,278 @@
+{
+  "schema": "markets-and-makers.expanded-open-world.qa.v1",
+  "status": "PASS",
+  "checks_passed": 54,
+  "checks_total": 54,
+  "checks": [
+    {
+      "name": "world dimensions exact",
+      "passed": true,
+      "detail": "[256, 256]"
+    },
+    {
+      "name": "chunk grid exact",
+      "passed": true,
+      "detail": "[16, 16]"
+    },
+    {
+      "name": "chunk count exact",
+      "passed": true,
+      "detail": "256"
+    },
+    {
+      "name": "natural water formula locked",
+      "passed": true,
+      "detail": "0.62 + elevation_level"
+    },
+    {
+      "name": "civic canal remains at 0.68m",
+      "passed": true,
+      "detail": "0.68"
+    },
+    {
+      "name": "source city hash locked",
+      "passed": true,
+      "detail": "0c612716e59a626f7fd268fdadb514ac3ede2876b4af88b14244446081123aef"
+    },
+    {
+      "name": "nine civic buildings preserved",
+      "passed": true,
+      "detail": "['CV01', 'CV02', 'CV03', 'CV04', 'CV05', 'CV06', 'CV07', 'CV08', 'CV09']"
+    },
+    {
+      "name": "eighteen civic plots preserved",
+      "passed": true,
+      "detail": "['N01', 'N02', 'N03', 'N04', 'N05', 'N06', 'W01', 'W02', 'W03', 'W04', 'E01', 'E02', 'E03', 'E04', 'S01', 'S02', 'S03', 'S04']"
+    },
+    {
+      "name": "protected-core river route clears all existing plots",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "protected-core river route clears all civic buildings",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "protected-core river remains one cell wide",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]"
+    },
+    {
+      "name": "WS01_VERDANT_RUN never flows uphill",
+      "passed": true,
+      "detail": "[7, 6, 6, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"
+    },
+    {
+      "name": "WS01_VERDANT_RUN width count matches reaches",
+      "passed": true,
+      "detail": "29/29"
+    },
+    {
+      "name": "WS01_VERDANT_RUN starts at spring",
+      "passed": true,
+      "detail": "{'cell': [-62, 148], 'level': 7, 'kind': 'spring'}"
+    },
+    {
+      "name": "WS01_VERDANT_RUN reaches declared ocean mouth",
+      "passed": true,
+      "detail": "{'cell': [-96, -49], 'level': 0, 'kind': 'ocean_mouth'}"
+    },
+    {
+      "name": "copper_creek never flows uphill",
+      "passed": true,
+      "detail": "[6, 5, 5, 4]"
+    },
+    {
+      "name": "copper_creek has typed endpoints",
+      "passed": true,
+      "detail": "[{'cell': [-82, 146], 'level': 6, 'kind': 'spring'}, {'cell': [-76, 131], 'level': 4, 'kind': 'lake_inlet'}]"
+    },
+    {
+      "name": "mirrorleaf_lake has inlet",
+      "passed": true,
+      "detail": "[[-70, 129], [-76, 131]]"
+    },
+    {
+      "name": "mirrorleaf_lake has one outlet",
+      "passed": true,
+      "detail": "[-81, 118]"
+    },
+    {
+      "name": "mirrorleaf_lake water Z matches natural formula",
+      "passed": true,
+      "detail": "4.62"
+    },
+    {
+      "name": "WS02_HEARTH_RIVER never flows uphill",
+      "passed": true,
+      "detail": "[7, 7, 6, 6, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"
+    },
+    {
+      "name": "WS02_HEARTH_RIVER width count matches reaches",
+      "passed": true,
+      "detail": "41/41"
+    },
+    {
+      "name": "WS02_HEARTH_RIVER starts at spring",
+      "passed": true,
+      "detail": "{'cell': [4, 150], 'level': 7, 'kind': 'spring'}"
+    },
+    {
+      "name": "WS02_HEARTH_RIVER reaches declared ocean mouth",
+      "passed": true,
+      "detail": "{'cell': [14, -44], 'level': 0, 'kind': 'ocean_mouth'}"
+    },
+    {
+      "name": "hearthmere has inlet",
+      "passed": true,
+      "detail": "[[9, 127]]"
+    },
+    {
+      "name": "hearthmere has one outlet",
+      "passed": true,
+      "detail": "[10, 116]"
+    },
+    {
+      "name": "hearthmere water Z matches natural formula",
+      "passed": true,
+      "detail": "4.62"
+    },
+    {
+      "name": "WS03_SUNFALL_RIVER never flows uphill",
+      "passed": true,
+      "detail": "[7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"
+    },
+    {
+      "name": "WS03_SUNFALL_RIVER width count matches reaches",
+      "passed": true,
+      "detail": "32/32"
+    },
+    {
+      "name": "WS03_SUNFALL_RIVER starts at spring",
+      "passed": true,
+      "detail": "{'cell': [68, 149], 'level': 7, 'kind': 'spring'}"
+    },
+    {
+      "name": "WS03_SUNFALL_RIVER reaches declared ocean mouth",
+      "passed": true,
+      "detail": "{'cell': [96, -47], 'level': 0, 'kind': 'ocean_mouth'}"
+    },
+    {
+      "name": "amber_brook never flows uphill",
+      "passed": true,
+      "detail": "[5, 4, 4, 4, 4, 3, 3, 2, 1, 0]"
+    },
+    {
+      "name": "amber_brook has typed endpoints",
+      "passed": true,
+      "detail": "[{'cell': [45, 153], 'level': 5, 'kind': 'spring'}, {'cell': [92, 76], 'level': 0, 'kind': 'confluence'}]"
+    },
+    {
+      "name": "sunmirror_tarn has inlet",
+      "passed": true,
+      "detail": "[[73, 137]]"
+    },
+    {
+      "name": "sunmirror_tarn has one outlet",
+      "passed": true,
+      "detail": "[77, 131]"
+    },
+    {
+      "name": "sunmirror_tarn water Z matches natural formula",
+      "passed": true,
+      "detail": "5.62"
+    },
+    {
+      "name": "all hydrology stations inside world",
+      "passed": true,
+      "detail": "105 stations"
+    },
+    {
+      "name": "three watersheds",
+      "passed": true,
+      "detail": "3"
+    },
+    {
+      "name": "three lakes",
+      "passed": true,
+      "detail": "3"
+    },
+    {
+      "name": "three ocean mouths unique",
+      "passed": true,
+      "detail": "[[-96, -49], [14, -44], [96, -47]]"
+    },
+    {
+      "name": "24 satellite plots",
+      "passed": true,
+      "detail": "24"
+    },
+    {
+      "name": "all satellite plots empty",
+      "passed": true,
+      "detail": "all empty and unowned"
+    },
+    {
+      "name": "satellite plots do not overlap",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "satellite plots outside protected civic rectangle",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "42 total empty plots",
+      "passed": true,
+      "detail": "42"
+    },
+    {
+      "name": "nine explicit road-water bridges",
+      "passed": true,
+      "detail": "['BR_C01', 'BR_C02', 'BR_C03', 'BR_C04', 'BR_C05', 'BR_C06', 'BR_E01', 'BR_M01', 'BR_W01']"
+    },
+    {
+      "name": "all planned crossings assigned",
+      "passed": true,
+      "detail": "['BR_C01', 'BR_C02', 'BR_C03', 'BR_C04', 'BR_C05', 'BR_C06', 'BR_E01', 'BR_M01', 'BR_W01']"
+    },
+    {
+      "name": "city bridge crossings use protected clear corridors",
+      "passed": true,
+      "detail": "[(-3, 24), (-3, 25), (-3, 27), (-3, 37), (-3, 38), (14, 20), (14, 21), (14, 55), (14, 56), (14, 79), (14, 80)]"
+    },
+    {
+      "name": "elevation levels contiguous",
+      "passed": true,
+      "detail": "[1, 2, 3, 4, 5, 6, 7]"
+    },
+    {
+      "name": "mountain maximum level seven",
+      "passed": true,
+      "detail": "7"
+    },
+    {
+      "name": "all new tile rotations complete",
+      "passed": true,
+      "detail": "quarter-turn variants"
+    },
+    {
+      "name": "new terrain tile ids unique",
+      "passed": true,
+      "detail": "32"
+    },
+    {
+      "name": "new terrain tile count",
+      "passed": true,
+      "detail": "32"
+    },
+    {
+      "name": "no player buildings",
+      "passed": true,
+      "detail": "[]"
+    }
+  ]
+}
