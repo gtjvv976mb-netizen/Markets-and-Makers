@@ -20,7 +20,17 @@ export interface BusinessConfig {
   ecosystem: { upstream: string; process: string; downstream: string };
 }
 
-export interface PlotConfig { id: string; name: string; island: string; x: number; z: number; width: number; depth: number; price: number; }
+export interface PlotConfig {
+  id: string;
+  name: string;
+  island: string;
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  price: number;
+  customerEdge: "N" | "E" | "S" | "W";
+}
 export interface IslandConfig { id: string; name: string; district: string; x: number; z: number; radius: number; spawnX: number; spawnZ: number; color: string; economy: string; }
 
 export interface SpecializationConfig {

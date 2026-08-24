@@ -101,14 +101,15 @@ check(terrainGrid.runtime_patches?.[0]?.id === "NV05" && terrainGrid.runtime_pat
 
 const worldDesignRoot = join(root, "world-designs-v1");
 const worldDesignManifest = JSON.parse(await readFile(join(worldDesignRoot, "manifest.json"), "utf8"));
-const expectedStaticWorldDesigns = 910;
 check(worldDesignManifest.schema === "markets-and-makers.world-designs-runtime.v1", "unexpected world designs schema");
 check(worldDesignManifest.counts?.uniqueAssets === 16, "world designs must contain 16 unique uploaded assets");
-check(worldDesignManifest.counts?.staticPlacements === expectedStaticWorldDesigns,
-  `world designs must contain ${expectedStaticWorldDesigns} static placements`);
-check(worldDesignManifest.counts?.dynamicAvatar === 1 &&
-  worldDesignManifest.counts?.totalInstances === expectedStaticWorldDesigns + 1,
-  `world designs must contain ${expectedStaticWorldDesigns} scenery instances plus the civic avatar`);
+check(worldDesignManifest.counts?.dynamicAvatar === 1, "world designs must contain one dynamic civic avatar");
+check(worldDesignManifest.sourceLocks?.layoutSha256 === sha256(await readFile(join(root, "layout.json"))),
+  "world designs were generated against a stale Highlands layout");
+check(worldDesignManifest.sourceLocks?.terrainGridSha256 === sha256(await readFile(join(root, "terrain-grid.json"))),
+  "world designs were generated against a stale Highlands terrain grid");
+check(worldDesignManifest.sourceLocks?.hydrologySha256 === sha256(await readFile(join(root, "hydrology.json"))),
+  "world designs were generated against stale Highlands hydrology");
 
 const glbParts = (bytes) => {
   if (bytes.toString("utf8", 0, 4) !== "glTF") return null;
@@ -317,10 +318,42 @@ for (const avatar of citizenManifest.avatars ?? []) {
   }
 }
 
+const finiteVector = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
+const groundPlacementRoles = new Set(["road-shoulder", "path-verge", "flat-land", "road", "water", "avatar"]);
+const groundForwardAxes = new Set(["x", "z"]);
+const groundingByAsset = new Map();
 const designAssets = new Map();
 for (const asset of worldDesignManifest.assets ?? []) {
   check(typeof asset.id === "string" && !designAssets.has(asset.id), `duplicate or invalid world design asset ${asset.id}`);
   designAssets.set(asset.id, asset);
+  const grounding = asset.grounding;
+  check(Boolean(grounding) && typeof grounding === "object", `${asset.id} is missing grounding metadata`);
+  if (grounding && typeof grounding === "object") {
+    groundingByAsset.set(asset.id, grounding);
+    check(finiteVector(grounding.baseAnchorXZ, 2), `${asset.id} grounding.baseAnchorXZ must contain two finite runtime-metre values`);
+    check(finiteVector(grounding.footprintM, 2) && grounding.footprintM.every((value) => value > 0),
+      `${asset.id} grounding.footprintM must contain two positive runtime-metre values`);
+    const supportPointsValid = Array.isArray(grounding.supportPoints) &&
+      grounding.supportPoints.every((point) => finiteVector(point, 2));
+    check(supportPointsValid && (grounding.placementRole === "water" || grounding.supportPoints.length > 0),
+      `${asset.id} grounding.supportPoints must contain finite [x,z] samples (water assets may use an empty array)`);
+    if (supportPointsValid && finiteVector(grounding.footprintM, 2)) {
+      check(grounding.supportPoints.every(([x, z]) =>
+        Math.abs(x) <= grounding.footprintM[0] / 2 && Math.abs(z) <= grounding.footprintM[1] / 2),
+      `${asset.id} grounding support samples must remain inside footprintM`);
+    }
+    check(Number.isFinite(grounding.groundClearanceM) && grounding.groundClearanceM >= 0 && grounding.groundClearanceM <= 0.5,
+      `${asset.id} grounding.groundClearanceM must be between zero and 0.5 metres`);
+    check(groundPlacementRoles.has(grounding.placementRole), `${asset.id} has unsupported grounding placementRole ${grounding.placementRole}`);
+    check(groundForwardAxes.has(grounding.forwardAxis), `${asset.id} grounding.forwardAxis must be x or z`);
+    check(asset.category !== "avatar" || grounding.placementRole === "avatar", `${asset.id} avatar must use avatar grounding`);
+    if (grounding.placementRole === "water") {
+      check(Number.isFinite(grounding.waterlineM) && grounding.waterlineM >= 0,
+        `${asset.id} water grounding must declare a non-negative finite waterlineM`);
+    } else {
+      check(grounding.waterlineM === undefined, `${asset.id} non-water grounding must not declare waterlineM`);
+    }
+  }
   const path = inside(worldDesignRoot, asset.file);
   check(Boolean(path), `unsafe world design path ${asset.file}`);
   if (!path) continue;
@@ -336,9 +369,15 @@ for (const asset of worldDesignManifest.assets ?? []) {
     check((asset.runtime?.triangles ?? Infinity) <= 30_000, `${asset.file} exceeds the 30k unique triangle budget`);
     check(document.extensionsRequired?.includes("EXT_meshopt_compression"), `${asset.file} is not Meshopt-compressed`);
     check(document.extensionsRequired?.includes("EXT_texture_webp"), `${asset.file} does not declare its WebP textures`);
-    if (asset.category === "avatar") {
+    if (asset.category !== "avatar") {
+      const meshNodes = (document.nodes ?? []).filter((node) => Number.isInteger(node.mesh));
+      check((document.meshes?.length ?? 0) === 1 && meshNodes.length === 1 &&
+        (document.meshes?.[0]?.primitives?.length ?? 0) === 1,
+      `${asset.file} must contain exactly one single-primitive runtime mesh node for instanced scenery loading`);
+    } else {
       check(asset.frontAxis === "+X" && asset.yawCorrectionDegrees === -90,
         `${asset.file} must declare its +X authoring axis and -90 degree visual correction`);
+      check(grounding?.forwardAxis === "x", `${asset.file} grounding must preserve its authored X-forward axis`);
       if (parts) await validateHumanoid(parts, asset.file, "+X", -90);
     }
   } catch {
@@ -350,14 +389,222 @@ check(designAssets.size === 16, "world design asset IDs are not unique");
 const designPlacements = worldDesignManifest.placements ?? [];
 const placementIds = new Set();
 const placementCounts = new Map();
-const exactReserved = new Set();
-const reserveRect = (rect) => {
-  for (let y = rect.min[1]; y <= rect.max[1]; y += 1) {
-    for (let x = rect.min[0]; x <= rect.max[0]; x += 1) exactReserved.add(`${x}:${y}`);
+const cellKey = (x, y) => `${x}:${y}`;
+const sameCellSet = (left, right) => left.size === right.size && [...left].every((cell) => right.has(cell));
+const hardReserved = new Set();
+const treeReserved = new Set();
+const reserveRect = (target, rect, padding = 0) => {
+  const minimumX = Math.min(rect.min[0], rect.max[0]) - padding;
+  const maximumX = Math.max(rect.min[0], rect.max[0]) + padding;
+  const minimumY = Math.min(rect.min[1], rect.max[1]) - padding;
+  const maximumY = Math.max(rect.min[1], rect.max[1]) + padding;
+  for (let y = minimumY; y <= maximumY; y += 1) {
+    for (let x = minimumX; x <= maximumX; x += 1) target.add(cellKey(x, y));
   }
 };
-for (const building of layout.buildings ?? []) reserveRect(building.occupied_bounds_cells);
-for (const plot of [...(layout.plots?.existing ?? []), ...(layout.plots?.added ?? [])]) reserveRect(plot.occupied_bounds_cells);
+const reserveSquare = (target, cell, radius) => {
+  if (!finiteVector(cell, 2)) return;
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) target.add(cellKey(cell[0] + dx, cell[1] + dy));
+  }
+};
+const nearCellSet = (cell, target, radius) => {
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      if (target.has(cellKey(cell[0] + dx, cell[1] + dy))) return true;
+    }
+  }
+  return false;
+};
+const reserveFunctionalCells = (target, record) => {
+  for (const key of ["customer_socket_cell", "service_socket_cell", "utility_node_cell", "utility_connection_cell"]) {
+    if (finiteVector(record[key], 2)) reserveSquare(target, record[key], 2);
+  }
+  for (const socket of record.sockets ?? []) {
+    if (finiteVector(socket?.cell, 2)) reserveSquare(target, socket.cell, 2);
+  }
+};
+for (const building of layout.buildings ?? []) {
+  reserveRect(hardReserved, building.occupied_bounds_cells, 1);
+  reserveRect(treeReserved, building.occupied_bounds_cells, 3);
+  reserveFunctionalCells(hardReserved, building);
+}
+const leaseablePlots = [...(layout.plots?.existing ?? []), ...(layout.plots?.added ?? [])];
+const leaseablePlotIds = new Set();
+const leaseablePlotCells = new Set();
+for (const plot of leaseablePlots) {
+  check(typeof plot.id === "string" && !leaseablePlotIds.has(plot.id), `duplicate or invalid leaseable plot ID ${plot.id}`);
+  leaseablePlotIds.add(plot.id);
+  check(plot.leaseable === true, `${plot.id} must remain leaseable`);
+  reserveRect(leaseablePlotCells, plot.occupied_bounds_cells);
+  reserveRect(hardReserved, plot.occupied_bounds_cells, 2);
+  reserveFunctionalCells(hardReserved, plot);
+}
+const emptyPlotTerrainCells = new Set();
+for (const row of terrainGrid.rows ?? []) {
+  for (const run of row.runs ?? []) {
+    if (run.surface !== "empty_plot") continue;
+    for (let x = run.x0; x <= run.x1; x += 1) emptyPlotTerrainCells.add(cellKey(x, row.y));
+  }
+}
+check(leaseablePlots.length === 42 && leaseablePlotIds.size === 42, "layout must contain 42 uniquely identified leaseable plots");
+check(leaseablePlotCells.size === 1_580, `leaseable plot rectangles must cover 1580 cells, found ${leaseablePlotCells.size}`);
+check(emptyPlotTerrainCells.size === 1_580, `terrain must classify 1580 empty-plot cells, found ${emptyPlotTerrainCells.size}`);
+check(sameCellSet(leaseablePlotCells, emptyPlotTerrainCells),
+  "leaseable plot rectangles and terrain empty_plot cells must match exactly");
+const plannedLeaseableLand = worldDesignManifest.spatialPlan?.leaseableLand;
+check(plannedLeaseableLand?.plotCount === leaseablePlots.length,
+  "world design spatial plan leaseable plot count drifted");
+check(plannedLeaseableLand?.plotCells === leaseablePlotCells.size,
+  "world design spatial plan leaseable cell count drifted");
+const plannedPlotIds = Array.isArray(plannedLeaseableLand?.plotIds) ? plannedLeaseableLand.plotIds : [];
+const plannedPlotIdSet = new Set(plannedPlotIds);
+check(plannedPlotIds.length === leaseablePlotIds.size && plannedPlotIdSet.size === leaseablePlotIds.size &&
+  [...leaseablePlotIds].every((plotId) => plannedPlotIdSet.has(plotId)),
+  "world design spatial plan leaseable plot IDs drifted");
+for (const row of terrainGrid.rows ?? []) {
+  for (const run of row.runs ?? []) {
+    if (run.surface !== "bridge") continue;
+    for (let x = run.x0; x <= run.x1; x += 1) {
+      reserveSquare(hardReserved, [x, row.y], 2);
+    }
+  }
+}
+for (const bridge of layout.transport?.bridges ?? []) {
+  for (const cell of bridge.deck_cells ?? []) {
+    check(finiteVector(cell, 2) && cell.every(Number.isInteger), `${bridge.id} contains an invalid bridge deck cell`);
+    if (!finiteVector(cell, 2)) continue;
+    check(terrainAt(cell[0], cell[1]) === "bridge", `${bridge.id} deck cell ${cell[0]},${cell[1]} is not bridge terrain`);
+    reserveSquare(hardReserved, cell, 2);
+  }
+}
+for (const point of layout.points_of_interest ?? []) {
+  if (point.surface_pad_bounds) reserveRect(hardReserved, point.surface_pad_bounds, 2);
+  for (const key of ["portal_anchor_cell", "anchor_cell"]) {
+    if (finiteVector(point[key], 2)) reserveSquare(hardReserved, point[key], 2);
+  }
+}
+
+const routeKinds = new Set(["road", "path"]);
+const cardinalSteps = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const sideForDelta = (dx, dy) => dx === 1 ? "E" : dx === -1 ? "W" : dy === 1 ? "N" : "S";
+const expectedTangentForSide = (side) => side === "N" || side === "S" ? "EW" : "NS";
+const tangentStep = (tangent) => tangent === "EW" ? [1, 0] : [0, 1];
+const normalizeYaw = (degrees) => ((degrees % 360) + 360) % 360;
+const rotateXZ = ([x, z], yawDegrees) => {
+  const radians = yawDegrees * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return [cosine * x + sine * z, -sine * x + cosine * z];
+};
+const rotatedForwardAxis = (forwardAxis, yawDegrees) => rotateXZ(forwardAxis === "x" ? [1, 0] : [0, 1], yawDegrees);
+const parallelToTangent = ([x, z], tangent) => {
+  const [tangentX, tangentZ] = tangent === "EW" ? [1, 0] : [0, 1];
+  return Math.abs(x * tangentX + z * tangentZ) >= 0.999;
+};
+const worldSideVector = (side) => side === "E" ? [1, 0] : side === "W" ? [-1, 0] : side === "N" ? [0, -1] : [0, 1];
+const surfaceWalkY = (surface) => {
+  const match = /^land_l(\d+)$/.exec(String(surface));
+  return match ? 1 + Number(match[1]) : null;
+};
+const inferredRouteWalkY = (x, y) => {
+  const nearbyWalkHeights = new Set();
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      const walkY = surfaceWalkY(terrainAt(x + dx, y + dy));
+      if (walkY !== null) nearbyWalkHeights.add(walkY);
+    }
+  }
+  return nearbyWalkHeights.size === 1 ? [...nearbyWalkHeights][0] : null;
+};
+const worldPointCell = (x, z) => [Math.floor((x + 1) / 2), Math.floor((-z + 1) / 2)];
+const footprintCells = (position, footprintM, yawDegrees) => {
+  if (!finiteVector(position, 2) || !finiteVector(footprintM, 2)) return [];
+  const radians = normalizeYaw(yawDegrees) * Math.PI / 180;
+  const cosine = Math.abs(Math.cos(radians));
+  const sine = Math.abs(Math.sin(radians));
+  const widthX = cosine * footprintM[0] + sine * footprintM[1];
+  const widthZ = sine * footprintM[0] + cosine * footprintM[1];
+  const epsilon = 1e-6;
+  const minimumWorldX = position[0] - widthX / 2;
+  const maximumWorldX = position[0] + widthX / 2;
+  const minimumSourceY = -position[1] - widthZ / 2;
+  const maximumSourceY = -position[1] + widthZ / 2;
+  const minimumCellX = Math.ceil((minimumWorldX - 1 + epsilon) / 2);
+  const maximumCellX = Math.floor((maximumWorldX + 1 - epsilon) / 2);
+  const minimumCellY = Math.ceil((minimumSourceY - 1 + epsilon) / 2);
+  const maximumCellY = Math.floor((maximumSourceY + 1 - epsilon) / 2);
+  const cells = [];
+  for (let y = minimumCellY; y <= maximumCellY; y += 1) {
+    for (let x = minimumCellX; x <= maximumCellX; x += 1) cells.push([x, y]);
+  }
+  return cells;
+};
+const groundingFootprintCells = (position, grounding, yawDegrees) => {
+  if (!finiteVector(grounding?.footprintM, 2)) return [];
+  return footprintCells(position, grounding.footprintM, yawDegrees);
+};
+const routeAxisByCell = new Map();
+const routeTransitionCells = new Set();
+const sameSurface = (x, y, dx, dy, surface) => terrainAt(x + dx, y + dy) === surface;
+const routeContinues = (x, y, dx, dy) =>
+  routeKinds.has(terrainAt(x + dx, y + dy)) && routeKinds.has(terrainAt(x + dx * 2, y + dy * 2));
+const straightRouteAxis = (x, y, surface) => {
+  const horizontal = sameSurface(x, y, -1, 0, surface) && sameSurface(x, y, 1, 0, surface);
+  const vertical = sameSurface(x, y, 0, -1, surface) && sameSurface(x, y, 0, 1, surface);
+  if (horizontal === vertical) return null;
+  if (horizontal && (routeContinues(x, y, 0, -1) || routeContinues(x, y, 0, 1))) return null;
+  if (vertical && (routeContinues(x, y, -1, 0) || routeContinues(x, y, 1, 0))) return null;
+  return horizontal ? "EW" : "NS";
+};
+for (const row of terrainGrid.rows ?? []) {
+  for (const run of row.runs ?? []) {
+    if (!routeKinds.has(run.surface)) continue;
+    for (let x = run.x0; x <= run.x1; x += 1) {
+      const axis = straightRouteAxis(x, row.y, run.surface);
+      routeAxisByCell.set(cellKey(x, row.y), axis);
+      if (axis === null) routeTransitionCells.add(cellKey(x, row.y));
+    }
+  }
+}
+for (const [key, axis] of routeAxisByCell) {
+  if (axis === null) continue;
+  const [x, y] = key.split(":").map(Number);
+  const [stepX, stepY] = tangentStep(axis);
+  for (const direction of [-1, 1]) {
+    const neighbourAxis = routeAxisByCell.get(cellKey(x + stepX * direction, y + stepY * direction));
+    if (neighbourAxis !== axis) {
+      routeTransitionCells.add(key);
+      break;
+    }
+  }
+}
+
+const requiredMinimumPlacements = {
+  tr01_sunleaf_tree: 78,
+  tr02_bloomfruit_tree: 50,
+  tr03_tidepalm: 52,
+  sh01_sunleaf_shrub: 96,
+  sh02_solarbloom_shrub: 96,
+  sh03_raingarden_reeds: 72,
+  st01_sunrail_lamp: 64,
+  st02_gardenline_bench: 24,
+  st03_modular_planter: 27,
+  st04_wayfinding_kiosk: 9,
+  mv01_sunpod_microcar: 12,
+  mv02_market_cargo_cart: 8,
+  mv03_civic_shuttle: 4,
+  bv01_sunwake_ferry: 3,
+  bv02_makers_workboat: 4,
+};
+const exactPlacementCounts = new Set([
+  "tr03_tidepalm", "sh03_raingarden_reeds",
+  "st01_sunrail_lamp", "st02_gardenline_bench", "st03_modular_planter", "st04_wayfinding_kiosk",
+  "mv01_sunpod_microcar", "mv02_market_cargo_cart", "mv03_civic_shuttle",
+  "bv01_sunwake_ferry", "bv02_makers_workboat",
+]);
+const streetAssets = new Set(["st01_sunrail_lamp", "st02_gardenline_bench", "st03_modular_planter", "st04_wayfinding_kiosk"]);
+const tangentOrientedStreetAssets = new Set(["st02_gardenline_bench", "st03_modular_planter"]);
 
 for (const placement of designPlacements) {
   check(typeof placement.id === "string" && !placementIds.has(placement.id), `duplicate or invalid placement ${placement.id}`);
@@ -369,23 +616,171 @@ for (const placement of designPlacements) {
   const [worldX, worldZ] = placement.position ?? [];
   check([cellX, cellY, worldX, worldZ, placement.yawDegrees].every(Number.isFinite), `${placement.id} has invalid coordinates`);
   if (![cellX, cellY, worldX, worldZ].every(Number.isFinite) || !asset) continue;
-  check(Math.abs(worldX - cellX * 2) <= 0.36 && Math.abs(worldZ + cellY * 2) <= 0.36,
-    `${placement.id} violates the two-metre cell coordinate contract`);
   check(worldX >= -257 && worldX <= 255 && worldZ >= -351 && worldZ <= 161, `${placement.id} is outside world bounds`);
   const integerCell = Number.isInteger(cellX) && Number.isInteger(cellY) ? [cellX, cellY] : null;
   const kind = integerCell ? terrainAt(integerCell[0], integerCell[1]) : "ocean";
+  const grounding = groundingByAsset.get(asset.id);
   if (asset.category === "boats") {
     check(placement.anchor === "water" && kind === "ocean", `${placement.id} must be anchored in authored ocean water`);
+    check(grounding?.placementRole === "water", `${placement.id} boat asset must use water grounding`);
+    check(Number.isFinite(placement.surfaceY), `${placement.id} water placement must declare finite surfaceY`);
+    check(placement.sinkM === undefined, `${placement.id} must use asset grounding.waterlineM instead of legacy sinkM`);
+    if (grounding) {
+      const waterFootprint = groundingFootprintCells([worldX, worldZ], grounding, placement.yawDegrees);
+      for (const [footprintX, footprintY] of waterFootprint) {
+        check(terrainAt(footprintX, footprintY) === "ocean",
+          `${placement.id} hull footprint leaves authored ocean water at ${footprintX},${footprintY}`);
+      }
+    }
+    const authoredOceanY = worldDesignManifest.coordinateContract?.oceanY;
+    if (Number.isFinite(authoredOceanY) && Number.isFinite(placement.surfaceY)) {
+      check(Math.abs(placement.surfaceY - authoredOceanY) <= 0.01,
+        `${placement.id} surfaceY ${placement.surfaceY} does not match authored oceanY ${authoredOceanY}`);
+    }
   } else if (asset.category === "vehicles") {
     check(placement.anchor === "ground" && kind === "road", `${placement.id} must be parked on an authored road`);
+    check(grounding?.placementRole === "road", `${placement.id} vehicle asset must use road grounding`);
   } else {
     check(placement.anchor === "ground" && String(kind).startsWith("land_l"), `${placement.id} must use a land cell`);
-    if (integerCell) check(!exactReserved.has(`${integerCell[0]}:${integerCell[1]}`), `${placement.id} overlaps a plot or civic footprint`);
+    if (asset.category === "trees" || asset.category === "shrubs") {
+      check(grounding?.placementRole === "flat-land", `${placement.id} landscape asset must use flat-land grounding`);
+    }
+  }
+
+  if (placement.anchor === "ground") {
+    check(Number.isFinite(placement.surfaceY), `${placement.id} ground placement must declare finite surfaceY`);
+    check(Boolean(integerCell), `${placement.id} ground placement must use an integer terrain cell`);
+    if (!integerCell || !grounding) continue;
+    const expectedWalkY = surfaceWalkY(kind);
+    if (expectedWalkY !== null && Number.isFinite(placement.surfaceY)) {
+      check(Math.abs(placement.surfaceY - expectedWalkY) <= 0.05,
+        `${placement.id} surfaceY ${placement.surfaceY} does not match ${kind} walk height ${expectedWalkY}`);
+    }
+
+    const occupiedCells = groundingFootprintCells([worldX, worldZ], grounding, placement.yawDegrees);
+    for (const [occupiedX, occupiedY] of occupiedCells) {
+      check(!hardReserved.has(cellKey(occupiedX, occupiedY)),
+        `${placement.id} footprint violates a padded plot, civic, socket, bridge, or POI exclusion at ${occupiedX},${occupiedY}`);
+      if (asset.category === "trees") {
+        check(!treeReserved.has(cellKey(occupiedX, occupiedY)),
+          `${placement.id} tree footprint violates the three-cell civic-building clearance at ${occupiedX},${occupiedY}`);
+      }
+    }
+
+    const expectedSupportSurface = kind;
+    const supportPoints = [[0, 0], ...(grounding.supportPoints ?? [])];
+    const supportCells = [];
+    for (const supportPoint of supportPoints) {
+      if (!finiteVector(supportPoint, 2)) continue;
+      const [offsetX, offsetZ] = rotateXZ(supportPoint, placement.yawDegrees);
+      const supportCell = worldPointCell(worldX + offsetX, worldZ + offsetZ);
+      supportCells.push(supportCell);
+      const supportSurface = terrainAt(supportCell[0], supportCell[1]);
+      check(supportSurface === expectedSupportSurface,
+        `${placement.id} support footprint crosses ${expectedSupportSurface} onto ${supportSurface ?? "void"} at ${supportCell[0]},${supportCell[1]}`);
+    }
+
+    if (asset.category === "vehicles") {
+      const forward = rotatedForwardAxis(grounding.forwardAxis, placement.yawDegrees);
+      for (const [occupiedX, occupiedY] of occupiedCells) {
+        check(terrainAt(occupiedX, occupiedY) === "road",
+          `${placement.id} vehicle footprint leaves authored road at ${occupiedX},${occupiedY}`);
+      }
+      const roadAxis = routeAxisByCell.get(cellKey(cellX, cellY));
+      check(roadAxis === "EW" || roadAxis === "NS",
+        `${placement.id} must occupy a straight road segment, not a junction, corner, transition, or road end`);
+      if (roadAxis === "EW" || roadAxis === "NS") {
+        check(parallelToTangent(forward, roadAxis),
+          `${placement.id} yaw does not align its ${grounding.forwardAxis}-axis to the ${roadAxis} road`);
+      }
+      check(!occupiedCells.some(([occupiedX, occupiedY]) => routeTransitionCells.has(cellKey(occupiedX, occupiedY))),
+        `${placement.id} footprint intrudes into a route junction, corner, transition, or end`);
+      const supportWalkHeights = supportCells.map(([supportX, supportY]) => inferredRouteWalkY(supportX, supportY));
+      check(supportWalkHeights.every((walkY) => walkY !== null && Math.abs(walkY - placement.surfaceY) <= 0.05),
+        `${placement.id} support footprint does not resolve to one road elevation matching surfaceY`);
+    }
+  } else {
+    check(Math.abs(worldX - cellX * 2) <= 0.01 && Math.abs(worldZ + cellY * 2) <= 0.01,
+      `${placement.id} water placement violates the two-metre cell coordinate contract`);
+  }
+
+  if (streetAssets.has(asset.id) && integerCell && grounding) {
+    const roadside = placement.roadside;
+    check(Boolean(roadside) && typeof roadside === "object", `${placement.id} street placement is missing roadside metadata`);
+    if (!roadside || typeof roadside !== "object") continue;
+    check(finiteVector(roadside.routeCell, 2) && roadside.routeCell.every(Number.isInteger),
+      `${placement.id} roadside.routeCell must be an integer [x,y] cell`);
+    check(routeKinds.has(roadside.routeSurface), `${placement.id} roadside.routeSurface must be road or path`);
+    check(["N", "E", "S", "W"].includes(roadside.side), `${placement.id} roadside.side must be N, E, S, or W`);
+    check(["EW", "NS"].includes(roadside.tangent), `${placement.id} roadside.tangent must be EW or NS`);
+    check(Number.isFinite(roadside.offsetM) && roadside.offsetM >= 0 && roadside.offsetM <= 0.75,
+      `${placement.id} roadside.offsetM must be between zero and 0.75 metres`);
+
+    const adjacentRoutes = cardinalSteps
+      .map(([dx, dy]) => [cellX + dx, cellY + dy])
+      .filter(([routeX, routeY]) => routeKinds.has(terrainAt(routeX, routeY)));
+    check(adjacentRoutes.length === 1,
+      `${placement.id} must have exactly one cardinal route neighbour; found ${adjacentRoutes.length}`);
+    if (adjacentRoutes.length !== 1 || !finiteVector(roadside.routeCell, 2)) continue;
+    const actualRouteCell = adjacentRoutes[0];
+    check(actualRouteCell[0] === roadside.routeCell[0] && actualRouteCell[1] === roadside.routeCell[1],
+      `${placement.id} roadside.routeCell does not match its actual cardinal route neighbour`);
+    const actualRouteSurface = terrainAt(actualRouteCell[0], actualRouteCell[1]);
+    check(roadside.routeSurface === actualRouteSurface,
+      `${placement.id} roadside.routeSurface ${roadside.routeSurface} does not match terrain ${actualRouteSurface}`);
+    const actualSide = sideForDelta(cellX - actualRouteCell[0], cellY - actualRouteCell[1]);
+    check(roadside.side === actualSide, `${placement.id} roadside.side ${roadside.side} does not match actual side ${actualSide}`);
+    const expectedTangent = expectedTangentForSide(actualSide);
+    check(roadside.tangent === expectedTangent,
+      `${placement.id} roadside.tangent ${roadside.tangent} does not match side ${actualSide}`);
+    const actualRouteAxis = routeAxisByCell.get(cellKey(actualRouteCell[0], actualRouteCell[1]));
+    check(actualRouteAxis === expectedTangent,
+      `${placement.id} route neighbour is not part of a straight ${expectedTangent} ${actualRouteSurface} segment`);
+    check(!nearCellSet(actualRouteCell, routeTransitionCells, 3),
+      `${placement.id} is inside the three-cell route junction, corner, transition, or end clearance`);
+    if (grounding.placementRole === "road-shoulder") {
+      check(actualRouteSurface === "road", `${placement.id} road-shoulder asset must be beside a road`);
+    } else if (grounding.placementRole === "path-verge") {
+      check(actualRouteSurface === "path", `${placement.id} path-verge asset must be beside a path`);
+    } else {
+      check(false, `${placement.id} street asset must use road-shoulder or path-verge grounding`);
+    }
+
+    const [sideWorldX, sideWorldZ] = worldSideVector(actualSide);
+    const expectedWorldX = cellX * 2 + sideWorldX * roadside.offsetM;
+    const expectedWorldZ = -cellY * 2 + sideWorldZ * roadside.offsetM;
+    check(Math.abs(worldX - expectedWorldX) <= 0.03 && Math.abs(worldZ - expectedWorldZ) <= 0.03,
+      `${placement.id} roadside position does not match its declared side and offsetM`);
+    const forward = rotatedForwardAxis(grounding.forwardAxis, placement.yawDegrees);
+    if (tangentOrientedStreetAssets.has(asset.id)) {
+      check(parallelToTangent(forward, expectedTangent),
+        `${placement.id} yaw does not align its ${grounding.forwardAxis}-axis to the ${expectedTangent} route tangent`);
+    } else {
+      const inward = [-sideWorldX, -sideWorldZ];
+      const dot = forward[0] * inward[0] + forward[1] * inward[1];
+      check(dot >= 0.999,
+        `${placement.id} yaw does not point its positive ${grounding.forwardAxis}-axis inward toward the route`);
+    }
+  } else if (placement.anchor === "ground") {
+    check(Math.abs(worldX - cellX * 2) <= 0.36 && Math.abs(worldZ + cellY * 2) <= 0.36,
+      `${placement.id} violates the two-metre cell coordinate contract`);
   }
 }
-check(placementIds.size === expectedStaticWorldDesigns, "world design placement IDs are not unique");
+check(placementIds.size === designPlacements.length, "world design placement IDs are not unique");
+check(worldDesignManifest.counts?.staticPlacements === designPlacements.length,
+  "world design static placement count does not match the manifest placement array");
+check(worldDesignManifest.counts?.totalInstances === designPlacements.length + worldDesignManifest.counts?.dynamicAvatar,
+  "world design total instance count does not match static placements plus dynamic avatars");
+for (const [assetId, expected] of Object.entries(requiredMinimumPlacements)) {
+  const actual = placementCounts.get(assetId) ?? 0;
+  check(exactPlacementCounts.has(assetId) ? actual === expected : actual >= expected,
+    `${assetId} placement count ${actual} violates its ${exactPlacementCounts.has(assetId) ? "exact" : "minimum"} contract of ${expected}`);
+}
 for (const [assetId, expected] of Object.entries(worldDesignManifest.counts?.byAsset ?? {})) {
   check(placementCounts.get(assetId) === expected, `${assetId} placement count drifted`);
+}
+for (const assetId of placementCounts.keys()) {
+  check(Object.hasOwn(worldDesignManifest.counts?.byAsset ?? {}, assetId), `${assetId} is missing from manifest counts.byAsset`);
 }
 
 if (problems.length) {
@@ -393,4 +788,4 @@ if (problems.length) {
   for (const problem of problems) console.error(`- ${problem}`);
   process.exit(1);
 }
-console.log(`Highlands browser validation passed: ${packageManifest.files.length} terrain files, 256 chunks, 9 civic buildings, 42 empty plots, 16 optimized world-design assets, 9 optimized citizens, and ${expectedStaticWorldDesigns + 1} streamed world-design instances.`);
+console.log(`Highlands browser validation passed: ${packageManifest.files.length} terrain files, 256 chunks, 9 civic buildings, 42 empty plots, 16 optimized world-design assets, 9 optimized citizens, and ${designPlacements.length + 1} streamed world-design instances.`);

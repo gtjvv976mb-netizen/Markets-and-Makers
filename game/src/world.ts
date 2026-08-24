@@ -400,7 +400,8 @@ export class World3D {
       }
     }
     catch (error) {
-      console.warn("Optional world-design scenery could not be loaded; keeping the base city.", error);
+      console.error("Required world-design scenery failed to load.", error);
+      throw error;
     }
     this.callbacks.onLoadProgress(0.93, "Opening starter plots");
     this.updateChunkVisibility(true);
@@ -484,7 +485,8 @@ export class World3D {
     if (!force && key === this.visibleChunkKey) return;
     this.visibleChunkKey = key;
     for (const entry of this.chunkRoots) {
-      entry.object.visible = Math.abs(entry.cx - chunk[0]) <= 3 && Math.abs(entry.cy - chunk[1]) <= 3;
+      const padding = Number(entry.object.userData.visibilityPaddingChunks ?? 0);
+      entry.object.visible = Math.abs(entry.cx - chunk[0]) <= 3 + padding && Math.abs(entry.cy - chunk[1]) <= 3 + padding;
     }
   }
 

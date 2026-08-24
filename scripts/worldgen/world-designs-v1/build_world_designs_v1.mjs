@@ -112,6 +112,7 @@ for (const asset of catalog.assets) {
     file: asset.runtime_file,
     fit: asset.fit,
     targetM: asset.target_m,
+    grounding: asset.grounding,
     textureSize: asset.texture_size,
     ...(rig ? { frontAxis: rig.frontAxis, yawCorrectionDegrees: rig.yawCorrectionDegrees, rig } : {}),
     source: {

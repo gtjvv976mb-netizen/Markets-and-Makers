@@ -23,6 +23,7 @@ export const HIGHLANDS_DISTRICTS = [
 ] as const;
 
 type PlotCells = readonly [id: string, island: string, minX: number, minY: number, maxX: number, maxY: number, price: number];
+export type PlotCustomerEdge = "N" | "E" | "S" | "W";
 
 const PLOT_CELLS: readonly PlotCells[] = [
   ["garden-row", "hearth", -42, 28, -37, 33, 120],
@@ -74,6 +75,27 @@ const titleCaseId = (id: string): string => id
   .replace(/[-_]/g, " ")
   .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const CUSTOMER_EDGE_BY_PLOT: Readonly<Record<string, PlotCustomerEdge>> = {
+  "lantern-walk": "E",
+  "nightmarket-row": "E",
+  "greenloom-field": "E",
+  "orchard-bend": "E",
+  "tidepool-works": "W",
+  glassmere: "W",
+  "solar-terrace": "W",
+  batteryside: "W",
+  "pulsegrove-court": "N",
+  springline: "N",
+  "quayside-depot": "N",
+  "dockhand-row": "N",
+  WF04: "N",
+  WF05: "N",
+  WF06: "N",
+  EF04: "N",
+  EF05: "N",
+  EF06: "N",
+};
+
 export const HIGHLANDS_PLOTS = PLOT_CELLS.map(([id, island, minX, minY, maxX, maxY, price]) => ({
   id,
   name: `${titleCaseId(id)} Plot`,
@@ -83,9 +105,19 @@ export const HIGHLANDS_PLOTS = PLOT_CELLS.map(([id, island, minX, minY, maxX, ma
   width: (maxX - minX + 1) * 2,
   depth: (maxY - minY + 1) * 2,
   price,
+  customerEdge: CUSTOMER_EDGE_BY_PLOT[id] ?? "S",
 }));
 
-export function plotArrival(plot: { x: number; z: number; depth: number }): { x: number; z: number } {
+export function plotArrival(plot: {
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  customerEdge: PlotCustomerEdge;
+}): { x: number; z: number } {
+  if (plot.customerEdge === "N") return { x: plot.x + 1, z: plot.z - plot.depth / 2 - 3 };
+  if (plot.customerEdge === "E") return { x: plot.x + plot.width / 2 + 3, z: plot.z + 1 };
+  if (plot.customerEdge === "W") return { x: plot.x - plot.width / 2 - 3, z: plot.z + 1 };
   return { x: plot.x + 1, z: plot.z + plot.depth / 2 + 3 };
 }
 

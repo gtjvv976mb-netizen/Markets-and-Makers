@@ -11,6 +11,14 @@
       "runtime_file": "models/tr01-sunleaf-tree.glb",
       "fit": "height",
       "target_m": 7.2,
+      "grounding": {
+        "baseAnchorXZ": [0.147, 0.014],
+        "footprintM": [3.52, 3.33],
+        "supportPoints": [[-1.28, -1.2], [1.28, -1.2], [1.28, 1.2], [-1.28, 1.2]],
+        "groundClearanceM": 0.01,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 18000,
       "texture_size": 256
     },
@@ -22,6 +30,14 @@
       "runtime_file": "models/tr02-bloomfruit-tree.glb",
       "fit": "height",
       "target_m": 6.4,
+      "grounding": {
+        "baseAnchorXZ": [0.017, -0.205],
+        "footprintM": [3.45, 3.69],
+        "supportPoints": [[-1.22, -1.3], [1.22, -1.3], [1.22, 1.3], [-1.22, 1.3]],
+        "groundClearanceM": 0.01,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 18000,
       "texture_size": 256
     },
@@ -33,6 +49,14 @@
       "runtime_file": "models/tr03-tidepalm.glb",
       "fit": "height",
       "target_m": 7.6,
+      "grounding": {
+        "baseAnchorXZ": [-0.159, -0.087],
+        "footprintM": [2.76, 2.58],
+        "supportPoints": [[-1.02, -0.94], [1.02, -0.94], [1.02, 0.94], [-1.02, 0.94]],
+        "groundClearanceM": 0.01,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 18000,
       "texture_size": 256
     },
@@ -44,6 +68,14 @@
       "runtime_file": "models/sh01-sunleaf-shrub.glb",
       "fit": "height",
       "target_m": 1.15,
+      "grounding": {
+        "baseAnchorXZ": [0.024, -0.033],
+        "footprintM": [0.24, 0.5],
+        "supportPoints": [[-0.08, -0.18], [0.08, -0.18], [0.08, 0.18], [-0.08, 0.18]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 7000,
       "texture_size": 256
     },
@@ -55,6 +87,14 @@
       "runtime_file": "models/sh02-solarbloom-shrub.glb",
       "fit": "height",
       "target_m": 1.05,
+      "grounding": {
+        "baseAnchorXZ": [-0.011, 0.016],
+        "footprintM": [0.25, 0.53],
+        "supportPoints": [[-0.09, -0.19], [0.09, -0.19], [0.09, 0.19], [-0.09, 0.19]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 7000,
       "texture_size": 256
     },
@@ -66,6 +106,14 @@
       "runtime_file": "models/sh03-raingarden-reeds.glb",
       "fit": "height",
       "target_m": 1.45,
+      "grounding": {
+        "baseAnchorXZ": [0.025, -0.03],
+        "footprintM": [0.9, 1.22],
+        "supportPoints": [[-0.36, -0.49], [0.36, -0.49], [0.36, 0.49], [-0.36, 0.49]],
+        "groundClearanceM": 0.012,
+        "forwardAxis": "z",
+        "placementRole": "flat-land"
+      },
       "triangle_target": 7000,
       "texture_size": 256
     },
@@ -77,6 +125,14 @@
       "runtime_file": "models/st01-sunrail-lamp.glb",
       "fit": "height",
       "target_m": 4.8,
+      "grounding": {
+        "baseAnchorXZ": [0.049, 0.287],
+        "footprintM": [0.68, 0.68],
+        "supportPoints": [[-0.25, -0.25], [0.25, -0.25], [0.25, 0.25], [-0.25, 0.25]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "z",
+        "placementRole": "road-shoulder"
+      },
       "triangle_target": 10000,
       "texture_size": 256
     },
@@ -88,6 +144,14 @@
       "runtime_file": "models/st02-gardenline-bench.glb",
       "fit": "horizontal",
       "target_m": 2.5,
+      "grounding": {
+        "baseAnchorXZ": [0.016, -0.22],
+        "footprintM": [0.98, 2.45],
+        "supportPoints": [[-0.39, -1.02], [0.39, -1.02], [0.39, 1.02], [-0.39, 1.02]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "z",
+        "placementRole": "road-shoulder"
+      },
       "triangle_target": 10000,
       "texture_size": 256
     },
@@ -99,6 +163,14 @@
       "runtime_file": "models/st03-modular-planter.glb",
       "fit": "horizontal",
       "target_m": 2.1,
+      "grounding": {
+        "baseAnchorXZ": [0.074, 0.05],
+        "footprintM": [2.08, 2.08],
+        "supportPoints": [[-0.84, -0.84], [0.84, -0.84], [0.84, 0.84], [-0.84, 0.84]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "x",
+        "placementRole": "road-shoulder"
+      },
       "triangle_target": 10000,
       "texture_size": 256
     },
@@ -110,6 +182,14 @@
       "runtime_file": "models/st04-wayfinding-kiosk.glb",
       "fit": "height",
       "target_m": 2.55,
+      "grounding": {
+        "baseAnchorXZ": [0.063, -0.019],
+        "footprintM": [2.16, 1.62],
+        "supportPoints": [[-0.75, -0.55], [0.75, -0.55], [0.75, 0.55], [-0.75, 0.55]],
+        "groundClearanceM": 0.015,
+        "forwardAxis": "z",
+        "placementRole": "path-verge"
+      },
       "triangle_target": 10000,
       "texture_size": 256
     },
@@ -121,6 +201,14 @@
       "runtime_file": "models/mv01-sunpod-microcar.glb",
       "fit": "horizontal",
       "target_m": 3.2,
+      "grounding": {
+        "baseAnchorXZ": [-0.005, -0.049],
+        "footprintM": [2.4, 2.08],
+        "supportPoints": [[-1.04, -0.82], [1.04, -0.82], [1.04, 0.82], [-1.04, 0.82]],
+        "groundClearanceM": 0.012,
+        "forwardAxis": "x",
+        "placementRole": "road"
+      },
       "triangle_target": 15000,
       "texture_size": 512
     },
@@ -132,6 +220,14 @@
       "runtime_file": "models/mv02-market-cargo-cart.glb",
       "fit": "horizontal",
       "target_m": 3.5,
+      "grounding": {
+        "baseAnchorXZ": [0.17, -0.057],
+        "footprintM": [2.54, 1.83],
+        "supportPoints": [[-1.08, -0.7], [1.08, -0.7], [1.08, 0.7], [-1.08, 0.7]],
+        "groundClearanceM": 0.012,
+        "forwardAxis": "x",
+        "placementRole": "road"
+      },
       "triangle_target": 15000,
       "texture_size": 512
     },
@@ -143,6 +239,14 @@
       "runtime_file": "models/mv03-civic-shuttle.glb",
       "fit": "horizontal",
       "target_m": 5.4,
+      "grounding": {
+        "baseAnchorXZ": [0.215, -0.094],
+        "footprintM": [4.0, 2.58],
+        "supportPoints": [[-1.72, -1.02], [1.72, -1.02], [1.72, 1.02], [-1.72, 1.02]],
+        "groundClearanceM": 0.012,
+        "forwardAxis": "x",
+        "placementRole": "road"
+      },
       "triangle_target": 18000,
       "texture_size": 512
     },
@@ -154,6 +258,15 @@
       "runtime_file": "models/bv01-sunwake-ferry.glb",
       "fit": "horizontal",
       "target_m": 9.2,
+      "grounding": {
+        "baseAnchorXZ": [-0.087, -0.021],
+        "footprintM": [7.75, 2.4],
+        "supportPoints": [],
+        "groundClearanceM": 0,
+        "forwardAxis": "x",
+        "placementRole": "water",
+        "waterlineM": 0.9
+      },
       "triangle_target": 24000,
       "texture_size": 512
     },
@@ -165,6 +278,15 @@
       "runtime_file": "models/bv02-makers-workboat.glb",
       "fit": "horizontal",
       "target_m": 7.6,
+      "grounding": {
+        "baseAnchorXZ": [0.278, 0.008],
+        "footprintM": [6.18, 0.93],
+        "supportPoints": [],
+        "groundClearanceM": 0,
+        "forwardAxis": "x",
+        "placementRole": "water",
+        "waterlineM": 0.72
+      },
       "triangle_target": 26000,
       "texture_size": 512
     },
@@ -176,6 +298,14 @@
       "runtime_file": "models/av01-civic-maker.glb",
       "fit": "height",
       "target_m": 2.05,
+      "grounding": {
+        "baseAnchorXZ": [0.045, 0.012],
+        "footprintM": [0.43, 0.72],
+        "supportPoints": [[-0.13, -0.23], [0.13, -0.23], [0.13, 0.23], [-0.13, 0.23]],
+        "groundClearanceM": 0.01,
+        "forwardAxis": "x",
+        "placementRole": "avatar"
+      },
       "triangle_target": 18000,
       "texture_size": 512
     }
