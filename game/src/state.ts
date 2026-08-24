@@ -50,6 +50,7 @@ export interface GameState {
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
   staff: number; chargesSettledAt: number; suppliesCut: boolean;
+  civicPaidAt: number; civicWagesPaid: number;
   mmDeposited: number; mmWithdrawn: number;
   sponsoredUntil: number; chartered: boolean;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
@@ -103,6 +104,7 @@ export function createFreshState(): GameState {
     bankTreasuryMM: BANK_TREASURY_MM,
     epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
     staff: 1, chargesSettledAt: Date.now(), suppliesCut: false,
+    civicPaidAt: Date.now(), civicWagesPaid: 0,
     mmDeposited: 0, mmWithdrawn: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
@@ -239,6 +241,8 @@ export function loadState(): GameState {
       staff: Math.floor(finite(saved.staff, 1, 0, 200)),
       chargesSettledAt: finite(saved.chargesSettledAt, Date.now()),
       suppliesCut: Boolean(saved.suppliesCut),
+      civicPaidAt: finite(saved.civicPaidAt, Date.now()),
+      civicWagesPaid: finite(saved.civicWagesPaid, 0),
       mmDeposited: finite(saved.mmDeposited, 0, 0),
       mmWithdrawn: finite(saved.mmWithdrawn, 0, 0),
       chartered: Boolean(saved.chartered),
@@ -280,6 +284,7 @@ export class GameStore {
     const today = utcDay(now);
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
     if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
+    this.settleCivicPayroll(now);
     const epoch = epochId(now);
     if (this.state.epoch.id !== epoch) { this.state.epoch = { id: epoch, contribution: 0, claimed: false }; this.state.epochIssued = 0; }
   }
@@ -668,6 +673,36 @@ export class GameStore {
     const depth = this.state.bankTreasuryMM / BANK_TREASURY_MM;
     const strength = this.tokenMarketCapUsd() / (MM_REFERENCE_PRICE_USD * MM_CIRCULATING_SUPPLY);
     return Math.max(1, Math.round(CIVIC_WAGE_BASE * Math.cbrt(depth * strength) * 10) / 10);
+  }
+
+  /** The city's daily wage bill for every Markian on its books. */
+  civicWageBill(): number {
+    return Math.round(this.markianPopulation() * this.civicDailyWage());
+  }
+
+  /**
+   * Pay the Markians for whole days that have passed.
+   *
+   * The city recycles its own revenue first and ISSUES the shortfall against the bank's
+   * reserves — it is a currency issuer, not a pot that drains. That matters because
+   * roughly 93% of every wage leaks permanently into player wallets: the leak IS the
+   * earning, and it has to be funded by something that grows with the city. Issuance
+   * stays inside the same collateral ceiling as every other Maker Dollar, so wages fall
+   * automatically when the treasury thins — a stabiliser rather than a cliff.
+   */
+  settleCivicPayroll(now = Date.now()): number {
+    const days = Math.floor((now - this.state.civicPaidAt) / 86_400_000);
+    if (days <= 0) return 0;
+    this.state.civicPaidAt += days * 86_400_000;
+
+    const wanted = this.civicWageBill() * days;
+    const recycled = Math.min(wanted, this.state.governmentTreasury);
+    const issued = Math.min(Math.max(0, wanted - recycled), this.issuanceHeadroom());
+
+    this.state.governmentTreasury -= recycled;
+    this.state.citizenPool += recycled + issued;
+    this.state.civicWagesPaid += recycled + issued;
+    return recycled + issued;
   }
 
   /** Money the Markians will spend in player shops today. */
@@ -1072,6 +1107,7 @@ export class GameStore {
       return report;
     }
 
+    this.settleCivicPayroll(now);
     this.settleStandingCharges(now);
     if (this.state.suppliesCut) { report.halted = "funds"; this.state.lastTickAt = now; this.state.lastShift = report; return report; }
 

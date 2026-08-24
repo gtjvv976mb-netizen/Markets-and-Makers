@@ -698,9 +698,13 @@ function renderMarket(): void {
       </div>
       <div class="city-strip">
         <div><small>Markians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
-        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}</strong></div>
+        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}/day</strong></div>
+        <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${MOLLAR_CODE}/day</strong></div>
         <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
+        <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${MOLLAR_CODE}</strong></div>
+        <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${MOLLAR_CODE}</strong></div>
       </div>
+      <small class="city-note">The city pays its Markians every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the city grows. Roughly nine in ten Maker Dollars of wages end up in player tills.</small>
       <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
     </section>
 

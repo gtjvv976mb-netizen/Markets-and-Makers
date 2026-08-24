@@ -397,6 +397,55 @@ describe("Markets & Makers economy", () => {
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
+  it("pays the Markians by recycling revenue first, and issuing only if it must", () => {
+    const state = createFreshState();
+    state.wallet = 40_000;
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    const store = new GameStore(state);
+
+    const supplyBefore = store.mollarSupply();
+    const treasuryBefore = store.state.governmentTreasury;
+    const paid = store.settleCivicPayroll(Date.now() + 30 * 86_400_000);
+
+    expect(paid).toBe(store.civicWageBill() * 30);
+    expect(store.state.citizenPool).toBeGreaterThan(createFreshState().citizenPool);
+    // While the city can afford it out of revenue, no new money is created at all.
+    expect(store.state.governmentTreasury).toBe(treasuryBefore - paid);
+    expect(store.mollarSupply()).toBe(supplyBefore);
+    // Settles once per whole day.
+    expect(store.settleCivicPayroll(Date.now() + 30 * 86_400_000)).toBe(0);
+  });
+
+  it("issues wages against reserves when revenue runs out, never past the ceiling", () => {
+    const state = createFreshState();
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.governmentTreasury = 0;          // the city has spent everything it collected
+    const store = new GameStore(state);
+
+    const supplyBefore = store.mollarSupply();
+    const paid = store.settleCivicPayroll(Date.now() + 10 * 86_400_000);
+
+    // The city keeps paying — it is an issuer, not a pot that drains.
+    expect(paid).toBeGreaterThan(0);
+    expect(store.mollarSupply()).toBeGreaterThan(supplyBefore);
+    // ...but the new money is backed like every other Maker Dollar.
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+    expect(store.mollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
+  });
+
+  it("stops issuing rather than breaking the peg when reserves cannot cover it", () => {
+    const state = createFreshState();
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.governmentTreasury = 0;
+    state.bankTreasuryMM = 600_000;        // a very thin bank
+    const store = new GameStore(state);
+
+    store.settleCivicPayroll(Date.now() + 4_000 * 86_400_000);
+    // Wages are capped by backing; the peg is never allowed to break to pay them.
+    expect(store.mollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
   it("returns capital but never lets grinding be cashed out directly", () => {
     // The anti-farm design lives in contribution-weighted emission. If gameplay
     // Maker Dollars redeemed freely, grinding NPC sales would convert straight into
