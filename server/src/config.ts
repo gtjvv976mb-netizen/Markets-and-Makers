@@ -16,10 +16,21 @@ const schema = z.object({
 
 const env = schema.parse(process.env);
 
+const configuredClientOrigins = env.CLIENT_ORIGINS
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+// Keep the official production client reachable even if an existing Render
+// service still has the pre-launch CLIENT_ORIGINS value from its blueprint.
+const productionClientOrigins = env.NODE_ENV === "production"
+  ? ["https://markets-and-makers-game.bwz8s8gmyw.workers.dev"]
+  : [];
+
 export const config = {
   port: env.PORT,
   nodeEnv: env.NODE_ENV,
-  clientOrigins: new Set(env.CLIENT_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)),
+  clientOrigins: new Set([...configuredClientOrigins, ...productionClientOrigins]),
   databaseUrl: env.DATABASE_URL,
   solanaNetwork: env.SOLANA_NETWORK,
   heliusApiKey: env.HELIUS_API_KEY,
