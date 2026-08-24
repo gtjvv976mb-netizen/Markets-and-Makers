@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
 import { HIGHLANDS_WORLD_BASE, worldChunkAt } from "./highlandsWorld";
 
 export const WORLD_DESIGNS_BASE = `${HIGHLANDS_WORLD_BASE}/world-designs-v1`;
@@ -12,6 +14,8 @@ interface WorldDesignAsset {
   file: string;
   fit: "height" | "horizontal";
   targetM: number;
+  frontAxis?: CharacterFrontAxis;
+  yawCorrectionDegrees?: number;
 }
 
 interface WorldDesignPlacement {
@@ -44,7 +48,7 @@ export interface WorldDesignChunk {
 
 export interface WorldDesignLoadResult {
   chunks: WorldDesignChunk[];
-  avatar: THREE.Group | null;
+  avatar: { group: THREE.Group; animations: THREE.AnimationClip[] } | null;
   staticInstances: number;
   uniqueAssets: number;
 }
@@ -78,8 +82,13 @@ function prepareGeometry(source: THREE.Object3D, asset: WorldDesignAsset): { geo
   return { geometry, material };
 }
 
-function prepareAvatar(source: THREE.Object3D, asset: WorldDesignAsset, dynamicShadows: boolean): THREE.Group {
-  const avatar = source.clone(true);
+function prepareAvatar(
+  source: THREE.Object3D,
+  animations: THREE.AnimationClip[],
+  asset: WorldDesignAsset,
+  dynamicShadows: boolean,
+): { group: THREE.Group; animations: THREE.AnimationClip[] } {
+  const avatar = cloneSkeleton(source) as THREE.Group;
   const bounds = new THREE.Box3().setFromObject(avatar);
   const size = bounds.getSize(new THREE.Vector3());
   const scale = asset.targetM / Math.max(size.y, 0.001);
@@ -89,7 +98,6 @@ function prepareAvatar(source: THREE.Object3D, asset: WorldDesignAsset, dynamicS
     -bounds.min.y * scale,
     -(bounds.min.z + bounds.max.z) * 0.5 * scale,
   );
-  avatar.rotation.y = Math.PI;
   avatar.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     object.castShadow = dynamicShadows;
@@ -98,8 +106,13 @@ function prepareAvatar(source: THREE.Object3D, asset: WorldDesignAsset, dynamicS
   });
   const wrapper = new THREE.Group();
   wrapper.name = "MM_CIVIC_MAKER_PLAYER_MODEL";
-  wrapper.add(avatar);
-  return wrapper;
+  const facing = new THREE.Group();
+  facing.rotation.y = Number.isFinite(asset.yawCorrectionDegrees)
+    ? THREE.MathUtils.degToRad(asset.yawCorrectionDegrees ?? 0)
+    : yawCorrectionFor(asset.frontAxis ?? "+Z");
+  facing.add(avatar);
+  wrapper.add(facing);
+  return { group: wrapper, animations };
 }
 
 export async function loadWorldDesigns(
@@ -126,13 +139,13 @@ export async function loadWorldDesigns(
     placementsByAsset.set(placement.assetId, collection);
   }
 
-  let avatar: THREE.Group | null = null;
+  let avatar: { group: THREE.Group; animations: THREE.AnimationClip[] } | null = null;
   let completed = 0;
   await Promise.all(manifest.assets.map(async (asset) => {
     try {
       const gltf = await loader.loadAsync(`${WORLD_DESIGNS_BASE}/${asset.file}`);
       if (asset.category === "avatar") {
-        avatar = prepareAvatar(gltf.scene, asset, dynamicShadows);
+        avatar = prepareAvatar(gltf.scene, gltf.animations, asset, dynamicShadows);
         return;
       }
 

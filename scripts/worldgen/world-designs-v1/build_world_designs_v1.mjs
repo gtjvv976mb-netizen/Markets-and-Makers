@@ -70,17 +70,31 @@ for (const asset of catalog.assets) {
   const runtime = join(runtimeRoot, asset.runtime_file);
   const decoded = join(temporaryRoot, `${asset.id}-decoded.glb`);
   const render = join(renderRoot, `${asset.id}.png`);
+  let optimizationSource = source;
+
+  if (asset.category === "avatar") {
+    const rigged = join(temporaryRoot, `${asset.id}-rigged.glb`);
+    run(process.execPath, [
+      join(repository, "scripts/rig-mercedonian-avatars.mjs"),
+      "--skip-citizens", "true",
+      "--civic-source", source,
+      "--civic-output", rigged,
+    ]);
+    optimizationSource = rigged;
+  }
 
   run("npx", [
-    "--yes", "@gltf-transform/cli@4.3.0", "optimize", source, runtime,
+    "--yes", "@gltf-transform/cli@4.3.0", "optimize", optimizationSource, runtime,
     "--simplify-ratio", ratio.toFixed(8), "--simplify-error", "0.012",
     "--texture-size", String(asset.texture_size), "--texture-compress", "webp",
-    "--compress", "meshopt", "--meshopt-level", "high", "--flatten", "true",
-    "--join", "true", "--palette", "false", "--instance", "false",
+    "--compress", "meshopt", "--meshopt-level", "high",
+    "--flatten", asset.category === "avatar" ? "false" : "true",
+    "--join", asset.category === "avatar" ? "false" : "true",
+    "--palette", "false", "--instance", "false",
   ]);
 
   if (renderEnabled) {
-    run("npx", ["--yes", "@gltf-transform/cli@4.3.0", "copy", source, decoded]);
+    run("npx", ["--yes", "@gltf-transform/cli@4.3.0", "copy", optimizationSource, decoded]);
     run(blender, [
       "--background", "--factory-startup", "--python-exit-code", "1",
       "--python", join(scriptDirectory, "render_glb_asset.py"), "--",
@@ -90,6 +104,7 @@ for (const asset of catalog.assets) {
 
   const runtimeBytes = readFileSync(runtime);
   const runtimeTriangles = triangleCount(runtime);
+  const rig = asset.category === "avatar" ? glbJson(runtime).asset?.extras?.marketsAndMakersRig : null;
   records.push({
     id: asset.id,
     name: asset.name,
@@ -98,6 +113,7 @@ for (const asset of catalog.assets) {
     fit: asset.fit,
     targetM: asset.target_m,
     textureSize: asset.texture_size,
+    ...(rig ? { frontAxis: rig.frontAxis, yawCorrectionDegrees: rig.yawCorrectionDegrees, rig } : {}),
     source: {
       relativeFile: asset.source,
       bytes: sourceBytes.length,

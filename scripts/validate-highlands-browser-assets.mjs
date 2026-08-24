@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MeshoptDecoder } from "../game/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = join(repository, "game/public/assets/world/highlands-rivers-v1");
@@ -109,12 +110,19 @@ check(worldDesignManifest.counts?.dynamicAvatar === 1 &&
   worldDesignManifest.counts?.totalInstances === expectedStaticWorldDesigns + 1,
   `world designs must contain ${expectedStaticWorldDesigns} scenery instances plus the civic avatar`);
 
-const glbJson = (bytes) => {
+const glbParts = (bytes) => {
   if (bytes.toString("utf8", 0, 4) !== "glTF") return null;
   const jsonLength = bytes.readUInt32LE(12);
   if (bytes.readUInt32LE(16) !== 0x4e4f534a) return null;
-  return JSON.parse(bytes.toString("utf8", 20, 20 + jsonLength));
+  const binaryHeader = 20 + jsonLength;
+  if (bytes.readUInt32LE(binaryHeader + 4) !== 0x004e4942) return null;
+  const binaryLength = bytes.readUInt32LE(binaryHeader);
+  return {
+    document: JSON.parse(bytes.toString("utf8", 20, 20 + jsonLength)),
+    binary: bytes.subarray(binaryHeader + 8, binaryHeader + 8 + binaryLength),
+  };
 };
+const glbJson = (bytes) => glbParts(bytes)?.document ?? null;
 const glbTriangles = (document) => (document?.meshes ?? []).reduce((total, mesh) => total +
   (mesh.primitives ?? []).reduce((meshTotal, primitive) => {
     if ((primitive.mode ?? 4) !== 4) return meshTotal;
@@ -122,9 +130,164 @@ const glbTriangles = (document) => (document?.meshes ?? []).reduce((total, mesh)
     return meshTotal + Math.floor((document.accessors?.[accessorIndex]?.count ?? 0) / 3);
   }, 0), 0);
 
+const accessorComponents = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+const componentBytes = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+const readComponent = (view, offset, type) => {
+  if (type === 5120) return view.getInt8(offset);
+  if (type === 5121) return view.getUint8(offset);
+  if (type === 5122) return view.getInt16(offset, true);
+  if (type === 5123) return view.getUint16(offset, true);
+  if (type === 5125) return view.getUint32(offset, true);
+  if (type === 5126) return view.getFloat32(offset, true);
+  throw new Error(`unsupported accessor component type ${type}`);
+};
+const normalizeComponent = (value, type) => {
+  if (type === 5120) return Math.max(-1, value / 127);
+  if (type === 5121) return value / 255;
+  if (type === 5122) return Math.max(-1, value / 32767);
+  if (type === 5123) return value / 65535;
+  return value;
+};
+const readAccessor = async (parts, accessorIndex) => {
+  const accessor = parts.document.accessors?.[accessorIndex];
+  if (!accessor || !Number.isInteger(accessor.bufferView)) throw new Error(`accessor ${accessorIndex} has no buffer view`);
+  const bufferView = parts.document.bufferViews?.[accessor.bufferView];
+  if (!bufferView) throw new Error(`accessor ${accessorIndex} references a missing buffer view`);
+  const extension = bufferView.extensions?.EXT_meshopt_compression;
+  let bytes = parts.binary;
+  let baseOffset = (bufferView.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+  let stride = bufferView.byteStride;
+  if (extension) {
+    await MeshoptDecoder.ready;
+    const decoded = new Uint8Array(extension.count * extension.byteStride);
+    MeshoptDecoder.decodeGltfBuffer(
+      decoded,
+      extension.count,
+      extension.byteStride,
+      parts.binary.subarray(extension.byteOffset, extension.byteOffset + extension.byteLength),
+      extension.mode,
+      extension.filter,
+    );
+    bytes = decoded;
+    baseOffset = accessor.byteOffset ?? 0;
+    stride = extension.byteStride;
+  }
+  const size = accessorComponents[accessor.type];
+  const width = componentBytes[accessor.componentType];
+  if (!size || !width) throw new Error(`accessor ${accessorIndex} has an unsupported type`);
+  stride ??= size * width;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const values = new Float64Array(accessor.count * size);
+  for (let element = 0; element < accessor.count; element += 1) {
+    for (let component = 0; component < size; component += 1) {
+      const raw = readComponent(view, baseOffset + element * stride + component * width, accessor.componentType);
+      values[element * size + component] = accessor.normalized ? normalizeComponent(raw, accessor.componentType) : raw;
+    }
+  }
+  return { values, count: accessor.count, size };
+};
+
+const HUMANOID_JOINTS = [
+  "Hips", "Spine", "Chest", "Neck", "Head",
+  "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm",
+  "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot",
+];
+
+const validateHumanoid = async (parts, label, expectedAxis, expectedYaw) => {
+  const document = parts.document;
+  const rig = document.asset?.extras?.marketsAndMakersRig;
+  check(rig?.schema === "markets-and-makers.humanoid-rig.v2", `${label} is missing v2 humanoid rig metadata`);
+  check(rig?.frontAxis === expectedAxis && rig?.yawCorrectionDegrees === expectedYaw,
+    `${label} rig axis/yaw metadata does not match its authored model`);
+  check(rig?.rootMotion === "in-place-xz", `${label} must use in-place X/Z root motion`);
+  const skin = document.skins?.[0];
+  check((document.skins?.length ?? 0) === 1 && skin?.joints?.length === HUMANOID_JOINTS.length,
+    `${label} must contain one ${HUMANOID_JOINTS.length}-joint skin`);
+  if (!skin || skin.joints?.length !== HUMANOID_JOINTS.length) return;
+  const jointNames = skin.joints.map((nodeIndex) => document.nodes?.[nodeIndex]?.name);
+  check(HUMANOID_JOINTS.every((name) => jointNames.includes(name)), `${label} humanoid hierarchy is incomplete`);
+  const inverseBind = document.accessors?.[skin.inverseBindMatrices];
+  check(inverseBind?.count === HUMANOID_JOINTS.length && inverseBind?.type === "MAT4",
+    `${label} inverse bind matrix count is invalid`);
+  const meshNode = (document.nodes ?? []).find((node) => node.skin === 0 && Number.isInteger(node.mesh));
+  const primitive = document.meshes?.[meshNode?.mesh]?.primitives?.[0];
+  const positionIndex = primitive?.attributes?.POSITION;
+  const jointsIndex = primitive?.attributes?.JOINTS_0;
+  const weightsIndex = primitive?.attributes?.WEIGHTS_0;
+  check([positionIndex, jointsIndex, weightsIndex].every(Number.isInteger), `${label} is missing skinned vertex attributes`);
+  if (![positionIndex, jointsIndex, weightsIndex].every(Number.isInteger)) return;
+  const [positions, jointValues, weightValues] = await Promise.all([
+    readAccessor(parts, positionIndex),
+    readAccessor(parts, jointsIndex),
+    readAccessor(parts, weightsIndex),
+  ]);
+  check(positions.count === jointValues.count && positions.count === weightValues.count,
+    `${label} skin attribute counts do not match POSITION`);
+  check(jointValues.size === 4 && weightValues.size === 4, `${label} skin attributes must be VEC4`);
+  const influenced = Array(skin.joints.length).fill(0);
+  for (let vertex = 0; vertex < weightValues.count; vertex += 1) {
+    let sum = 0;
+    for (let component = 0; component < 4; component += 1) {
+      const offset = vertex * 4 + component;
+      const joint = jointValues.values[offset];
+      const weight = weightValues.values[offset];
+      sum += weight;
+      if (weight > 0.001 && Number.isInteger(joint) && joint >= 0 && joint < influenced.length) influenced[joint] += 1;
+    }
+    check(Math.abs(sum - 1) <= 0.02, `${label} contains a vertex whose skin weights do not sum to one`);
+  }
+
+  const animations = new Map((document.animations ?? []).map((animation) => [animation.name, animation]));
+  check(animations.has("Idle") && animations.has("Walk"), `${label} must contain Idle and Walk clips`);
+  const animatedJoints = new Set();
+  for (const [name, animation] of animations) {
+    if (name !== "Idle" && name !== "Walk") continue;
+    for (const channel of animation.channels ?? []) {
+      const sampler = animation.samplers?.[channel.sampler];
+      const nodeIndex = channel.target?.node;
+      const path = channel.target?.path;
+      if (!sampler || !Number.isInteger(nodeIndex)) continue;
+      const [input, output] = await Promise.all([
+        readAccessor(parts, sampler.input),
+        readAccessor(parts, sampler.output),
+      ]);
+      check(input.count === output.count, `${label} ${name} channel input/output counts differ`);
+      for (let index = 1; index < input.values.length; index += 1) {
+        check(input.values[index] > input.values[index - 1], `${label} ${name} keyframe times must increase`);
+      }
+      if (path === "rotation") {
+        const joint = skin.joints.indexOf(nodeIndex);
+        if (joint >= 0) animatedJoints.add(joint);
+        for (let key = 0; key < output.count; key += 1) {
+          const offset = key * 4;
+          const length = Math.hypot(...output.values.slice(offset, offset + 4));
+          check(Math.abs(length - 1) <= 0.01, `${label} ${name} contains a non-normalized quaternion`);
+        }
+      }
+      if (path === "translation" && document.nodes?.[nodeIndex]?.name === "Hips") {
+        for (let key = 0; key < output.count; key += 1) {
+          const offset = key * 3;
+          check(Math.abs(output.values[offset]) <= 0.002 && Math.abs(output.values[offset + 2]) <= 0.002,
+            `${label} ${name} contains unwanted horizontal root motion`);
+        }
+      }
+      if (output.count > 1) {
+        const first = output.values.slice(0, output.size);
+        const last = output.values.slice((output.count - 1) * output.size, output.count * output.size);
+        const direct = Math.hypot(...first.map((value, index) => value - last[index]));
+        const mirrored = path === "rotation" ? Math.hypot(...first.map((value, index) => value + last[index])) : Infinity;
+        check(Math.min(direct, mirrored) <= 0.02, `${label} ${name} channel does not form a clean loop`);
+      }
+    }
+  }
+  for (const joint of animatedJoints) {
+    check(influenced[joint] > 0, `${label} animates ${jointNames[joint]} without any influenced vertices`);
+  }
+};
+
 const citizenRoot = join(repository, "game/public/assets/avatars/mercedonians/runtime");
 const citizenManifest = JSON.parse(await readFile(join(citizenRoot, "manifest.json"), "utf8"));
-check(citizenManifest.schema === "markets-and-makers.mercedonians-runtime.v1", "unexpected citizen runtime schema");
+check(citizenManifest.schema === "markets-and-makers.mercedonians-runtime.v2", "unexpected citizen runtime schema");
 check(citizenManifest.avatars?.length === 9, "citizen runtime must contain nine optimized Mercedonians");
 for (const avatar of citizenManifest.avatars ?? []) {
   const path = inside(citizenRoot, avatar.file);
@@ -132,7 +295,8 @@ for (const avatar of citizenManifest.avatars ?? []) {
   if (!path) continue;
   try {
     const bytes = await readFile(path);
-    const document = glbJson(bytes);
+    const parts = glbParts(bytes);
+    const document = parts?.document;
     check(Boolean(document), `${avatar.file} is not a valid binary glTF`);
     check(bytes.length === avatar.runtime?.bytes, `${avatar.file} citizen byte size drifted`);
     check(sha256(bytes) === avatar.runtime?.sha256, `${avatar.file} citizen hash drifted`);
@@ -142,6 +306,10 @@ for (const avatar of citizenManifest.avatars ?? []) {
       `${avatar.file} must remain between 8k and 15k triangles`);
     const animationNames = new Set((document?.animations ?? []).map((animation) => animation.name));
     check(animationNames.has("Idle") && animationNames.has("Walk"), `${avatar.file} lost its Idle or Walk animation`);
+    check(["+X", "+Z"].includes(avatar.frontAxis), `${avatar.file} has no supported authored forward axis`);
+    check(avatar.yawCorrectionDegrees === (avatar.frontAxis === "+X" ? -90 : 0),
+      `${avatar.file} has the wrong game-facing yaw correction`);
+    if (parts) await validateHumanoid(parts, avatar.file, avatar.frontAxis, avatar.yawCorrectionDegrees);
     check(document?.extensionsRequired?.includes("EXT_meshopt_compression"), `${avatar.file} is not Meshopt-compressed`);
     check(document?.extensionsRequired?.includes("EXT_texture_webp"), `${avatar.file} does not declare WebP textures`);
   } catch {
@@ -158,7 +326,8 @@ for (const asset of worldDesignManifest.assets ?? []) {
   if (!path) continue;
   try {
     const bytes = await readFile(path);
-    const document = glbJson(bytes);
+    const parts = glbParts(bytes);
+    const document = parts?.document;
     check(Boolean(document), `${asset.file} is not a valid binary glTF`);
     check(bytes.length === asset.runtime?.bytes, `${asset.file} byte size drifted`);
     check(sha256(bytes) === asset.runtime?.sha256, `${asset.file} hash drifted`);
@@ -167,6 +336,11 @@ for (const asset of worldDesignManifest.assets ?? []) {
     check((asset.runtime?.triangles ?? Infinity) <= 30_000, `${asset.file} exceeds the 30k unique triangle budget`);
     check(document.extensionsRequired?.includes("EXT_meshopt_compression"), `${asset.file} is not Meshopt-compressed`);
     check(document.extensionsRequired?.includes("EXT_texture_webp"), `${asset.file} does not declare its WebP textures`);
+    if (asset.category === "avatar") {
+      check(asset.frontAxis === "+X" && asset.yawCorrectionDegrees === -90,
+        `${asset.file} must declare its +X authoring axis and -90 degree visual correction`);
+      if (parts) await validateHumanoid(parts, asset.file, "+X", -90);
+    }
   } catch {
     problems.push(`${asset.file} is missing`);
   }

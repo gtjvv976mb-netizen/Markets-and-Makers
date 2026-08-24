@@ -4,6 +4,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
+import { dampWrappedYaw, headingYaw, planarSpeed, yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
 import { HIGHLANDS_WORLD_ENTRY, worldChunkAt } from "./highlandsWorld";
 import { loadWorldDesigns } from "./worldDesigns";
 import type { GameState } from "./state";
@@ -19,26 +20,30 @@ interface Citizen {
   group: THREE.Group;
   model: THREE.Group;
   mixer: THREE.AnimationMixer;
+  walkAction: THREE.AnimationAction | null;
   groundY: number;
   nextGroundSample: number;
   phase: number;
   radius: number;
-  speed: number;
+  angularSpeed: number;
   centerX: number;
   centerZ: number;
 }
 
-const CITIZEN_AVATARS = [
-  "av02-urban-gardener.glb",
-  "av03-solar-technician.glb",
-  "av04-market-grocer.glb",
-  "av05-fabricator-engineer.glb",
-  "av06-harbor-courier.glb",
-  "av07-community-chef.glb",
-  "av08-cooperative-shopkeeper.glb",
-  "av10-repair-mechanic.glb",
-  "av12-water-systems-biologist.glb",
-].map((file) => `./assets/avatars/mercedonians/runtime/${file}`);
+const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAxis }> = [
+  { file: "av02-urban-gardener.glb", frontAxis: "+X" },
+  { file: "av03-solar-technician.glb", frontAxis: "+X" },
+  { file: "av04-market-grocer.glb", frontAxis: "+X" },
+  { file: "av05-fabricator-engineer.glb", frontAxis: "+X" },
+  { file: "av06-harbor-courier.glb", frontAxis: "+Z" },
+  { file: "av07-community-chef.glb", frontAxis: "+X" },
+  { file: "av08-cooperative-shopkeeper.glb", frontAxis: "+Z" },
+  { file: "av10-repair-mechanic.glb", frontAxis: "+X" },
+  { file: "av12-water-systems-biologist.glb", frontAxis: "+X" },
+];
+
+const CITIZEN_AVATAR_BASE = "./assets/avatars/mercedonians/runtime";
+const CHARACTER_REFERENCE_WALK_SPEED = 4.2;
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
 const MAX_WALK_STEP = 0.62;
@@ -83,6 +88,10 @@ export class World3D {
   private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
   private avatarGroundY = 1.02;
+  private avatarMixer: THREE.AnimationMixer | null = null;
+  private avatarIdleAction: THREE.AnimationAction | null = null;
+  private avatarWalkAction: THREE.AnimationAction | null = null;
+  private avatarWalking = false;
   private visibleChunkKey = "";
   private running = false;
   private saveAccumulator = 0;
@@ -195,12 +204,46 @@ export class World3D {
       new THREE.BoxGeometry(0.48, 0.6, 0.2, 1, 1, 1),
       new THREE.MeshStandardMaterial({ color: 0xe0ad3d, roughness: 0.72 }),
     );
-    backpack.position.set(0, 1.2, 0.36);
+    // Fallback avatar is +Z-forward, matching the actor root used by movement.
+    backpack.position.set(0, 1.2, -0.36);
     this.avatar.add(backpack);
 
     this.avatar.position.set(0, 1.02, 34);
     this.scene.add(this.avatar);
     this.scene.add(this.peerRoot);
+  }
+
+  private setupAvatarAnimations(model: THREE.Group, animations: THREE.AnimationClip[]): void {
+    const idleClip = THREE.AnimationClip.findByName(animations, "Idle");
+    const walkClip = THREE.AnimationClip.findByName(animations, "Walk");
+    if (!idleClip || !walkClip) {
+      console.warn("The civic avatar is missing its Idle or Walk animation; using fallback motion.");
+      return;
+    }
+    this.avatarMixer = new THREE.AnimationMixer(model);
+    this.avatarIdleAction = this.avatarMixer.clipAction(idleClip);
+    this.avatarWalkAction = this.avatarMixer.clipAction(walkClip);
+    this.avatarIdleAction.reset().setEffectiveWeight(1).play();
+    this.avatarWalkAction.setEffectiveWeight(0).play();
+    this.avatarWalking = false;
+  }
+
+  private updateAvatarAnimations(delta: number, movementSpeed: number): void {
+    if (!this.avatarMixer || !this.avatarIdleAction || !this.avatarWalkAction) return;
+    const walking = movementSpeed > 0.05;
+    this.avatarWalkAction.timeScale = THREE.MathUtils.clamp(
+      movementSpeed / CHARACTER_REFERENCE_WALK_SPEED,
+      0.72,
+      1.8,
+    );
+    if (walking !== this.avatarWalking) {
+      const incoming = walking ? this.avatarWalkAction : this.avatarIdleAction;
+      const outgoing = walking ? this.avatarIdleAction : this.avatarWalkAction;
+      incoming.reset().setEffectiveTimeScale(walking ? this.avatarWalkAction.timeScale : 1).setEffectiveWeight(1).play();
+      incoming.crossFadeFrom(outgoing, 0.18, true);
+      this.avatarWalking = walking;
+    }
+    this.avatarMixer.update(delta);
   }
 
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
@@ -352,7 +395,8 @@ export class World3D {
       }
       if (designs.avatar) {
         for (const child of this.avatar.children) child.visible = Boolean(child.userData.keepWithCivicAvatar);
-        this.avatar.add(designs.avatar);
+        this.avatar.add(designs.avatar.group);
+        this.setupAvatarAnimations(designs.avatar.group, designs.avatar.animations);
       }
     }
     catch (error) {
@@ -531,16 +575,25 @@ export class World3D {
 
   private async createCitizens(): Promise<void> {
     this.callbacks.onLoadProgress(0.94, "Welcoming Mercedonia's citizens");
-    const templates = (await Promise.all(CITIZEN_AVATARS.map(async (url) => {
+    const templates = (await Promise.all(CITIZEN_AVATARS.map(async (definition) => {
+      const url = `${CITIZEN_AVATAR_BASE}/${definition.file}`;
       try {
         const gltf = await this.loader.loadAsync(url);
-        return { model: this.normalizeCitizenModel(gltf.scene), animations: gltf.animations };
+        return {
+          model: this.normalizeCitizenModel(gltf.scene),
+          animations: gltf.animations,
+          yawCorrection: yawCorrectionFor(definition.frontAxis),
+        };
       }
       catch (error) {
         console.warn(`Citizen model unavailable: ${url}`, error);
         return null;
       }
-    }))).filter((template): template is { model: THREE.Group; animations: THREE.AnimationClip[] } => template !== null);
+    }))).filter((template): template is {
+      model: THREE.Group;
+      animations: THREE.AnimationClip[];
+      yawCorrection: number;
+    } => template !== null);
     if (templates.length === 0) return;
     for (let index = 0; index < 24; index += 1) {
       const group = new THREE.Group();
@@ -553,25 +606,29 @@ export class World3D {
       group.add(shadow);
       const template = templates[index % templates.length];
       const model = cloneSkeleton(template.model) as THREE.Group;
-      model.rotation.y = Math.PI;
+      model.rotation.y = template.yawCorrection;
       group.add(model);
       const mixer = new THREE.AnimationMixer(model);
       const walk = THREE.AnimationClip.findByName(template.animations, "Walk");
+      let walkAction: THREE.AnimationAction | null = null;
       if (walk) {
-        const action = mixer.clipAction(walk);
-        action.time = (index * 0.173) % walk.duration;
-        action.play();
+        walkAction = mixer.clipAction(walk);
+        walkAction.time = (index * 0.173) % walk.duration;
+        walkAction.play();
       }
+      const radius = 10 + (index % 6) * 6.2;
+      const linearSpeed = 1.2 + (index % 5) * 0.12;
       this.scene.add(group);
       this.citizens.push({
         group,
         model,
         mixer,
+        walkAction,
         groundY: 1.04,
         nextGroundSample: index * 0.02,
         phase: index * 0.79,
-        radius: 10 + (index % 6) * 6.2,
-        speed: 0.09 + (index % 5) * 0.012,
+        radius,
+        angularSpeed: linearSpeed / radius,
         centerX: ((index % 3) - 1) * 7,
         centerZ: ((index % 4) - 1.5) * 5,
       });
@@ -846,7 +903,9 @@ export class World3D {
     return true;
   }
 
-  private updateMovement(delta: number, state: GameState): void {
+  private updateMovement(delta: number, state: GameState): number {
+    const previousX = this.avatar.position.x;
+    const previousZ = this.avatar.position.z;
     const direction = this.movementVector();
     let moved = false;
     if (direction.lengthSq() > 0) {
@@ -857,7 +916,6 @@ export class World3D {
       moved = this.tryMoveTo(nextX, nextZ)
         || this.tryMoveTo(nextX, this.avatar.position.z)
         || this.tryMoveTo(this.avatar.position.x, nextZ);
-      this.avatar.rotation.y = Math.atan2(direction.x, direction.z);
     } else if (this.clickTarget) {
       const deltaTarget = this.clickTarget.clone().sub(this.avatar.position);
       deltaTarget.y = 0;
@@ -872,17 +930,26 @@ export class World3D {
           this.avatar.position.x + deltaTarget.x * distance,
           this.avatar.position.z + deltaTarget.z * distance,
         );
-        this.avatar.rotation.y = Math.atan2(deltaTarget.x, deltaTarget.z);
         if (!moved) {
           this.clickTarget = null;
           this.walkMarker.visible = false;
         }
       }
     }
-    if (!moved) return;
+    if (!moved) return 0;
+    const movedX = this.avatar.position.x - previousX;
+    const movedZ = this.avatar.position.z - previousZ;
+    const movementSpeed = planarSpeed(movedX, movedZ, delta);
+    if (movementSpeed <= 0.001) return 0;
+    this.avatar.rotation.y = dampWrappedYaw(
+      this.avatar.rotation.y,
+      headingYaw(movedX, movedZ),
+      delta,
+    );
     state.player.x = this.avatar.position.x;
     state.player.z = this.avatar.position.z;
     this.callbacks.onMoved();
+    return movementSpeed;
   }
 
   private updateCitizens(delta: number, elapsed: number): void {
@@ -891,7 +958,7 @@ export class World3D {
       return;
     }
     for (const citizen of this.citizens) {
-      const angle = citizen.phase + elapsed * citizen.speed;
+      const angle = citizen.phase + elapsed * citizen.angularSpeed;
       citizen.group.position.x = citizen.centerX + Math.cos(angle) * citizen.radius;
       citizen.group.position.z = citizen.centerZ + Math.sin(angle * 1.11) * citizen.radius * 0.72;
       if (elapsed >= citizen.nextGroundSample) {
@@ -902,15 +969,24 @@ export class World3D {
       }
       citizen.group.position.y = citizen.groundY;
       if (!citizen.group.visible) continue;
-      const velocityX = -Math.sin(angle) * citizen.radius;
-      const velocityZ = Math.cos(angle * 1.11) * citizen.radius * 0.72 * 1.11;
-      citizen.group.rotation.y = Math.atan2(velocityX, velocityZ);
+      const velocityX = -Math.sin(angle) * citizen.radius * citizen.angularSpeed;
+      const velocityZ = Math.cos(angle * 1.11) * citizen.radius * 0.72 * 1.11 * citizen.angularSpeed;
+      citizen.group.rotation.y = headingYaw(velocityX, velocityZ);
+      if (citizen.walkAction) {
+        citizen.walkAction.timeScale = THREE.MathUtils.clamp(
+          Math.hypot(velocityX, velocityZ) / 1.45,
+          0.72,
+          1.35,
+        );
+      }
       citizen.mixer.update(delta);
     }
   }
 
   private updateWorldMotion(elapsed: number, moving: boolean): void {
-    this.avatar.position.y = this.avatarGroundY + Math.sin(elapsed * (moving ? 9 : 2.2)) * (moving ? 0.055 : 0.018);
+    this.avatar.position.y = this.avatarMixer
+      ? this.avatarGroundY
+      : this.avatarGroundY + Math.sin(elapsed * (moving ? 9 : 2.2)) * (moving ? 0.055 : 0.018);
     if (this.walkMarker.visible) {
       const pulse = 0.9 + Math.sin(elapsed * 5) * 0.12;
       this.walkMarker.scale.setScalar(pulse);
@@ -953,10 +1029,11 @@ export class World3D {
       if (!this.running) return;
       requestAnimationFrame(animate);
       const delta = Math.min(0.05, this.clock.getDelta());
-      this.updateMovement(delta, state);
+      const movementSpeed = this.updateMovement(delta, state);
+      this.updateAvatarAnimations(delta, movementSpeed);
       this.updateCitizens(delta, this.clock.elapsedTime);
       this.updatePeers(delta, this.clock.elapsedTime);
-      this.updateWorldMotion(this.clock.elapsedTime, this.keys.size > 0 || Boolean(this.clickTarget));
+      this.updateWorldMotion(this.clock.elapsedTime, movementSpeed > 0.05);
       this.updateCamera(delta);
       this.onFrame?.();
       this.saveAccumulator += delta;

@@ -2,21 +2,45 @@ import fs from "node:fs";
 import path from "node:path";
 import { MeshoptDecoder } from "../game/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js";
 
-const sourceRoot = "/Users/michaelkennethbrillantes/Desktop/MM/avatar/avatar";
-const outputRoot = path.resolve("game/public/assets/avatars/mercedonians");
+const options = new Map();
+for (let index = 2; index < process.argv.length; index += 2) {
+  options.set(process.argv[index], process.argv[index + 1]);
+}
+
+const sourceRoot = path.resolve(options.get("--citizen-source-root") ?? "/Users/michaelkennethbrillantes/Desktop/MM/avatar/avatar");
+const outputRoot = path.resolve(options.get("--output-root") ?? "game/public/assets/avatars/mercedonians");
+const civicSource = path.resolve(options.get("--civic-source") ?? "/Users/michaelkennethbrillantes/Desktop/MM/world designs/avatar/av01_civic_maker_player/civic.glb");
+const civicOutput = options.has("--civic-output") ? path.resolve(options.get("--civic-output")) : null;
+const skipCitizens = options.get("--skip-citizens") === "true";
 const avatars = [
-  ["av02_urban_gardener/New_Project_8242026.glb", "av02-urban-gardener.glb"],
-  ["av03_solar_technician/New_Project_8242026 (1).glb", "av03-solar-technician.glb"],
-  ["av04_market_grocer/New_Project_8242026.glb", "av04-market-grocer.glb"],
-  ["av05_fabricator_engineer/New_Project_8242026 (1).glb", "av05-fabricator-engineer.glb"],
-  ["av06_harbor_courier/New_Project_8242026.glb", "av06-harbor-courier.glb"],
-  ["av07_community_chef/New_Project_8242026.glb", "av07-community-chef.glb"],
-  ["av08_cooperative_shopkeeper/New_Project_8242026 (1).glb", "av08-cooperative-shopkeeper.glb"],
-  ["av10_repair_mechanic/New_Project_8242026.glb", "av10-repair-mechanic.glb"],
-  ["av12_water_systems_biologist/New_Project_8242026 (1).glb", "av12-water-systems-biologist.glb"],
+  ["av02_urban_gardener/New_Project_8242026.glb", "av02-urban-gardener.glb", "+X"],
+  ["av03_solar_technician/New_Project_8242026 (1).glb", "av03-solar-technician.glb", "+X"],
+  ["av04_market_grocer/New_Project_8242026.glb", "av04-market-grocer.glb", "+X"],
+  ["av05_fabricator_engineer/New_Project_8242026 (1).glb", "av05-fabricator-engineer.glb", "+X"],
+  ["av06_harbor_courier/New_Project_8242026.glb", "av06-harbor-courier.glb", "+Z"],
+  ["av07_community_chef/New_Project_8242026.glb", "av07-community-chef.glb", "+X"],
+  ["av08_cooperative_shopkeeper/New_Project_8242026 (1).glb", "av08-cooperative-shopkeeper.glb", "+Z"],
+  ["av10_repair_mechanic/New_Project_8242026.glb", "av10-repair-mechanic.glb", "+X"],
+  ["av12_water_systems_biologist/New_Project_8242026 (1).glb", "av12-water-systems-biologist.glb", "+X"],
 ];
 
-const joints = [
+const jointsFor = (frontAxis) => frontAxis === "+X" ? [
+  { name: "Hips", parent: -1, t: [0, -0.06, 0] },
+  { name: "Spine", parent: 0, t: [0, 0.21, 0] },
+  { name: "Chest", parent: 1, t: [0, 0.25, 0] },
+  { name: "Neck", parent: 2, t: [0, 0.22, 0] },
+  { name: "Head", parent: 3, t: [0, 0.18, 0] },
+  { name: "LeftUpperArm", parent: 2, t: [0, 0.12, -0.14] },
+  { name: "LeftLowerArm", parent: 5, t: [0, -0.12, -0.20] },
+  { name: "RightUpperArm", parent: 2, t: [0, 0.12, 0.14] },
+  { name: "RightLowerArm", parent: 7, t: [0, -0.12, 0.20] },
+  { name: "LeftUpperLeg", parent: 0, t: [0, -0.02, -0.075] },
+  { name: "LeftLowerLeg", parent: 9, t: [0, -0.40, 0] },
+  { name: "LeftFoot", parent: 10, t: [0.06, -0.36, 0] },
+  { name: "RightUpperLeg", parent: 0, t: [0, -0.02, 0.075] },
+  { name: "RightLowerLeg", parent: 12, t: [0, -0.40, 0] },
+  { name: "RightFoot", parent: 13, t: [0.06, -0.36, 0] },
+] : [
   { name: "Hips", parent: -1, t: [0, -0.06, 0] },
   { name: "Spine", parent: 0, t: [0, 0.21, 0] },
   { name: "Chest", parent: 1, t: [0, 0.25, 0] },
@@ -36,6 +60,7 @@ const joints = [
 
 const align4 = (value) => (value + 3) & ~3;
 const quatX = (angle) => [Math.sin(angle / 2), 0, 0, Math.cos(angle / 2)];
+const quatY = (angle) => [0, Math.sin(angle / 2), 0, Math.cos(angle / 2)];
 const quatZ = (angle) => [0, 0, Math.sin(angle / 2), Math.cos(angle / 2)];
 
 function parseGlb(file) {
@@ -92,22 +117,24 @@ function addInfluence(jointData, weightData, vertex, first, second = first, blen
   weightData[offset + 1] = Math.round(blend * 255);
 }
 
-function buildWeights(positionData) {
+function buildWeights(positionData, frontAxis) {
   const jointData = new Uint8Array(positionData.count * 4);
   const weightData = new Uint8Array(positionData.count * 4);
   for (let vertex = 0; vertex < positionData.count; vertex += 1) {
     const base = vertex * positionData.stride;
     const x = Math.max(-1, positionData.values[base] / 32767);
     const y = Math.max(-1, positionData.values[base + 1] / 32767);
-    const side = x >= 0;
-    if (y < -0.76) addInfluence(jointData, weightData, vertex, side ? 11 : 14);
-    else if (y < -0.42) addInfluence(jointData, weightData, vertex, side ? 10 : 13, side ? 11 : 14, (y + 0.76) / 0.34);
-    else if (y < -0.08) addInfluence(jointData, weightData, vertex, side ? 9 : 12, side ? 10 : 13, (y + 0.42) / 0.34);
+    const z = Math.max(-1, positionData.values[base + 2] / 32767);
+    const lateral = frontAxis === "+X" ? z : x;
+    const leftSide = frontAxis === "+X" ? lateral < 0 : lateral >= 0;
+    if (y < -0.76) addInfluence(jointData, weightData, vertex, leftSide ? 11 : 14);
+    else if (y < -0.42) addInfluence(jointData, weightData, vertex, leftSide ? 10 : 13, leftSide ? 11 : 14, (y + 0.76) / 0.34);
+    else if (y < -0.08) addInfluence(jointData, weightData, vertex, leftSide ? 9 : 12, leftSide ? 10 : 13, (y + 0.42) / 0.34);
     else if (y > 0.66) addInfluence(jointData, weightData, vertex, 4);
     else if (y > 0.54) addInfluence(jointData, weightData, vertex, 3, 4, (y - 0.54) / 0.12);
-    else if (Math.abs(x) > 0.13 && y > 0.02) {
-      const outer = Math.min(1, (Math.abs(x) - 0.13) / 0.12);
-      addInfluence(jointData, weightData, vertex, side ? 5 : 7, side ? 6 : 8, outer);
+    else if (Math.abs(lateral) > 0.08 && y > 0.02) {
+      const outer = Math.min(1, Math.max(0, (Math.abs(lateral) - 0.08) / 0.14));
+      addInfluence(jointData, weightData, vertex, leftSide ? 5 : 7, leftSide ? 6 : 8, outer);
     } else if (y > 0.30) addInfluence(jointData, weightData, vertex, 2, 3, (y - 0.30) / 0.24);
     else if (y > 0.08) addInfluence(jointData, weightData, vertex, 1, 2, (y - 0.08) / 0.22);
     else addInfluence(jointData, weightData, vertex, 0, 1, Math.max(0, (y + 0.08) / 0.16));
@@ -115,7 +142,7 @@ function buildWeights(positionData) {
   return { jointData, weightData };
 }
 
-function globalJointPositions() {
+function globalJointPositions(joints) {
   return joints.map((joint, index) => {
     const result = [...joint.t];
     for (let parent = joint.parent; parent >= 0; parent = joints[parent].parent) {
@@ -137,14 +164,15 @@ function addAnimation(state, name, times, tracks) {
   state.json.animations.push(animation);
 }
 
-async function rig(source, output) {
+async function rig(source, output, frontAxis) {
   const state = parseGlb(source);
+  const joints = jointsFor(frontAxis);
   state.json.bufferViews ??= [];
   state.json.accessors ??= [];
   state.json.animations = [];
   const primitive = state.json.meshes[0].primitives[0];
   const positions = await decodedPositions(state.json, state.bin, primitive.attributes.POSITION);
-  const { jointData, weightData } = buildWeights(positions);
+  const { jointData, weightData } = buildWeights(positions, frontAxis);
   primitive.attributes.JOINTS_0 = appendData(state, jointData, { componentType: 5121, count: positions.count, type: "VEC4", target: 34962 });
   primitive.attributes.WEIGHTS_0 = appendData(state, weightData, { componentType: 5121, count: positions.count, type: "VEC4", normalized: true, target: 34962 });
 
@@ -160,7 +188,7 @@ async function rig(source, output) {
   state.json.scenes[state.json.scene ?? 0].nodes.push(rigRoot);
 
   const inverse = new Float32Array(joints.length * 16);
-  globalJointPositions().forEach(([x, y, z], index) => {
+  globalJointPositions(joints).forEach(([x, y, z], index) => {
     const offset = index * 16;
     inverse[offset] = 1; inverse[offset + 5] = 1; inverse[offset + 10] = 1; inverse[offset + 15] = 1;
     inverse[offset + 12] = -x; inverse[offset + 13] = -y; inverse[offset + 14] = -z;
@@ -169,28 +197,70 @@ async function rig(source, output) {
   state.json.skins = [{ name: "MercedonianHumanoid", inverseBindMatrices: inverseAccessor, skeleton: jointNodes[0], joints: jointNodes }];
   state.json.nodes[meshNode].skin = 0;
 
+  const limbRotation = frontAxis === "+X" ? quatZ : quatX;
+  const idleSway = frontAxis === "+X" ? quatX : quatZ;
+  const kneeBendSign = frontAxis === "+X" ? -1 : 1;
   const idleTimes = [0, 1, 2];
   addAnimation(state, "Idle", idleTimes, [
-    { node: jointNodes[2], path: "rotation", values: [quatZ(-0.015), quatZ(0.015), quatZ(-0.015)] },
-    { node: jointNodes[4], path: "rotation", values: [quatZ(0.025), quatZ(-0.025), quatZ(0.025)] },
+    { node: jointNodes[2], path: "rotation", values: [idleSway(-0.015), idleSway(0.015), idleSway(-0.015)] },
+    { node: jointNodes[4], path: "rotation", values: [idleSway(0.025), idleSway(-0.025), idleSway(0.025)] },
     { node: jointNodes[0], path: "translation", values: [[0, -0.06, 0], [0, -0.052, 0], [0, -0.06, 0]] },
   ]);
-  const walkTimes = [0, 0.25, 0.5, 0.75, 1];
-  const cycle = (amplitude, offset = 0) => walkTimes.map((_, index) => quatX(Math.sin((index / 4) * Math.PI * 2 + offset) * amplitude));
+  const walkTimes = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+  const phaseAt = (index, offset = 0) => (index / (walkTimes.length - 1)) * Math.PI * 2 + offset;
+  const cycle = (amplitude, offset = 0) => walkTimes.map((_, index) => limbRotation(Math.sin(phaseAt(index, offset)) * amplitude));
+  const kneeCycle = (offset = 0) => walkTimes.map((_, index) => {
+    const bend = Math.max(0, Math.sin(phaseAt(index, offset))) * 0.62 * kneeBendSign;
+    return limbRotation(bend);
+  });
+  const footCycle = (offset = 0) => walkTimes.map((_, index) => {
+    const phase = phaseAt(index, offset);
+    const bend = Math.max(0, Math.sin(phase)) * 0.62 * kneeBendSign;
+    return limbRotation(-bend * 0.58 - Math.sin(phase) * 0.08);
+  });
+  const elbowCycle = (offset = 0) => walkTimes.map((_, index) => {
+    const bend = Math.max(0, Math.sin(phaseAt(index, offset))) * 0.22 * kneeBendSign;
+    return limbRotation(bend);
+  });
   addAnimation(state, "Walk", walkTimes, [
-    { node: jointNodes[0], path: "translation", values: walkTimes.map((_, index) => [0, -0.06 + (index % 2 ? 0.025 : 0), 0]) },
-    { node: jointNodes[9], path: "rotation", values: cycle(0.48) },
-    { node: jointNodes[12], path: "rotation", values: cycle(0.48, Math.PI) },
-    { node: jointNodes[10], path: "rotation", values: cycle(0.32, Math.PI) },
-    { node: jointNodes[13], path: "rotation", values: cycle(0.32) },
+    { node: jointNodes[0], path: "translation", values: walkTimes.map((_, index) => [0, -0.06 + Math.abs(Math.sin(phaseAt(index))) * 0.018, 0]) },
+    { node: jointNodes[9], path: "rotation", values: cycle(0.44) },
+    { node: jointNodes[12], path: "rotation", values: cycle(0.44, Math.PI) },
+    { node: jointNodes[10], path: "rotation", values: kneeCycle(Math.PI) },
+    { node: jointNodes[13], path: "rotation", values: kneeCycle(0) },
+    { node: jointNodes[11], path: "rotation", values: footCycle(Math.PI) },
+    { node: jointNodes[14], path: "rotation", values: footCycle(0) },
     { node: jointNodes[5], path: "rotation", values: cycle(0.34, Math.PI) },
     { node: jointNodes[7], path: "rotation", values: cycle(0.34) },
-    { node: jointNodes[2], path: "rotation", values: walkTimes.map((_, index) => quatZ(Math.sin((index / 4) * Math.PI * 2) * 0.035)) },
+    { node: jointNodes[6], path: "rotation", values: elbowCycle(Math.PI) },
+    { node: jointNodes[8], path: "rotation", values: elbowCycle(0) },
+    { node: jointNodes[2], path: "rotation", values: walkTimes.map((_, index) => quatY(Math.sin(phaseAt(index)) * 0.045)) },
+    { node: jointNodes[4], path: "rotation", values: walkTimes.map((_, index) => quatY(-Math.sin(phaseAt(index)) * 0.02)) },
   ]);
-  state.json.asset.generator = `${state.json.asset.generator ?? "glTF"}; Markets & Makers humanoid rigger`;
+  const yawCorrectionDegrees = frontAxis === "+X" ? -90 : 0;
+  state.json.asset.generator = `${state.json.asset.generator ?? "glTF"}; Markets & Makers humanoid rigger v2`;
+  state.json.asset.extras = {
+    ...(state.json.asset.extras ?? {}),
+    marketsAndMakersRig: {
+      schema: "markets-and-makers.humanoid-rig.v2",
+      skeleton: "MercedonianHumanoid",
+      joints: joints.length,
+      frontAxis,
+      yawCorrectionDegrees,
+      rootMotion: "in-place-xz",
+      clips: ["Idle", "Walk"],
+    },
+  };
+  state.json.nodes[rigRoot].extras = { frontAxis, yawCorrectionDegrees };
+  fs.mkdirSync(path.dirname(output), { recursive: true });
   writeGlb(output, state.json, state.bin);
-  console.log(`Rigged ${path.basename(output)}: ${positions.count.toLocaleString()} weighted vertices, ${joints.length} joints, Idle + Walk`);
+  console.log(`Rigged ${path.basename(output)}: ${positions.count.toLocaleString()} weighted vertices, ${joints.length} joints, ${frontAxis} forward, Idle + Walk`);
 }
 
-fs.mkdirSync(outputRoot, { recursive: true });
-for (const [source, output] of avatars) await rig(path.join(sourceRoot, source), path.join(outputRoot, output));
+if (!skipCitizens) {
+  fs.mkdirSync(outputRoot, { recursive: true });
+  for (const [source, output, frontAxis] of avatars) {
+    await rig(path.join(sourceRoot, source), path.join(outputRoot, output), frontAxis);
+  }
+}
+if (civicOutput) await rig(civicSource, civicOutput, "+X");

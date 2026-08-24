@@ -467,8 +467,8 @@
         "triangles": 996806
       },
       "runtime": {
-        "bytes": 193244,
-        "sha256": "aa0c470b7f41853988d24006c26962e029b7df140bb677c1ffd0e286c44ac673",
+        "bytes": 220452,
+        "sha256": "9681d77bf451ee006463457199efe8db47cf2a251522ade1e00cdc0fabfb2249",
         "triangles": 18000
       },
       "render": {
@@ -477,6 +477,16 @@
           1920,
           1080
         ]
+      },
+      "frontAxis": "+X",
+      "yawCorrectionDegrees": -90,
+      "rig": {
+        "schema": "markets-and-makers.humanoid-rig.v2",
+        "skeleton": "MercedonianHumanoid",
+        "joints": 15,
+        "frontAxis": "+X",
+        "yawCorrectionDegrees": -90,
+        "rootMotion": "in-place-xz"
       }
     }
   ],
