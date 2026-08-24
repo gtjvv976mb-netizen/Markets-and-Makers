@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
-  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_SUNMARK_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, MOLLAR_PER_MM, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -20,7 +20,7 @@ beforeEach(() => {
 describe("Markets & Makers economy", () => {
   it("opens with a fully covered Sunmark monetary base and conserved $MM vault allocation", () => {
     const store = new GameStore(createFreshState());
-    expect(store.totalMoneySupply()).toBe(INITIAL_SUNMARK_SUPPLY);
+    expect(store.totalMoneySupply()).toBe(INITIAL_MOLLAR_SUPPLY);
     expect(store.state.mmReserve).toBe(INITIAL_MM_RESERVE);
     expect(store.state.mmHoldings).toBe(0);
     expect(store.totalMMInGameVaults()).toBe(INITIAL_MM_RESERVE);
@@ -349,6 +349,66 @@ describe("Markets & Makers economy", () => {
       const ceiling = perUnit * store.dailyQuota(event.resource);
       expect(ceiling).toBeLessThan(4_000);
     }
+  });
+
+  it("keeps the Government Bank fully reserved, whatever players do", () => {
+    const store = new GameStore(createFreshState());
+    expect(store.state.bankTreasuryMM).toBe(BANK_TREASURY_MM);
+    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+
+    store.state.mmHoldings = 10_000;
+    expect(store.exchangeMMForMollars(4_000).ok).toBe(true);
+    expect(store.state.bankTreasuryMM).toBe(BANK_TREASURY_MM + 4_000);
+    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+
+    expect(store.exchangeMollarsForMM(50_000).ok).toBe(true);
+    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+
+    // Every Mollar in the world is still a claim on treasury that exists.
+    expect(store.mollarSupply()).toBe(store.state.bankTreasuryMM * MOLLAR_PER_MM);
+  });
+
+  it("cannot be round-tripped for free", () => {
+    const store = new GameStore(createFreshState());
+    store.state.mmHoldings = 5_000;
+    const openingMM = store.state.mmHoldings;
+
+    store.exchangeMMForMollars(5_000);
+    store.exchangeMollarsForMM(store.state.wallet);
+
+    // The bank's spread means a round trip always costs the player something.
+    expect(store.state.mmHoldings).toBeLessThan(openingMM);
+  });
+
+  it("lets the token's value move real wealth without moving in-game prices", () => {
+    const store = new GameStore(createFreshState());
+    const breadBefore = store.marketBuyPrice("food");
+    const valueBefore = store.economyValueUsd();
+
+    // A tenfold rally.
+    const rallied = new GameStore(createFreshState());
+    rallied.tokenPriceUsd = () => 0.1;
+
+    expect(rallied.economyValueUsd()).toBeCloseTo(valueBefore * 10, 4);
+    // ...and a loaf still costs the same inside the city.
+    expect(rallied.marketBuyPrice("food")).toBe(breadBefore);
+    // ...but the citizens who shop with you are better paid.
+    expect(rallied.civicDailyWage()).toBeGreaterThan(store.civicDailyWage());
+  });
+
+  it("grows the city around its businesses", () => {
+    const empty = new GameStore(createFreshState());
+    const busy = new GameStore(createFreshState());
+    busy.state.wallet = 60_000;
+    busy.state.experience = 5_000;
+    for (const [plotId, licence] of [["garden-row", "greenhouse"], ["seabreeze", "workshop"]] as const) {
+      busy.state.selectedPlotId = plotId;
+      busy.leaseSelectedPlot();
+      busy.chooseLicense(licence);
+      busy.placeBuilding();
+    }
+    expect(busy.markianPopulation()).toBeGreaterThan(empty.markianPopulation());
+    expect(busy.citizenSpendingPower()).toBeGreaterThan(empty.citizenSpendingPower());
   });
 
   it("makes upgrades win custom, not just charge more", () => {

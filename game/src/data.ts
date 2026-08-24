@@ -340,9 +340,37 @@ export const EVENT_REASONS = [
 ] as const;
 
 export const TAX_RATE = 0.05;
-export const SUNMARK_NAME = "Sunmark";
-export const SUNMARK_CODE = "SM";
-export const INITIAL_SUNMARK_SUPPLY = 50_000_000;
+// ---------------------------------------------------------------------------
+// The Government Bank.
+//
+// A Maker Dollar is a claim on a FIXED fraction of a $MM held in the treasury,
+// so the bank is fully reserved and can always redeem. The token's market cap
+// therefore decides what a Mollar is WORTH in real money, not how many you get
+// — which keeps in-game prices stable while a rally still enriches everyone.
+//
+// A floating rate would do the opposite: players convert in at a high price and,
+// when the token falls, redemption demands more $MM than the bank ever held.
+// ---------------------------------------------------------------------------
+export const MOLLAR_PER_MM = 100;
+export const BANK_TREASURY_MM = 50_000_000;
+/** The bank keeps a spread on conversion; it funds civic wages. */
+export const BANK_SPREAD = 0.02;
+/** Reference token price used until a live feed is wired in. */
+export const MM_REFERENCE_PRICE_USD = 0.01;
+export const MM_CIRCULATING_SUPPLY = 1_000_000_000;
+
+// --- Markians: the citizens who work for the city and shop with players ------
+/** Every business a city supports draws this many residents to it. */
+export const MARKIANS_PER_BUSINESS = 18;
+export const MARKIANS_BASE = 120;
+/** Share of a citizen's wage that comes back as spending in player shops. */
+export const MARKIAN_SPEND_RATE = 0.72;
+/** Civic wages scale with what the bank holds and what the token is worth. */
+export const CIVIC_WAGE_BASE = 9;
+
+export const MOLLAR_NAME = "Maker Dollar";
+export const MOLLAR_CODE = "MD";
+export const INITIAL_MOLLAR_SUPPLY = 50_000_000;
 export const INITIAL_CITIZEN_POOL = 5_000_000;
 export const MM_TOTAL_SUPPLY = 1_000_000_000;
 export const INITIAL_MM_RESERVE = 50_000_000;

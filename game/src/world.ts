@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { BUSINESS, ISLANDS, PLOTS, SUNMARK_CODE } from "./data";
+import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
@@ -453,7 +453,7 @@ export class World3D {
         context.fillText("AVAILABLE PLOT", 256, 54);
         context.fillStyle = "#ffffff";
         context.font = "700 25px system-ui";
-        context.fillText(`${plot.name} · ${plot.price} ${SUNMARK_CODE}`, 256, 92);
+        context.fillText(`${plot.name} · ${plot.price} ${MOLLAR_CODE}`, 256, 92);
       }
       const labelTexture = new THREE.CanvasTexture(labelCanvas);
       labelTexture.colorSpace = THREE.SRGBColorSpace;

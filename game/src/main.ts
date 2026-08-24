@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, SUNMARK_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_MM, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -75,7 +75,7 @@ function markerModels(): MarkerModel[] {
       id: "order", kind: ready ? "ready" : "buyer",
       label: ready ? "Deliver now" : "Order accepted",
       title: active.buyerName,
-      detail: ready ? `${active.grossReward} ${SUNMARK_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
+      detail: ready ? `${active.grossReward} ${MOLLAR_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
       x: island.x + 15, z: island.z - 6,
     });
   } else {
@@ -84,7 +84,7 @@ function markerModels(): MarkerModel[] {
       models.push({
         id: "order", kind: "buyer", label: "Wants to buy",
         title: `${offer.quantity} ${RESOURCES[offer.resource].short}`,
-        detail: `pays ${offer.grossReward} ${SUNMARK_CODE}`,
+        detail: `pays ${offer.grossReward} ${MOLLAR_CODE}`,
         x: island.x + 15, z: island.z - 6,
       });
     }
@@ -106,7 +106,7 @@ function markerModels(): MarkerModel[] {
   if (wanted) {
     models.push({
       id: "market", kind: "market", label: "Best price here",
-      title: `${RESOURCES[wanted.key].short} ${wanted.price} ${SUNMARK_CODE}`,
+      title: `${RESOURCES[wanted.key].short} ${wanted.price} ${MOLLAR_CODE}`,
       detail: `wants ${wanted.remaining} more`,
       x: island.x - 15, z: island.z - 6,
     });
@@ -116,7 +116,7 @@ function markerModels(): MarkerModel[] {
     const record = state.portfolio[plot.id];
     if (!record) {
       return { id: plot.id, kind: "vacant", label: "For lease", title: plot.name.replace(" Plot", ""),
-               detail: `${plot.price} ${SUNMARK_CODE}`, x: plot.x, z: plot.z };
+               detail: `${plot.price} ${MOLLAR_CODE}`, x: plot.x, z: plot.z };
     }
     if (!record.license) {
       return { id: plot.id, kind: "owned", label: "Yours", title: plot.name.replace(" Plot", ""),
@@ -328,7 +328,7 @@ function renderHeader(): void {
   const state = store.state;
   // Treasury, citizens and the $MM vault moved into World > Realm figures: a new player
   // cannot act on them, so they were noise in the permanent header.
-  element("#walletValue").textContent = `${formatNumber(state.wallet)} ${SUNMARK_CODE}`;
+  element("#walletValue").textContent = `${formatNumber(state.wallet)} ${MOLLAR_CODE}`;
   element("#careerValue").textContent = `Lv ${store.careerLevel().level} · ${store.careerLevel().name}`;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
   element("#districtLabel").textContent = island.district;
@@ -390,13 +390,13 @@ function renderTutorial(): void {
     <article class="career-card">
       <div class="career-heading"><i>${store.careerLevel().level}</i><div><small>Level</small><strong>${store.careerLevel().name}</strong><span>${store.nextCareerLevel() ? `${store.nextCareerLevel()!.xp - store.state.experience} XP to ${store.nextCareerLevel()!.name}` : "Top rank"}</span></div><b>${store.careerProgress()}%</b></div>
       <div class="meter"><span style="width:${store.careerProgress()}%"></span></div>
-      <div class="career-stats"><span>Worth <strong>${formatNumber(store.netWorth())} ${SUNMARK_CODE}</strong></span><span>Orders <strong>${store.state.contractsCompleted}</strong></span><span>Plots <strong>${store.ownedPlotIds().length}/${store.plotAllowance()}</strong></span></div>
+      <div class="career-stats"><span>Worth <strong>${formatNumber(store.netWorth())} ${MOLLAR_CODE}</strong></span><span>Orders <strong>${store.state.contractsCompleted}</strong></span><span>Plots <strong>${store.ownedPlotIds().length}/${store.plotAllowance()}</strong></span></div>
     </article>
 
     <div class="section-title">Today</div>
     <article class="daily-card ${store.dailyComplete() ? "complete" : ""}">
       <div class="daily-goals"><span class="${store.state.daily.jobs >= DAILY_GOALS.jobs ? "done" : ""}">Jobs <b>${Math.min(store.state.daily.jobs, DAILY_GOALS.jobs)}/${DAILY_GOALS.jobs}</b></span><span class="${store.state.daily.contracts >= DAILY_GOALS.contracts ? "done" : ""}">Orders <b>${Math.min(store.state.daily.contracts, DAILY_GOALS.contracts)}/${DAILY_GOALS.contracts}</b></span><span class="${store.state.daily.trades >= DAILY_GOALS.trades ? "done" : ""}">Trades <b>${Math.min(store.state.daily.trades, DAILY_GOALS.trades)}/${DAILY_GOALS.trades}</b></span></div>
-      <div class="daily-reward"><div><small>Daily bonus</small><strong>${DAILY_GOALS.reward} ${SUNMARK_CODE}</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim"}</button></div>
+      <div class="daily-reward"><div><small>Daily bonus</small><strong>${DAILY_GOALS.reward} ${MOLLAR_CODE}</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim"}</button></div>
     </article>
 
     <details class="journey-details"><summary>All steps <span>${done}/${TUTORIAL.length}</span></summary><div class="card-list">
@@ -419,7 +419,7 @@ function renderSelectedPlot(): void {
   const plot = PLOTS.find((entry) => entry.id === state.selectedPlotId) ?? null;
   element("#selectedPlotName").textContent = plot?.name ?? "No plot selected";
   let status = "Click a glowing plot";
-  if (plot) status = plot.id === state.ownedPlotId ? "Your active lease" : `Available · ${plot.price} ${SUNMARK_CODE}`;
+  if (plot) status = plot.id === state.ownedPlotId ? "Your active lease" : `Available · ${plot.price} ${MOLLAR_CODE}`;
   element("#selectedPlotStatus").textContent = status;
   const lease = element<HTMLButtonElement>("#leaseAction");
   const build = element<HTMLButtonElement>("#buildAction");
@@ -455,7 +455,7 @@ function renderBuild(): void {
     <h2>Your plot</h2>
     <p class="lead">${intro}</p>
     ${!state.ownedPlotId ? `<article class="game-card selected">
-      <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${SUNMARK_CODE}` : "Click a plot in the 3D world"}</small></div></div>
+      <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${MOLLAR_CODE}` : "Click a plot in the 3D world"}</small></div></div>
       <button data-action="lease" ${selectedPlot ? "" : "disabled"}>Lease selected plot</button>
     </article>` : ""}
     ${!state.ownedPlotId ? `<p class="hint-line">Once it is yours, you choose what it makes.</p>` : ""}
@@ -468,7 +468,7 @@ function renderBuild(): void {
       return `<article class="game-card business-card ${selected ? "selected" : ""}" style="--card-color:${config.color}">
         <div class="card-head"><i class="card-icon">${config.icon}</i><div class="card-copy"><strong>${config.name}</strong><small>${config.stage} · ${config.islandAffinity}</small></div></div>
         ${recommendation[key] ? `<div class="recommendation">★ ${recommendation[key]}</div>` : ""}
-        <div class="business-costs"><span>${config.licenseCost} ${SUNMARK_CODE} to start</span><span>${config.laborCost} ${SUNMARK_CODE} wages</span></div>
+        <div class="business-costs"><span>${config.licenseCost} ${MOLLAR_CODE} to start</span><span>${config.laborCost} ${MOLLAR_CODE} wages</span></div>
         <div class="flow-row"><div><small>Uses</small>${resourceCosts(config.inputs) || "<span>Demand</span>"}</div><b>→</b><div><small>Makes</small>${resourceCosts(config.output) || "<span>Service</span>"}</div></div>
         <details class="ecosystem-details"><summary>Who buys this</summary><div class="ecosystem"><div><small>Upstream</small><span>${config.ecosystem.upstream}</span></div><div><small>Process</small><span>${config.ecosystem.process}</span></div><div><small>Downstream</small><span>${config.ecosystem.downstream}</span></div></div></details>
         <button data-action="license" data-license="${key}" aria-label="Choose ${config.name}" ${!state.ownedPlotId || Boolean(state.license) || state.buildingPlaced ? "disabled" : ""}>${selected ? "Chosen" : `Choose this`}</button>
@@ -519,7 +519,7 @@ function shiftReportMarkup(): string {
       <div><small>Jobs</small><strong>${shift.jobs}</strong></div>
       <div><small>Made</small><strong>${formatNumber(shift.produced)}</strong></div>
       <div><small>Sold</small><strong>${formatNumber(shift.sold)}</strong></div>
-      <div class="${shift.revenue - shift.spent - shift.wages >= 0 ? "positive" : "negative"}"><small>Net</small><strong>${formatNumber(shift.revenue - shift.spent - shift.wages)} ${SUNMARK_CODE}</strong></div>
+      <div class="${shift.revenue - shift.spent - shift.wages >= 0 ? "positive" : "negative"}"><small>Net</small><strong>${formatNumber(shift.revenue - shift.spent - shift.wages)} ${MOLLAR_CODE}</strong></div>
     </div>
     <small class="shift-halt">Stopped because ${HALT_COPY[shift.halted] ?? shift.halted}.</small>
   </article>`;
@@ -541,7 +541,7 @@ function renderBusiness(): void {
   element("#businessPanel").innerHTML = `
     <h2>${config.name}</h2>
     ${portfolioMarkup()}
-    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${SUNMARK_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
+    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${MOLLAR_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
 
     <article class="job-card">
@@ -556,8 +556,8 @@ function renderBusiness(): void {
         const share = store.marketShare(sold);
         return `<div class="share-row" title="Your share of local demand"><div class="share-bar"><span style="width:${(share * 100).toFixed(0)}%"></span></div><small>You win <b>${Math.round(share * 100)}%</b> of local ${RESOURCES[sold].short} custom — better equipment wins more</small></div>`;
       })()}
-      <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${SUNMARK_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${SUNMARK_CODE}</b></span></div>
-      ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${SUNMARK_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${SUNMARK_CODE} in total</small>` : ""}</div>` : ""}
+      <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${MOLLAR_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${MOLLAR_CODE}</b></span></div>
+      ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${MOLLAR_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${MOLLAR_CODE} in total</small>` : ""}</div>` : ""}
       ${jobMarkup()}
     </article>
 
@@ -570,7 +570,7 @@ function renderBusiness(): void {
     </details>
 
     <details class="fold"><summary>Improve<span>Lv ${Object.values(state.upgrades).reduce((a, b) => a + b, 0)}</span></summary>
-      <div class="game-card two-up"><button data-action="interior">Upgrades</button><button class="secondary" data-action="maintain">Repair · 20 ${SUNMARK_CODE}</button></div>
+      <div class="game-card two-up"><button data-action="interior">Upgrades</button><button class="secondary" data-action="maintain">Repair · 20 ${MOLLAR_CODE}</button></div>
       ${config.servicePayout ? `<div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div>` : ""}
       ${state.specialization
         ? `<article class="specialization-selected" style="--special-color:${SPECIALIZATIONS[state.specialization].color}"><i>${SPECIALIZATIONS[state.specialization].icon}</i><div><strong>${SPECIALIZATIONS[state.specialization].name}</strong><p>${SPECIALIZATIONS[state.specialization].summary}</p></div></article>`
@@ -663,6 +663,27 @@ function renderMarket(): void {
     <details class="journey-details"><summary>Market conditions</summary>
       <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely citizens spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
     </details>
+    <section class="bank-desk">
+      <div class="reserve-heading"><div><small>Government Bank</small><strong>Treasury &amp; exchange</strong></div><span>${store.reserveCoverage().toFixed(0)}% reserved</span></div>
+      <p>Bring $MM in and the bank holds it, deepening the city's treasury and paying its citizens. Every ${MOLLAR_CODE} is a claim on a fixed slice of that treasury, so the bank can always pay you back.</p>
+      <div class="reserve-balance">
+        <div><small>Treasury</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
+        <div><small>Money supply</small><strong>${formatNumber(store.mollarSupply())} ${MOLLAR_CODE}</strong></div>
+        <div><small>Rate</small><strong>1 $MM = ${MOLLAR_PER_MM} ${MOLLAR_CODE}</strong></div>
+        <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
+      </div>
+      <div class="reserve-actions">
+        <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mollarsForMM(100))} ${MOLLAR_CODE}</small></button>
+        <button class="secondary" data-action="bank-out" ${store.state.wallet < MOLLAR_PER_MM ? "disabled" : ""}>Redeem 1,000 ${MOLLAR_CODE} <small>get ${store.mmForMollars(1000)} $MM</small></button>
+      </div>
+      <div class="city-strip">
+        <div><small>Markians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
+        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}</strong></div>
+        <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
+      </div>
+      <small class="reserve-boundary">The citizens who shop with you are paid from this treasury. A deeper treasury means richer customers.</small>
+    </section>
+
     <section class="reserve-desk">
       <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(EPOCH_MM_BUDGET)} $MM budget</span></div>
       <p>$MM is <strong>earned, never bought</strong>. Each week one fixed pot is shared out by how much you contributed.</p>
@@ -679,13 +700,13 @@ function renderMarket(): void {
       <p class="epoch-note">Orders are worth <strong>10&times;</strong> what dumping stock on the city is.</p>
       <div class="reserve-actions">
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
-        <button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Spend ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${SUNMARK_CODE}</small></button>
+        <button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Spend ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${MOLLAR_CODE}</small></button>
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
     ${districtBoardMarkup()}
     <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
-    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${SUNMARK_CODE}</span><span>Trade</span></div>
+    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${MOLLAR_CODE}</span><span>Trade</span></div>
     <div class="card-list market-list">
       ${visibleKeys.map((key) => {
         const resource = RESOURCES[key];
@@ -696,7 +717,7 @@ function renderMarket(): void {
       ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
     </div>
     <div class="section-title">Ledger health</div>
-    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${SUNMARK_CODE}</strong></div><div class="stat"><small>Citizen spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${SUNMARK_CODE}</strong></div><div class="stat"><small>Payroll returned to citizens</small><strong>${formatNumber(store.state.laborPaid)} ${SUNMARK_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${SUNMARK_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
+    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Citizen spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Payroll returned to citizens</small><strong>${formatNumber(store.state.laborPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Sunmark prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
   `;
 }
@@ -711,18 +732,18 @@ function renderContracts(): void {
     <p class="lead">Filling a buyer's order pays more than selling loose stock.</p>
     <div class="economic-dashboard"><div><small>Economic cycle</small><strong>${store.economicPhase()}</strong><span>Trend ${store.economyTrend()}</span></div><div><small>Company rank</small><strong>Level ${store.careerLevel().level}</strong><span>${store.careerLevel().name}</span></div><div><small>Track record</small><strong>${store.state.contractsCompleted}</strong><span>Completed orders</span></div></div>
     ${active && activeResource ? `<div class="section-title">Active commitment</div><article class="active-contract" style="--contract-color:${activeResource.color}">
-      <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${SUNMARK_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
+      <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${MOLLAR_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
       <div class="contract-progress"><div><span>Inventory ready</span><strong>${Math.min(store.state.inventory[active.resource], active.quantity)} / ${active.quantity}</strong></div><div class="meter"><span style="width:${Math.min(100, (store.state.inventory[active.resource] / active.quantity) * 100)}%"></span></div></div>
-      ${shortfall ? `<button class="contract-supply" data-action="quick-buy" data-resource="${active.resource}" data-quantity="${shortfall}">Buy ${shortfall} missing ${activeResource.short} · ${shortfall * store.marketBuyPrice(active.resource)} ${SUNMARK_CODE}</button>` : ""}
-      <div class="contract-actions"><button data-action="fulfill-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${SUNMARK_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
+      ${shortfall ? `<button class="contract-supply" data-action="quick-buy" data-resource="${active.resource}" data-quantity="${shortfall}">Buy ${shortfall} missing ${activeResource.short} · ${shortfall * store.marketBuyPrice(active.resource)} ${MOLLAR_CODE}</button>` : ""}
+      <div class="contract-actions"><button data-action="fulfill-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${MOLLAR_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
     </article>` : ""}
     <div class="section-title">Verified offers</div>
     <div class="contract-list">${offers.map((offer) => { const resource = RESOURCES[offer.resource]; const held = store.state.inventory[offer.resource]; return `<article class="contract-card" style="--contract-color:${resource.color}">
       <div class="contract-head"><i>${resource.icon}</i><div><small>${offer.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${offer.buyerName}</strong><span>${offer.quantity} ${resource.short} · hold ${held}</span></div><b>+${offer.bonusPercent}%</b></div>
-      <div class="contract-value"><span>Gross payment <strong>${offer.grossReward} ${SUNMARK_CODE}</strong></span><span>Reputation <strong>+${offer.reputationReward}</strong></span><span>Career XP <strong>+${offer.xpReward}</strong></span></div>
+      <div class="contract-value"><span>Gross payment <strong>${offer.grossReward} ${MOLLAR_CODE}</strong></span><span>Reputation <strong>+${offer.reputationReward}</strong></span><span>Career XP <strong>+${offer.xpReward}</strong></span></div>
       <button data-action="accept-contract" data-contract="${offer.id}" ${active ? "disabled" : ""}>${active ? "One active order allowed" : "Accept contract"}</button>
     </article>`; }).join("")}</div>
-    <button class="refresh-board" data-action="refresh-contracts">Refresh verified offers · 5 ${SUNMARK_CODE}</button>
+    <button class="refresh-board" data-action="refresh-contracts">Refresh verified offers · 5 ${MOLLAR_CODE}</button>
     <p class="model-note">Contract bonuses reward planning and reliability. Public orders are bounded by the civic treasury; household orders are bounded by earned wages and citizen liquidity.</p>
   `;
 }
@@ -757,7 +778,7 @@ function renderMap(): void {
       const here = store.state.island === island.id;
       return `<div class="island-row ${event ? "has-event" : ""}" style="--island-color:${island.color}"><i class="island-dot"></i><div><strong>${island.name}</strong>${event
         ? `<small class="island-event">Paying <b>+${Math.round((event.multiplier - 1) * 100)}%</b> for ${RESOURCES[event.resource].short} — ${event.reason}</small>`
-        : `<small>${island.district}</small>`}</div><button data-action="travel" data-island="${island.id}" ${here ? "disabled" : ""}>${here ? "Here" : store.state.tutorial.traveled ? `10 ${SUNMARK_CODE}` : "Free"}</button></div>`;
+        : `<small>${island.district}</small>`}</div><button data-action="travel" data-island="${island.id}" ${here ? "disabled" : ""}>${here ? "Here" : store.state.tutorial.traveled ? `10 ${MOLLAR_CODE}` : "Free"}</button></div>`;
     }).join("")}</div>
   `;
 }
@@ -771,7 +792,7 @@ function renderResources(): void {
   element("#resourceDock").innerHTML = shown.map((key) => {
     const resource = RESOURCES[key];
     const held = store.state.inventory[key];
-    return `<div class="resource-chip ${held === 0 ? "empty" : ""}" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${held}</strong></div><span>${store.marketBuyPrice(key)} ${SUNMARK_CODE}</span></div>`;
+    return `<div class="resource-chip ${held === 0 ? "empty" : ""}" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${held}</strong></div><span>${store.marketBuyPrice(key)} ${MOLLAR_CODE}</span></div>`;
   }).join("");
 }
 
@@ -784,7 +805,7 @@ function renderInterior(): void {
     const level = store.state.upgrades[key];
     const next = Math.min(3, level + 1);
     const cost = UPGRADE_COSTS[next];
-    return `<article class="game-card"><div class="card-head"><i class="card-icon" style="--card-color:${config.color}">${UPGRADE_NAMES[key].icon}</i><div class="card-copy"><strong>${UPGRADE_NAMES[key].name} · Lv ${level}</strong><small>${UPGRADE_NAMES[key].effect}</small></div></div><div class="cost-row"><span>${cost.sunmarks} ${SUNMARK_CODE}</span>${resourceCosts(cost.resources)}</div><button data-action="upgrade" data-upgrade="${key}" ${level >= 3 ? "disabled" : ""}>${level >= 3 ? "Maximum level" : `Install level ${next}`}</button></article>`;
+    return `<article class="game-card"><div class="card-head"><i class="card-icon" style="--card-color:${config.color}">${UPGRADE_NAMES[key].icon}</i><div class="card-copy"><strong>${UPGRADE_NAMES[key].name} · Lv ${level}</strong><small>${UPGRADE_NAMES[key].effect}</small></div></div><div class="cost-row"><span>${cost.sunmarks} ${MOLLAR_CODE}</span>${resourceCosts(cost.resources)}</div><button data-action="upgrade" data-upgrade="${key}" ${level >= 3 ? "disabled" : ""}>${level >= 3 ? "Maximum level" : `Install level ${next}`}</button></article>`;
   }).join("")}</div>`;
 }
 
@@ -885,6 +906,8 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy") report(store.buyResource(button.dataset.resource as ResourceKey));
   else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
   else if (action === "claim-epoch") report(store.claimEpochRewards());
+  else if (action === "bank-in") report(store.exchangeMMForMollars(100));
+  else if (action === "bank-out") report(store.exchangeMollarsForMM(1000));
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "switch-business") report(store.switchBusiness(button.dataset.plot ?? ""));
   else if (action === "marker" && button.dataset.plot === "order") {
