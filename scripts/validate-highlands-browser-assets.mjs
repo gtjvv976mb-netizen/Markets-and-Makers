@@ -98,9 +98,125 @@ for (let y = 66; y <= 73; y += 1) {
 check(terrainGrid.runtime_patches?.[0]?.id === "NV05" && terrainGrid.runtime_patches[0]?.restored_grass_cells === 35,
   "terrain-grid NV05 browser patch metadata is missing");
 
+const worldDesignRoot = join(root, "world-designs-v1");
+const worldDesignManifest = JSON.parse(await readFile(join(worldDesignRoot, "manifest.json"), "utf8"));
+const expectedStaticWorldDesigns = 910;
+check(worldDesignManifest.schema === "markets-and-makers.world-designs-runtime.v1", "unexpected world designs schema");
+check(worldDesignManifest.counts?.uniqueAssets === 16, "world designs must contain 16 unique uploaded assets");
+check(worldDesignManifest.counts?.staticPlacements === expectedStaticWorldDesigns,
+  `world designs must contain ${expectedStaticWorldDesigns} static placements`);
+check(worldDesignManifest.counts?.dynamicAvatar === 1 &&
+  worldDesignManifest.counts?.totalInstances === expectedStaticWorldDesigns + 1,
+  `world designs must contain ${expectedStaticWorldDesigns} scenery instances plus the civic avatar`);
+
+const glbJson = (bytes) => {
+  if (bytes.toString("utf8", 0, 4) !== "glTF") return null;
+  const jsonLength = bytes.readUInt32LE(12);
+  if (bytes.readUInt32LE(16) !== 0x4e4f534a) return null;
+  return JSON.parse(bytes.toString("utf8", 20, 20 + jsonLength));
+};
+const glbTriangles = (document) => (document?.meshes ?? []).reduce((total, mesh) => total +
+  (mesh.primitives ?? []).reduce((meshTotal, primitive) => {
+    if ((primitive.mode ?? 4) !== 4) return meshTotal;
+    const accessorIndex = primitive.indices ?? primitive.attributes?.POSITION;
+    return meshTotal + Math.floor((document.accessors?.[accessorIndex]?.count ?? 0) / 3);
+  }, 0), 0);
+
+const citizenRoot = join(repository, "game/public/assets/avatars/mercedonians/runtime");
+const citizenManifest = JSON.parse(await readFile(join(citizenRoot, "manifest.json"), "utf8"));
+check(citizenManifest.schema === "markets-and-makers.mercedonians-runtime.v1", "unexpected citizen runtime schema");
+check(citizenManifest.avatars?.length === 9, "citizen runtime must contain nine optimized Mercedonians");
+for (const avatar of citizenManifest.avatars ?? []) {
+  const path = inside(citizenRoot, avatar.file);
+  check(Boolean(path), `unsafe citizen path ${avatar.file}`);
+  if (!path) continue;
+  try {
+    const bytes = await readFile(path);
+    const document = glbJson(bytes);
+    check(Boolean(document), `${avatar.file} is not a valid binary glTF`);
+    check(bytes.length === avatar.runtime?.bytes, `${avatar.file} citizen byte size drifted`);
+    check(sha256(bytes) === avatar.runtime?.sha256, `${avatar.file} citizen hash drifted`);
+    check(glbTriangles(document) === avatar.runtime?.triangles, `${avatar.file} citizen triangle count drifted`);
+    check(bytes.length <= 200 * 1024, `${avatar.file} exceeds the 200 KiB citizen budget`);
+    check((avatar.runtime?.triangles ?? Infinity) >= 8_000 && (avatar.runtime?.triangles ?? Infinity) <= 15_000,
+      `${avatar.file} must remain between 8k and 15k triangles`);
+    const animationNames = new Set((document?.animations ?? []).map((animation) => animation.name));
+    check(animationNames.has("Idle") && animationNames.has("Walk"), `${avatar.file} lost its Idle or Walk animation`);
+    check(document?.extensionsRequired?.includes("EXT_meshopt_compression"), `${avatar.file} is not Meshopt-compressed`);
+    check(document?.extensionsRequired?.includes("EXT_texture_webp"), `${avatar.file} does not declare WebP textures`);
+  } catch {
+    problems.push(`${avatar.file} optimized citizen is missing`);
+  }
+}
+
+const designAssets = new Map();
+for (const asset of worldDesignManifest.assets ?? []) {
+  check(typeof asset.id === "string" && !designAssets.has(asset.id), `duplicate or invalid world design asset ${asset.id}`);
+  designAssets.set(asset.id, asset);
+  const path = inside(worldDesignRoot, asset.file);
+  check(Boolean(path), `unsafe world design path ${asset.file}`);
+  if (!path) continue;
+  try {
+    const bytes = await readFile(path);
+    const document = glbJson(bytes);
+    check(Boolean(document), `${asset.file} is not a valid binary glTF`);
+    check(bytes.length === asset.runtime?.bytes, `${asset.file} byte size drifted`);
+    check(sha256(bytes) === asset.runtime?.sha256, `${asset.file} hash drifted`);
+    check(glbTriangles(document) === asset.runtime?.triangles, `${asset.file} triangle count drifted`);
+    check(bytes.length < 2 * 1024 * 1024, `${asset.file} exceeds the two MiB scenery budget`);
+    check((asset.runtime?.triangles ?? Infinity) <= 30_000, `${asset.file} exceeds the 30k unique triangle budget`);
+    check(document.extensionsRequired?.includes("EXT_meshopt_compression"), `${asset.file} is not Meshopt-compressed`);
+    check(document.extensionsRequired?.includes("EXT_texture_webp"), `${asset.file} does not declare its WebP textures`);
+  } catch {
+    problems.push(`${asset.file} is missing`);
+  }
+}
+check(designAssets.size === 16, "world design asset IDs are not unique");
+
+const designPlacements = worldDesignManifest.placements ?? [];
+const placementIds = new Set();
+const placementCounts = new Map();
+const exactReserved = new Set();
+const reserveRect = (rect) => {
+  for (let y = rect.min[1]; y <= rect.max[1]; y += 1) {
+    for (let x = rect.min[0]; x <= rect.max[0]; x += 1) exactReserved.add(`${x}:${y}`);
+  }
+};
+for (const building of layout.buildings ?? []) reserveRect(building.occupied_bounds_cells);
+for (const plot of [...(layout.plots?.existing ?? []), ...(layout.plots?.added ?? [])]) reserveRect(plot.occupied_bounds_cells);
+
+for (const placement of designPlacements) {
+  check(typeof placement.id === "string" && !placementIds.has(placement.id), `duplicate or invalid placement ${placement.id}`);
+  placementIds.add(placement.id);
+  const asset = designAssets.get(placement.assetId);
+  check(Boolean(asset), `${placement.id} references unknown asset ${placement.assetId}`);
+  placementCounts.set(placement.assetId, (placementCounts.get(placement.assetId) ?? 0) + 1);
+  const [cellX, cellY] = placement.cell ?? [];
+  const [worldX, worldZ] = placement.position ?? [];
+  check([cellX, cellY, worldX, worldZ, placement.yawDegrees].every(Number.isFinite), `${placement.id} has invalid coordinates`);
+  if (![cellX, cellY, worldX, worldZ].every(Number.isFinite) || !asset) continue;
+  check(Math.abs(worldX - cellX * 2) <= 0.36 && Math.abs(worldZ + cellY * 2) <= 0.36,
+    `${placement.id} violates the two-metre cell coordinate contract`);
+  check(worldX >= -257 && worldX <= 255 && worldZ >= -351 && worldZ <= 161, `${placement.id} is outside world bounds`);
+  const integerCell = Number.isInteger(cellX) && Number.isInteger(cellY) ? [cellX, cellY] : null;
+  const kind = integerCell ? terrainAt(integerCell[0], integerCell[1]) : "ocean";
+  if (asset.category === "boats") {
+    check(placement.anchor === "water" && kind === "ocean", `${placement.id} must be anchored in authored ocean water`);
+  } else if (asset.category === "vehicles") {
+    check(placement.anchor === "ground" && kind === "road", `${placement.id} must be parked on an authored road`);
+  } else {
+    check(placement.anchor === "ground" && String(kind).startsWith("land_l"), `${placement.id} must use a land cell`);
+    if (integerCell) check(!exactReserved.has(`${integerCell[0]}:${integerCell[1]}`), `${placement.id} overlaps a plot or civic footprint`);
+  }
+}
+check(placementIds.size === expectedStaticWorldDesigns, "world design placement IDs are not unique");
+for (const [assetId, expected] of Object.entries(worldDesignManifest.counts?.byAsset ?? {})) {
+  check(placementCounts.get(assetId) === expected, `${assetId} placement count drifted`);
+}
+
 if (problems.length) {
   console.error(`Highlands browser validation failed (${problems.length}):`);
   for (const problem of problems) console.error(`- ${problem}`);
   process.exit(1);
 }
-console.log(`Highlands browser validation passed: ${packageManifest.files.length} packaged files, 256 terrain chunks, 9 civic buildings, 42 empty plots.`);
+console.log(`Highlands browser validation passed: ${packageManifest.files.length} terrain files, 256 chunks, 9 civic buildings, 42 empty plots, 16 optimized world-design assets, 9 optimized citizens, and ${expectedStaticWorldDesigns + 1} streamed world-design instances.`);

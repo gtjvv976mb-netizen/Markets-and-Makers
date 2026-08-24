@@ -5,6 +5,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
 import { HIGHLANDS_WORLD_ENTRY, worldChunkAt } from "./highlandsWorld";
+import { loadWorldDesigns } from "./worldDesigns";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
 
@@ -18,6 +19,8 @@ interface Citizen {
   group: THREE.Group;
   model: THREE.Group;
   mixer: THREE.AnimationMixer;
+  groundY: number;
+  nextGroundSample: number;
   phase: number;
   radius: number;
   speed: number;
@@ -35,7 +38,7 @@ const CITIZEN_AVATARS = [
   "av08-cooperative-shopkeeper.glb",
   "av10-repair-mechanic.glb",
   "av12-water-systems-biologist.glb",
-].map((file) => `./assets/avatars/mercedonians/${file}`);
+].map((file) => `./assets/avatars/mercedonians/runtime/${file}`);
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
 const MAX_WALK_STEP = 0.62;
@@ -76,7 +79,7 @@ export class World3D {
   private buildingSignature = "";
   private buildingLoadToken = 0;
   private cameraYaw = Math.PI / 4;
-  private cameraDistance = 38;
+  private cameraDistance = 34;
   private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
   private avatarGroundY = 1.02;
@@ -92,8 +95,8 @@ export class World3D {
     this.loader.setMeshoptDecoder(MeshoptDecoder);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.AgXToneMapping;
-    this.renderer.toneMappingExposure = 1;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.28;
     this.renderer.shadowMap.enabled = this.dynamicShadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x0fa8bb, 1);
@@ -102,7 +105,7 @@ export class World3D {
     const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
     this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
     this.scene.background = new THREE.Color(0x0fa8bb);
-    this.scene.fog = new THREE.FogExp2(0x68c9cf, 0.00048);
+    this.scene.fog = new THREE.FogExp2(0x46bdca, 0.00042);
     this.setupLighting();
     this.setupAvatar();
     this.walkMarker.rotation.x = -Math.PI / 2;
@@ -114,9 +117,9 @@ export class World3D {
   }
 
   private setupLighting(): void {
-    const hemisphere = new THREE.HemisphereLight(0xe9fff1, 0x526044, 1.08);
+    const hemisphere = new THREE.HemisphereLight(0xedfff5, 0x64714a, 1.38);
     this.scene.add(hemisphere);
-    const sun = new THREE.DirectionalLight(0xffe0a8, 2.45);
+    const sun = new THREE.DirectionalLight(0xffdda0, 3.08);
     sun.position.set(-90, 145, 85);
     sun.castShadow = this.dynamicShadows;
     sun.shadow.mapSize.set(1024, 1024);
@@ -131,7 +134,7 @@ export class World3D {
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sun = sun;
-    const fill = new THREE.DirectionalLight(0xb8f5ef, 0.55);
+    const fill = new THREE.DirectionalLight(0xb8f5ef, 0.78);
     fill.position.set(100, 80, -120);
     this.scene.add(fill);
   }
@@ -143,6 +146,7 @@ export class World3D {
     );
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.025;
+    shadow.userData.keepWithCivicAvatar = true;
     this.avatar.add(shadow);
 
     const body = new THREE.Mesh(
@@ -328,13 +332,38 @@ export class World3D {
       }
     }
     gltf.scene.name = "MM_HIGHLANDS_RIVERS_WORLD_V1";
+    gltf.scene.traverse((object) => {
+      if (object.name === "MM_HRW_GOVERNMENT_FERRY") object.visible = false;
+    });
     this.scene.add(gltf.scene);
-    this.callbacks.onLoadProgress(0.84, "Opening starter plots");
+    this.callbacks.onLoadProgress(0.84, "Planting the solarpunk garden city");
+    try {
+      const designs = await loadWorldDesigns(
+        this.loader,
+        (x, z) => this.sampleWalkHeight(x, z, true),
+        this.dynamicShadows,
+        (completed, total, label) => {
+          this.callbacks.onLoadProgress(0.84 + (completed / total) * 0.08, `Placing ${label}`);
+        },
+      );
+      for (const chunk of designs.chunks) {
+        this.scene.add(chunk.object);
+        this.chunkRoots.push(chunk);
+      }
+      if (designs.avatar) {
+        for (const child of this.avatar.children) child.visible = Boolean(child.userData.keepWithCivicAvatar);
+        this.avatar.add(designs.avatar);
+      }
+    }
+    catch (error) {
+      console.warn("Optional world-design scenery could not be loaded; keeping the base city.", error);
+    }
+    this.callbacks.onLoadProgress(0.93, "Opening starter plots");
     this.updateChunkVisibility(true);
     this.avatarGroundY = this.sampleWalkHeight(this.avatar.position.x, this.avatar.position.z, true) ?? 1.02;
     this.createPlotMarkers();
-    this.createCitizens();
-    this.callbacks.onLoadProgress(1, "Highlands & Rivers ready");
+    await this.createCitizens();
+    this.callbacks.onLoadProgress(1, "Mercedonia garden city ready");
   }
 
   private materialNameAt(hit: THREE.Intersection): string {
@@ -501,11 +530,18 @@ export class World3D {
   }
 
   private async createCitizens(): Promise<void> {
-    this.callbacks.onLoadProgress(0.9, "Welcoming Mercedonia's citizens");
-    const templates = await Promise.all(CITIZEN_AVATARS.map(async (url) => {
-      const gltf = await this.loader.loadAsync(url);
-      return { model: this.normalizeCitizenModel(gltf.scene), animations: gltf.animations };
-    }));
+    this.callbacks.onLoadProgress(0.94, "Welcoming Mercedonia's citizens");
+    const templates = (await Promise.all(CITIZEN_AVATARS.map(async (url) => {
+      try {
+        const gltf = await this.loader.loadAsync(url);
+        return { model: this.normalizeCitizenModel(gltf.scene), animations: gltf.animations };
+      }
+      catch (error) {
+        console.warn(`Citizen model unavailable: ${url}`, error);
+        return null;
+      }
+    }))).filter((template): template is { model: THREE.Group; animations: THREE.AnimationClip[] } => template !== null);
+    if (templates.length === 0) return;
     for (let index = 0; index < 24; index += 1) {
       const group = new THREE.Group();
       const shadow = new THREE.Mesh(
@@ -531,6 +567,8 @@ export class World3D {
         group,
         model,
         mixer,
+        groundY: 1.04,
+        nextGroundSample: index * 0.02,
         phase: index * 0.79,
         radius: 10 + (index % 6) * 6.2,
         speed: 0.09 + (index % 5) * 0.012,
@@ -848,17 +886,26 @@ export class World3D {
   }
 
   private updateCitizens(delta: number, elapsed: number): void {
+    if (this.currentIsland !== "hearth") {
+      for (const citizen of this.citizens) citizen.group.visible = false;
+      return;
+    }
     for (const citizen of this.citizens) {
       const angle = citizen.phase + elapsed * citizen.speed;
       citizen.group.position.x = citizen.centerX + Math.cos(angle) * citizen.radius;
       citizen.group.position.z = citizen.centerZ + Math.sin(angle * 1.11) * citizen.radius * 0.72;
-      const groundY = this.sampleWalkHeight(citizen.group.position.x, citizen.group.position.z, false);
-      citizen.group.position.y = groundY ?? 1.04;
+      if (elapsed >= citizen.nextGroundSample) {
+        const groundY = this.sampleWalkHeight(citizen.group.position.x, citizen.group.position.z, false);
+        citizen.group.visible = groundY !== null;
+        if (groundY !== null) citizen.groundY = groundY;
+        citizen.nextGroundSample = elapsed + 0.18;
+      }
+      citizen.group.position.y = citizen.groundY;
+      if (!citizen.group.visible) continue;
       const velocityX = -Math.sin(angle) * citizen.radius;
       const velocityZ = Math.cos(angle * 1.11) * citizen.radius * 0.72 * 1.11;
       citizen.group.rotation.y = Math.atan2(velocityX, velocityZ);
       citizen.mixer.update(delta);
-      citizen.group.visible = this.currentIsland === "hearth";
     }
   }
 

@@ -1,0 +1,183 @@
+{
+  "schema": "markets-and-makers.world-design-source-catalog.v1",
+  "version": "1.0.0",
+  "input_root_hint": "Desktop/MM/world designs",
+  "assets": [
+    {
+      "id": "tr01_sunleaf_tree",
+      "name": "Sunleaf Broadleaf Tree",
+      "category": "trees",
+      "source": "trees/tr01-sunleaf-broadleaf-tree/sunleaf.glb",
+      "runtime_file": "models/tr01-sunleaf-tree.glb",
+      "fit": "height",
+      "target_m": 7.2,
+      "triangle_target": 18000,
+      "texture_size": 256
+    },
+    {
+      "id": "tr02_bloomfruit_tree",
+      "name": "Bloomfruit Canopy Tree",
+      "category": "trees",
+      "source": "trees/tr02-bloomfruit-canopy-tree/bloomfruit.glb",
+      "runtime_file": "models/tr02-bloomfruit-tree.glb",
+      "fit": "height",
+      "target_m": 6.4,
+      "triangle_target": 18000,
+      "texture_size": 256
+    },
+    {
+      "id": "tr03_tidepalm",
+      "name": "Tidepalm Waterfront Palm",
+      "category": "trees",
+      "source": "trees/tr03-tidepalm-waterfront-palm/tidepalm.glb",
+      "runtime_file": "models/tr03-tidepalm.glb",
+      "fit": "height",
+      "target_m": 7.6,
+      "triangle_target": 18000,
+      "texture_size": 256
+    },
+    {
+      "id": "sh01_sunleaf_shrub",
+      "name": "Sunleaf Rounded Shrub",
+      "category": "shrubs",
+      "source": "shrubs/sh01-sunleaf-rounded-shrub/sunleaf.glb",
+      "runtime_file": "models/sh01-sunleaf-shrub.glb",
+      "fit": "height",
+      "target_m": 1.15,
+      "triangle_target": 7000,
+      "texture_size": 256
+    },
+    {
+      "id": "sh02_solarbloom_shrub",
+      "name": "Solarbloom Flowering Shrub",
+      "category": "shrubs",
+      "source": "shrubs/sh02-solarbloom-flowering-shrub/solarbloom.glb",
+      "runtime_file": "models/sh02-solarbloom-shrub.glb",
+      "fit": "height",
+      "target_m": 1.05,
+      "triangle_target": 7000,
+      "texture_size": 256
+    },
+    {
+      "id": "sh03_raingarden_reeds",
+      "name": "Raingarden Reed Cluster",
+      "category": "shrubs",
+      "source": "shrubs/sh03-raingarden-reed-cluster/reed.glb",
+      "runtime_file": "models/sh03-raingarden-reeds.glb",
+      "fit": "height",
+      "target_m": 1.45,
+      "triangle_target": 7000,
+      "texture_size": 256
+    },
+    {
+      "id": "st01_sunrail_lamp",
+      "name": "Sunrail Solar Lamp Post",
+      "category": "street",
+      "source": "street/st01-sunrail-solar-lamp-post/sunrail.glb",
+      "runtime_file": "models/st01-sunrail-lamp.glb",
+      "fit": "height",
+      "target_m": 4.8,
+      "triangle_target": 10000,
+      "texture_size": 256
+    },
+    {
+      "id": "st02_gardenline_bench",
+      "name": "Gardenline Civic Bench",
+      "category": "street",
+      "source": "street/st02-gardenline-civic-bench/bench.glb",
+      "runtime_file": "models/st02-gardenline-bench.glb",
+      "fit": "horizontal",
+      "target_m": 2.5,
+      "triangle_target": 10000,
+      "texture_size": 256
+    },
+    {
+      "id": "st03_modular_planter",
+      "name": "Modular Street Planter",
+      "category": "street",
+      "source": "street/st03-modular-street-planter/planter.glb",
+      "runtime_file": "models/st03-modular-planter.glb",
+      "fit": "horizontal",
+      "target_m": 2.1,
+      "triangle_target": 10000,
+      "texture_size": 256
+    },
+    {
+      "id": "st04_wayfinding_kiosk",
+      "name": "Wayfinding Charging Kiosk",
+      "category": "street",
+      "source": "street/st04-wayfinding-charging-kiosk/charging.glb",
+      "runtime_file": "models/st04-wayfinding-kiosk.glb",
+      "fit": "height",
+      "target_m": 2.55,
+      "triangle_target": 10000,
+      "texture_size": 256
+    },
+    {
+      "id": "mv01_sunpod_microcar",
+      "name": "Sunpod Microcar",
+      "category": "vehicles",
+      "source": "vehicles/mv01-sunpod-microcar/sunpod.glb",
+      "runtime_file": "models/mv01-sunpod-microcar.glb",
+      "fit": "horizontal",
+      "target_m": 3.2,
+      "triangle_target": 15000,
+      "texture_size": 512
+    },
+    {
+      "id": "mv02_market_cargo_cart",
+      "name": "Market Cargo Cart",
+      "category": "vehicles",
+      "source": "vehicles/mv02-market-cargo-cart/cargo.glb",
+      "runtime_file": "models/mv02-market-cargo-cart.glb",
+      "fit": "horizontal",
+      "target_m": 3.5,
+      "triangle_target": 15000,
+      "texture_size": 512
+    },
+    {
+      "id": "mv03_civic_shuttle",
+      "name": "Civic Shuttle",
+      "category": "vehicles",
+      "source": "vehicles/mv03-civic-shuttle/shuttle.glb",
+      "runtime_file": "models/mv03-civic-shuttle.glb",
+      "fit": "horizontal",
+      "target_m": 5.4,
+      "triangle_target": 18000,
+      "texture_size": 512
+    },
+    {
+      "id": "bv01_sunwake_ferry",
+      "name": "Sunwake Passenger Ferry",
+      "category": "boats",
+      "source": "boats/bv01_sunwake_passenger_ferry/boat.glb",
+      "runtime_file": "models/bv01-sunwake-ferry.glb",
+      "fit": "horizontal",
+      "target_m": 9.2,
+      "triangle_target": 24000,
+      "texture_size": 512
+    },
+    {
+      "id": "bv02_makers_workboat",
+      "name": "Makers Cargo Workboat",
+      "category": "boats",
+      "source": "boats/bv02_makers_cargo_workboat/cargo.glb",
+      "runtime_file": "models/bv02-makers-workboat.glb",
+      "fit": "horizontal",
+      "target_m": 7.6,
+      "triangle_target": 26000,
+      "texture_size": 512
+    },
+    {
+      "id": "av01_civic_maker",
+      "name": "Civic Maker Player Avatar",
+      "category": "avatar",
+      "source": "avatar/av01_civic_maker_player/civic.glb",
+      "runtime_file": "models/av01-civic-maker.glb",
+      "fit": "height",
+      "target_m": 2.05,
+      "triangle_target": 18000,
+      "texture_size": 512
+    }
+  ]
+}

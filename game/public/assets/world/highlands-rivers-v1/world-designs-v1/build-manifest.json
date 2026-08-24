@@ -1,0 +1,447 @@
+{
+  "schema": "markets-and-makers.world-design-build.v1",
+  "version": "1.0.0",
+  "createdAt": "2026-08-24T11:11:16.358Z",
+  "sourceCatalog": "scripts/worldgen/world-designs-v1/assets.json",
+  "counts": {
+    "assets": 16,
+    "sourceTriangles": 16522084,
+    "runtimeTriangles": 230978,
+    "sourceBytes": 100738568,
+    "runtimeBytes": 2986988
+  },
+  "assets": [
+    {
+      "id": "tr01_sunleaf_tree",
+      "name": "Sunleaf Broadleaf Tree",
+      "category": "trees",
+      "file": "models/tr01-sunleaf-tree.glb",
+      "fit": "height",
+      "targetM": 7.2,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "trees/tr01-sunleaf-broadleaf-tree/sunleaf.glb",
+        "bytes": 6193740,
+        "sha256": "7e99315a500e2ec0aa5d47c55452722dbe82fb45923a6de809d7b268e844a4ed",
+        "triangles": 999563
+      },
+      "runtime": {
+        "bytes": 205164,
+        "sha256": "343b440339d86b06b9c7a9f9e539f2d501b000d627be13f5d1d4d9d8d5e0fbab",
+        "triangles": 17999
+      },
+      "render": {
+        "file": "tr01_sunleaf_tree.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "tr02_bloomfruit_tree",
+      "name": "Bloomfruit Canopy Tree",
+      "category": "trees",
+      "file": "models/tr02-bloomfruit-tree.glb",
+      "fit": "height",
+      "targetM": 6.4,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "trees/tr02-bloomfruit-canopy-tree/bloomfruit.glb",
+        "bytes": 6078588,
+        "sha256": "91d46b41c54973f65da228bb00781ab308cf74e70695d3cfbab81bbe78364c53",
+        "triangles": 955338
+      },
+      "runtime": {
+        "bytes": 212924,
+        "sha256": "a4d7ff9765ead52acfb73645ac627879f374505f9b58d1d76ec73990aa0c2a99",
+        "triangles": 17998
+      },
+      "render": {
+        "file": "tr02_bloomfruit_tree.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "tr03_tidepalm",
+      "name": "Tidepalm Waterfront Palm",
+      "category": "trees",
+      "file": "models/tr03-tidepalm.glb",
+      "fit": "height",
+      "targetM": 7.6,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "trees/tr03-tidepalm-waterfront-palm/tidepalm.glb",
+        "bytes": 5482336,
+        "sha256": "ca2baf2c2a145851db3c4ecc2f9cf44eba3c591e052e5ca8ef8630f757bbeb64",
+        "triangles": 993440
+      },
+      "runtime": {
+        "bytes": 164100,
+        "sha256": "4ac48d8d6a78f46d64000e3d05d86ffed7421783106fec64e23ab90b81f3e000",
+        "triangles": 18000
+      },
+      "render": {
+        "file": "tr03_tidepalm.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "sh01_sunleaf_shrub",
+      "name": "Sunleaf Rounded Shrub",
+      "category": "shrubs",
+      "file": "models/sh01-sunleaf-shrub.glb",
+      "fit": "height",
+      "targetM": 1.15,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "shrubs/sh01-sunleaf-rounded-shrub/sunleaf.glb",
+        "bytes": 5799704,
+        "sha256": "a708e4b2479ff7a0d51e12d8e6c0dfd37395c16884f40517ea59fb947368bd91",
+        "triangles": 945220
+      },
+      "runtime": {
+        "bytes": 111024,
+        "sha256": "f75d0080198ac54ae9d648a75177f3bbb34f6cb94ab3bcace927178cc0c68187",
+        "triangles": 6999
+      },
+      "render": {
+        "file": "sh01_sunleaf_shrub.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "sh02_solarbloom_shrub",
+      "name": "Solarbloom Flowering Shrub",
+      "category": "shrubs",
+      "file": "models/sh02-solarbloom-shrub.glb",
+      "fit": "height",
+      "targetM": 1.05,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "shrubs/sh02-solarbloom-flowering-shrub/solarbloom.glb",
+        "bytes": 5738944,
+        "sha256": "2c7754650e92d47da1b7f5e97fac7a2c1b271d1920f5323d26daa7df3cf1f70c",
+        "triangles": 949024
+      },
+      "runtime": {
+        "bytes": 107940,
+        "sha256": "34325f9c53e7ed10e363b71e369f2308a4130235ddf5e7d83d5da60c13efa8d5",
+        "triangles": 6999
+      },
+      "render": {
+        "file": "sh02_solarbloom_shrub.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "sh03_raingarden_reeds",
+      "name": "Raingarden Reed Cluster",
+      "category": "shrubs",
+      "file": "models/sh03-raingarden-reeds.glb",
+      "fit": "height",
+      "targetM": 1.45,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "shrubs/sh03-raingarden-reed-cluster/reed.glb",
+        "bytes": 5619504,
+        "sha256": "e78fc64c2327d4b86863463a82c1dea60aaae5aec1b50b3e8f0cb7dcef5ece35",
+        "triangles": 967462
+      },
+      "runtime": {
+        "bytes": 103392,
+        "sha256": "7bb5bab808d7a65476121ccba836727911e29b3c28d865ad9fe431a714d5af08",
+        "triangles": 7000
+      },
+      "render": {
+        "file": "sh03_raingarden_reeds.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "st01_sunrail_lamp",
+      "name": "Sunrail Solar Lamp Post",
+      "category": "street",
+      "file": "models/st01-sunrail-lamp.glb",
+      "fit": "height",
+      "targetM": 4.8,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "street/st01-sunrail-solar-lamp-post/sunrail.glb",
+        "bytes": 5672616,
+        "sha256": "fc6f107848f6d998d75b07f83093bf203f5b364392ac0ede896bf700b77a2aa5",
+        "triangles": 992810
+      },
+      "runtime": {
+        "bytes": 123784,
+        "sha256": "4f22b6f93a17843c06725260ebdd2d5b6dc064651373381fc5cb9fe11e1954a9",
+        "triangles": 9998
+      },
+      "render": {
+        "file": "st01_sunrail_lamp.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "st02_gardenline_bench",
+      "name": "Gardenline Civic Bench",
+      "category": "street",
+      "file": "models/st02-gardenline-bench.glb",
+      "fit": "horizontal",
+      "targetM": 2.5,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "street/st02-gardenline-civic-bench/bench.glb",
+        "bytes": 5821752,
+        "sha256": "99d3daff5333a4cbc3ca789d33ab21d2848cb65851fcb92f5400342b1104a7ef",
+        "triangles": 945998
+      },
+      "runtime": {
+        "bytes": 143052,
+        "sha256": "cd4d92a9d66986bef2c092dc848d5e380d17c3361ddf88bdcab07ae7766c2b90",
+        "triangles": 9998
+      },
+      "render": {
+        "file": "st02_gardenline_bench.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "st03_modular_planter",
+      "name": "Modular Street Planter",
+      "category": "street",
+      "file": "models/st03-modular-planter.glb",
+      "fit": "horizontal",
+      "targetM": 2.1,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "street/st03-modular-street-planter/planter.glb",
+        "bytes": 6360360,
+        "sha256": "b9b8ae5aedfb51581b810a9895260a1bcec0f9beae1027e8606d2a55ab4b17e8",
+        "triangles": 976527
+      },
+      "runtime": {
+        "bytes": 160540,
+        "sha256": "017ad1d7592d991b5a6673a77f539b254ae9f9dc392f335c5fc3994b23162e27",
+        "triangles": 9997
+      },
+      "render": {
+        "file": "st03_modular_planter.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "st04_wayfinding_kiosk",
+      "name": "Wayfinding Charging Kiosk",
+      "category": "street",
+      "file": "models/st04-wayfinding-kiosk.glb",
+      "fit": "height",
+      "targetM": 2.55,
+      "textureSize": 256,
+      "source": {
+        "relativeFile": "street/st04-wayfinding-charging-kiosk/charging.glb",
+        "bytes": 5861568,
+        "sha256": "7cf07ed1b4f937aeeffce0f8bede53d758106ed5051e2706ccd1e4cdb2a7d4fc",
+        "triangles": 976146
+      },
+      "runtime": {
+        "bytes": 136716,
+        "sha256": "c4985932a0e59ddb722b1b94785f40bdc55c28b35299e4c81ff859ed30091b63",
+        "triangles": 10000
+      },
+      "render": {
+        "file": "st04_wayfinding_kiosk.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "mv01_sunpod_microcar",
+      "name": "Sunpod Microcar",
+      "category": "vehicles",
+      "file": "models/mv01-sunpod-microcar.glb",
+      "fit": "horizontal",
+      "targetM": 3.2,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "vehicles/mv01-sunpod-microcar/sunpod.glb",
+        "bytes": 5773052,
+        "sha256": "8a115acd109e2e0f83693c71eeec2fa7aa67528ea3f3e46ea1a49f47278e531a",
+        "triangles": 963142
+      },
+      "runtime": {
+        "bytes": 214128,
+        "sha256": "fc8109ec0f9e8caa9830beb0f3bd17dbc495eff45daeed1206b91d2c798808fd",
+        "triangles": 15000
+      },
+      "render": {
+        "file": "mv01_sunpod_microcar.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "mv02_market_cargo_cart",
+      "name": "Market Cargo Cart",
+      "category": "vehicles",
+      "file": "models/mv02-market-cargo-cart.glb",
+      "fit": "horizontal",
+      "targetM": 3.5,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "vehicles/mv02-market-cargo-cart/cargo.glb",
+        "bytes": 5994548,
+        "sha256": "94960fea4ce0cf42e519fbe63889772377150bf23abd35ec06a1b3b1bb2f2847",
+        "triangles": 947182
+      },
+      "runtime": {
+        "bytes": 252300,
+        "sha256": "759bb54ec8b20cdbd0fe64202b251db1e59e9f40b9fb1c9a5e6361906c4bdffc",
+        "triangles": 15000
+      },
+      "render": {
+        "file": "mv02_market_cargo_cart.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "mv03_civic_shuttle",
+      "name": "Civic Shuttle",
+      "category": "vehicles",
+      "file": "models/mv03-civic-shuttle.glb",
+      "fit": "horizontal",
+      "targetM": 5.4,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "vehicles/mv03-civic-shuttle/shuttle.glb",
+        "bytes": 5773372,
+        "sha256": "ab08d39d3a7ec33576ade6014f3caf9bf03864e3fe0aa9ff5cbe29b82be1c295",
+        "triangles": 971356
+      },
+      "runtime": {
+        "bytes": 247460,
+        "sha256": "07fe7fe62acdbbecbcd733191da68b41f3ae0b7cae5ac161f9c11272fc9e0358",
+        "triangles": 17998
+      },
+      "render": {
+        "file": "mv03_civic_shuttle.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "bv01_sunwake_ferry",
+      "name": "Sunwake Passenger Ferry",
+      "category": "boats",
+      "file": "models/bv01-sunwake-ferry.glb",
+      "fit": "horizontal",
+      "targetM": 9.2,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "boats/bv01_sunwake_passenger_ferry/boat.glb",
+        "bytes": 5914872,
+        "sha256": "f98460b0f5f10d2258179fc6435fa43988d4c2044178376f9552fcf4f43fb464",
+        "triangles": 952784
+      },
+      "runtime": {
+        "bytes": 297988,
+        "sha256": "07e132c93c658e474fb05e58091f55b8471549f6694c4d0ca64be6e020e1e631",
+        "triangles": 24000
+      },
+      "render": {
+        "file": "bv01_sunwake_ferry.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "bv02_makers_workboat",
+      "name": "Makers Cargo Workboat",
+      "category": "boats",
+      "file": "models/bv02-makers-workboat.glb",
+      "fit": "horizontal",
+      "targetM": 7.6,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "boats/bv02_makers_cargo_workboat/cargo.glb",
+        "bytes": 13036468,
+        "sha256": "7344cd642d48d6c81c937a2f4e1b0998099bed09bead28f7ed6e65fa28c26430",
+        "triangles": 1989286
+      },
+      "runtime": {
+        "bytes": 313232,
+        "sha256": "68d4692f920cd71343c5cb4ae034ab4125cfdcfcac902a0f155f6a7bff35df05",
+        "triangles": 25992
+      },
+      "render": {
+        "file": "bv02_makers_workboat.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "id": "av01_civic_maker",
+      "name": "Civic Maker Player Avatar",
+      "category": "avatar",
+      "file": "models/av01-civic-maker.glb",
+      "fit": "height",
+      "targetM": 2.05,
+      "textureSize": 512,
+      "source": {
+        "relativeFile": "avatar/av01_civic_maker_player/civic.glb",
+        "bytes": 5617144,
+        "sha256": "24e737607dc85d463c6b27e2cb500395364cc9a37051772206c8052d411f4563",
+        "triangles": 996806
+      },
+      "runtime": {
+        "bytes": 193244,
+        "sha256": "aa0c470b7f41853988d24006c26962e029b7df140bb677c1ffd0e286c44ac673",
+        "triangles": 18000
+      },
+      "render": {
+        "file": "av01_civic_maker.png",
+        "resolution": [
+          1920,
+          1080
+        ]
+      }
+    }
+  ]
+}

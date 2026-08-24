@@ -59,9 +59,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .control-panel { overflow: hidden; background: var(--paper); }
 .world-frame { overflow: hidden; }
 .world-frame { position: absolute; inset: 0; isolation: isolate; background: #10a9bb; }
-.world-frame::before { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; box-shadow: inset 0 0 75px rgba(7,54,58,.17), inset 0 -55px 80px rgba(3,65,72,.12); }
+.world-frame::before { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; box-shadow: inset 0 0 75px rgba(7,54,58,.11), inset 0 -55px 80px rgba(3,65,72,.07); }
 .world-frame::after { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255,240,176,.08), transparent 26%, transparent 72%, rgba(10,71,76,.08)); mix-blend-mode: soft-light; }
-#worldCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+#worldCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; filter: saturate(1.16) contrast(1.045) brightness(1.035); }
 .world-label, .world-hint, .tutorial-card, .selected-card, .daylight-chip { position: absolute; z-index: 4; color: white; border: 1px solid rgba(255,255,255,.14); background: linear-gradient(135deg, rgba(14,70,73,.92), rgba(17,81,81,.84)); box-shadow: 0 14px 32px rgba(6,46,49,.24); backdrop-filter: blur(12px); }
 .world-label { top: 84px; left: 12px; max-width: 190px; padding: 9px 12px; border-radius: 13px; }
 .world-label small, .world-label strong, .world-label span { display: block; }
@@ -597,14 +597,13 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 }
 .marker.building .marker-pin {
   display: grid;
-  grid-template-columns: 32px minmax(0,1fr);
-  grid-template-areas: "emblem kicker" "emblem name" "emblem detail";
+  grid-template-columns: 30px minmax(0,1fr);
+  grid-template-areas: "emblem name";
   column-gap: 9px;
-  row-gap: 1px;
-  min-width: 168px;
-  max-width: 224px;
-  min-height: 62px;
-  padding: 12px 13px 10px 10px;
+  min-width: 170px;
+  max-width: 210px;
+  min-height: 48px;
+  padding: 9px 11px 8px 8px;
   border: 1px solid rgba(255,241,204,.62);
   border-left: 4px solid var(--sign-accent);
   border-radius: 8px 8px 16px 16px;
@@ -644,7 +643,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .marker.building strong {
   grid-area: name;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: 12.5px;
   line-height: 1.18;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -657,6 +656,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.marker.building small, .marker.building .marker-detail { display: none; }
 .marker.building.owned { --sign-a: rgba(31,92,62,.97); --sign-b: rgba(47,122,78,.95); }
 .marker.building.civic { --sign-a: rgba(78,72,43,.97); --sign-b: rgba(105,96,55,.95); }
 .marker.building.ready { --sign-a: rgba(103,73,17,.97); --sign-b: rgba(139,98,22,.95); }

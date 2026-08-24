@@ -1,0 +1,149 @@
+{
+  "schema": "markets-and-makers.mercedonians-runtime.v1",
+  "avatars": [
+    {
+      "file": "av02-urban-gardener.glb",
+      "source": {
+        "bytes": 9332016,
+        "sha256": "ef62bdd433b0d9503409aeee06e97b6146bea2133e2ddda771980309e8a55752"
+      },
+      "runtime": {
+        "bytes": 146448,
+        "sha256": "ac3db9d0410f03661dc41bd5188a65840d0f718062cb72c7b38d63ae7c4b933c",
+        "triangles": 13196,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av03-solar-technician.glb",
+      "source": {
+        "bytes": 9357544,
+        "sha256": "54b319de50cff5718fcaa08598ebffd359acfb1f5fd06ce9b70af670ab1d3172"
+      },
+      "runtime": {
+        "bytes": 153180,
+        "sha256": "74636f8e0f7d638a34556783ebec9cb33f39fe898b6cfa1ef0a1538bb0585a18",
+        "triangles": 13248,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av04-market-grocer.glb",
+      "source": {
+        "bytes": 9564244,
+        "sha256": "59a7756e219ee3cdc6630b5d0e7099cccaccd28bf6ebf905d12a9c90298d4bdf"
+      },
+      "runtime": {
+        "bytes": 161736,
+        "sha256": "05058371ada55d7c4984af395e2b92fbbe87d6acdd3fc42e2cdb4f1df996ce99",
+        "triangles": 13332,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av05-fabricator-engineer.glb",
+      "source": {
+        "bytes": 9844644,
+        "sha256": "dc49ea0916a2c92ee0efd2e908af1803174894ccec1ffee68b9b456e383aca97"
+      },
+      "runtime": {
+        "bytes": 159436,
+        "sha256": "59cc4a9454324fbd646a5156a85abcf84b98d13b9139f36567dbb84be4a6e9a5",
+        "triangles": 13964,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av06-harbor-courier.glb",
+      "source": {
+        "bytes": 20711960,
+        "sha256": "7717bf77870f8f188d55d78820c087e475472773a87b09ebbcdc9227c0ac3494"
+      },
+      "runtime": {
+        "bytes": 168384,
+        "sha256": "2a55f55d1290b948fb41aeadefd18f5e8746143ed0daf8f086b6220cac467f16",
+        "triangles": 13930,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av07-community-chef.glb",
+      "source": {
+        "bytes": 9537708,
+        "sha256": "23df4c16570fec1d6ff768e0c4833f8c8c0e64b6252b5b08d0fd2ba5ae43e9ab"
+      },
+      "runtime": {
+        "bytes": 155236,
+        "sha256": "5e0abd6e7c2ec7d8d38dd190b74dee0fdd0ead7608f0a533d4f9fe43bf9e431c",
+        "triangles": 13604,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av08-cooperative-shopkeeper.glb",
+      "source": {
+        "bytes": 20822924,
+        "sha256": "189ebf31e38c66ce402cb1e10b101de3e61efbb0ec127f34010118aa4e8ba509"
+      },
+      "runtime": {
+        "bytes": 163716,
+        "sha256": "6a25bb0ab72b73cf1eb3a06752b862e32a00fba5dd0bb46ffa9e6348a9bd5e89",
+        "triangles": 13930,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av10-repair-mechanic.glb",
+      "source": {
+        "bytes": 9553304,
+        "sha256": "1e4b29cc2e0a91e9f9b5952fe686a4955af158efef9edf45e3d6d953dad3b553"
+      },
+      "runtime": {
+        "bytes": 159764,
+        "sha256": "39603caa940209cb83ce471305e281cf482653100374ab30364656327a6b7f53",
+        "triangles": 13176,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    },
+    {
+      "file": "av12-water-systems-biologist.glb",
+      "source": {
+        "bytes": 9300084,
+        "sha256": "a980d71fd005165ce2a9ce9085a137d4dbbb4dcbeaf97a821046bdc311f35c30"
+      },
+      "runtime": {
+        "bytes": 151592,
+        "sha256": "e3b68ef930351ecb3a5cef41e5489faf0d0b21a2e661ef405b039945b3e4a195",
+        "triangles": 13226,
+        "animations": [
+          "Idle",
+          "Walk"
+        ]
+      }
+    }
+  ]
+}
