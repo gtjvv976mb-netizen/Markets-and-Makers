@@ -1,3 +1,5 @@
+import { HIGHLANDS_DISTRICTS, HIGHLANDS_PLOTS } from "./highlandsWorld";
+
 export type ResourceKey = "water" | "power" | "ore" | "timber" | "food" | "crate" | "part" | "equipment" | "material" | "supply" | "waste";
 export type LicenseKey = "aquaworks" | "sungrid" | "greenhouse" | "mine" | "timberworks" | "cratemill" | "workshop" | "factory" | "construction" | "freight" | "shop" | "restaurant" | "gym" | "cinema" | "recycler";
 export type UpgradeKey = "yield" | "capacity" | "speed" | "appeal";
@@ -83,7 +85,7 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "Mines, crate mills and SunGrid", process: "Precision assembly", downstream: "Utilities, factories and logistics" },
   },
   factory: {
-    name: "Sunwoven Factory", sector: "Capital equipment", stage: "Manufacturing", islandAffinity: "Kilnrise", icon: "F", color: "#cc7652", model: "./assets/structures/b03-sungrid-utility.glb",
+    name: "Mercedonian Factory", sector: "Capital equipment", stage: "Manufacturing", islandAffinity: "Kilnrise", icon: "F", color: "#cc7652", model: "./assets/structures/b03-sungrid-utility.glb",
     copy: "Produces machinery that expands capacity across construction, utilities and public services.", duration: 24, licenseCost: 45, laborCost: 16,
     inputs: { ore: 3, part: 1, power: 2, water: 1 }, output: { equipment: 3 }, wastePerCycle: 2, starter: { ore: 3, part: 1, power: 2, water: 1 },
     ecosystem: { upstream: "Mining, workshops and utilities", process: "Equipment fabrication", downstream: "Builders and business upgrades" },
@@ -173,7 +175,7 @@ export const CAREER_LEVELS = [
   { level: 3, name: "Local Proprietor", xp: 220 },
   { level: 4, name: "District Supplier", xp: 450 },
   { level: 5, name: "Regional Founder", xp: 800 },
-  { level: 6, name: "Sunwoven Industrialist", xp: 1_300 },
+  { level: 6, name: "Mercedonian Industrialist", xp: 1_300 },
 ] as const;
 
 export const DAILY_GOALS = { jobs: 2, contracts: 1, trades: 2, reward: 80, xp: 30 } as const;
@@ -182,39 +184,9 @@ export const PROCUREMENT_BASE_QUOTA = 12;
 export const BASE_PLOT_ALLOWANCE = 1;
 export const PLOTS_PER_CAREER_LEVEL = 0.5;
 
-export const ISLANDS: IslandConfig[] = [
-  { id: "hearth", name: "Hearthmarket", district: "Civic heart", x: 0, z: 0, radius: 63, spawnX: 0, spawnZ: 34, color: "#8fc66b", economy: "Markets, construction, starter plots and final demand" },
-  { id: "kite", name: "Kitecrest", district: "Innovation frontier", x: 0, z: -174, radius: 27, spawnX: 0, spawnZ: -160, color: "#8fae8c", economy: "Blueprints, automation and R&D" },
-  { id: "sun", name: "Sunwell", district: "Energy frontier", x: 142, z: -124, radius: 28, spawnX: 130, spawnZ: -116, color: "#d6ad51", economy: "Power, batteries and solar services" },
-  { id: "kiln", name: "Kilnrise", district: "Industrial belt", x: 188, z: -12, radius: 27, spawnX: 176, spawnZ: -12, color: "#c27657", economy: "Parts, equipment and construction modules" },
-  { id: "copper", name: "Copper Quay", district: "Freight district", x: 142, z: 120, radius: 25, spawnX: 130, spawnZ: 112, color: "#b68c5d", economy: "Packaging, storage and delivery" },
-  { id: "tide", name: "Tideglass", district: "Water works", x: 0, z: 174, radius: 26, spawnX: 0, spawnZ: 158, color: "#65b9b1", economy: "Water, sanitation and material recovery" },
-  { id: "lantern", name: "Lantern Row", district: "Consumer district", x: -142, z: 120, radius: 27, spawnX: -130, spawnZ: 112, color: "#df9267", economy: "Shops, dining, cinema and hospitality" },
-  { id: "green", name: "Greenloom", district: "Bio-production belt", x: -188, z: -4, radius: 29, spawnX: -174, spawnZ: -4, color: "#78a85d", economy: "Food, timber and greenhouse production" },
-  { id: "pulse", name: "Pulsegrove", district: "Wellness district", x: -140, z: -126, radius: 27, spawnX: -128, spawnZ: -118, color: "#67a98c", economy: "Gyms, clinics and recreation" },
-];
+export const ISLANDS: IslandConfig[] = HIGHLANDS_DISTRICTS.map((district) => ({ ...district }));
 
-export const PLOTS: PlotConfig[] = [
-  { id: "garden-row", name: "Garden Row Plot", island: "hearth", x: -47, z: 27, width: 16, depth: 14, price: 120 },
-  { id: "seabreeze", name: "Seabreeze Plot", island: "hearth", x: 47, z: 27, width: 16, depth: 14, price: 120 },
-  { id: "north-canopy", name: "North Canopy Plot", island: "hearth", x: 0, z: -46, width: 16, depth: 14, price: 120 },
-  { id: "kitecrest-loft", name: "Kitecrest Loft Plot", island: "kite", x: 8, z: -162, width: 16, depth: 14, price: 260 },
-  { id: "updraft-yard", name: "Updraft Yard Plot", island: "kite", x: -13, z: -180, width: 16, depth: 14, price: 260 },
-  { id: "solar-terrace", name: "Solar Terrace Plot", island: "sun", x: 150, z: -112, width: 16, depth: 14, price: 210 },
-  { id: "batteryside", name: "Batteryside Plot", island: "sun", x: 129, z: -130, width: 16, depth: 14, price: 210 },
-  { id: "forge-lane", name: "Forge Lane Plot", island: "kiln", x: 196, z: 0, width: 16, depth: 14, price: 220 },
-  { id: "cinderworks", name: "Cinderworks Plot", island: "kiln", x: 175, z: -18, width: 16, depth: 14, price: 220 },
-  { id: "quayside-depot", name: "Quayside Depot Plot", island: "copper", x: 149, z: 131, width: 16, depth: 14, price: 190 },
-  { id: "dockhand-row", name: "Dockhand Row Plot", island: "copper", x: 130, z: 115, width: 16, depth: 14, price: 190 },
-  { id: "tidepool-works", name: "Tidepool Works Plot", island: "tide", x: 8, z: 185, width: 16, depth: 14, price: 180 },
-  { id: "glassmere", name: "Glassmere Plot", island: "tide", x: -12, z: 168, width: 16, depth: 14, price: 180 },
-  { id: "lantern-walk", name: "Lantern Walk Plot", island: "lantern", x: -134, z: 132, width: 16, depth: 14, price: 230 },
-  { id: "nightmarket-row", name: "Nightmarket Row Plot", island: "lantern", x: -155, z: 114, width: 16, depth: 14, price: 230 },
-  { id: "greenloom-field", name: "Greenloom Field Plot", island: "green", x: -179, z: 8, width: 16, depth: 14, price: 170 },
-  { id: "orchard-bend", name: "Orchard Bend Plot", island: "green", x: -202, z: -10, width: 16, depth: 14, price: 170 },
-  { id: "pulsegrove-court", name: "Pulsegrove Court Plot", island: "pulse", x: -132, z: -114, width: 16, depth: 14, price: 200 },
-  { id: "springline", name: "Springline Plot", island: "pulse", x: -153, z: -132, width: 16, depth: 14, price: 200 },
-];
+export const PLOTS: PlotConfig[] = HIGHLANDS_PLOTS.map((plot) => ({ ...plot }));
 
 export const TUTORIAL = [
   ["moved", "Explore Hearthmarket", "Move with WASD, arrows, or click the world."],
@@ -223,9 +195,9 @@ export const TUTORIAL = [
   ["built", "Build the business", "Place the existing 3D structure on your plot."],
   ["produced", "Run production", "Buy required inputs, pay labor and complete one job."],
   ["upgraded", "Improve the interior", "Install a yield, capacity, speed or appeal upgrade."],
-  ["sold", "Earn Sunmarks", "Sell an output or serve price-sensitive citizen demand."],
+  ["sold", "Earn Merc Dollars", "Sell an output or serve price-sensitive citizen demand."],
   ["contracted", "Fulfill a trade contract", "Complete a public, commercial or household order from the Contracts Board."],
-  ["traveled", "Use the ferry map", "Visit another specialist island in the shared world."],
+  ["traveled", "Use Transit Hall", "Fast-travel to another economic district in the connected world."],
 ] as const;
 
 // --- Operating capacity now costs time: each extra batch adds 45% of the base duration.
@@ -424,16 +396,24 @@ export interface CivicBuilding {
 }
 
 export const CIVIC_BUILDINGS: CivicBuilding[] = [
-  { id: "cityhall", name: "City Hall", role: "Plots, licences and civic records", island: "hearth",
-    x: 0, z: -8, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
-  { id: "bank", name: "Government Bank", role: "$MM treasury and the Maker Dollar", island: "hearth",
-    x: 26, z: -4, icon: "\u25C8", color: "#5b7fb0", supplies: [], opens: "trade" },
-  { id: "waterworks", name: "Civic Waterworks", role: "Water for every business in the city", island: "tide",
-    x: 0, z: 8, icon: "\u2248", color: "#4eaeb7", supplies: ["water"], opens: "trade" },
-  { id: "powerhouse", name: "Civic Power Station", role: "Electricity for every business", island: "sun",
-    x: 0, z: 8, icon: "\u03DF", color: "#dda942", supplies: ["power"], opens: "trade" },
-  { id: "quarry", name: "Civic Quarry", role: "Raw mineral and timber for builders", island: "kiln",
-    x: 0, z: 10, icon: "\u25C6", color: "#8d806d", supplies: ["ore", "timber"], opens: "trade" },
+  { id: "cityhall", name: "Sunspire City Hall", role: "Government, licences and civic records", island: "hearth",
+    x: -1, z: -25, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
+  { id: "treasury", name: "Sunvault Treasury", role: "$MM reserve and Merc Dollar banking", island: "hearth",
+    x: -19, z: -23, icon: "\u25C8", color: "#5b7fb0", supplies: [], opens: "trade" },
+  { id: "registry", name: "Plot & Enterprise Registry", role: "Plots, titles and business registration", island: "hearth",
+    x: 17, z: -21, icon: "\u25A3", color: "#c78858", supplies: [], opens: "world" },
+  { id: "transit", name: "Tidegate Transit Hall", role: "Connected-world transit and freight routes", island: "hearth",
+    x: 45, z: 47, icon: "\u2194", color: "#4eaeb7", supplies: [], opens: "world" },
+  { id: "clinic", name: "Sunleaf Community Clinic", role: "Public health and community wellbeing", island: "hearth",
+    x: 43, z: -25, icon: "+", color: "#69a976", supplies: [], opens: "world" },
+  { id: "rescue", name: "Tidewatch Rescue Station", role: "Fire, rescue and emergency response", island: "hearth",
+    x: 45, z: 7, icon: "!", color: "#df8465", supplies: [], opens: "world" },
+  { id: "works", name: "Civic Works Depot", role: "Government utilities, materials and maintenance", island: "hearth",
+    x: -73, z: 7, icon: "\u2699", color: "#8d806d", supplies: ["water", "power", "ore", "timber"], opens: "trade" },
+  { id: "academy", name: "Maker Academy & Library", role: "Education, research and public knowledge", island: "hearth",
+    x: -47, z: -27, icon: "A", color: "#70a958", supplies: [], opens: "world" },
+  { id: "homes", name: "Garden Commons Residences", role: "Civic housing and neighborhood services", island: "hearth",
+    x: 73, z: -27, icon: "\u2302", color: "#67a98c", supplies: [], opens: "world" },
 ];
 
 // --- Standing charges: a business owes the city whether it trades or not -----
@@ -445,8 +425,8 @@ export const UTILITY_PER_CAPACITY = 7;
 export const STAFF_DAILY_WAGE = 14;
 export const STAFF_APPEAL = 0.08;
 
-export const MOLLAR_NAME = "Maker Dollar";
-export const MOLLAR_CODE = "MD";
+export const MOLLAR_NAME = "Merc Dollar";
+export const MOLLAR_CODE = "MERCS";
 export const INITIAL_MOLLAR_SUPPLY = 50_000_000;
 export const INITIAL_CITIZEN_POOL = 5_000_000;
 export const MM_TOTAL_SUPPLY = 1_000_000_000;

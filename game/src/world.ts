@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
+import { HIGHLANDS_WORLD_ENTRY, worldChunkAt } from "./highlandsWorld";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
 
@@ -36,7 +37,9 @@ export class World3D {
   private readonly keys = new Set<string>();
   private readonly plotMeshes = new Map<string, THREE.Mesh>();
   private readonly plotDecor = new Map<string, THREE.Group>();
-  private readonly groundMeshes = new Map<string, THREE.Mesh>();
+  private readonly walkableMeshes: THREE.Mesh[] = [];
+  private readonly chunkRoots: Array<{ object: THREE.Object3D; cx: number; cy: number }> = [];
+  private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
   private readonly peers = new Map<string, { group: THREE.Group; target: THREE.Vector3; seen: number }>();
   private readonly peerRoot = new THREE.Group();
@@ -57,6 +60,8 @@ export class World3D {
   private cameraDistance = 38;
   private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
+  private avatarGroundY = 1.02;
+  private visibleChunkKey = "";
   private running = false;
   private saveAccumulator = 0;
   private onPositionCheckpoint: (() => void) | null = null;
@@ -176,7 +181,16 @@ export class World3D {
 
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
     const color = SOLARPUNK_MATERIALS[material.name];
-    if (color) material.color.set(color);
+    if (color) {
+      // A base-color swatch should be white-tinted in Three.js; applying the
+      // palette again multiplies the authored texture and crushes it to black.
+      material.color.set(material.map ? 0xffffff : color);
+    }
+    // The authored terrain package intentionally reuses its painted swatch in the
+    // normal slot for Blender previews. Three.js interprets that RGB art as a
+    // tangent-space normal map, which turns sunlit grass nearly black. Keep real
+    // building normal maps, but drop only these duplicate terrain bindings.
+    if (material.normalMap && material.map && material.normalMap.source === material.map.source) material.normalMap = null;
     material.roughness = material.name.includes("WATER") || material.name.includes("GLASS")
       ? Math.min(material.roughness, 0.34)
       : THREE.MathUtils.clamp(material.roughness, 0.58, 0.9);
@@ -227,21 +241,22 @@ export class World3D {
       this.callbacks.onPlotSelected(id);
       return;
     }
-    const ground = this.groundMeshes.get(this.currentIsland);
-    if (!ground) return;
-    const intersections = this.raycaster.intersectObject(ground, false);
-    if (intersections[0]) {
-      this.clickTarget = intersections[0].point.clone();
-      this.walkMarker.position.set(this.clickTarget.x, 1.2, this.clickTarget.z);
+    const hit = this.firstWalkableHit(
+      this.raycaster.intersectObjects(this.walkableMeshes, false).filter((entry) => this.isEffectivelyVisible(entry.object)),
+    );
+    if (hit) {
+      this.clickTarget = hit.point.clone();
+      this.walkMarker.position.set(hit.point.x, hit.point.y + 0.12, hit.point.z);
       this.walkMarker.visible = true;
     }
   }
 
   async load(): Promise<void> {
-    this.callbacks.onLoadProgress(0.06, "Preparing the Sunwoven Reach");
-    const gltf = await this.loader.loadAsync("./assets/world/sunwoven-reach-v1.glb", (event) => {
-      if (event.total > 0) this.callbacks.onLoadProgress(0.08 + (event.loaded / event.total) * 0.72, "Streaming original terrain and buildings");
+    this.callbacks.onLoadProgress(0.06, "Preparing Mercedonia");
+    const gltf = await this.loader.loadAsync(HIGHLANDS_WORLD_ENTRY, (event) => {
+      if (event.total > 0) this.callbacks.onLoadProgress(0.08 + (event.loaded / event.total) * 0.22, "Opening the Highlands & Rivers world");
     });
+    this.callbacks.onLoadProgress(0.76, "Mapping mountains, rivers and civic routes");
     gltf.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.frustumCulled = true;
@@ -254,160 +269,74 @@ export class World3D {
         if (material instanceof THREE.MeshStandardMaterial) this.styleMaterial(material);
       }
     });
-    gltf.scene.name = "MM_ORIGINAL_SUNWOVEN_REACH_V1";
+    for (const object of gltf.scene.children) {
+      const index = object.userData.chunk_index as unknown;
+      if (Array.isArray(index) && index.length === 2 && index.every(Number.isFinite)) {
+        const [cx, cy] = index as [number, number];
+        this.chunkRoots.push({ object, cx, cy });
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) this.walkableMeshes.push(child);
+        });
+        continue;
+      }
+      if (/BRIDGE|HARBOR/.test(object.name)) {
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) this.walkableMeshes.push(child);
+        });
+      }
+    }
+    gltf.scene.name = "MM_HIGHLANDS_RIVERS_WORLD_V1";
     this.scene.add(gltf.scene);
     this.callbacks.onLoadProgress(0.84, "Opening starter plots");
-    this.createGrounds();
-    this.createAmbientWorld();
+    this.updateChunkVisibility(true);
+    this.avatarGroundY = this.sampleWalkHeight(this.avatar.position.x, this.avatar.position.z, true) ?? 1.02;
     this.createPlotMarkers();
     this.createCitizens();
-    this.callbacks.onLoadProgress(1, "World ready");
+    this.callbacks.onLoadProgress(1, "Highlands & Rivers ready");
   }
 
-  private createGrounds(): void {
-    for (const island of ISLANDS) {
-      const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
-      const mesh = new THREE.Mesh(new THREE.CircleGeometry(island.radius, 48), material);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(island.x, 1.12, island.z);
-      mesh.name = `MM_NAV_${island.id}`;
-      this.scene.add(mesh);
-      this.groundMeshes.set(island.id, mesh);
-    }
+  private materialNameAt(hit: THREE.Intersection): string {
+    const mesh = hit.object as THREE.Mesh;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    return materials[hit.face?.materialIndex ?? 0]?.name ?? "";
   }
 
-  private createAmbientWorld(): void {
-    const treeSites: Array<{ x: number; z: number; scale: number; angle: number; color: THREE.Color }> = [];
-    const shrubSites: Array<{ x: number; z: number; scale: number; color: THREE.Color }> = [];
-    const leafColors = [0x4f8f3b, 0x6da744, 0x82b84c, 0x3f7f4b].map((value) => new THREE.Color(value));
-    for (const [islandIndex, island] of ISLANDS.entries()) {
-      const desired = island.id === "hearth" ? 34 : 11;
-      for (let index = 0; index < desired; index += 1) {
-        const angle = (index / desired) * Math.PI * 2 + islandIndex * 0.39;
-        const radius = island.radius * (0.67 + (index % 4) * 0.055);
-        const x = island.x + Math.cos(angle) * radius;
-        const z = island.z + Math.sin(angle) * radius;
-        if (island.id === "hearth" && PLOTS.some((plot) => Math.abs(x - plot.x) < plot.width * 0.72 && Math.abs(z - plot.z) < plot.depth * 0.82)) continue;
-        treeSites.push({ x, z, scale: 0.82 + (index % 5) * 0.08, angle, color: leafColors[(index + islandIndex) % leafColors.length] });
-        shrubSites.push({ x: island.x + Math.cos(angle + 0.08) * (radius - 2.2), z: island.z + Math.sin(angle + 0.08) * (radius - 2.2), scale: 0.72 + (index % 3) * 0.13, color: leafColors[(index + islandIndex + 1) % leafColors.length] });
-      }
+  private firstWalkableHit(hits: THREE.Intersection[]): THREE.Intersection | null {
+    const first = hits[0];
+    if (!first) return null;
+    const material = this.materialNameAt(first);
+    if (/WATER|RIVER|FOAM|CAVE_VOID/.test(material)) return null;
+    return first;
+  }
+
+  private isEffectivelyVisible(object: THREE.Object3D): boolean {
+    for (let current: THREE.Object3D | null = object; current; current = current.parent) {
+      if (!current.visible) return false;
     }
+    return true;
+  }
 
-    const trunk = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.22, 0.34, 1.75, 7),
-      new THREE.MeshStandardMaterial({ color: 0x775033, roughness: 0.88 }),
-      treeSites.length,
-    );
-    const crown = new THREE.InstancedMesh(
-      new THREE.DodecahedronGeometry(1.18, 0),
-      new THREE.MeshStandardMaterial({ color: 0x69a542, roughness: 0.84 }),
-      treeSites.length,
-    );
-    const crownTop = new THREE.InstancedMesh(
-      new THREE.DodecahedronGeometry(0.82, 0),
-      new THREE.MeshStandardMaterial({ color: 0x84b84c, roughness: 0.82 }),
-      treeSites.length,
-    );
-    const dummy = new THREE.Object3D();
-    treeSites.forEach((site, index) => {
-      dummy.position.set(site.x, 1.92, site.z);
-      dummy.rotation.set(0, site.angle, 0);
-      dummy.scale.setScalar(site.scale);
-      dummy.updateMatrix();
-      trunk.setMatrixAt(index, dummy.matrix);
-      dummy.position.y = 3.45;
-      dummy.scale.set(site.scale * 1.08, site.scale * 0.9, site.scale);
-      dummy.updateMatrix();
-      crown.setMatrixAt(index, dummy.matrix);
-      crown.setColorAt(index, site.color);
-      dummy.position.set(site.x + Math.cos(site.angle) * 0.34, 4.18, site.z + Math.sin(site.angle) * 0.34);
-      dummy.scale.setScalar(site.scale * 0.72);
-      dummy.updateMatrix();
-      crownTop.setMatrixAt(index, dummy.matrix);
-      crownTop.setColorAt(index, site.color.clone().offsetHSL(0.01, 0.03, 0.08));
-    });
-    for (const mesh of [trunk, crown, crownTop]) {
-      mesh.name = "MM_AMBIENT_TREE_BATCH";
-      mesh.castShadow = this.dynamicShadows;
-      mesh.receiveShadow = this.dynamicShadows;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      this.scene.add(mesh);
-    }
+  private sampleWalkHeight(x: number, z: number, allowHidden = false): number | null {
+    this.raycaster.set(new THREE.Vector3(x, 40, z), this.down);
+    const hits = this.raycaster.intersectObjects(this.walkableMeshes, false)
+      .filter((hit) => allowHidden || this.isEffectivelyVisible(hit.object));
+    return this.firstWalkableHit(hits)?.point.y ?? null;
+  }
 
-    const shrubs = new THREE.InstancedMesh(
-      new THREE.DodecahedronGeometry(0.48, 0),
-      new THREE.MeshStandardMaterial({ color: 0x65a848, roughness: 0.88 }),
-      shrubSites.length,
-    );
-    shrubSites.forEach((site, index) => {
-      dummy.position.set(site.x, 1.48, site.z);
-      dummy.rotation.set(0, index * 0.93, 0);
-      dummy.scale.set(site.scale * 1.35, site.scale * 0.72, site.scale);
-      dummy.updateMatrix();
-      shrubs.setMatrixAt(index, dummy.matrix);
-      shrubs.setColorAt(index, site.color);
-    });
-    shrubs.instanceMatrix.needsUpdate = true;
-    if (shrubs.instanceColor) shrubs.instanceColor.needsUpdate = true;
-    this.scene.add(shrubs);
-
-    const lampSites = Array.from({ length: 18 }, (_, index) => {
-      const radius = index % 2 === 0 ? 18 : 31;
-      const angle = index * (Math.PI * 2 / 18) + 0.18;
-      return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
-    });
-    const lampPosts = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.07, 0.1, 2.5, 6),
-      new THREE.MeshStandardMaterial({ color: 0x315d60, roughness: 0.68 }),
-      lampSites.length,
-    );
-    const lampLights = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.18, 8, 6),
-      new THREE.MeshStandardMaterial({ color: 0xffd46a, emissive: 0xffb52e, emissiveIntensity: 0.55, roughness: 0.42 }),
-      lampSites.length,
-    );
-    lampSites.forEach((site, index) => {
-      dummy.position.set(site.x, 2.3, site.z);
-      dummy.rotation.set(0, index, 0);
-      dummy.scale.setScalar(1);
-      dummy.updateMatrix();
-      lampPosts.setMatrixAt(index, dummy.matrix);
-      dummy.position.y = 3.6;
-      dummy.updateMatrix();
-      lampLights.setMatrixAt(index, dummy.matrix);
-    });
-    lampPosts.instanceMatrix.needsUpdate = true;
-    lampLights.instanceMatrix.needsUpdate = true;
-    this.scene.add(lampPosts, lampLights);
-
-    const sunwell = ISLANDS.find((island) => island.id === "sun");
-    if (sunwell) {
-      const panelCount = 8;
-      const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.1, 1.2, 6), new THREE.MeshStandardMaterial({ color: 0x63777b, roughness: 0.72 }), panelCount);
-      const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(1.7, 0.08, 0.9), new THREE.MeshStandardMaterial({ color: 0x245d7b, emissive: 0x0b2734, emissiveIntensity: 0.12, roughness: 0.36 }), panelCount);
-      for (let index = 0; index < panelCount; index += 1) {
-        const angle = index * Math.PI * 2 / panelCount;
-        const x = sunwell.x + Math.cos(angle) * 17;
-        const z = sunwell.z + Math.sin(angle) * 17;
-        dummy.position.set(x, 1.72, z);
-        dummy.rotation.set(0, angle, 0);
-        dummy.scale.setScalar(1);
-        dummy.updateMatrix();
-        poles.setMatrixAt(index, dummy.matrix);
-        dummy.position.y = 2.36;
-        dummy.rotation.set(-0.28, angle, 0);
-        dummy.updateMatrix();
-        panels.setMatrixAt(index, dummy.matrix);
-      }
-      poles.instanceMatrix.needsUpdate = true;
-      panels.instanceMatrix.needsUpdate = true;
-      this.scene.add(poles, panels);
+  private updateChunkVisibility(force = false): void {
+    const chunk = worldChunkAt(this.avatar.position.x, this.avatar.position.z);
+    if (!chunk) return;
+    const key = `${chunk[0]}:${chunk[1]}`;
+    if (!force && key === this.visibleChunkKey) return;
+    this.visibleChunkKey = key;
+    for (const entry of this.chunkRoots) {
+      entry.object.visible = Math.abs(entry.cx - chunk[0]) <= 3 && Math.abs(entry.cy - chunk[1]) <= 3;
     }
   }
 
   private createPlotMarkers(): void {
     for (const plot of PLOTS) {
+      const groundY = this.sampleWalkHeight(plot.x, plot.z, true) ?? 1.02;
       const color = new THREE.Color(0xf2c452);
       const material = new THREE.MeshBasicMaterial({
         color,
@@ -418,14 +347,14 @@ export class World3D {
       });
       const marker = new THREE.Mesh(new THREE.PlaneGeometry(plot.width, plot.depth), material);
       marker.rotation.x = -Math.PI / 2;
-      marker.position.set(plot.x, 1.18, plot.z);
+      marker.position.set(plot.x, groundY + 0.07, plot.z);
       marker.userData.plotId = plot.id;
       marker.name = `MM_PLOT_${plot.id}`;
       this.scene.add(marker);
       this.plotMeshes.set(plot.id, marker);
 
       const decor = new THREE.Group();
-      decor.position.set(plot.x, 1.2, plot.z);
+      decor.position.set(plot.x, groundY + 0.09, plot.z);
       const outline = new THREE.LineSegments(
         new THREE.EdgesGeometry(new THREE.BoxGeometry(plot.width, 0.08, plot.depth)),
         new THREE.LineBasicMaterial({ color: 0xffdc67, transparent: true, opacity: 0.95 }),
@@ -555,12 +484,13 @@ export class World3D {
       let peer = this.peers.get(player.playerId);
       if (!peer) {
         const group = this.makePeerAvatar(player.playerId);
-        group.position.set(player.x, 1.02, player.z);
+        const groundY = this.sampleWalkHeight(player.x, player.z, true) ?? 1.02;
+        group.position.set(player.x, groundY, player.z);
         this.peerRoot.add(group);
-        peer = { group, target: new THREE.Vector3(player.x, 1.02, player.z), seen: now };
+        peer = { group, target: new THREE.Vector3(player.x, groundY, player.z), seen: now };
         this.peers.set(player.playerId, peer);
       }
-      peer.target.set(player.x, 1.02, player.z);
+      peer.target.set(player.x, this.sampleWalkHeight(player.x, player.z, true) ?? peer.target.y, player.z);
       peer.seen = now;
     }
     for (const [id, peer] of this.peers) {
@@ -592,7 +522,7 @@ export class World3D {
     const ease = Math.min(1, delta * 7.5);
     for (const peer of this.peers.values()) {
       peer.group.position.lerp(peer.target, ease);
-      peer.group.position.y = 1.02 + Math.sin(elapsed * 2.4 + peer.group.position.x) * 0.02;
+      peer.group.position.y = peer.target.y + Math.sin(elapsed * 2.4 + peer.group.position.x) * 0.02;
       const marker = peer.group.children.find((child) => child.userData.peerMarker);
       if (marker) marker.position.y = 1.86 + Math.sin(elapsed * 3 + peer.group.position.z) * 0.08;
     }
@@ -630,10 +560,11 @@ export class World3D {
   }
 
   walkTo(x: number, z: number): void {
-    const target = new THREE.Vector3(x, 1.12, z);
-    this.clampToIsland(target);
+    const groundY = this.sampleWalkHeight(x, z, true);
+    if (groundY === null) return;
+    const target = new THREE.Vector3(x, groundY, z);
     this.clickTarget = target;
-    this.walkMarker.position.set(target.x, 1.2, target.z);
+    this.walkMarker.position.set(target.x, groundY + 0.12, target.z);
     this.walkMarker.visible = true;
   }
 
@@ -681,7 +612,8 @@ export class World3D {
     model.scale.setScalar(scale);
     const scaledBounds = new THREE.Box3().setFromObject(model);
     const center = scaledBounds.getCenter(new THREE.Vector3());
-    model.position.set(plot.x - center.x, 1.02 - scaledBounds.min.y, plot.z - center.z);
+    const groundY = this.sampleWalkHeight(plot.x, plot.z, true) ?? 1.02;
+    model.position.set(plot.x - center.x, groundY - scaledBounds.min.y, plot.z - center.z);
     model.name = `MM_PLAYER_${state.license.toUpperCase()}`;
     model.traverse((object) => {
       if (object instanceof THREE.Mesh) {
@@ -706,8 +638,20 @@ export class World3D {
     this.currentIsland = state.island;
     this.avatar.position.x = state.player.x;
     this.avatar.position.z = state.player.z;
+    this.updateChunkVisibility(true);
+    let groundY = this.sampleWalkHeight(state.player.x, state.player.z, true);
+    if (groundY === null) {
+      const district = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
+      state.player = { x: district.spawnX, z: district.spawnZ };
+      this.avatar.position.x = state.player.x;
+      this.avatar.position.z = state.player.z;
+      this.updateChunkVisibility(true);
+      groundY = this.sampleWalkHeight(state.player.x, state.player.z, true);
+    }
+    this.avatarGroundY = groundY ?? 1.02;
+    this.avatar.position.y = this.avatarGroundY;
     this.clickTarget = null;
-    this.cameraTarget.set(state.player.x, 1.2, state.player.z);
+    this.cameraTarget.set(state.player.x, this.avatarGroundY + 0.18, state.player.z);
   }
 
   private resize(): void {
@@ -732,16 +676,14 @@ export class World3D {
     return forwardVector.multiplyScalar(forward).add(rightVector.multiplyScalar(right)).normalize();
   }
 
-  private clampToIsland(position: THREE.Vector3): void {
-    const island = ISLANDS.find((entry) => entry.id === this.currentIsland) ?? ISLANDS[0];
-    const dx = position.x - island.x;
-    const dz = position.z - island.z;
-    const distance = Math.hypot(dx, dz);
-    const max = island.radius - 2;
-    if (distance > max) {
-      position.x = island.x + (dx / distance) * max;
-      position.z = island.z + (dz / distance) * max;
-    }
+  private tryMoveTo(x: number, z: number): boolean {
+    const groundY = this.sampleWalkHeight(x, z);
+    if (groundY === null || Math.abs(groundY - this.avatarGroundY) > 0.62) return false;
+    this.avatar.position.x = x;
+    this.avatar.position.z = z;
+    this.avatarGroundY = groundY;
+    this.updateChunkVisibility();
+    return true;
   }
 
   private updateMovement(delta: number, state: GameState): void {
@@ -749,9 +691,13 @@ export class World3D {
     let moved = false;
     if (direction.lengthSq() > 0) {
       this.clickTarget = null;
-      this.avatar.position.addScaledVector(direction, delta * 6.5);
+      const distance = delta * 6.5;
+      const nextX = this.avatar.position.x + direction.x * distance;
+      const nextZ = this.avatar.position.z + direction.z * distance;
+      moved = this.tryMoveTo(nextX, nextZ)
+        || this.tryMoveTo(nextX, this.avatar.position.z)
+        || this.tryMoveTo(this.avatar.position.x, nextZ);
       this.avatar.rotation.y = Math.atan2(direction.x, direction.z);
-      moved = true;
     } else if (this.clickTarget) {
       const deltaTarget = this.clickTarget.clone().sub(this.avatar.position);
       deltaTarget.y = 0;
@@ -761,13 +707,19 @@ export class World3D {
       }
       else {
         deltaTarget.normalize();
-        this.avatar.position.addScaledVector(deltaTarget, Math.min(delta * 6.5, this.avatar.position.distanceTo(this.clickTarget)));
+        const distance = Math.min(delta * 6.5, this.avatar.position.distanceTo(this.clickTarget));
+        moved = this.tryMoveTo(
+          this.avatar.position.x + deltaTarget.x * distance,
+          this.avatar.position.z + deltaTarget.z * distance,
+        );
         this.avatar.rotation.y = Math.atan2(deltaTarget.x, deltaTarget.z);
-        moved = true;
+        if (!moved) {
+          this.clickTarget = null;
+          this.walkMarker.visible = false;
+        }
       }
     }
     if (!moved) return;
-    this.clampToIsland(this.avatar.position);
     state.player.x = this.avatar.position.x;
     state.player.z = this.avatar.position.z;
     this.callbacks.onMoved();
@@ -785,7 +737,7 @@ export class World3D {
   }
 
   private updateWorldMotion(elapsed: number, moving: boolean): void {
-    this.avatar.position.y = 1.02 + Math.sin(elapsed * (moving ? 9 : 2.2)) * (moving ? 0.055 : 0.018);
+    this.avatar.position.y = this.avatarGroundY + Math.sin(elapsed * (moving ? 9 : 2.2)) * (moving ? 0.055 : 0.018);
     if (this.walkMarker.visible) {
       const pulse = 0.9 + Math.sin(elapsed * 5) * 0.12;
       this.walkMarker.scale.setScalar(pulse);

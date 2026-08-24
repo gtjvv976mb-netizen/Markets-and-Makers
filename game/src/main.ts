@@ -1,6 +1,7 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
+import { plotArrival } from "./highlandsWorld";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
 import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal } from "./wallet";
 
@@ -309,7 +310,7 @@ function report(result: ActionResult): void {
 const SHEET_TITLE: Record<string, string> = {
   shop: "Your business",
   trade: "Buy, sell and orders",
-  world: "Islands and progress",
+  world: "Districts and progress",
 };
 
 function switchTab(requested: string): void {
@@ -362,7 +363,7 @@ const STEP_ACTION: Record<string, { tab: string; label: string; hint: string }> 
   upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building." },
   sold:       { tab: "trade", label: "Sell",         hint: "Sell what you made, or serve customers." },
   contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most." },
-  traveled:   { tab: "world", label: "Take a ferry", hint: "Visit another island." },
+  traveled:   { tab: "world", label: "Use Transit Hall", hint: "Fast-travel to another district." },
 };
 
 function renderTutorial(): void {
@@ -413,8 +414,8 @@ function renderTutorial(): void {
       ${TUTORIAL.map(([entry, title], index) => `<article class="game-card ${store.state.tutorial[entry] ? "done" : ""}"><div class="card-head"><i class="card-icon" style="--card-color:${store.state.tutorial[entry] ? "#62a876" : "#79918c"}">${store.state.tutorial[entry] ? "✓" : index + 1}</i><div class="card-copy"><strong>${title}</strong></div></div></article>`).join("")}
     </div></details>
 
-    <details class="journey-details"><summary>Realm figures</summary>
-      <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)}</strong></div><div class="stat"><small>Citizens</small><strong>${formatNumber(store.citizenCount())}</strong></div><div class="stat"><small>$MM vault</small><strong>${formatNumber(store.state.mmReserve)}</strong></div><div class="stat"><small>Reputation</small><strong>${store.state.reputation}</strong></div></div>
+    <details class="journey-details"><summary>Mercedonia figures</summary>
+      <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Mercedonians</small><strong>${formatNumber(store.citizenCount())}</strong></div><div class="stat"><small>$MM vault</small><strong>${formatNumber(store.state.mmReserve)}</strong></div><div class="stat"><small>Reputation</small><strong>${store.state.reputation}</strong></div></div>
     </details>
 
     <div class="section-title">Recent</div>
@@ -511,7 +512,7 @@ function jobMarkup(): string {
 const HALT_COPY: Record<string, string> = {
   demand: "the district stopped paying enough to cover the next job",
   storage: "the warehouse filled up",
-  funds: "there were not enough Sunmarks for inputs or payroll",
+  funds: "there were not enough Merc Dollars for inputs or payroll",
   inputs: "inputs ran out and standing orders are paused",
   breakdown: "the equipment broke down",
   running: "a job is still on the floor",
@@ -581,8 +582,8 @@ function renderBusiness(): void {
     </details>
 
     <details class="fold"><summary>Payroll &amp; bills<span>${store.dailyOverhead()} ${MOLLAR_CODE}/day</span></summary>
-      <div class="stat-grid"><div class="stat"><small>Markians employed</small><strong>${state.staff}</strong></div><div class="stat ${state.staff < store.staffRequired() ? "negative" : ""}"><small>Needed per job</small><strong>${store.staffRequired()}</strong></div><div class="stat"><small>Wages</small><strong>${store.dailyPayroll()}/day</strong></div><div class="stat"><small>Water &amp; power</small><strong>${store.dailyUtilityBill()}/day</strong></div></div>
-      <div class="game-card two-up"><button data-action="hire">Hire a Markian</button><button class="secondary" data-action="release" ${state.staff <= 0 ? "disabled" : ""}>Let one go</button></div>
+      <div class="stat-grid"><div class="stat"><small>Mercedonians employed</small><strong>${state.staff}</strong></div><div class="stat ${state.staff < store.staffRequired() ? "negative" : ""}"><small>Needed per job</small><strong>${store.staffRequired()}</strong></div><div class="stat"><small>Wages</small><strong>${store.dailyPayroll()}/day</strong></div><div class="stat"><small>Water &amp; power</small><strong>${store.dailyUtilityBill()}/day</strong></div></div>
+      <div class="game-card two-up"><button data-action="hire">Hire a Mercedonian</button><button class="secondary" data-action="release" ${state.staff <= 0 ? "disabled" : ""}>Let one go</button></div>
       <small class="ops-note">Their wages are their spending money — the citizens you employ are the customers who shop with you.</small>
     </details>
 
@@ -650,7 +651,7 @@ function districtBoardMarkup(): string {
   const anyTrade = busiest.some((row) => row.soldToday > 0);
   return `<section class="district-board">
     <div class="district-head"><div><small>Live district board</small><strong>${island?.name ?? districtIsland}</strong></div><span>shared by everyone here</span></div>
-    <p>Shared with everyone on this island. Every sale here moves them.</p>
+    <p>Shared with everyone in this district. Every sale here moves them.</p>
     <div class="district-rows">
       ${busiest.map((row) => {
         const used = Math.min(100, (row.soldToday / Math.max(1, row.districtQuota)) * 100);
@@ -697,14 +698,14 @@ function renderMarket(): void {
         <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
       </div>
       <div class="city-strip">
-        <div><small>Markians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
+        <div><small>Mercedonians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
         <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}/day</strong></div>
         <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${MOLLAR_CODE}/day</strong></div>
         <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
         <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${MOLLAR_CODE}</strong></div>
         <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${MOLLAR_CODE}</strong></div>
       </div>
-      <small class="city-note">The city pays its Markians every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the city grows. Roughly nine in ten Maker Dollars of wages end up in player tills.</small>
+      <small class="city-note">Mercedonia pays its citizens every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the city grows. Roughly nine in ten Merc Dollars of wages end up in player tills.</small>
       <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
     </section>
 
@@ -758,7 +759,7 @@ function renderMarket(): void {
     </div>
     <div class="section-title">Ledger health</div>
     <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Citizen spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Payroll returned to citizens</small><strong>${formatNumber(store.state.laborPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
-    <p class="model-note">Sunmark prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
+    <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
   `;
 }
 
@@ -793,10 +794,10 @@ function renderMap(): void {
     const x = 50 + island.x / 4.55;
     const y = 50 + island.z / 4.35;
     const current = store.state.island === island.id;
-    return `<button class="map-node ${current ? "current" : ""}" style="--map-x:${x}%;--map-y:${y}%;--island-color:${island.color}" data-action="travel" data-island="${island.id}" ${current ? "disabled" : ""} aria-label="Travel to ${island.name}"><i></i><span>${island.name}</span></button>`;
+    return `<button class="map-node ${current ? "current" : ""}" style="--map-x:${x}%;--map-y:${y}%;--island-color:${island.color}" data-action="travel" data-island="${island.id}" ${current ? "disabled" : ""} aria-label="Fast-travel to ${island.name}"><i></i><span>${island.name}</span></button>`;
   }).join("");
   element("#mapPanel").innerHTML = `
-    <h2>Islands</h2><p class="lead">Prices differ by island. Get there before the demand does.</p>
+    <h2>Districts</h2><p class="lead">Prices differ by district across one connected world. Get there before the demand does.</p>
     ${(() => {
       const forecast = store.trendForecast().slice(0, 4);
       if (!forecast.length) return "";
@@ -932,7 +933,8 @@ document.body.addEventListener("click", (event) => {
     if (result.ok && store.state.ownedPlotId) {
       const plot = PLOTS.find((entry) => entry.id === store.state.ownedPlotId);
       if (plot) {
-        store.updatePlayer(plot.island, plot.x, plot.z + plot.depth / 2 + 3);
+        const arrival = plotArrival(plot);
+        store.updatePlayer(plot.island, arrival.x, arrival.z);
         store.markTutorial("moved");
         store.savePosition();
         world.teleportToState(store.state);

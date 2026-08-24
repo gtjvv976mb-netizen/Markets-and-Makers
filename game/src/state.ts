@@ -120,7 +120,7 @@ export function createFreshState(): GameState {
     marketLastUpdated: Date.now(),
     servicePriceIndex: 1,
     island: "hearth",
-    player: { x: 0, z: 34 },
+    player: { x: 0, z: -16 },
     selectedPlotId: "garden-row",
     ownedPlotId: null,
     license: null,
@@ -133,7 +133,7 @@ export function createFreshState(): GameState {
     lifetimeRevenue: 0,
     tutorial,
     feed: [
-      { text: "Sunmarks opened as the everyday currency, fully covered by the Civic Vault's 50 million $MM reserve.", tone: "success", at: Date.now() },
+      { text: "Merc Dollars (MERCS) opened as Mercedonia's everyday currency, fully covered by the Civic Vault's 50 million $MM reserve.", tone: "success", at: Date.now() },
       { text: "Fifteen industries now connect utilities, raw materials, manufacturing, commerce, services and recovery.", tone: "normal", at: Date.now() },
     ],
   };
@@ -337,7 +337,7 @@ export class GameStore {
     if (this.state.portfolio[plot.id]) return this.result(false, "You already hold that plot.");
     const held = this.ownedPlotIds().length;
     if (held >= this.plotAllowance()) return this.result(false, `Your civic standing supports ${this.plotAllowance()} plot${this.plotAllowance() === 1 ? "" : "s"}. Reach ${this.nextCareerLevel()?.name ?? "the next career level"} to lease another.`);
-    if (this.state.island !== plot.island) return this.result(false, "Travel to the plot's island before leasing it.");
+    if (this.state.island !== plot.island) return this.result(false, "Travel to the plot's district before leasing it.");
     if (this.state.wallet < plot.price) return this.result(false, `You do not have enough ${MOLLAR_CODE} for the lease.`);
     this.state.wallet -= plot.price; this.state.governmentTreasury += plot.price; this.state.tutorial.leased = true; this.addExperience(10);
     this.syncActive();
@@ -411,7 +411,7 @@ export class GameStore {
     if (this.state.job) return this.result(false, "A production job is already active.");
     if (this.state.brokenDown) return this.result(false, "The line is broken down. Send an emergency repair crew first.");
     if (this.state.suppliesCut) return this.result(false, "The city cut your water and power. Settle the standing charges first.");
-    if (this.state.staff < this.staffRequired()) return this.result(false, `This job needs ${this.staffRequired()} Markian${this.staffRequired() === 1 ? "" : "s"} on the payroll.`);
+    if (this.state.staff < this.staffRequired()) return this.result(false, `This job needs ${this.staffRequired()} Mercedonian${this.staffRequired() === 1 ? "" : "s"} on the payroll.`);
     if (this.state.condition < 20) return this.result(false, "Repair the equipment before starting another job.");
     const config = BUSINESS[this.state.license]; const cycles = this.inputMultiplier();
     const laborMultiplier = this.state.specialization === "community" ? 1.1 : 1;
@@ -749,7 +749,7 @@ export class GameStore {
     if (!this.state.buildingPlaced) return this.result(false, "Build your business before hiring.");
     const hired = Math.max(1, Math.floor(count));
     this.state.staff += hired;
-    this.commit(`${hired} Markian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${MOLLAR_CODE} a day each.`, "success");
+    this.commit(`${hired} Mercedonian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${MOLLAR_CODE} a day each.`, "success");
     return this.result(true, "Hired.");
   }
 
@@ -758,7 +758,7 @@ export class GameStore {
     const released = Math.min(this.state.staff, Math.max(1, Math.floor(count)));
     this.state.staff -= released;
     this.state.reputation = Math.max(0, this.state.reputation - released);
-    this.commit(`${released} Markian${released === 1 ? "" : "s"} left the payroll.`, "warning");
+    this.commit(`${released} Mercedonian${released === 1 ? "" : "s"} left the payroll.`, "warning");
     return this.result(true, "Released.");
   }
 
@@ -1433,7 +1433,7 @@ export class GameStore {
       offers.push({
         id: `contract-${this.state.contractSequence}-${index}-${resource}`,
         resource, quantity, grossReward, buyer,
-        buyerName: buyer === "citizens" ? "Sunwoven Household Cooperative" : index === 0 ? "Civic Works Office" : "Regional Trade Guild",
+        buyerName: buyer === "citizens" ? "Mercedonian Household Cooperative" : index === 0 ? "Civic Works Office" : "Regional Trade Guild",
         bonusPercent, reputationReward: 2 + Math.floor(level / 2), xpReward: 22 + quantity * 3,
       });
     }
@@ -1549,13 +1549,13 @@ export class GameStore {
     if (!island) return this.result(false, "That route is unavailable.");
     if (this.state.island === islandId) return this.result(false, `You are already on ${island.name}.`);
     const fare = this.state.tutorial.traveled ? 10 : 0;
-    if (this.state.wallet < fare) return this.result(false, `You need 10 ${MOLLAR_CODE} for this ferry route.`);
+    if (this.state.wallet < fare) return this.result(false, `You need 10 ${MOLLAR_CODE} for this Transit Hall route.`);
     this.state.wallet -= fare; this.state.governmentTreasury += fare; this.state.island = island.id; this.state.player = { x: island.spawnX, z: island.spawnZ }; this.addExperience(4);
-    this.state.tutorial.traveled = true; this.commit(`Ferry arrived at ${island.name}${fare ? ` for 10 ${MOLLAR_CODE}` : " on your free first trip"}.`, "success");
+    this.state.tutorial.traveled = true; this.commit(`Transit Hall moved you to ${island.name}${fare ? ` for 10 ${MOLLAR_CODE}` : " on your free first trip"}.`, "success");
     return this.result(true, "Travel complete.");
   }
 
-  reset(): void { this.state = createFreshState(); this.commit("A new local Sunwoven Reach was created.", "success"); }
+  reset(): void { this.state = createFreshState(); this.commit("A new local Mercedonia was created.", "success"); }
 
   consumerConfidenceIndex(): number {
     const activity = Math.min(14, this.state.jobsCompleted * 1.2 + this.state.reputation * .45);

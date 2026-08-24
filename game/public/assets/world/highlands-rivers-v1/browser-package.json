@@ -1,0 +1,238 @@
+{
+  "schema": "markets-and-makers.highlands-rivers-world.browser-package.v1",
+  "version": 1,
+  "source": {
+    "file": "mm_highlands_rivers_world_v1_preview.glb",
+    "bytes": 35822912,
+    "sha256": "a351cc398ac3b6987ab5177e60bba3b42d623843046a0a003d0b8ea77c14a05e"
+  },
+  "entrypoint": "world.gltf",
+  "limits": {
+    "maximum_buffer_bytes": 18874368
+  },
+  "counts": {
+    "nodes": 326,
+    "meshes": 275,
+    "materials": 31,
+    "images": 40,
+    "buffers": 2,
+    "bufferViews": 5089
+  },
+  "files": [
+    {
+      "file": "buffers/world-0.bin",
+      "bytes": 18870396,
+      "sha256": "2a0e7aa8b3dd968f8aa7139322e4dff8c72546d54650b244349445608ccf3dec"
+    },
+    {
+      "file": "buffers/world-1.bin",
+      "bytes": 8535804,
+      "sha256": "1846b2144d323ea1639f7014b57708403ba47756bd5ec8a735de141660e57933"
+    },
+    {
+      "file": "textures/00-14_deep_water.png",
+      "bytes": 311323,
+      "sha256": "0d690c4de48d3363d540c5318b81e522a3719f28413e28cc3fa753fb50b76a75"
+    },
+    {
+      "file": "textures/01-13_shallow_water.png",
+      "bytes": 498152,
+      "sha256": "5b478a62ff1522f1e7b137b2c9327abc17e785aef1f8b83063d545b59aa47b09"
+    },
+    {
+      "file": "textures/02-01_lush_grass.png",
+      "bytes": 482381,
+      "sha256": "d712bb9b9f9eb31b86aee989482c8cf082247fb4888794dda17f92ba3c2655eb"
+    },
+    {
+      "file": "textures/03-03_layered_earth.png",
+      "bytes": 448045,
+      "sha256": "ad96b278b3fa31b82fc892647b82780964e5e6e31ead863200b8b5cbb49ebab7"
+    },
+    {
+      "file": "textures/04-06_flagstone.png",
+      "bytes": 470087,
+      "sha256": "b3cf06a4b5ea704c9a5d76b3eafa21d49a7f98e978794d0bd9f7c3756d2a2e12"
+    },
+    {
+      "file": "textures/05-07_sand.png",
+      "bytes": 469477,
+      "sha256": "4f28a26bb827d9768c93a9f0e9a714fc0777360d4b5891e608504d81b0f60ed9"
+    },
+    {
+      "file": "textures/06-05_limestone_blocks.png",
+      "bytes": 451040,
+      "sha256": "6299ca44a40164449f20b5f0373a179016ef0ac11782d67ae1b4097a86a4e286"
+    },
+    {
+      "file": "textures/07-15_foam.png",
+      "bytes": 499450,
+      "sha256": "9183ddc0c43a7cfa383e5ccaea40044f84e2003e79e520dcb54394bdbf1d9e28"
+    },
+    {
+      "file": "textures/08-02_light_grass.png",
+      "bytes": 513397,
+      "sha256": "9f8aba5408efc589166f04e038b1497cd3f84fbf853c8421a0d5d1ef111a7331"
+    },
+    {
+      "file": "textures/09-normalgl_a3950c34-8656-4207-9922-86fe34aa9e0c.jpg",
+      "bytes": 45145,
+      "sha256": "8747ccf978882d0a050ea2d68843134b241149dcd76ae4897177397f3d253043"
+    },
+    {
+      "file": "textures/10-color_a3950c34-8656-4207-9922-86fe34aa9e0c.jpg",
+      "bytes": 74020,
+      "sha256": "7cfe57396ac6a14469c7351f68e447e58c2584c08ced3c0d1f37abc590b32121"
+    },
+    {
+      "file": "textures/11-orm_a3950c34-8656-4207-9922-86fe34aa9e0c.jpg",
+      "bytes": 69774,
+      "sha256": "621523efcff48279836acf8808a0dc94aa2602b79b8a0b81a1d86f4fc2297c2f"
+    },
+    {
+      "file": "textures/12-normalgl_4344200c-d5fe-4330-af2b-364d61aed352.jpg",
+      "bytes": 29634,
+      "sha256": "0d4069a5e7dfe02cb118da35829f7fcc00eb565463f5d85aeaac85c189c6f2d4"
+    },
+    {
+      "file": "textures/13-color_4344200c-d5fe-4330-af2b-364d61aed352.jpg",
+      "bytes": 68197,
+      "sha256": "35049cead0a5d9d11956a77d9188a16aea47e0422d3368d83673bfdedf147859"
+    },
+    {
+      "file": "textures/14-orm_4344200c-d5fe-4330-af2b-364d61aed352.jpg",
+      "bytes": 52399,
+      "sha256": "e772ecef93c9c32fd45e3d62d551cf701ae664d09710bf10e007f2e14ab53698"
+    },
+    {
+      "file": "textures/15-normalgl_dc550673-6b96-4211-8445-1b2b1cb662a5.jpg",
+      "bytes": 38857,
+      "sha256": "b9dc5102f8bf419437ce0581a35e33ec7eb081980079c2587d505c94f929c088"
+    },
+    {
+      "file": "textures/16-color_dc550673-6b96-4211-8445-1b2b1cb662a5.jpg",
+      "bytes": 67623,
+      "sha256": "f5cf655b2f041b1260deb48975f632f8ac662a845f73039ef473929c74762d05"
+    },
+    {
+      "file": "textures/17-orm_dc550673-6b96-4211-8445-1b2b1cb662a5.jpg",
+      "bytes": 87587,
+      "sha256": "7cf7f5bcdc8d788dafad8ebcc80254edc0e3ca54eb065d5136eb8d05849f8853"
+    },
+    {
+      "file": "textures/18-normalgl_72c81f35-9cae-4b62-b89c-6273c79a27bf.jpg",
+      "bytes": 51550,
+      "sha256": "dcb04b106f31d87f1da02ecefdd8776b34e3ec245a91756195a9ec1d9fddee82"
+    },
+    {
+      "file": "textures/19-color_72c81f35-9cae-4b62-b89c-6273c79a27bf.jpg",
+      "bytes": 80567,
+      "sha256": "7fe2d892326678d79d17bccca609a4df159b292afdf766bea15de440a4130a92"
+    },
+    {
+      "file": "textures/20-orm_72c81f35-9cae-4b62-b89c-6273c79a27bf.jpg",
+      "bytes": 43426,
+      "sha256": "347a28d08e33898d109775d3b5ddd8ba98785e660f4f4449a0db6f28b0cdf459"
+    },
+    {
+      "file": "textures/21-normalgl_1d6da0e2-9d12-4a31-87c7-f6c03bb09062.jpg",
+      "bytes": 47311,
+      "sha256": "7c904f058ad2636959bdef8a1902005537a0dd0e43eaf24e3e7924ba8fa2ff90"
+    },
+    {
+      "file": "textures/22-color_1d6da0e2-9d12-4a31-87c7-f6c03bb09062.jpg",
+      "bytes": 71711,
+      "sha256": "17ea1da47b215ec75bdc3e13052979223681f6e3274fb4b5aff41e8da81f4294"
+    },
+    {
+      "file": "textures/23-orm_1d6da0e2-9d12-4a31-87c7-f6c03bb09062.jpg",
+      "bytes": 76587,
+      "sha256": "d82ad83d489158fea146f9f06382ad23cb279061b6d6eb282f2ba364e97309fb"
+    },
+    {
+      "file": "textures/24-normalgl_ec268425-e228-4bc2-a9e7-6f5674068aa5.jpg",
+      "bytes": 44638,
+      "sha256": "946916e3f0cdaa0d29318753ae3db6e541de9dbdcb29fa0bc0669c32906502bf"
+    },
+    {
+      "file": "textures/25-color_ec268425-e228-4bc2-a9e7-6f5674068aa5.jpg",
+      "bytes": 72048,
+      "sha256": "214622640963833cb217ad91b4f5ef8473532b81bee71dcaa4b2872d22011c69"
+    },
+    {
+      "file": "textures/26-orm_ec268425-e228-4bc2-a9e7-6f5674068aa5.jpg",
+      "bytes": 36964,
+      "sha256": "f63a50321c40619b6e1198689f8ae2c3773a3b5003e300242462079002d788cb"
+    },
+    {
+      "file": "textures/27-normalgl_84856519-2c9b-42e0-9322-ec027cad8fb3.jpg",
+      "bytes": 26185,
+      "sha256": "6f47074d05e45af6ad8eb64b2f4acb38d5f598c96f98a48fc0dfbd8410ce5be5"
+    },
+    {
+      "file": "textures/28-color_84856519-2c9b-42e0-9322-ec027cad8fb3.jpg",
+      "bytes": 67101,
+      "sha256": "1a184584399aced4a0af142bc1e31bb3210f6e8d4ba045173ecd791f146a74f4"
+    },
+    {
+      "file": "textures/29-orm_84856519-2c9b-42e0-9322-ec027cad8fb3.jpg",
+      "bytes": 29492,
+      "sha256": "5e712dc4bd7007a207483def78a49af71eda1ddc7b2cad8bfa9653997dfee7e4"
+    },
+    {
+      "file": "textures/30-normalgl_e268095c-8ede-43c0-b76c-5087ddaa40ef.jpg",
+      "bytes": 46028,
+      "sha256": "fb4a86565f409720104183b66d264b91d36db40cbf24daa62ad2069e730c8cb0"
+    },
+    {
+      "file": "textures/31-color_e268095c-8ede-43c0-b76c-5087ddaa40ef.jpg",
+      "bytes": 71487,
+      "sha256": "961cf9eab6176963c990e17750a5ef010de9d37cef4cd6d30bde3e7a4b11249c"
+    },
+    {
+      "file": "textures/32-orm_e268095c-8ede-43c0-b76c-5087ddaa40ef.jpg",
+      "bytes": 75869,
+      "sha256": "d01c8e8c8b6fa0d5878fcc153592ac09bb1944a4a8ff03f16b52def3232ebaa4"
+    },
+    {
+      "file": "textures/33-normalgl_7828c016-c22e-4173-9a7b-82ef49b65181.jpg",
+      "bytes": 35091,
+      "sha256": "ee804a452e8e3535494db6a3bf22aa4017c80d2e5f2b89e3a06bcc8d6845d3dc"
+    },
+    {
+      "file": "textures/34-color_7828c016-c22e-4173-9a7b-82ef49b65181.jpg",
+      "bytes": 69247,
+      "sha256": "a8385979d21fd33cc7852ace0c3ed58f9325866c610d9077c773823cee8e1688"
+    },
+    {
+      "file": "textures/35-orm_7828c016-c22e-4173-9a7b-82ef49b65181.jpg",
+      "bytes": 19012,
+      "sha256": "a99d5a4896f16223d22d5b76f6c44802ca06f4ea79d5200dce8080dcfee53269"
+    },
+    {
+      "file": "textures/36-10_honey_timber.png",
+      "bytes": 428943,
+      "sha256": "f17bc09246232a01df1d8a9d71b2e664365ea775446271e294d9ad1ae09d9108"
+    },
+    {
+      "file": "textures/37-11_dark_timber.png",
+      "bytes": 385766,
+      "sha256": "28993f8a5d89de2cb895f92ac9a74aff736c115e5fe0b3bb736b7cf77e1b6c2a"
+    },
+    {
+      "file": "textures/38-16_mossed_curb.png",
+      "bytes": 487309,
+      "sha256": "0d57908e86e91b065b670e1bdd5835bf82214bd98b8a2a2087ec40b40e9ae2c4"
+    },
+    {
+      "file": "textures/39-09_terracotta.png",
+      "bytes": 435573,
+      "sha256": "f52e899cd132c82a96cec3f2de47a9663c0e96346cec1f55563017b3d06503ec"
+    },
+    {
+      "file": "world.gltf",
+      "bytes": 1034550,
+      "sha256": "c3d435b6cea308b669797a43bc8b9a8aca6a1e0dfb415373c26fe7f7d4a1e4d6"
+    }
+  ]
+}

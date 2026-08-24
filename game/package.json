@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "validate:art": "node ../scripts/validate-official-art.mjs",
-    "build": "npm run validate:art && tsc --noEmit && vite build",
+    "validate:world": "node ../scripts/validate-highlands-browser-assets.mjs",
+    "build": "npm run validate:art && npm run validate:world && tsc --noEmit && vite build",
     "deploy:cloudflare": "npm run build && wrangler deploy",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run"
