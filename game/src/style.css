@@ -558,7 +558,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 /* ================= world-space labels ================= */
 .world-markers { position: absolute; z-index: 5; inset: 0; pointer-events: none; }
 .marker { position: absolute; transform: translate(-50%, -100%); pointer-events: auto; }
-.marker-pin { display: grid; gap: 2px; min-width: 118px; padding: 8px 11px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; background: linear-gradient(140deg, rgba(16,74,77,.95), rgba(19,88,86,.9)); color: #fff; box-shadow: 0 12px 26px rgba(6,46,49,.34); backdrop-filter: blur(10px); text-align: left; }
+.marker-pin { position: relative; display: grid; gap: 2px; min-width: 118px; padding: 8px 11px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; background: linear-gradient(140deg, rgba(16,74,77,.95), rgba(19,88,86,.9)); color: #fff; box-shadow: 0 12px 26px rgba(6,46,49,.34); backdrop-filter: blur(10px); text-align: left; }
 .marker-pin small { color: #a9dcc9; font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
 .marker-pin strong { font-size: 14px; line-height: 1.2; }
 .marker-pin span { color: #ffd980; font-size: 12.5px; font-weight: 800; }
@@ -587,6 +587,117 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .marker.far .marker-pin span { font-size: 11.5px; }
 .marker.far .marker-pin::after { display: none; }
 .marker.far.vacant .marker-pin span { display: none; }
+
+/* Named solarpunk storefront signs float above the physical roofline. */
+.marker.building {
+  --sign-a: rgba(15,76,76,.97);
+  --sign-b: rgba(20,101,91,.95);
+  --sign-accent: #edb742;
+  filter: drop-shadow(0 5px 8px rgba(6,46,49,.22));
+}
+.marker.building .marker-pin {
+  display: grid;
+  grid-template-columns: 32px minmax(0,1fr);
+  grid-template-areas: "emblem kicker" "emblem name" "emblem detail";
+  column-gap: 9px;
+  row-gap: 1px;
+  min-width: 168px;
+  max-width: 224px;
+  min-height: 62px;
+  padding: 12px 13px 10px 10px;
+  border: 1px solid rgba(255,241,204,.62);
+  border-left: 4px solid var(--sign-accent);
+  border-radius: 8px 8px 16px 16px;
+  background: linear-gradient(140deg, var(--sign-a), var(--sign-b));
+  box-shadow: 0 14px 30px rgba(5,43,45,.36), inset 0 1px rgba(255,255,255,.17);
+}
+.marker.building .marker-pin::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 9px;
+  left: 7px;
+  height: 7px;
+  border: 1px solid rgba(75,58,20,.16);
+  border-radius: 5px 5px 2px 2px;
+  background: repeating-linear-gradient(90deg, var(--sign-accent) 0 14px, #fff0c9 14px 28px);
+  box-shadow: 0 3px 5px rgba(5,43,45,.2);
+}
+.marker.building .marker-pin::after { background: var(--sign-b); }
+.marker.building .marker-emblem {
+  grid-area: emblem;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  align-self: center;
+  border: 1px solid rgba(255,255,255,.48);
+  border-radius: 10px;
+  color: #173f43;
+  background: var(--sign-accent);
+  box-shadow: inset 0 1px rgba(255,255,255,.58), 0 4px 9px rgba(5,43,45,.18);
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 950;
+}
+.marker.building small { grid-area: kicker; color: #c8ead7; font-size: 10px; }
+.marker.building strong {
+  grid-area: name;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.18;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marker.building .marker-detail {
+  grid-area: detail;
+  overflow: hidden;
+  color: #ffdc84;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marker.building.owned { --sign-a: rgba(31,92,62,.97); --sign-b: rgba(47,122,78,.95); }
+.marker.building.civic { --sign-a: rgba(78,72,43,.97); --sign-b: rgba(105,96,55,.95); }
+.marker.building.ready { --sign-a: rgba(103,73,17,.97); --sign-b: rgba(139,98,22,.95); }
+.marker.building.alert { --sign-a: rgba(121,43,36,.97); --sign-b: rgba(156,57,46,.95); }
+.marker.building:hover .marker-pin { filter: brightness(1.07) saturate(1.06); }
+.marker.building .marker-pin:focus-visible { outline: 3px solid #ffe082; outline-offset: 4px; }
+
+@media (max-width: 780px) {
+  .marker.building .marker-pin {
+    grid-template-columns: 26px minmax(0,1fr);
+    min-width: 136px;
+    max-width: 174px;
+    min-height: 50px;
+    padding: 10px 9px 8px 7px;
+  }
+  .marker.building .marker-emblem { width: 26px; height: 26px; border-radius: 8px; font-size: 14px; }
+  .marker.building .marker-detail { display: none; }
+  .marker.building strong { font-size: 12.5px; }
+}
+
+@media (max-width: 480px) {
+  .marker.building .marker-pin {
+    grid-template-areas: "emblem name";
+    min-width: 148px;
+    max-width: 174px;
+    min-height: 52px;
+  }
+  .marker.building small, .marker.building .marker-detail { display: none; }
+  .marker.building strong {
+    display: -webkit-box;
+    font-size: 12px;
+    line-height: 1.08;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .marker.building .marker-pin { border-width: 2px; backdrop-filter: none; }
+}
 
 /* ================= the sheet ================= */
 .control-panel { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: min(430px, 100%); display: flex; flex-direction: column; padding: 12px; border-left: 1px solid rgba(255,255,255,.7); box-shadow: -18px 0 46px rgba(9,48,50,.24); transform: translateX(102%); transition: transform .34s cubic-bezier(.22,.61,.36,1); }

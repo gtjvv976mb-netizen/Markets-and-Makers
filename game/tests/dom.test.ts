@@ -31,4 +31,15 @@ describe("markup contract", () => {
     const headerStats = [...html.matchAll(/<div[^>]*><small>[^<]+<\/small><strong id="\w+"/g)].length;
     expect(headerStats).toBeLessThanOrEqual(3);
   });
+
+  it("renders accessible, branded building banners above visible roofs", () => {
+    expect(main).toContain('class="marker-emblem"');
+    expect(main).toContain("aria-label=");
+    expect(main).toContain("--sign-accent:");
+    expect(main).toContain("y: model.y");
+    expect(main).toContain("!point.onScreen");
+    expect(main).toContain("m.title");
+    expect(main).toContain("m.icon");
+    expect(main).toContain("m.accent");
+  });
 });

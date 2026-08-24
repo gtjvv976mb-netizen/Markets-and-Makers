@@ -2,6 +2,7 @@ import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_M
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { plotArrival } from "./highlandsWorld";
+import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
 import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal } from "./wallet";
 
@@ -59,8 +60,6 @@ function closeSheet(): void { sheet.dataset.open = "false"; }
 element("#sheetClose").addEventListener("click", closeSheet);
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
 
-interface MarkerModel { id: string; kind: string; label: string; title: string; detail: string; x: number; z: number }
-
 function markerModels(): MarkerModel[] {
   const state = store.state;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0]!;
@@ -77,7 +76,7 @@ function markerModels(): MarkerModel[] {
       label: ready ? "Deliver now" : "Order accepted",
       title: active.buyerName,
       detail: ready ? `${active.grossReward} ${MOLLAR_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
-      x: island.x + 15, z: island.z - 6,
+      x: island.x + 15, y: 3.2, z: island.z - 6, building: false,
     });
   } else {
     const offer = store.bestOffer();
@@ -86,19 +85,9 @@ function markerModels(): MarkerModel[] {
         id: "order", kind: "buyer", label: "Wants to buy",
         title: `${offer.quantity} ${RESOURCES[offer.resource].short}`,
         detail: `pays ${offer.grossReward} ${MOLLAR_CODE}`,
-        x: island.x + 15, z: island.z - 6,
+        x: island.x + 15, y: 3.2, z: island.z - 6, building: false,
       });
     }
-  }
-
-  // The city's own industries: they were here before any player, and they are where
-  // the resources to build anything come from.
-  for (const civic of CIVIC_BUILDINGS.filter((entry) => entry.island === state.island)) {
-    const supply = civic.supplies.length
-      ? civic.supplies.map((key) => `${RESOURCES[key].short} ${store.marketBuyPrice(key)}`).join(" · ")
-      : civic.role;
-    models.push({ id: `civic-${civic.id}`, kind: "civic", label: civic.name, title: supply,
-                  detail: civic.supplies.length ? "Tap to buy" : "Tap to open", x: civic.x, z: civic.z });
   }
 
   const shock = store.districtEvent(state.island);
@@ -108,7 +97,7 @@ function markerModels(): MarkerModel[] {
       id: "event", kind: "event", label: `Paying +${Math.round((shock.multiplier - 1) * 100)}%`,
       title: RESOURCES[shock.resource].name,
       detail: `${shock.reason} · ${hoursLeft}h left`,
-      x: island.x, z: island.z + 16,
+      x: island.x, y: 3.2, z: island.z + 16, building: false,
     });
   }
 
@@ -119,76 +108,98 @@ function markerModels(): MarkerModel[] {
       id: "market", kind: "market", label: "Best price here",
       title: `${RESOURCES[wanted.key].short} ${wanted.price} ${MOLLAR_CODE}`,
       detail: `wants ${wanted.remaining} more`,
-      x: island.x - 15, z: island.z - 6,
+      x: island.x - 15, y: 3.2, z: island.z - 6, building: false,
     });
   }
 
-  return models.concat(PLOTS.filter((plot) => plot.island === state.island).map((plot) => {
-    const record = state.portfolio[plot.id];
-    if (!record) {
-      return { id: plot.id, kind: "vacant", label: "For lease", title: plot.name.replace(" Plot", ""),
-               detail: `${plot.price} ${MOLLAR_CODE}`, x: plot.x, z: plot.z };
-    }
-    if (!record.license) {
-      return { id: plot.id, kind: "owned", label: "Yours", title: plot.name.replace(" Plot", ""),
-               detail: "Choose a trade", x: plot.x, z: plot.z };
-    }
-    const config = BUSINESS[record.license];
-    if (record.brokenDown) {
-      return { id: plot.id, kind: "alert", label: "Broken down", title: config.name, detail: "Needs a repair crew", x: plot.x, z: plot.z };
-    }
-    if (!record.buildingPlaced) {
-      return { id: plot.id, kind: "owned", label: "Ready to build", title: config.name, detail: "Tap to build", x: plot.x, z: plot.z };
-    }
-    if (record.job) {
-      const left = record.job.completeAt - Date.now();
-      return left > 0
-        ? { id: plot.id, kind: "owned", label: "Working", title: config.name, detail: formatWait(left), x: plot.x, z: plot.z }
-        : { id: plot.id, kind: "ready", label: "Ready", title: config.name, detail: "Collect your goods", x: plot.x, z: plot.z };
-    }
-    return { id: plot.id, kind: "owned", label: "Idle", title: config.name, detail: "Tap to run a job", x: plot.x, z: plot.z };
-  }));
+  return models.concat(propertyMarkerModels(
+    state,
+    (resource) => store.marketBuyPrice(resource),
+    (plotId) => world.buildingBannerY(plotId),
+  ));
 }
 
 let markerSignature = "";
 
+function escapeMarkup(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+  })[character]!);
+}
+
 function syncMarkers(): void {
   const models = markerModels();
-  const signature = models.map((m) => `${m.id}:${m.kind}:${m.label}:${m.detail}`).join("|");
+  const signature = models.map((m) => [
+    m.id, m.kind, m.label, m.title, m.detail, m.x, m.y, m.z,
+    m.building, m.icon ?? "", m.accent ?? "",
+  ].join(":")).join("|");
   if (signature !== markerSignature) {
     markerSignature = signature;
-    markerLayer.innerHTML = models.map((model) => `
-      <div class="marker ${model.kind}" data-marker="${model.id}">
-        <button class="marker-pin" data-action="marker" data-plot="${model.id}">
-          <small>${model.label}</small><strong>${model.title}</strong><span>${model.detail}</span>
-        </button>
-      </div>`).join("");
+    markerLayer.innerHTML = models.map((model) => {
+      const markerId = escapeMarkup(model.id);
+      const label = escapeMarkup(model.label);
+      const title = escapeMarkup(model.title);
+      const detail = escapeMarkup(model.detail);
+      const ariaLabel = escapeMarkup(`${model.title}. ${model.label}. ${model.detail}`);
+      const buildingClass = model.building ? " building" : "";
+      const style = model.accent ? ` style="--sign-accent:${escapeMarkup(model.accent)}"` : "";
+      const emblem = model.building && model.icon
+        ? `<i class="marker-emblem" aria-hidden="true">${escapeMarkup(model.icon)}</i>`
+        : "";
+      return `
+        <div class="marker ${escapeMarkup(model.kind)}${buildingClass}" data-marker="${markerId}"${style}>
+          <button class="marker-pin" data-action="marker" data-plot="${markerId}" aria-label="${ariaLabel}">
+            ${emblem}<small>${label}</small><strong>${title}</strong><span class="marker-detail">${detail}</span>
+          </button>
+        </div>`;
+    }).join("");
   }
-  // Anchor just above the plot, then keep the pin inside the frame so a label never
-  // slides off the top edge while its plot is plainly visible.
-  const projected = world.project(models.map((model) => ({ id: model.id, x: model.x, y: 2.6, z: model.z })));
+  // Every named structure supplies a roof-height anchor. Plot and activity pins stay
+  // lower, while building banners float above the actual architecture.
+  const projected = world.project(models.map((model) => ({ id: model.id, x: model.x, y: model.y, z: model.z })));
   const width = markerLayer.clientWidth;
   const height = markerLayer.clientHeight;
+  const topbarBottom = document.querySelector<HTMLElement>(".topbar")?.getBoundingClientRect().bottom ?? 96;
+  const safeTop = Math.ceil(topbarBottom + 12);
   // Anything the camera cannot see goes into a rail down the right edge, so the world
   // doubles as the map without the pins piling on top of one another.
   let railIndex = 0;
-  const placed: Array<{ node: HTMLElement; x: number; y: number }> = [];
+  const placed: Array<{ node: HTMLElement; x: number; y: number; width: number; height: number }> = [];
   for (const point of projected) {
     const node = markerLayer.querySelector<HTMLElement>(`[data-marker="${point.id}"]`);
     if (!node) continue;
+    const model = models.find((entry) => entry.id === point.id);
+    if (!model) continue;
     // Only genuinely off-canvas pins go to the rail. Anything the camera can see stays
     // on its plot, nudged down so it clears the floating top bar.
-    const offCanvas = point.sx < 8 || point.sx > width - 8 || point.sy < 8 || point.sy > height - 8;
+    const offCanvas = !point.onScreen || point.sx < 8 || point.sx > width - 8 || point.sy < 8 || point.sy > height - 8;
+    if (offCanvas && (model.building || (width < 600 && model.kind === "vacant"))) {
+      // A building sign belongs to its roof, not to the navigation rail. It returns as
+      // soon as the camera can see the building again. Phone layouts also hide distant
+      // lease pins so the smaller world view remains readable.
+      node.style.display = "none";
+      continue;
+    }
     node.style.display = "block";
     node.classList.toggle("far", offCanvas);
+    const nodeWidth = node.offsetWidth;
+    const nodeHeight = node.offsetHeight;
     if (offCanvas) {
-      placed.push({ node, x: width - 104, y: 196 + railIndex * 84 });
+      const y = safeTop + 72 + railIndex * 84;
       railIndex += 1;
+      if (y > height - 12) {
+        node.style.display = "none";
+        continue;
+      }
+      placed.push({ node, x: width - 104, y, width: nodeWidth, height: nodeHeight });
     } else {
+      const halfWidth = nodeWidth / 2;
       placed.push({
         node,
-        x: Math.min(Math.max(point.sx, 80), Math.max(80, width - 80)),
-        y: Math.max(point.sy, 160),
+        x: Math.min(Math.max(point.sx, halfWidth + 8), Math.max(halfWidth + 8, width - halfWidth - 8)),
+        y: Math.max(point.sy, safeTop + nodeHeight),
+        width: nodeWidth,
+        height: nodeHeight,
       });
     }
   }
@@ -200,12 +211,19 @@ function syncMarkers(): void {
     const current = placed[i]!;
     for (let j = 0; j < i; j += 1) {
       const other = placed[j]!;
-      if (Math.abs(current.x - other.x) < 150 && Math.abs(current.y - other.y) < 80) {
-        current.y = other.y + 80;
+      const horizontalOverlap = Math.abs(current.x - other.x) < (current.width + other.width) / 2 + 12;
+      const verticalOverlap = current.y - current.height < other.y + 10
+        && current.y > other.y - other.height - 10;
+      if (horizontalOverlap && verticalOverlap) {
+        current.y = other.y + current.height + 12;
       }
     }
+    if (current.y > height - 12) {
+      current.node.style.display = "none";
+      continue;
+    }
     current.node.style.left = `${current.x}px`;
-    current.node.style.top = `${Math.min(current.y, Math.max(160, height - 8))}px`;
+    current.node.style.top = `${current.y}px`;
   }
 }
 
@@ -861,7 +879,7 @@ function renderAll(): void {
   renderMap();
   renderResources();
   renderInterior();
-  void world.syncBuilding(store.state);
+  void world.syncBuildings(store.state);
 }
 
 function openInterior(): void {
@@ -1024,7 +1042,7 @@ try {
   await world.load();
   world.teleportToState(store.state);
   realm.reseedPosition();
-  await world.syncBuilding(store.state);
+  await world.syncBuildings(store.state);
   world.start(store.state);
   window.setTimeout(() => loadingScreen.classList.add("hidden"), 260);
 } catch (error) {

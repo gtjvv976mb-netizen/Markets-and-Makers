@@ -391,29 +391,29 @@ export const CIVIC_WAGE_BASE = 9;
 // ---------------------------------------------------------------------------
 export interface CivicBuilding {
   id: string; name: string; role: string; island: string;
-  x: number; z: number; icon: string; color: string;
+  x: number; z: number; bannerY: number; icon: string; color: string;
   supplies: ResourceKey[]; opens: "trade" | "world";
 }
 
 export const CIVIC_BUILDINGS: CivicBuilding[] = [
   { id: "cityhall", name: "Sunspire City Hall", role: "Government, licences and civic records", island: "hearth",
-    x: -1, z: -25, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
+    x: -1, z: -25, bannerY: 13.4, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
   { id: "treasury", name: "Sunvault Treasury", role: "$MM reserve and Merc Dollar banking", island: "hearth",
-    x: -19, z: -23, icon: "\u25C8", color: "#5b7fb0", supplies: [], opens: "trade" },
+    x: -19, z: -23, bannerY: 10.26, icon: "\u25C8", color: "#5b7fb0", supplies: [], opens: "trade" },
   { id: "registry", name: "Plot & Enterprise Registry", role: "Plots, titles and business registration", island: "hearth",
-    x: 17, z: -21, icon: "\u25A3", color: "#c78858", supplies: [], opens: "world" },
+    x: 17, z: -21, bannerY: 7.53, icon: "\u25A3", color: "#c78858", supplies: [], opens: "world" },
   { id: "transit", name: "Tidegate Transit Hall", role: "Connected-world transit and freight routes", island: "hearth",
-    x: 45, z: 47, icon: "\u2194", color: "#4eaeb7", supplies: [], opens: "world" },
+    x: 45, z: 47, bannerY: 12.1, icon: "\u2194", color: "#4eaeb7", supplies: [], opens: "world" },
   { id: "clinic", name: "Sunleaf Community Clinic", role: "Public health and community wellbeing", island: "hearth",
-    x: 43, z: -25, icon: "+", color: "#69a976", supplies: [], opens: "world" },
+    x: 43, z: -25, bannerY: 9.07, icon: "+", color: "#69a976", supplies: [], opens: "world" },
   { id: "rescue", name: "Tidewatch Rescue Station", role: "Fire, rescue and emergency response", island: "hearth",
-    x: 45, z: 7, icon: "!", color: "#df8465", supplies: [], opens: "world" },
+    x: 45, z: 7, bannerY: 12.4, icon: "!", color: "#df8465", supplies: [], opens: "world" },
   { id: "works", name: "Civic Works Depot", role: "Government utilities, materials and maintenance", island: "hearth",
-    x: -73, z: 7, icon: "\u2699", color: "#8d806d", supplies: ["water", "power", "ore", "timber"], opens: "trade" },
+    x: -73, z: 7, bannerY: 9.48, icon: "\u2699", color: "#8d806d", supplies: ["water", "power", "ore", "timber"], opens: "trade" },
   { id: "academy", name: "Maker Academy & Library", role: "Education, research and public knowledge", island: "hearth",
-    x: -47, z: -27, icon: "A", color: "#70a958", supplies: [], opens: "world" },
+    x: -47, z: -27, bannerY: 11.24, icon: "A", color: "#70a958", supplies: [], opens: "world" },
   { id: "homes", name: "Garden Commons Residences", role: "Civic housing and neighborhood services", island: "hearth",
-    x: 73, z: -27, icon: "\u2302", color: "#67a98c", supplies: [], opens: "world" },
+    x: 73, z: -27, bannerY: 11.57, icon: "\u2302", color: "#67a98c", supplies: [], opens: "world" },
 ];
 
 // --- Standing charges: a business owes the city whether it trades or not -----

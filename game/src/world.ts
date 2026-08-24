@@ -71,7 +71,8 @@ export class World3D {
   private readonly dynamicShadows = window.matchMedia("(min-width: 900px)").matches && (navigator.hardwareConcurrency ?? 4) >= 6;
   private sun: THREE.DirectionalLight | null = null;
   private clickTarget: THREE.Vector3 | null = null;
-  private building: THREE.Group | null = null;
+  private readonly buildings = new Map<string, THREE.Group>();
+  private readonly buildingBannerHeights = new Map<string, number>();
   private buildingSignature = "";
   private buildingLoadToken = 0;
   private cameraYaw = Math.PI / 4;
@@ -692,44 +693,61 @@ export class World3D {
     }
   }
 
-  async syncBuilding(state: GameState): Promise<void> {
-    const signature = state.buildingPlaced && state.license && state.ownedPlotId
-      ? `${state.license}:${state.ownedPlotId}`
-      : "";
+  async syncBuildings(state: GameState): Promise<void> {
+    const desired = Object.values(state.portfolio)
+      .filter((record): record is GameState["portfolio"][string] & { license: keyof typeof BUSINESS } => Boolean(record.buildingPlaced && record.license))
+      .sort((a, b) => a.plotId.localeCompare(b.plotId));
+    const signature = desired.map((record) => `${record.plotId}:${record.license}`).join("|");
     if (signature === this.buildingSignature) return;
     this.buildingSignature = signature;
     const token = ++this.buildingLoadToken;
-    if (this.building) {
-      this.scene.remove(this.building);
-      this.building = null;
+
+    const desiredIds = new Set(desired.map((record) => record.plotId));
+    for (const [plotId, model] of this.buildings) {
+      const record = desired.find((entry) => entry.plotId === plotId);
+      if (record && model.userData.license === record.license) continue;
+      this.scene.remove(model);
+      this.buildings.delete(plotId);
+      this.buildingBannerHeights.delete(plotId);
     }
-    if (!signature || !state.license || !state.ownedPlotId) return;
-    const plot = PLOTS.find((entry) => entry.id === state.ownedPlotId);
-    if (!plot) return;
-    const config = BUSINESS[state.license];
-    const gltf = await this.loader.loadAsync(config.model);
-    if (token !== this.buildingLoadToken) return;
-    const model = gltf.scene;
-    const bounds = new THREE.Box3().setFromObject(model);
-    const size = bounds.getSize(new THREE.Vector3());
-    const scale = Math.min((plot.width - 2) / Math.max(1, size.x), (plot.depth - 2) / Math.max(1, size.z), 1);
-    model.scale.setScalar(scale);
-    const scaledBounds = new THREE.Box3().setFromObject(model);
-    const center = scaledBounds.getCenter(new THREE.Vector3());
-    const groundY = this.sampleWalkHeight(plot.x, plot.z, true) ?? 1.02;
-    model.position.set(plot.x - center.x, groundY - scaledBounds.min.y, plot.z - center.z);
-    model.name = `MM_PLAYER_${state.license.toUpperCase()}`;
-    model.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.frustumCulled = true;
-        object.castShadow = this.dynamicShadows;
-        object.receiveShadow = this.dynamicShadows;
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        for (const material of materials) if (material instanceof THREE.MeshStandardMaterial) this.styleMaterial(material);
-      }
-    });
-    this.building = model;
-    this.scene.add(model);
+
+    await Promise.all(desired.map(async (record) => {
+      if (this.buildings.has(record.plotId)) return;
+      const plot = PLOTS.find((entry) => entry.id === record.plotId);
+      if (!plot || !record.license || !desiredIds.has(plot.id)) return;
+      const config = BUSINESS[record.license];
+      const gltf = await this.loader.loadAsync(config.model);
+      if (token !== this.buildingLoadToken) return;
+      const model = gltf.scene;
+      const bounds = new THREE.Box3().setFromObject(model);
+      const size = bounds.getSize(new THREE.Vector3());
+      const scale = Math.min((plot.width - 2) / Math.max(1, size.x), (plot.depth - 2) / Math.max(1, size.z), 1);
+      model.scale.setScalar(scale);
+      const scaledBounds = new THREE.Box3().setFromObject(model);
+      const center = scaledBounds.getCenter(new THREE.Vector3());
+      const groundY = this.sampleWalkHeight(plot.x, plot.z, true) ?? 1.02;
+      model.position.set(plot.x - center.x, groundY - scaledBounds.min.y, plot.z - center.z);
+      model.name = `MM_PLAYER_${record.license.toUpperCase()}_${plot.id.toUpperCase()}`;
+      model.userData.license = record.license;
+      model.userData.plotId = plot.id;
+      model.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.frustumCulled = true;
+          object.castShadow = this.dynamicShadows;
+          object.receiveShadow = this.dynamicShadows;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) if (material instanceof THREE.MeshStandardMaterial) this.styleMaterial(material);
+        }
+      });
+      this.scene.add(model);
+      const worldBounds = new THREE.Box3().setFromObject(model);
+      this.buildingBannerHeights.set(plot.id, worldBounds.max.y + 1.15);
+      this.buildings.set(plot.id, model);
+    }));
+  }
+
+  buildingBannerY(plotId: string): number | null {
+    return this.buildingBannerHeights.get(plotId) ?? null;
   }
 
   isNearOwnedBusiness(state: GameState): boolean {
