@@ -47,11 +47,20 @@ export const DEMAND_TIER_WEIGHT: Record<Tier, number> = {
 export const DISTRICT_TRADER_BASELINE = 8;
 
 export const EPOCH_LENGTH_DAYS = 7;
+/** Emission is a share of what remains, not a fixed number. Must match game/src/data.ts. */
+export const EPOCH_EMISSION_RATE = 0.003;
+export const EPOCH_MM_FLOOR = 8_000;
+export const REWARDS_POOL_MM = 25_000_000;
 export const EPOCH_MM_BUDGET = 60_000;
 /** Nobody who contributed should round to nothing, however crowded the realm gets. */
 export const MIN_EPOCH_PAYOUT = 25;
 /** A share of every fee and tax funds the next epoch instead of only draining the vault. */
 export const RESERVE_FUNDING_RATE = 0.35;
+/** Peg: one USDT of $MM buys 10,000 Maker Dollars. Must match game/src/data.ts. */
+export const MOLLAR_PER_USD = 10_000;
+export const MM_REFERENCE_PRICE_USD = 0.01;
+/** Maker Dollars per $MM at the reference price. Fees are collected in MD, budgets in $MM. */
+export const MOLLAR_PER_MM = MOLLAR_PER_USD * MM_REFERENCE_PRICE_USD;
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 export const epochIdFor = (at = Date.now()): number => Math.floor(at / (EPOCH_LENGTH_DAYS * 86_400_000));

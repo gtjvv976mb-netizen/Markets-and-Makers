@@ -1,7 +1,7 @@
 import { pool } from "./database.js";
 import { command, moveCurrency, takeItems, MarketError } from "./market.js";
 import { applyPurchaseWithin, applySaleWithin, fundReserve, EconomyError } from "./economy.js";
-import { RESERVE_FUNDING_RATE, RESOURCES } from "./catalogue.js";
+import { RESOURCES } from "./catalogue.js";
 
 const TAX_RATE = 0.05;
 const REALM = "sunwoven-1";
@@ -46,7 +46,8 @@ export async function sellToDistrict(input: {
     } satisfies SaleResult;
   });
 
-  await fundReserve(REALM, Math.floor(settled.tax * RESERVE_FUNDING_RATE), "economy.tax");
+  // fundReserve applies the share itself; passing a pre-scaled figure applied it twice.
+  await fundReserve(REALM, settled.tax, "economy.tax");
   return settled;
 }
 

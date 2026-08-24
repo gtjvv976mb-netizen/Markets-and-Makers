@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, DEED_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -687,8 +687,8 @@ function renderMarket(): void {
     </section>
 
     <section class="reserve-desk">
-      <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(EPOCH_MM_BUDGET)} $MM budget</span></div>
-      <p>$MM is <strong>earned, never bought</strong>. Each week one fixed pot is shared out by how much you contributed.</p>
+      <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(store.epochBudget())} $MM this week</span></div>
+      <p>$MM is <strong>earned, never bought</strong>. Each week the rewards pool pays out a share of itself, split by how much you contributed — so it shrinks slowly instead of running out.</p>
       <div class="epoch-meter" role="img" aria-label="Your share of this epoch's contribution pool: ${(store.epochShare() * 100).toFixed(2)} percent">
         <div class="epoch-fill" style="width:${Math.min(100, store.epochShare() * 100).toFixed(2)}%"></div>
       </div>
@@ -701,6 +701,7 @@ function renderMarket(): void {
       ${walletMarkup()}
       <p class="epoch-note">Orders are worth <strong>10&times;</strong> what dumping stock on the city is.</p>
       <div class="reserve-actions">
+        <button class="secondary" data-action="buy-deed" ${store.state.mmHoldings < DEED_COST_MM ? "disabled" : ""}>Buy a civic deed <small>${DEED_COST_MM} $MM · +1 plot</small></button>
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
@@ -907,6 +908,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy") report(store.buyResource(button.dataset.resource as ResourceKey));
   else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
   else if (action === "claim-epoch") report(store.claimEpochRewards());
+  else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "bank-in") report(store.exchangeMMForMollars(100));
   else if (action === "bank-out") report(store.exchangeMollarsForMM(1000));
   else if (action === "repair") report(store.repairBreakdown());

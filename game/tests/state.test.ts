@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
-  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, DEED_COST_MM, MM_BURN_RATE, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -48,7 +48,7 @@ describe("Markets & Makers economy", () => {
 
     // 50x the work yields well under 2x the payout, and never more than the budget.
     expect(grinder.projectedEpochMM()).toBeLessThan(modest.projectedEpochMM() * 2);
-    expect(grinder.projectedEpochMM()).toBeLessThanOrEqual(EPOCH_MM_BUDGET);
+    expect(grinder.projectedEpochMM()).toBeLessThanOrEqual(grinder.epochBudget());
   });
 
   it("protects the civic $MM reserve floor", () => {
@@ -394,6 +394,45 @@ describe("Markets & Makers economy", () => {
     // money between wallets and civic pools — they never create it.
     expect(store.mollarSupply()).toBe(supplyBefore);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
+  it("draws emission from the pool as a share, so it never runs dry", () => {
+    const store = new GameStore(createFreshState());
+    const first = store.epochBudget();
+    expect(first).toBeGreaterThan(0);
+
+    // Ten years of weekly draws with no inflows at all.
+    let pool = store.state.mmReserve;
+    for (let week = 0; week < 520; week += 1) {
+      store.state.mmReserve = pool;
+      pool -= store.epochBudget();
+    }
+    store.state.mmReserve = pool;
+    // Still paying, still solvent, still above the floor a decade later.
+    expect(pool).toBeGreaterThan(MIN_MM_RESERVE);
+    expect(store.epochBudget()).toBeGreaterThan(0);
+    // And the draw shrank rather than the pool hitting a wall.
+    expect(store.epochBudget()).toBeLessThan(first);
+  });
+
+  it("gives $MM somewhere to go, and destroys most of it", () => {
+    // Emission with no sink is pure sell pressure — the line every play-to-earn
+    // post-mortem ends on.
+    const store = new GameStore(createFreshState());
+    store.state.mmHoldings = DEED_COST_MM;
+    const poolBefore = store.state.mmReserve;
+    const allowanceBefore = store.plotAllowance();
+
+    expect(store.purchaseDeed().ok).toBe(true);
+    expect(store.state.mmHoldings).toBe(0);
+    expect(store.plotAllowance()).toBe(allowanceBefore + 1);
+
+    // Most of the payment leaves circulation for good; the rest funds future rewards.
+    expect(store.state.mmBurned).toBe(Math.round(DEED_COST_MM * MM_BURN_RATE));
+    expect(store.state.mmReserve).toBe(poolBefore + DEED_COST_MM - store.state.mmBurned);
+    expect(store.state.mmBurned).toBeGreaterThanOrEqual(DEED_COST_MM * 0.35);
+
+    expect(store.purchaseDeed().ok).toBe(false);
   });
 
   it("caps how much the bank may issue in one epoch", () => {

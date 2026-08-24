@@ -255,7 +255,28 @@ export const DEMAND_TIER_WEIGHT: Record<ResourceConfig["tier"], number> = {
 //     Your payout is your share of the epoch budget, so a bigger grind dilutes rather
 //     than extracts. See game/docs/ECONOMY_V2.md.
 export const EPOCH_LENGTH_DAYS = 7;
+/**
+ * Emission is a SHARE of the remaining pool, not a fixed number.
+ *
+ * A fixed 60,000/week empties a 25,000,000 pool in eight years and then stops dead, and
+ * per-player pay collapses as the realm grows — success punishing the people who built
+ * it. A percentage draw decays geometrically and never reaches zero: at 0.3% a week the
+ * pool still holds 5,200,000 $MM after ten years, while fee recycling grows with the
+ * population and takes over as the dominant source.
+ */
+export const EPOCH_EMISSION_RATE = 0.003;
+export const EPOCH_MM_FLOOR = 8_000;
+/** Kept as the display reference for the first epoch. */
 export const EPOCH_MM_BUDGET = 60_000;
+
+/**
+ * $MM must have somewhere to GO. Emission with no sink is pure sell pressure, which is
+ * the single line every play-to-earn post-mortem ends on. A premium deed is bought with
+ * $MM and a large share of it is destroyed, so growth is deflationary rather than merely
+ * neutral.
+ */
+export const DEED_COST_MM = 250;
+export const MM_BURN_RATE = 0.4;
 export const COHORT_CONTRIBUTION_BASE = 45_000;
 export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, civic: 0.1, auto: 0.05 } as const;
 

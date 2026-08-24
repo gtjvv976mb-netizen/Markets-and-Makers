@@ -5,7 +5,7 @@ import {
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
   APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  EPOCH_ISSUANCE_CAP, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  DEED_COST_MM, EPOCH_EMISSION_RATE, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
@@ -48,7 +48,7 @@ export interface GameState {
   experience: number; specialization: SpecializationKey | null; contractsCompleted: number; contractSequence: number;
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
-  bankTreasuryMM: number; epochIssued: number;
+  bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
@@ -98,7 +98,7 @@ export function createFreshState(): GameState {
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
-    epochIssued: 0,
+    epochIssued: 0, deeds: 0, mmBurned: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -228,6 +228,8 @@ export function loadState(): GameState {
       })(),
       bankTreasuryMM: finite(saved.bankTreasuryMM, BANK_TREASURY_MM, 0),
       epochIssued: finite(saved.epochIssued, 0, 0),
+      deeds: Math.floor(finite(saved.deeds, 0, 0, 40)),
+      mmBurned: finite(saved.mmBurned, 0, 0),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -647,9 +649,34 @@ export class GameStore {
     return mine <= 0 ? 0 : mine / (mine + COHORT_CONTRIBUTION_BASE);
   }
 
+  /** This epoch's pot: a share of what remains, so it decays but never runs out. */
+  epochBudget(): number {
+    const distributable = Math.max(0, this.state.mmReserve - MIN_MM_RESERVE);
+    return Math.max(Math.min(EPOCH_MM_FLOOR, distributable), Math.floor(distributable * EPOCH_EMISSION_RATE));
+  }
+
   projectedEpochMM(): number {
-    const budgeted = Math.floor(EPOCH_MM_BUDGET * this.epochShare());
+    const budgeted = Math.floor(this.epochBudget() * this.epochShare());
     return Math.max(0, Math.min(budgeted, this.state.mmReserve - MIN_MM_RESERVE));
+  }
+
+  /** Deeds a player has bought outright, on top of the allowance civic standing grants. */
+  deedAllowance(): number { return this.state.deeds; }
+
+  /**
+   * Buy a permanent plot slot with $MM. Most of the payment is destroyed, which is what
+   * turns emission into a circular flow instead of a one-way tap.
+   */
+  purchaseDeed(): ActionResult {
+    if (this.state.mmHoldings < DEED_COST_MM) return this.result(false, `A civic deed costs ${DEED_COST_MM} $MM.`);
+    const burned = Math.round(DEED_COST_MM * MM_BURN_RATE);
+    this.state.mmHoldings -= DEED_COST_MM;
+    this.state.mmBurned += burned;
+    this.state.mmReserve += DEED_COST_MM - burned;
+    this.state.deeds += 1;
+    this.addExperience(60);
+    this.commit(`Civic deed registered. ${burned} $MM was destroyed and ${DEED_COST_MM - burned} returned to the rewards pool.`, "success");
+    return this.result(true, "Deed purchased.");
   }
 
   epochEndsAt(): number { return (this.state.epoch.id + 1) * EPOCH_LENGTH_DAYS * 86_400_000; }
@@ -752,7 +779,7 @@ export class GameStore {
 
   /** Plots a player may hold at once, earned through civic standing. */
   plotAllowance(): number {
-    return BASE_PLOT_ALLOWANCE + Math.floor(this.careerLevel().level * PLOTS_PER_CAREER_LEVEL);
+    return BASE_PLOT_ALLOWANCE + Math.floor(this.careerLevel().level * PLOTS_PER_CAREER_LEVEL) + this.state.deeds;
   }
 
   ownedPlotIds(): string[] {
