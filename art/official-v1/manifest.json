@@ -1,0 +1,39 @@
+{
+  "schema": "markets-and-makers.official-art.v1",
+  "status": "approved-production-authority",
+  "approved_date": "2026-08-24",
+  "visual_standard": "../../ART-DIRECTION.md",
+  "tile_size_m": 2,
+  "source_axes": { "up": "+Z", "customer_front": "-Y" },
+  "gltf_axes": { "up": "+Y", "customer_front": "+Z" },
+  "presentation_camera": { "projection": "orthographic", "yaw_degrees": 45, "elevation_degrees": 35.264 },
+  "turntable_panel_order": [
+    { "panel": "top-left", "degrees": 0, "view": "front-right", "role": "identity-master" },
+    { "panel": "top-right", "degrees": 90, "view": "rear-right" },
+    { "panel": "bottom-left", "degrees": 180, "view": "rear-left" },
+    { "panel": "bottom-right", "degrees": 270, "view": "front-left" }
+  ],
+  "reference_checksum_file": "checksums.sha256",
+  "world_tile_kit": "world-tiles-v1/manifest.json",
+  "runtime_status": "references-approved-glbs-pending",
+  "businesses": [
+    { "license_key": "aquaworks", "asset_id": "mm_biz_aquaworks_v1", "name": "Tideglass AquaWorks", "footprint_tiles": [6, 6], "turntable": "turntables/01-aquaworks.png", "approved_original": "approved-originals/b04-aquaworks.png" },
+    { "license_key": "sungrid", "asset_id": "mm_biz_sungrid_v1", "name": "Sunwell Microgrid", "footprint_tiles": [6, 6], "turntable": "turntables/02-sungrid.png", "approved_original": "approved-originals/b03-sungrid-utility.png" },
+    { "license_key": "greenhouse", "asset_id": "mm_biz_greenhouse_v1", "name": "Greenloom Greenhouse", "footprint_tiles": [6, 8], "turntable": "turntables/03-greenhouse.png", "approved_original": "approved-originals/b05-canopy-greenhouse.png" },
+    { "license_key": "mine", "asset_id": "mm_biz_mine_v1", "name": "Stonewake Mine", "footprint_tiles": [6, 6], "turntable": "turntables/04-mine.png", "style_source": "approved-originals/b06-maker-workshop.png" },
+    { "license_key": "timberworks", "asset_id": "mm_biz_timberworks_v1", "name": "Timbercoast Works", "footprint_tiles": [6, 6], "turntable": "turntables/05-timberworks.png", "style_source": "approved-originals/b06-maker-workshop.png" },
+    { "license_key": "cratemill", "asset_id": "mm_biz_cratemill_v1", "name": "Freight Crate Mill", "footprint_tiles": [6, 6], "turntable": "turntables/06-crate-mill.png", "style_source": "approved-originals/b06-maker-workshop.png" },
+    { "license_key": "workshop", "asset_id": "mm_biz_workshop_v1", "name": "Maker Workshop", "footprint_tiles": [6, 6], "turntable": "turntables/07-maker-workshop.png", "approved_original": "approved-originals/b06-maker-workshop.png" },
+    { "license_key": "factory", "asset_id": "mm_biz_factory_v1", "name": "Sunwoven Factory", "footprint_tiles": [8, 8], "turntable": "turntables/08-sunwoven-factory.png", "style_source": "approved-originals/b06-maker-workshop.png" },
+    { "license_key": "construction", "asset_id": "mm_biz_construction_v1", "name": "Civic Construction Co.", "footprint_tiles": [8, 6], "turntable": "turntables/09-civic-construction.png", "style_source": "approved-originals/b01-ferry-terminal.png" },
+    { "license_key": "freight", "asset_id": "mm_biz_freight_v1", "name": "Copper Quay Freight", "footprint_tiles": [8, 6], "turntable": "turntables/10-copper-quay-freight.png", "approved_original": "approved-originals/b01-ferry-terminal.png" },
+    { "license_key": "shop", "asset_id": "mm_biz_shop_v1", "name": "Supply Shop & Café", "footprint_tiles": [4, 4], "turntable": "turntables/11-supply-shop-cafe.png", "approved_original": "approved-originals/b07-starter-shop-cafe.png" },
+    { "license_key": "restaurant", "asset_id": "mm_biz_restaurant_v1", "name": "Sunset Market Kitchen", "footprint_tiles": [6, 6], "turntable": "turntables/12-sunset-market-kitchen.png", "style_source": "approved-originals/b07-starter-shop-cafe.png" },
+    { "license_key": "gym", "asset_id": "mm_biz_gym_v1", "name": "Harbor Gym", "footprint_tiles": [6, 6], "turntable": "turntables/13-harbor-gym.png", "approved_original": "approved-originals/b08-harbor-gym.png" },
+    { "license_key": "cinema", "asset_id": "mm_biz_cinema_v1", "name": "Lantern Cinema", "footprint_tiles": [8, 6], "turntable": "turntables/14-lantern-cinema.png", "style_source": "approved-originals/b02-market-pavilion.png" },
+    { "license_key": "recycler", "asset_id": "mm_biz_recycler_v1", "name": "Tideglass Reclamation Hub", "footprint_tiles": [6, 6], "turntable": "turntables/15-reclamation-hub.png", "style_source": "approved-originals/b04-aquaworks.png" }
+  ],
+  "public_structures": [
+    { "asset_id": "mm_public_market_pavilion_v1", "name": "Public Market Pavilion", "footprint_tiles": [8, 8], "turntable": "turntables/public-market-pavilion.png", "approved_original": "approved-originals/b02-market-pavilion.png" }
+  ]
+}

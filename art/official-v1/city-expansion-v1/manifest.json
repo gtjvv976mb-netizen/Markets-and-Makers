@@ -1,0 +1,931 @@
+{
+  "schema": "markets-and-makers.city-expansion.spec.v1",
+  "version": "1.0.0",
+  "title": "Markets & Makers — Hearthmarket City Expansion",
+  "status": "APPROVED",
+  "purpose": "Authoritative contract and approved artifact record for the Hearthmarket solarpunk city expansion.",
+  "approval": {
+    "date": "2026-08-24",
+    "art_direction": "PASS",
+    "technical_qa": {
+      "status": "PASS",
+      "checks": 983,
+      "failed_checks": 0,
+      "warnings": 0,
+      "report": "../../../outputs/markets-and-makers-city-expansion-v1/qa-report.json",
+      "sha256": "1640cc94d0ad020354394389db7443a48528b740fbf30d0d79f2f50c71f331b3"
+    },
+    "generated_manifest": {
+      "file": "../../../outputs/markets-and-makers-city-expansion-v1/manifest.json",
+      "sha256": "aa33d9eab7f73c1d604333169e1e9f8f5b5ab9003e1814121d81f89f9305dc26"
+    }
+  },
+  "visual_reference": {
+    "file": "../world-tiles-v1/reference/official-logo-world.png",
+    "rule": "Match the approved logo-world solarpunk palette, chunky tile silhouette, pale civic stone, honey timber, teal water, warm solar accents, and dense planted edges."
+  },
+  "source_packages": {
+    "terrain": {
+      "package": "markets-and-makers-logo-world-tiles-v4",
+      "manifest": "../../../outputs/markets-and-makers-logo-world-tiles-v4/manifest.json",
+      "manifest_sha256": "10959d9109ade4598f42b3fcd7d9638c8122728eebb1d4188c83c01532d4d6b2",
+      "blend": "../../../outputs/markets-and-makers-logo-world-tiles-v4/markets-and-makers-logo-world-tiles-v4.blend",
+      "blend_sha256": "418da3261fcc321ad9252dc11790c68d601b23900309cddc886920f8b8e148a4",
+      "collection": "MM_LOGO_WORLD_TILES_V4",
+      "import_rule": "Append once from the Blend and create linked mesh instances. Do not import the 50 separately textured GLBs."
+    },
+    "legacy_structure_proxies": {
+      "package": "markets-and-makers-blender-structures-v1",
+      "manifest": "../../../outputs/markets-and-makers-blender-structures-v1/manifest.json",
+      "manifest_sha256": "262f5defa5dac787715cd855e650d910bcb074d14a4a833bb9d102d235f2b4ea",
+      "blend": "../../../outputs/markets-and-makers-blender-structures-v1/markets-and-makers-structures-v1.blend",
+      "blend_sha256": "1fd4f288db264dc85aeae8c9e6ec9cddd70a99d6fcaad2f71b149eefa703dbd3",
+      "collection": "MM_STRUCTURES_CORE_SOURCE",
+      "import_rule": "Retained only as lightweight legacy proxies; they are not used by the approved city hero."
+    },
+    "business_buildings": {
+      "package": "markets-and-makers-business-modeling-references-v2-original-style",
+      "manifest": "/Users/michaelkennethbrillantes/Desktop/MM/markets-and-makers-business-modeling-references-v2-original-style/manifest.json",
+      "manifest_sha256": "b39a6783c2ec4c8a8efe53320809917775113241d17db4548a061ba30b68160f",
+      "blend": "../../../outputs/markets-and-makers-city-expansion-v1/markets-and-makers-city-expansion-v1.blend",
+      "blend_sha256": "70fcdd3a191686fda03cdaa99797dbda34c1cd21364e0d00bcae2b1b867c4562",
+      "creator_source_manifest": "/Users/michaelkennethbrillantes/Desktop/MM/markets-and-makers-business-modeling-references-v2-original-style/manifest.json",
+      "creator_source_manifest_sha256": "b39a6783c2ec4c8a8efe53320809917775113241d17db4548a061ba30b68160f",
+      "preserved_sources": "../../../outputs/markets-and-makers-city-expansion-v1/buildings",
+      "building_count": 15,
+      "import_rule": "Preserve the uploaded GLBs as source masters; normalize scale and ground pivot, generate simplified display meshes, and never load the million-triangle masters directly in the browser."
+    }
+  },
+  "grid": {
+    "cell_m": [
+      2,
+      2
+    ],
+    "source_axes": {
+      "east": "+X",
+      "north": "+Y",
+      "up": "+Z"
+    },
+    "gltf_axes": {
+      "east": "+X",
+      "north": "-Z",
+      "up": "+Y"
+    },
+    "cell_to_source_m": "source_x = cell_x * 2; source_y = cell_y * 2",
+    "walk_z_m": 1,
+    "water_z_m": -0.18,
+    "canal_water_z_m": 0.68,
+    "terrace_step_m": 1,
+    "rotations_degrees": [
+      0,
+      90,
+      180,
+      270
+    ],
+    "rotation_rule": "Clockwise quarter turns around +Z; structure front is -Y at rotation 0.",
+    "chunk_cells": [
+      16,
+      16
+    ]
+  },
+  "district": {
+    "id": "hearthmarket_city_v1",
+    "name": "Hearthmarket",
+    "kind": "main_city_island",
+    "bounds_cells": {
+      "min": [
+        -24,
+        -24
+      ],
+      "max": [
+        23,
+        23
+      ]
+    },
+    "size_cells": [
+      48,
+      48
+    ],
+    "size_m": [
+      96,
+      96
+    ],
+    "island_mask": {
+      "shape": "rounded_rectangle",
+      "shore_inset_cells": 1,
+      "corner_cut_cells": 5,
+      "minimum_land_bridge_width_cells": 4
+    },
+    "preview_camera": {
+      "projection": "ORTHOGRAPHIC",
+      "location_m": [
+        100,
+        -132,
+        100
+      ],
+      "target_m": [
+        0,
+        0,
+        2
+      ],
+      "ortho_scale_m": 112,
+      "resolution_px": [
+        1920,
+        1440
+      ]
+    },
+    "layout_schema": {
+      "coordinate_space": "integer_cell",
+      "macro_anchor": "southwest footprint cell before rotation",
+      "layers_bottom_to_top": [
+        "ocean",
+        "terrain",
+        "city_tiles",
+        "structures",
+        "preview_props",
+        "sockets_and_guides"
+      ],
+      "record_types": {
+        "terrain": "{tile_id, cell:[x,y], z_level, rotation_degrees, skin}",
+        "city_tile": "{city_tile_id, anchor_cell_sw:[x,y], z_level, rotation_degrees}",
+        "structure": "{placement_id, structure_id, anchor_cell_sw:[x,y], z_level, rotation_degrees, role}",
+        "plot": "{plot_id, anchor_cell_sw:[x,y], footprint_cells:[w,h], customer_edge, service_edge, utility_edge}",
+        "prop": "{prop_id, archetype, cell:[x,y], local_offset_m:[x,y,z], rotation_degrees, scale, preview_only}"
+      },
+      "occupancy_rule": "Macro footprints reserve every covered cell; overlays may share cells only with their declared compatible base family.",
+      "rotation_rule": "Rotate footprint and typed connections together before occupancy and seam validation."
+    }
+  },
+  "layout_blueprint": {
+    "generation_order": [
+      "island_mask",
+      "coast",
+      "base_land",
+      "central_canal",
+      "plaza",
+      "paths",
+      "plots",
+      "bridges_and_docks",
+      "structures",
+      "preview_props",
+      "navigation_and_utility_graphs"
+    ],
+    "base_surface": {
+      "tile_id": "T01",
+      "tile_key": "land_flat",
+      "skin": "buildable_grass"
+    },
+    "coast": {
+      "preferred_natural_tiles": [
+        "T13",
+        "T14",
+        "T15",
+        "T16"
+      ],
+      "preferred_civic_tiles": [
+        "T17",
+        "T18",
+        "T19"
+      ],
+      "civic_waterfront_sides": [
+        "S",
+        "SE"
+      ],
+      "natural_waterfront_sides": [
+        "N",
+        "E",
+        "W"
+      ]
+    },
+    "central_canal": {
+      "shape": "rectangular_loop",
+      "outer_bounds_cells": {
+        "min": [
+          -7,
+          -7
+        ],
+        "max": [
+          7,
+          7
+        ]
+      },
+      "width_cells": 1,
+      "tile_ids": [
+        "T20",
+        "T21",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "bridge_crossings": [
+        {
+          "id": "canal_bridge_n",
+          "cell": [
+            0,
+            7
+          ],
+          "tile_id": "T39",
+          "rotation_degrees": 0
+        },
+        {
+          "id": "canal_bridge_s",
+          "cell": [
+            0,
+            -7
+          ],
+          "tile_id": "T39",
+          "rotation_degrees": 0
+        },
+        {
+          "id": "canal_bridge_e",
+          "cell": [
+            7,
+            0
+          ],
+          "tile_id": "T39",
+          "rotation_degrees": 90
+        },
+        {
+          "id": "canal_bridge_w",
+          "cell": [
+            -7,
+            0
+          ],
+          "tile_id": "T39",
+          "rotation_degrees": 90
+        }
+      ]
+    },
+    "central_plaza": {
+      "bounds_cells": {
+        "min": [
+          -6,
+          -6
+        ],
+        "max": [
+          6,
+          6
+        ]
+      },
+      "tile_id": "T33",
+      "market_structure_id": "B02",
+      "rule": "Plaza remains fully walkable around the market footprint and connects to all four canal bridges."
+    },
+    "primary_paths": [
+      {
+        "id": "civic_spine_ns",
+        "from_cell": [
+          0,
+          -22
+        ],
+        "to_cell": [
+          0,
+          22
+        ],
+        "width_cells": 2
+      },
+      {
+        "id": "maker_spine_ew",
+        "from_cell": [
+          -22,
+          0
+        ],
+        "to_cell": [
+          22,
+          0
+        ],
+        "width_cells": 2
+      }
+    ],
+    "path_tile_ids": [
+      "T27",
+      "T28",
+      "T29",
+      "T30",
+      "T31",
+      "T32",
+      "T33"
+    ],
+    "south_harbor": {
+      "center_cell": [
+        0,
+        -23
+      ],
+      "tile_ids": [
+        "T44",
+        "T45",
+        "T46",
+        "T47",
+        "T48",
+        "T49",
+        "T50"
+      ],
+      "ferry_terminal_structure_id": "B01"
+    }
+  },
+  "city_tile_contract": {
+    "count": 36,
+    "id_range": "C01-C36",
+    "asset_id_pattern": "mm.city.{id_lower}.{key}.v1",
+    "collection_pattern": "ASSET_MM_CITY_{id}_{key_upper}_V1",
+    "root_node_pattern": "MM_CITY_{id}_{key_upper}_V1_LOD0",
+    "glb_pattern": "tiles/{id}_{key}.glb",
+    "preview_pattern": "previews/{id}_{key}.png",
+    "base_rule": "City tiles inherit the official v4 grid, levels, materials, UV scale, and cardinal socket positions.",
+    "overlay_rule": "street_overlay records contain markings only and must be instanced over a compatible street record with the same footprint and rotation."
+  },
+  "city_tile_catalog": [
+    {
+      "id": "C01",
+      "key": "street_straight",
+      "family": "street",
+      "footprint": [2, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C02",
+      "key": "street_corner",
+      "family": "street",
+      "footprint": [2, 2],
+      "connections": ["N", "E"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C03",
+      "key": "street_t",
+      "family": "street",
+      "footprint": [2, 2],
+      "connections": ["N", "E", "W"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C04",
+      "key": "street_cross",
+      "family": "street",
+      "footprint": [2, 2],
+      "connections": ["N", "E", "S", "W"],
+      "allowed_rotations_degrees": [0]
+    },
+    {
+      "id": "C05",
+      "key": "street_end_turnaround",
+      "family": "street",
+      "footprint": [2, 2],
+      "connections": ["N"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C06",
+      "key": "street_plaza_threshold",
+      "family": "street",
+      "footprint": [2, 1],
+      "connections": ["S_STREET", "N_PLAZA"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C07",
+      "key": "street_bridge_threshold",
+      "family": "street",
+      "footprint": [2, 1],
+      "connections": ["S_STREET", "N_DECK_LAND"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C08",
+      "key": "street_ramp",
+      "family": "street",
+      "footprint": [2, 2],
+      "connections": ["S_STREET_L0", "N_STREET_L1"],
+      "elevation_delta_m": 1,
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C09",
+      "key": "road_mark_straight",
+      "family": "street_overlay",
+      "footprint": [2, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C10",
+      "key": "road_mark_corner",
+      "family": "street_overlay",
+      "footprint": [2, 2],
+      "connections": ["N", "E"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C11",
+      "key": "crosswalk_overlay",
+      "family": "street_overlay",
+      "footprint": [2, 1],
+      "connections": ["N_STREET", "S_STREET", "E_PATH", "W_PATH"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C12",
+      "key": "loading_curb_mark",
+      "family": "street_overlay",
+      "footprint": [2, 1],
+      "connections": ["S_CARGO"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C13",
+      "key": "civic_edge_straight",
+      "family": "civic",
+      "footprint": [1, 1],
+      "edge_mask": 4,
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C14",
+      "key": "civic_edge_outer",
+      "family": "civic",
+      "footprint": [1, 1],
+      "edge_mask": 6,
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C15",
+      "key": "civic_edge_inner",
+      "family": "civic",
+      "footprint": [1, 1],
+      "edge_mask": 6,
+      "corner_mode": "inner",
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C16",
+      "key": "accessible_curb_ramp",
+      "family": "civic",
+      "footprint": [1, 1],
+      "connections": ["S_STREET", "N_PATH"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C17",
+      "key": "grand_civic_stairs",
+      "family": "civic",
+      "footprint": [2, 1],
+      "connections": ["S_PATH_L0", "N_PLAZA_L1"],
+      "elevation_delta_m": 1,
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C18",
+      "key": "planted_median_straight",
+      "family": "civic",
+      "footprint": [1, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C19",
+      "key": "planted_median_end",
+      "family": "civic",
+      "footprint": [1, 1],
+      "connections": ["N"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C20",
+      "key": "tree_court",
+      "family": "civic",
+      "footprint": [2, 2],
+      "connections": [],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C21",
+      "key": "shuttle_guide_straight",
+      "family": "transit",
+      "footprint": [2, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C22",
+      "key": "shuttle_guide_corner",
+      "family": "transit",
+      "footprint": [2, 2],
+      "connections": ["N", "E"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C23",
+      "key": "shuttle_guide_t",
+      "family": "transit",
+      "footprint": [2, 2],
+      "connections": ["N", "E", "W"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C24",
+      "key": "shuttle_guide_cross",
+      "family": "transit",
+      "footprint": [2, 2],
+      "connections": ["N", "E", "S", "W"],
+      "allowed_rotations_degrees": [0]
+    },
+    {
+      "id": "C25",
+      "key": "shuttle_stop_pad",
+      "family": "transit",
+      "footprint": [2, 1],
+      "connections": ["S_STREET_EDGE", "N_PATH"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C26",
+      "key": "freight_transfer_apron",
+      "family": "logistics",
+      "footprint": [2, 2],
+      "connections": ["S_STREET", "N_CARGO_DOOR"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C27",
+      "key": "ferry_queue_apron",
+      "family": "logistics",
+      "footprint": [2, 2],
+      "connections": ["S_STREET", "N_FERRY_QUEUE"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C28",
+      "key": "utility_duct_straight",
+      "family": "utility",
+      "footprint": [1, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C29",
+      "key": "utility_duct_corner",
+      "family": "utility",
+      "footprint": [1, 1],
+      "connections": ["N", "E"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C30",
+      "key": "utility_duct_t",
+      "family": "utility",
+      "footprint": [1, 1],
+      "connections": ["N", "E", "W"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C31",
+      "key": "utility_duct_cross",
+      "family": "utility",
+      "footprint": [1, 1],
+      "connections": ["N", "E", "S", "W"],
+      "allowed_rotations_degrees": [0]
+    },
+    {
+      "id": "C32",
+      "key": "utility_service_node",
+      "family": "utility",
+      "footprint": [1, 1],
+      "connections": [],
+      "allowed_rotations_degrees": [0]
+    },
+    {
+      "id": "C33",
+      "key": "bioswale_straight",
+      "family": "ecology",
+      "footprint": [1, 1],
+      "connections": ["N", "S"],
+      "allowed_rotations_degrees": [0, 90]
+    },
+    {
+      "id": "C34",
+      "key": "bioswale_corner",
+      "family": "ecology",
+      "footprint": [1, 1],
+      "connections": ["N", "E"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C35",
+      "key": "plot_service_gate",
+      "family": "plot",
+      "footprint": [2, 1],
+      "connections": ["S_STREET", "N_PLOT_CARGO"],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    },
+    {
+      "id": "C36",
+      "key": "construction_staging_pad",
+      "family": "plot",
+      "footprint": [2, 2],
+      "connections": [],
+      "allowed_rotations_degrees": [0, 90, 180, 270]
+    }
+  ],
+  "business_building_catalog": [
+    {"id": "01_aquaworks", "name": "Tideglass AquaWorks", "footprint_cells": [6, 6], "center_m": [-28, 28], "rotation_degrees": 0, "source_glb": "buildings/01_aquaworks_aquaworks.glb"},
+    {"id": "02_sungrid", "name": "Sunwell Microgrid", "footprint_cells": [6, 6], "center_m": [8, 28], "rotation_degrees": 0, "source_glb": "buildings/02_sungrid_sungrid.glb"},
+    {"id": "03_greenhouse", "name": "Greenloom Greenhouse", "footprint_cells": [6, 8], "center_m": [28, 28], "rotation_degrees": 0, "source_glb": "buildings/03_greenhouse_greenhouse.glb"},
+    {"id": "04_mine", "name": "Stonewake Mine", "footprint_cells": [6, 6], "center_m": [-28, -9], "rotation_degrees": 0, "source_glb": "buildings/04_mine_mine.glb"},
+    {"id": "05_timberworks", "name": "Timbercoast Works", "footprint_cells": [6, 6], "center_m": [-28, 9], "rotation_degrees": 0, "source_glb": "buildings/05_timberworks_timberworks.glb"},
+    {"id": "06_cratemill", "name": "Freight Crate Mill", "footprint_cells": [6, 6], "center_m": [8, -9], "rotation_degrees": 0, "source_glb": "buildings/06_cratemill_cratemill.glb"},
+    {"id": "07_workshop", "name": "Maker Workshop", "footprint_cells": [6, 6], "center_m": [28, 9], "rotation_degrees": 0, "source_glb": "buildings/07_workshop_workshop.glb"},
+    {"id": "08_factory", "name": "Sunwoven Factory", "footprint_cells": [8, 8], "center_m": [28, -9], "rotation_degrees": 0, "source_glb": "buildings/08_factory_factory.glb"},
+    {"id": "09_construction", "name": "Civic Construction Co.", "footprint_cells": [8, 6], "center_m": [-28, -28], "rotation_degrees": 0, "source_glb": "buildings/09_construction_construction.glb"},
+    {"id": "10_freight", "name": "Copper Quay Freight", "footprint_cells": [8, 6], "center_m": [11, -31], "rotation_degrees": 0, "source_glb": "buildings/10_freight_freight.glb"},
+    {"id": "11_shop", "name": "Supply Shop & Café", "footprint_cells": [4, 4], "center_m": [-10, 9], "rotation_degrees": 0, "source_glb": "buildings/11_shop_shop.glb"},
+    {"id": "12_restaurant", "name": "Sunset Market Kitchen", "footprint_cells": [6, 6], "center_m": [8, 9], "rotation_degrees": 0, "source_glb": "buildings/12_restaurant_restaurant.glb"},
+    {"id": "13_gym", "name": "Harbor Gym", "footprint_cells": [6, 6], "center_m": [-10, -9], "rotation_degrees": 0, "source_glb": "buildings/13_gym_gym.glb"},
+    {"id": "14_cinema", "name": "Lantern Cinema", "footprint_cells": [8, 6], "center_m": [-10, 28], "rotation_degrees": 0, "source_glb": "buildings/14_cinema_cinema.glb"},
+    {"id": "15_recycler", "name": "Tideglass Reclamation Hub", "footprint_cells": [6, 6], "center_m": [-9, -28], "rotation_degrees": 0, "source_glb": "buildings/15_recycler_recycler.glb"}
+  ],
+  "legacy_structure_proxy_catalog": [
+    {
+      "id": "B01",
+      "key": "ferry_terminal",
+      "footprint_cells": [
+        8,
+        6
+      ]
+    },
+    {
+      "id": "B02",
+      "key": "market_pavilion",
+      "footprint_cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "id": "B03",
+      "key": "sungrid_utility",
+      "footprint_cells": [
+        6,
+        6
+      ]
+    },
+    {
+      "id": "B04",
+      "key": "aquaworks",
+      "footprint_cells": [
+        6,
+        6
+      ]
+    },
+    {
+      "id": "B05",
+      "key": "canopy_greenhouse",
+      "footprint_cells": [
+        6,
+        8
+      ]
+    },
+    {
+      "id": "B06",
+      "key": "maker_workshop",
+      "footprint_cells": [
+        6,
+        6
+      ]
+    },
+    {
+      "id": "B07",
+      "key": "starter_shop_cafe",
+      "footprint_cells": [
+        4,
+        4
+      ]
+    },
+    {
+      "id": "B08",
+      "key": "harbor_gym",
+      "footprint_cells": [
+        6,
+        6
+      ]
+    }
+  ],
+  "legacy_proxy_placements": [
+    {
+      "placement_id": "hearth.ferry_terminal.01",
+      "structure_id": "B01",
+      "anchor_cell_sw": [
+        -4,
+        -21
+      ],
+      "rotation_degrees": 0,
+      "role": "public_harbor_anchor"
+    },
+    {
+      "placement_id": "hearth.market_pavilion.01",
+      "structure_id": "B02",
+      "anchor_cell_sw": [
+        -4,
+        -4
+      ],
+      "rotation_degrees": 0,
+      "role": "public_city_anchor"
+    },
+    {
+      "placement_id": "hearth.sungrid.01",
+      "structure_id": "B03",
+      "anchor_cell_sw": [
+        10,
+        11
+      ],
+      "rotation_degrees": 0,
+      "role": "public_utility"
+    },
+    {
+      "placement_id": "hearth.aquaworks.01",
+      "structure_id": "B04",
+      "anchor_cell_sw": [
+        -16,
+        11
+      ],
+      "rotation_degrees": 0,
+      "role": "public_utility"
+    },
+    {
+      "placement_id": "hearth.greenhouse.01",
+      "structure_id": "B05",
+      "anchor_cell_sw": [
+        -18,
+        -6
+      ],
+      "rotation_degrees": 0,
+      "role": "producer_anchor"
+    },
+    {
+      "placement_id": "hearth.workshop.01",
+      "structure_id": "B06",
+      "anchor_cell_sw": [
+        12,
+        -4
+      ],
+      "rotation_degrees": 0,
+      "role": "maker_anchor"
+    },
+    {
+      "placement_id": "hearth.shop.01",
+      "structure_id": "B07",
+      "anchor_cell_sw": [
+        -4,
+        11
+      ],
+      "rotation_degrees": 180,
+      "role": "merchant"
+    },
+    {
+      "placement_id": "hearth.shop.02",
+      "structure_id": "B07",
+      "anchor_cell_sw": [
+        10,
+        4
+      ],
+      "rotation_degrees": 270,
+      "role": "merchant"
+    },
+    {
+      "placement_id": "hearth.shop.03",
+      "structure_id": "B07",
+      "anchor_cell_sw": [
+        -14,
+        4
+      ],
+      "rotation_degrees": 90,
+      "role": "merchant"
+    },
+    {
+      "placement_id": "hearth.shop.04",
+      "structure_id": "B07",
+      "anchor_cell_sw": [
+        -4,
+        -14
+      ],
+      "rotation_degrees": 0,
+      "role": "merchant"
+    },
+    {
+      "placement_id": "hearth.gym.01",
+      "structure_id": "B08",
+      "anchor_cell_sw": [
+        10,
+        -15
+      ],
+      "rotation_degrees": 0,
+      "role": "service_anchor"
+    }
+  ],
+  "leasable_plot_plan": {
+    "minimum_count": 12,
+    "preferred_footprints_cells": [
+      [
+        4,
+        4
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        6,
+        8
+      ]
+    ],
+    "tile_ids": [
+      "T34",
+      "T35",
+      "T36",
+      "T37",
+      "T38"
+    ],
+    "requirements": [
+      "Every plot has a customer path edge.",
+      "Every industrial or utility plot has a distinct service or delivery edge.",
+      "No plot overlaps canal, bridge, dock, public structure, or another plot.",
+      "A one-cell public apron remains around every occupied footprint."
+    ]
+  },
+  "preview_props": {
+    "status": "PROCEDURAL_PREVIEW_ONLY",
+    "deterministic_seed": 240824,
+    "archetypes": [
+      "broadleaf_tree",
+      "palm_tree",
+      "flower_planter",
+      "civic_bench",
+      "solar_lamp",
+      "market_stall",
+      "cargo_cart",
+      "dock_bollard"
+    ],
+    "rules": [
+      "Use shared meshes and shared official materials.",
+      "Keep all customer paths, structure entrances, service sockets, and plot entrances clear.",
+      "Exclude preview-only vegetation from the runtime-lite GLB."
+    ]
+  },
+  "authored_layers": {
+    "terrain_overrides": [],
+    "structure_overrides": [],
+    "plot_overrides": [],
+    "prop_overrides": []
+  },
+  "generated_layers": {
+    "terrain_placements": [],
+    "plot_placements": [],
+    "navigation_graph": [],
+    "utility_graph": [],
+    "chunks": []
+  },
+  "validation_contract": {
+    "required_checks": [
+      "source hashes match",
+      "all tile and structure IDs resolve",
+      "all placements use integer cells and quarter-turn rotations",
+      "rotated footprints remain inside buildable land",
+      "no occupied-footprint overlap",
+      "tile edge and active socket compatibility",
+      "coast is watertight and canal is continuous",
+      "every public entrance reaches the primary path graph",
+      "every plot has customer access",
+      "utility and service sockets are not blocked",
+      "every 16x16 chunk remains within geometry budget",
+      "all GLBs are valid glTF 2.0 and have finite bounds",
+      "artifact hashes and byte counts match the generated manifest"
+    ]
+  },
+  "budgets": {
+    "terrain_chunk_max_cells": 256,
+    "terrain_chunk_max_triangles": 2560,
+    "terrain_chunk_max_materials": 12,
+    "runtime_lite_max_expanded_triangles": 132000,
+    "runtime_lite_max_draws": 440,
+    "runtime_lite_max_materials": 32,
+    "runtime_lite_raw_glb_max_bytes": 8388608,
+    "runtime_first_download_compressed_max_bytes": 6291456,
+    "art_preview_glb_max_bytes": 16777216,
+    "preview_landscape_max_triangles": 12000,
+    "preview_landscape_max_draws": 48,
+    "lod1_distance_m": 48,
+    "lod2_distance_m": 88
+  },
+  "expected_outputs": {
+    "package": "outputs/markets-and-makers-city-expansion-v1",
+    "blend": "markets-and-makers-city-expansion-v1.blend",
+    "combined_glb": "mm_city_expansion_tiles_v1.glb",
+    "preview_glb": "mm_hearthmarket_city_expansion_v1_preview.glb",
+    "runtime_lite_glb": "mm_hearthmarket_city_expansion_v1_lite.glb",
+    "assembled_preview": "previews/mm_hearthmarket_city_expansion_v1.png",
+    "catalog": "previews/mm_city_expansion_tiles_v1_catalog.png",
+    "manifest": "manifest.json",
+    "qa_report": "qa-report.json",
+    "chunks_directory": "chunks"
+  }
+}

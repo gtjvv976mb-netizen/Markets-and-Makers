@@ -5,8 +5,8 @@ services:
     rootDir: server
     region: singapore
     plan: starter
-    buildCommand: npm ci && npm run build
-    preDeployCommand: npm run migrate
+    buildCommand: npm ci --include=dev && npm run build
+    preDeployCommand: npm run migrate:deploy
     startCommand: npm start
     healthCheckPath: /health
     autoDeployTrigger: checksPass

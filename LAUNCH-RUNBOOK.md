@@ -157,7 +157,7 @@ It should propose:
 - `markets-and-makers-db` PostgreSQL
 - Singapore region
 - `/health` health check
-- `npm run migrate` pre-deploy command
+- `npm run migrate:deploy` pre-deploy command (runs the compiled migration)
 - automatic deploy only after GitHub checks pass
 
 Review the displayed monthly price before selecting **Deploy Blueprint**. The current plans are paid.
@@ -180,7 +180,7 @@ Expected order:
 
 1. PostgreSQL provisions.
 2. Server dependencies install and TypeScript builds.
-3. `npm run migrate` creates tables.
+3. `npm run migrate:deploy` creates tables from the compiled server output.
 4. The service starts.
 5. Render checks `/health`.
 

@@ -36,7 +36,7 @@ Set these secret values in the Render dashboard:
 
 Render generates `HELIUS_WEBHOOK_SECRET`. Copy its value when configuring the Helius webhook authorization header. Never commit it.
 
-The Blueprint runs `npm run migrate` before deployment and checks `/health`. Postgres has no public inbound IP ranges; the service uses Render's private connection string.
+The Blueprint installs build-time tooling explicitly even with `NODE_ENV=production`, compiles the server, runs the compiled `npm run migrate:deploy` command before deployment, and checks `/health`. Postgres has no public inbound IP ranges; the service uses Render's private connection string.
 
 ## 2. Cloudflare
 

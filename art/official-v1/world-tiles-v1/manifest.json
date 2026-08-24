@@ -1,0 +1,108 @@
+{
+  "schema": "markets-and-makers.logo-world-tiles.v1",
+  "status": "approved-official-models-v4",
+  "visual_reference": {
+    "file": "reference/official-logo-world.png",
+    "sha256": "765307fa4b2493e940ef04b72206f120eda2c38b74fc7eb0a6c8ab68e798f738"
+  },
+  "approved_artifact": {
+    "version": "v4",
+    "package_directory": "outputs/markets-and-makers-logo-world-tiles-v4",
+    "blender_source": {
+      "file": "outputs/markets-and-makers-logo-world-tiles-v4/markets-and-makers-logo-world-tiles-v4.blend",
+      "sha256": "418da3261fcc321ad9252dc11790c68d601b23900309cddc886920f8b8e148a4"
+    },
+    "combined_glb": {
+      "file": "outputs/markets-and-makers-logo-world-tiles-v4/mm_logo_world_tiles_v4.glb",
+      "sha256": "e006a546b11300d598c793ba517e8551d1b7b283de8f6ec9578d486c488ef0d8"
+    },
+    "complete_archive": {
+      "file": "outputs/markets-and-makers-logo-world-tiles-v4.zip",
+      "sha256": "b4d77575673fee21440a82e40da5f206edbdfabffe4823bf2199f69283194188"
+    },
+    "runtime_archive": {
+      "file": "outputs/markets-and-makers-logo-world-tiles-v4-runtime-lite.zip",
+      "sha256": "d635a7400d3f8e8801362c333c1dc7c3cb0adbf97490c62556066fa5ed3f42f5"
+    },
+    "technical_qa": {
+      "status": "PASS",
+      "checks": 836,
+      "errors": 0,
+      "warnings": 0
+    },
+    "visual_qa": "APPROVED",
+    "texture_source_record": "outputs/markets-and-makers-logo-world-tiles-v4/textures/IMAGEGEN-PROMPT.md"
+  },
+  "grid": {
+    "cell_m": [2, 2],
+    "source_axes": { "east": "+X", "north": "+Y", "up": "+Z" },
+    "gltf_axes": { "east": "+X", "north": "-Z", "up": "+Y" },
+    "walk_z_m": 1,
+    "terrace_step_m": 1,
+    "water_z_m": -0.18,
+    "terrain_bottom_z_m": -0.28,
+    "rotations_degrees": [0, 90, 180, 270]
+  },
+  "counts": { "structural_sources": 50, "surface_skins": 9 },
+  "surface_skins": [
+    "lush_grass", "buildable_grass", "dry_grass", "productive_soil", "pale_sand",
+    "compacted_gravel", "limestone_plaza", "terracotta_industrial", "timber_deck"
+  ],
+  "tiles": [
+    { "id": "T01", "key": "land_flat", "family": "land", "footprint": [1, 1], "priority": 1 },
+    { "id": "T02", "key": "cliff_straight", "family": "land", "footprint": [1, 1], "edge_mask": 4, "priority": 1 },
+    { "id": "T03", "key": "cliff_outer", "family": "land", "footprint": [1, 1], "edge_mask": 6, "priority": 1 },
+    { "id": "T04", "key": "cliff_inner", "family": "land", "footprint": [1, 1], "edge_mask": 6, "corner_mode": "inner", "priority": 1 },
+    { "id": "T05", "key": "cliff_cap_peninsula", "family": "land", "footprint": [1, 1], "edge_mask": 14, "priority": 2 },
+    { "id": "T06", "key": "cliff_isolated", "family": "land", "footprint": [1, 1], "edge_mask": 15, "priority": 2 },
+    { "id": "T07", "key": "stackable_wall_straight", "family": "elevation", "footprint": [1, 1], "edge_mask": 4, "priority": 2 },
+    { "id": "T08", "key": "stackable_wall_outer", "family": "elevation", "footprint": [1, 1], "edge_mask": 6, "priority": 2 },
+    { "id": "T09", "key": "stackable_wall_inner", "family": "elevation", "footprint": [1, 1], "edge_mask": 6, "corner_mode": "inner", "priority": 2 },
+    { "id": "T10", "key": "ramp_straight", "family": "elevation", "footprint": [1, 2], "elevation_delta": 1, "priority": 2 },
+    { "id": "T11", "key": "stairs_straight", "family": "elevation", "footprint": [1, 1], "elevation_delta": 1, "priority": 1 },
+    { "id": "T12", "key": "stairs_landing", "family": "elevation", "footprint": [1, 1], "priority": 2 },
+
+    { "id": "T13", "key": "natural_shore_straight", "family": "coast", "footprint": [1, 1], "edge_mask": 4, "priority": 1 },
+    { "id": "T14", "key": "natural_shore_outer", "family": "coast", "footprint": [1, 1], "edge_mask": 6, "priority": 1 },
+    { "id": "T15", "key": "natural_shore_inner", "family": "coast", "footprint": [1, 1], "edge_mask": 6, "corner_mode": "inner", "priority": 1 },
+    { "id": "T16", "key": "seawall_straight", "family": "coast", "footprint": [1, 1], "edge_mask": 4, "priority": 1 },
+    { "id": "T17", "key": "seawall_outer", "family": "coast", "footprint": [1, 1], "edge_mask": 6, "priority": 1 },
+    { "id": "T18", "key": "seawall_inner", "family": "coast", "footprint": [1, 1], "edge_mask": 6, "corner_mode": "inner", "priority": 1 },
+    { "id": "T19", "key": "seawall_water_access", "family": "coast", "footprint": [1, 1], "priority": 2 },
+
+    { "id": "T20", "key": "canal_straight", "family": "canal", "footprint": [1, 1], "connections": ["N", "S"], "priority": 1 },
+    { "id": "T21", "key": "canal_corner", "family": "canal", "footprint": [1, 1], "connections": ["N", "E"], "priority": 1 },
+    { "id": "T22", "key": "canal_t", "family": "canal", "footprint": [1, 1], "connections": ["N", "E", "W"], "priority": 1 },
+    { "id": "T23", "key": "canal_cross", "family": "canal", "footprint": [1, 1], "connections": ["N", "E", "S", "W"], "priority": 1 },
+    { "id": "T24", "key": "canal_end_basin", "family": "canal", "footprint": [1, 1], "connections": ["N"], "priority": 1 },
+    { "id": "T25", "key": "canal_ocean_mouth", "family": "canal", "footprint": [1, 1], "connections": ["S_CANAL", "N_OCEAN"], "priority": 1 },
+    { "id": "T26", "key": "pond_full_water_cut", "family": "canal", "footprint": [1, 1], "priority": 2 },
+
+    { "id": "T27", "key": "path_straight", "family": "path", "footprint": [1, 1], "connections": ["N", "S"], "priority": 1 },
+    { "id": "T28", "key": "path_corner", "family": "path", "footprint": [1, 1], "connections": ["N", "E"], "priority": 1 },
+    { "id": "T29", "key": "path_t", "family": "path", "footprint": [1, 1], "connections": ["N", "E", "W"], "priority": 1 },
+    { "id": "T30", "key": "path_cross", "family": "path", "footprint": [1, 1], "connections": ["N", "E", "S", "W"], "priority": 1 },
+    { "id": "T31", "key": "path_end", "family": "path", "footprint": [1, 1], "connections": ["N"], "priority": 1 },
+    { "id": "T32", "key": "path_threshold", "family": "path", "footprint": [1, 1], "connections": ["N"], "priority": 1 },
+    { "id": "T33", "key": "plaza_fill", "family": "path", "footprint": [1, 1], "priority": 1 },
+
+    { "id": "T34", "key": "plot_fill", "family": "plot", "footprint": [1, 1], "priority": 1 },
+    { "id": "T35", "key": "plot_border_straight", "family": "plot", "footprint": [1, 1], "edge_mask": 4, "priority": 1 },
+    { "id": "T36", "key": "plot_border_corner", "family": "plot", "footprint": [1, 1], "edge_mask": 6, "priority": 1 },
+    { "id": "T37", "key": "plot_entrance", "family": "plot", "footprint": [1, 1], "connections": ["N"], "priority": 1 },
+    { "id": "T38", "key": "plot_utility_verge", "family": "plot", "footprint": [1, 1], "priority": 2 },
+
+    { "id": "T39", "key": "footbridge_short", "family": "bridge", "footprint": [1, 2], "connections": ["N", "S"], "priority": 1 },
+    { "id": "T40", "key": "footbridge_landing", "family": "bridge", "footprint": [1, 1], "connections": ["S_PATH", "N_BRIDGE"], "priority": 2 },
+    { "id": "T41", "key": "footbridge_mid", "family": "bridge", "footprint": [1, 1], "connections": ["N", "S"], "priority": 2 },
+    { "id": "T42", "key": "cart_bridge_landing", "family": "bridge", "footprint": [2, 1], "connections": ["S_PATH", "N_BRIDGE"], "priority": 2 },
+    { "id": "T43", "key": "cart_bridge_mid", "family": "bridge", "footprint": [2, 1], "connections": ["N", "S"], "priority": 2 },
+    { "id": "T44", "key": "dock_land_landing", "family": "dock", "footprint": [1, 1], "connections": ["S_PATH", "N_PIER"], "priority": 1 },
+    { "id": "T45", "key": "pier_straight", "family": "dock", "footprint": [1, 1], "connections": ["N", "S"], "priority": 1 },
+    { "id": "T46", "key": "pier_corner", "family": "dock", "footprint": [1, 1], "connections": ["N", "E"], "priority": 1 },
+    { "id": "T47", "key": "pier_t", "family": "dock", "footprint": [1, 1], "connections": ["N", "E", "W"], "priority": 1 },
+    { "id": "T48", "key": "pier_end", "family": "dock", "footprint": [1, 1], "connections": ["N"], "priority": 1 },
+    { "id": "T49", "key": "dock_stairs", "family": "dock", "footprint": [1, 1], "priority": 2 },
+    { "id": "T50", "key": "ferry_berth_edge", "family": "dock", "footprint": [1, 2], "connections": ["S_PIER", "N_FERRY"], "priority": 2 }
+  ]
+}
