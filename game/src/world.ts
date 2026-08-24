@@ -2,10 +2,17 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
+import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
-import { dampWrappedYaw, headingYaw, planarSpeed, yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
-import { HIGHLANDS_WORLD_ENTRY, worldChunkAt } from "./highlandsWorld";
+import {
+  characterHeightScale, dampWrappedYaw, headingYaw, planarSpeed, STANDARD_CHARACTER_HEIGHT_M,
+  walkAnimationRate, yawCorrectionFor, type CharacterFrontAxis,
+} from "./characterRig";
+import {
+  chooseCitizenDestination, citizenPopulation, citizenPurposeAtHour, createCitizenProfile, customerAppeal, navigationSurfaceCost,
+  purposeForBusiness, representedPartySize, type CitizenDestination, type CitizenProfile, type CitizenPurpose,
+} from "./citizenSimulation";
+import { HIGHLANDS_WORLD_BASE, HIGHLANDS_WORLD_ENTRY, plotArrival, worldChunkAt } from "./highlandsWorld";
 import { loadWorldDesigns } from "./worldDesigns";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
@@ -17,17 +24,30 @@ interface WorldCallbacks {
 }
 
 interface Citizen {
+  index: number;
   group: THREE.Group;
   model: THREE.Group;
   mixer: THREE.AnimationMixer;
+  idleAction: THREE.AnimationAction | null;
   walkAction: THREE.AnimationAction | null;
+  walking: boolean;
+  profile: CitizenProfile;
+  path: THREE.Vector3[];
+  pathIndex: number;
+  destination: CitizenDestination | null;
+  purpose: CitizenPurpose;
+  waitingUntil: number;
+  nextDecisionAt: number;
+  activityId: number | null;
+  transactionIndicator: THREE.Sprite;
   groundY: number;
-  nextGroundSample: number;
-  phase: number;
-  radius: number;
-  angularSpeed: number;
-  centerX: number;
-  centerZ: number;
+}
+
+interface CitizenActivityTrip {
+  activityId: number;
+  plotId: string;
+  remainingActors: number;
+  expiresAt: number;
 }
 
 const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAxis }> = [
@@ -43,11 +63,47 @@ const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAx
 ];
 
 const CITIZEN_AVATAR_BASE = "./assets/avatars/mercedonians/runtime";
-const CHARACTER_REFERENCE_WALK_SPEED = 4.2;
+const PLAYER_WALK_SPEED_MPS = 2;
+const VISIBLE_CITIZENS = 24;
+const CITIZEN_DECISION_INTERVAL_SECONDS = 8;
+const CITIZEN_TERRAIN_GRID = `${HIGHLANDS_WORLD_BASE}/terrain-grid.json`;
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
 const MAX_WALK_STEP = 0.62;
 const GRID_SEAM_PROBE = 0.025;
+
+interface NavigationQueueNode { key: string; cellX: number; cellY: number; cost: number; score: number; }
+
+function pushNavigationNode(heap: NavigationQueueNode[], node: NavigationQueueNode): void {
+  heap.push(node);
+  let index = heap.length - 1;
+  while (index > 0) {
+    const parent = Math.floor((index - 1) / 2);
+    if (heap[parent]!.score <= node.score) break;
+    heap[index] = heap[parent]!;
+    index = parent;
+  }
+  heap[index] = node;
+}
+
+function popNavigationNode(heap: NavigationQueueNode[]): NavigationQueueNode | null {
+  const first = heap[0];
+  const last = heap.pop();
+  if (!first || !last) return first ?? null;
+  if (heap.length === 0) return first;
+  let index = 0;
+  while (true) {
+    const left = index * 2 + 1;
+    const right = left + 1;
+    if (left >= heap.length) break;
+    const child = right < heap.length && heap[right]!.score < heap[left]!.score ? right : left;
+    if (heap[child]!.score >= last.score) break;
+    heap[index] = heap[child]!;
+    index = child;
+  }
+  heap[index] = last;
+  return first;
+}
 
 export class World3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -67,7 +123,14 @@ export class World3D {
   private readonly chunkRoots: Array<{ object: THREE.Object3D; cx: number; cy: number }> = [];
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
-  private readonly peers = new Map<string, { group: THREE.Group; target: THREE.Vector3; seen: number }>();
+  private readonly citizenTerrain = new Map<string, string>();
+  private readonly citizenGroundCache = new Map<string, number | null>();
+  private citizenDistrict = "";
+  private citizenDecisionSequence = 0;
+  private citizenActivityInitialized = false;
+  private readonly citizenActivityCursor = new Map<string, number>();
+  private readonly pendingCitizenTrips = new Map<string, CitizenActivityTrip[]>();
+  private readonly peers = new Map<string, { group: THREE.Group; target: THREE.Vector3; seen: number; gaitPhase: number }>();
   private readonly peerRoot = new THREE.Group();
   private readonly avatar = new THREE.Group();
   private readonly cameraTarget = new THREE.Vector3();
@@ -79,6 +142,7 @@ export class World3D {
   private readonly dynamicShadows = window.matchMedia("(min-width: 900px)").matches && (navigator.hardwareConcurrency ?? 4) >= 6;
   private sun: THREE.DirectionalLight | null = null;
   private clickTarget: THREE.Vector3 | null = null;
+  private inputEnabled = true;
   private readonly buildings = new Map<string, THREE.Group>();
   private readonly buildingBannerHeights = new Map<string, number>();
   private buildingSignature = "";
@@ -231,11 +295,7 @@ export class World3D {
   private updateAvatarAnimations(delta: number, movementSpeed: number): void {
     if (!this.avatarMixer || !this.avatarIdleAction || !this.avatarWalkAction) return;
     const walking = movementSpeed > 0.05;
-    this.avatarWalkAction.timeScale = THREE.MathUtils.clamp(
-      movementSpeed / CHARACTER_REFERENCE_WALK_SPEED,
-      0.72,
-      1.8,
-    );
+    this.avatarWalkAction.timeScale = walkAnimationRate(movementSpeed);
     if (walking !== this.avatarWalking) {
       const incoming = walking ? this.avatarWalkAction : this.avatarIdleAction;
       const outgoing = walking ? this.avatarIdleAction : this.avatarWalkAction;
@@ -279,6 +339,7 @@ export class World3D {
 
   private setupInput(): void {
     window.addEventListener("keydown", (event) => {
+      if (!this.inputEnabled) return;
       if (["INPUT", "TEXTAREA", "SELECT"].includes((event.target as HTMLElement | null)?.tagName ?? "")) return;
       this.keys.add(event.code);
       if (event.code === "KeyQ") this.cameraYaw -= Math.PI / 2;
@@ -290,6 +351,7 @@ export class World3D {
     window.addEventListener("resize", () => this.resize());
     this.canvas.addEventListener("pointerdown", (event) => this.handlePointer(event));
     this.canvas.addEventListener("wheel", (event) => {
+      if (!this.inputEnabled) return;
       event.preventDefault();
       this.cameraDistance = THREE.MathUtils.clamp(this.cameraDistance + Math.sign(event.deltaY) * 4, 24, 72);
       this.cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
@@ -298,6 +360,7 @@ export class World3D {
   }
 
   private handlePointer(event: PointerEvent): void {
+    if (!this.inputEnabled) return;
     const rect = this.canvas.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -407,6 +470,7 @@ export class World3D {
     this.updateChunkVisibility(true);
     this.avatarGroundY = this.sampleWalkHeight(this.avatar.position.x, this.avatar.position.z, true) ?? 1.02;
     this.createPlotMarkers();
+    await this.loadCitizenNavigation();
     await this.createCitizens();
     this.callbacks.onLoadProgress(1, "Mercedonia garden city ready");
   }
@@ -538,7 +602,7 @@ export class World3D {
         context.fillText("AVAILABLE PLOT", 256, 54);
         context.fillStyle = "#ffffff";
         context.font = "700 25px system-ui";
-        context.fillText(`${plot.name} · ${plot.price} ${MOLLAR_CODE}`, 256, 92);
+        context.fillText(`${plot.name} · ${plot.price} ${CURRENCY_CODE}`, 256, 92);
       }
       const labelTexture = new THREE.CanvasTexture(labelCanvas);
       labelTexture.colorSpace = THREE.SRGBColorSpace;
@@ -555,10 +619,9 @@ export class World3D {
   private normalizeCitizenModel(source: THREE.Object3D): THREE.Group {
     const model = new THREE.Group();
     const avatar = cloneSkeleton(source);
-    const bounds = new THREE.Box3().setFromObject(avatar);
+    const bounds = new THREE.Box3().setFromObject(avatar, true);
     const size = bounds.getSize(new THREE.Vector3());
-    const humanHeight = 1.86;
-    const scale = humanHeight / Math.max(size.y, 0.001);
+    const scale = characterHeightScale(size.y);
     avatar.scale.setScalar(scale);
     avatar.position.set(
       -(bounds.min.x + bounds.max.x) * 0.5 * scale,
@@ -572,11 +635,56 @@ export class World3D {
       object.frustumCulled = true;
     });
     model.add(avatar);
+    model.userData.characterHeightM = STANDARD_CHARACTER_HEIGHT_M;
     return model;
   }
 
+  private makeCitizenTransactionIndicator(): THREE.Sprite {
+    const canvas = document.createElement("canvas");
+    canvas.width = 96;
+    canvas.height = 96;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "rgba(8,47,53,.92)";
+      context.beginPath();
+      context.arc(48, 48, 43, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = "#f4ad3e";
+      context.lineWidth = 7;
+      context.stroke();
+      context.fillStyle = "#fff8df";
+      context.font = "800 42px Georgia";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText("M", 48, 51);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const indicator = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    indicator.position.y = STANDARD_CHARACTER_HEIGHT_M + .48;
+    indicator.scale.set(.64, .64, 1);
+    indicator.visible = false;
+    return indicator;
+  }
+
+  private async loadCitizenNavigation(): Promise<void> {
+    const response = await fetch(CITIZEN_TERRAIN_GRID);
+    if (!response.ok) throw new Error(`Unable to load citizen navigation grid (${response.status})`);
+    const grid = await response.json() as {
+      rows?: Array<{ y: number; runs: Array<{ x0: number; x1: number; surface: string }> }>;
+    };
+    for (const row of grid.rows ?? []) {
+      for (const run of row.runs ?? []) {
+        for (let cellX = run.x0; cellX <= run.x1; cellX += 1) {
+          this.citizenTerrain.set(`${cellX}:${row.y}`, run.surface);
+        }
+      }
+    }
+    if (this.citizenTerrain.size === 0) throw new Error("Citizen navigation grid contains no terrain cells");
+  }
+
   private async createCitizens(): Promise<void> {
-    this.callbacks.onLoadProgress(0.94, "Welcoming Mercedonia's citizens");
+    this.callbacks.onLoadProgress(0.94, "Welcoming Mercedonians");
     const templates = (await Promise.all(CITIZEN_AVATARS.map(async (definition) => {
       const url = `${CITIZEN_AVATAR_BASE}/${definition.file}`;
       try {
@@ -597,7 +705,7 @@ export class World3D {
       yawCorrection: number;
     } => template !== null);
     if (templates.length === 0) return;
-    for (let index = 0; index < 24; index += 1) {
+    for (let index = 0; index < VISIBLE_CITIZENS; index += 1) {
       const group = new THREE.Group();
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(0.36, 12),
@@ -611,30 +719,405 @@ export class World3D {
       model.rotation.y = template.yawCorrection;
       group.add(model);
       const mixer = new THREE.AnimationMixer(model);
+      const idle = THREE.AnimationClip.findByName(template.animations, "Idle");
       const walk = THREE.AnimationClip.findByName(template.animations, "Walk");
+      let idleAction: THREE.AnimationAction | null = null;
       let walkAction: THREE.AnimationAction | null = null;
+      if (idle) {
+        idleAction = mixer.clipAction(idle);
+        idleAction.time = (index * .137) % idle.duration;
+        idleAction.play();
+      }
       if (walk) {
         walkAction = mixer.clipAction(walk);
         walkAction.time = (index * 0.173) % walk.duration;
+        walkAction.setEffectiveWeight(0);
         walkAction.play();
       }
-      const radius = 10 + (index % 6) * 6.2;
-      const linearSpeed = 1.2 + (index % 5) * 0.12;
+      const transactionIndicator = this.makeCitizenTransactionIndicator();
+      group.add(transactionIndicator);
+      group.name = `MM_MERCEDONIAN_${String(index + 1).padStart(2, "0")}`;
       this.scene.add(group);
       this.citizens.push({
+        index,
         group,
         model,
         mixer,
+        idleAction,
         walkAction,
+        walking: false,
+        profile: createCitizenProfile(index),
+        path: [],
+        pathIndex: 0,
+        destination: null,
+        purpose: "home",
+        waitingUntil: 0,
+        nextDecisionAt: index * .16,
+        activityId: null,
+        transactionIndicator,
         groundY: 1.04,
-        nextGroundSample: index * 0.02,
-        phase: index * 0.79,
-        radius,
-        angularSpeed: linearSpeed / radius,
-        centerX: ((index % 3) - 1) * 7,
-        centerZ: ((index % 4) - 1.5) * 5,
       });
     }
+  }
+
+  private citizenGroundAtCell(cellX: number, cellY: number): number | null {
+    const key = `${cellX}:${cellY}`;
+    if (this.citizenGroundCache.has(key)) return this.citizenGroundCache.get(key) ?? null;
+    const ground = this.sampleWalkHeight(cellX * 2, -cellY * 2, true);
+    this.citizenGroundCache.set(key, ground);
+    return ground;
+  }
+
+  private citizenPointBlocked(x: number, z: number): boolean {
+    for (const plot of PLOTS) {
+      if (plot.island !== this.currentIsland) continue;
+      if (Math.abs(x - plot.x) < plot.width / 2 + .7 && Math.abs(z - plot.z) < plot.depth / 2 + .7) return true;
+    }
+    for (const building of CIVIC_BUILDINGS) {
+      if (building.island !== this.currentIsland) continue;
+      if (Math.hypot(x - building.x, z - building.z) < 6.5) return true;
+    }
+    return false;
+  }
+
+  private citizenCellBlocked(cellX: number, cellY: number): boolean {
+    return this.citizenPointBlocked(cellX * 2, -cellY * 2);
+  }
+
+  private citizenCellWalkable(cellX: number, cellY: number): boolean {
+    const surface = this.citizenTerrain.get(`${cellX}:${cellY}`) ?? "";
+    return Number.isFinite(navigationSurfaceCost(surface))
+      && !this.citizenCellBlocked(cellX, cellY)
+      && this.citizenGroundAtCell(cellX, cellY) !== null;
+  }
+
+  private nearestCitizenCell(
+    x: number,
+    z: number,
+  ): { cellX: number; cellY: number } | null {
+    const originX = Math.round(x / 2);
+    const originY = Math.round(-z / 2);
+    for (let radius = 0; radius <= 6; radius += 1) {
+      const candidates: Array<{ cellX: number; cellY: number; distance: number }> = [];
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        for (let dy = -radius; dy <= radius; dy += 1) {
+          if (radius > 0 && Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+          const cellX = originX + dx;
+          const cellY = originY + dy;
+          if (!this.citizenCellWalkable(cellX, cellY)) continue;
+          candidates.push({ cellX, cellY, distance: Math.hypot(cellX * 2 - x, -cellY * 2 - z) });
+        }
+      }
+      candidates.sort((a, b) => a.distance - b.distance);
+      if (candidates[0]) return candidates[0];
+    }
+    return null;
+  }
+
+  private findCitizenPath(
+    from: { x: number; z: number },
+    destination: CitizenDestination,
+  ): THREE.Vector3[] {
+    const start = this.nearestCitizenCell(from.x, from.z);
+    const end = this.nearestCitizenCell(destination.x, destination.z);
+    if (!start || !end) return [];
+    const endKey = `${end.cellX}:${end.cellY}`;
+    const queue: NavigationQueueNode[] = [];
+    const cameFrom = new Map<string, string>();
+    const cells = new Map<string, readonly [number, number]>();
+    const bestCost = new Map<string, number>();
+    const startKey = `${start.cellX}:${start.cellY}`;
+    bestCost.set(startKey, 0);
+    cells.set(startKey, [start.cellX, start.cellY]);
+    pushNavigationNode(queue, {
+      key: startKey,
+      cellX: start.cellX,
+      cellY: start.cellY,
+      cost: 0,
+      score: Math.hypot(end.cellX - start.cellX, end.cellY - start.cellY),
+    });
+    const directions = [
+      [1, 0], [-1, 0], [0, 1], [0, -1],
+      [1, 1], [1, -1], [-1, 1], [-1, -1],
+    ] as const;
+    let reached = false;
+    for (let guard = 0; queue.length > 0 && guard < 7_500; guard += 1) {
+      const current = popNavigationNode(queue)!;
+      if (current.key === endKey) { reached = true; break; }
+      const currentCost = bestCost.get(current.key);
+      const currentY = this.citizenGroundAtCell(current.cellX, current.cellY);
+      // A cheaper copy may have entered the heap after this one.
+      if (currentCost === undefined || current.cost !== currentCost || currentY === null) continue;
+      for (const [dx, dy] of directions) {
+        const nextX = current.cellX + dx;
+        const nextY = current.cellY + dy;
+        if (!this.citizenCellWalkable(nextX, nextY)) continue;
+        if (dx !== 0 && dy !== 0
+          && (!this.citizenCellWalkable(current.cellX + dx, current.cellY)
+            || !this.citizenCellWalkable(current.cellX, current.cellY + dy))) continue;
+        const nextGround = this.citizenGroundAtCell(nextX, nextY);
+        if (nextGround === null || Math.abs(nextGround - currentY) > MAX_WALK_STEP) continue;
+        const nextKey = `${nextX}:${nextY}`;
+        const surface = this.citizenTerrain.get(nextKey) ?? "";
+        const stepCost = navigationSurfaceCost(surface) * (dx !== 0 && dy !== 0 ? Math.SQRT2 : 1);
+        const candidate = currentCost + stepCost;
+        if (candidate >= (bestCost.get(nextKey) ?? Number.POSITIVE_INFINITY)) continue;
+        bestCost.set(nextKey, candidate);
+        cameFrom.set(nextKey, current.key);
+        cells.set(nextKey, [nextX, nextY]);
+        pushNavigationNode(queue, {
+          key: nextKey,
+          cellX: nextX,
+          cellY: nextY,
+          cost: candidate,
+          score: candidate + Math.hypot(end.cellX - nextX, end.cellY - nextY),
+        });
+      }
+    }
+    if (!reached) return [];
+    const routeKeys: string[] = [endKey];
+    while (routeKeys.at(-1) !== startKey) {
+      const previous = cameFrom.get(routeKeys.at(-1)!);
+      if (!previous) return [];
+      routeKeys.push(previous);
+    }
+    routeKeys.reverse();
+    const route = routeKeys.slice(1).flatMap((key) => {
+      const cell = cells.get(key);
+      if (!cell) return [];
+      const ground = this.citizenGroundAtCell(cell[0], cell[1]);
+      return ground === null ? [] : [new THREE.Vector3(cell[0] * 2, ground, -cell[1] * 2)];
+    });
+    const finalGround = this.sampleWalkHeight(destination.x, destination.z, true);
+    if (finalGround === null || this.citizenPointBlocked(destination.x, destination.z)) return [];
+    const startGround = this.citizenGroundAtCell(start.cellX, start.cellY);
+    if (startGround === null) return [];
+    const segmentStart = route.at(-1) ?? new THREE.Vector3(start.cellX * 2, startGround, -start.cellY * 2);
+    const finalDistance = Math.hypot(destination.x - segmentStart.x, destination.z - segmentStart.z);
+    const finalSteps = Math.max(1, Math.ceil(finalDistance / .5));
+    let previousGround = segmentStart.y;
+    const approach: THREE.Vector3[] = [];
+    for (let step = 1; step <= finalSteps; step += 1) {
+      const progress = step / finalSteps;
+      const x = THREE.MathUtils.lerp(segmentStart.x, destination.x, progress);
+      const z = THREE.MathUtils.lerp(segmentStart.z, destination.z, progress);
+      if (this.citizenPointBlocked(x, z)) return [];
+      const ground = this.sampleWalkHeight(x, z, true);
+      if (ground === null || Math.abs(ground - previousGround) > MAX_WALK_STEP) return [];
+      approach.push(new THREE.Vector3(x, ground, z));
+      previousGround = ground;
+    }
+    route.push(...approach);
+    return route;
+  }
+
+  private citizenDestinations(state: GameState): CitizenDestination[] {
+    const district = ISLANDS.find((entry) => entry.id === this.currentIsland) ?? ISLANDS[0];
+    const destinations: CitizenDestination[] = [];
+    const fallbackPurposes: CitizenPurpose[] = ["home", "work", "essential", "meal", "wellness", "leisure", "civic"];
+    for (let index = 0; index < fallbackPurposes.length; index += 1) {
+      const purpose = fallbackPurposes[index]!;
+      const fallbackX = district.spawnX + ((index % 3) - 1) * 4;
+      const fallbackZ = district.spawnZ + (Math.floor(index / 3) - 1) * 4;
+      const fallbackCell = this.nearestCitizenCell(fallbackX, fallbackZ);
+      destinations.push({
+        id: `district-${district.id}-${purpose}`,
+        island: district.id,
+        kind: purpose === "home" ? "home" : "district",
+        purpose,
+        x: fallbackCell ? fallbackCell.cellX * 2 : fallbackX,
+        z: fallbackCell ? -fallbackCell.cellY * 2 : fallbackZ,
+        operational: true,
+        appeal: .42,
+        capacity: 99,
+        priceIndex: 1,
+      });
+    }
+    const civicPurpose = (id: string): CitizenPurpose => {
+      if (id === "homes") return "home";
+      if (id === "clinic") return "wellness";
+      if (id === "academy" || id === "registry" || id === "cityhall") return "civic";
+      return "work";
+    };
+    for (const [index, building] of CIVIC_BUILDINGS.filter((entry) => entry.island === district.id).entries()) {
+      destinations.push({
+        id: `civic-${building.id}`,
+        island: building.island,
+        kind: building.id === "homes" ? "home" : "civic",
+        purpose: civicPurpose(building.id),
+        x: building.x + (index % 2 === 0 ? 7.5 : -7.5),
+        z: building.z + (index % 3 - 1) * 2,
+        operational: true,
+        appeal: 1.05,
+        capacity: 20,
+        priceIndex: 1,
+      });
+    }
+    for (const record of Object.values(state.portfolio)) {
+      if (!record.buildingPlaced || !record.license) continue;
+      const plot = PLOTS.find((entry) => entry.id === record.plotId);
+      if (!plot || plot.island !== district.id) continue;
+      const arrival = plotArrival(plot);
+      const activeBusiness = record.plotId === state.ownedPlotId;
+      const operational = !record.brokenDown
+        && record.condition > 0
+        && (!activeBusiness || (!state.suppliesCut && state.staff > 0));
+      destinations.push({
+        id: `business-${plot.id}`,
+        island: plot.island,
+        kind: "business",
+        purpose: purposeForBusiness(record.license),
+        x: arrival.x,
+        z: arrival.z,
+        operational,
+        appeal: customerAppeal({
+          staff: state.staff,
+          appealLevel: record.upgrades.appeal,
+          qualityLevel: record.upgrades.yield,
+          reputation: state.reputation,
+          specialization: state.specialization,
+          sponsored: state.sponsoredUntil > Date.now(),
+        }),
+        capacity: operational ? 2 + record.upgrades.capacity * 3 + Math.min(4, state.staff) : 0,
+        priceIndex: record.plotId === state.ownedPlotId ? state.servicePriceIndex : 1,
+        plotId: plot.id,
+        license: record.license,
+      });
+    }
+    return destinations;
+  }
+
+  private setCitizenWalking(citizen: Citizen, walking: boolean): void {
+    if (citizen.walking === walking) return;
+    citizen.walking = walking;
+    const incoming = walking ? citizen.walkAction : citizen.idleAction;
+    const outgoing = walking ? citizen.idleAction : citizen.walkAction;
+    if (incoming) {
+      incoming.reset().setEffectiveWeight(1).play();
+      if (outgoing) incoming.crossFadeFrom(outgoing, .2, true);
+    }
+  }
+
+  private assignCitizenTrip(
+    citizen: Citizen,
+    destination: CitizenDestination,
+    elapsed: number,
+    activityId: number | null = null,
+  ): boolean {
+    const path = this.findCitizenPath(citizen.group.position, destination);
+    if (path.length === 0) return false;
+    citizen.path = path;
+    citizen.pathIndex = 0;
+    citizen.destination = destination;
+    citizen.purpose = destination.purpose;
+    citizen.activityId = activityId;
+    citizen.waitingUntil = 0;
+    citizen.nextDecisionAt = elapsed + CITIZEN_DECISION_INTERVAL_SECONDS;
+    citizen.transactionIndicator.visible = false;
+    this.setCitizenWalking(citizen, true);
+    return true;
+  }
+
+  private planCitizenRoutine(citizen: Citizen, state: GameState, elapsed: number): void {
+    const gameHour = (new Date().getHours() + elapsed / 75) % 24;
+    const purpose = citizenPurposeAtHour(gameHour, citizen.index);
+    const destinations = this.citizenDestinations(state);
+    const destination = chooseCitizenDestination(
+      destinations,
+      purpose,
+      citizen.profile,
+      citizen.group.position,
+      citizen.index * 65_537 + ++this.citizenDecisionSequence + Math.floor(gameHour * 12),
+    ) ?? destinations.find((entry) => entry.purpose === "home") ?? null;
+    if (!destination || !this.assignCitizenTrip(citizen, destination, elapsed)) {
+      citizen.nextDecisionAt = elapsed + 3;
+      this.setCitizenWalking(citizen, false);
+    }
+  }
+
+  private resetCitizenDistrict(state: GameState, elapsed: number): void {
+    this.citizenDistrict = state.island;
+    const district = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
+    for (const citizen of this.citizens) {
+      const angle = citizen.index * 2.399963;
+      const radius = 4 + (citizen.index % 5) * 1.4;
+      const cell = this.nearestCitizenCell(
+        district.spawnX + Math.cos(angle) * radius,
+        district.spawnZ + Math.sin(angle) * radius,
+      );
+      const ground = cell ? this.citizenGroundAtCell(cell.cellX, cell.cellY) : null;
+      citizen.group.position.set(
+        cell ? cell.cellX * 2 : district.spawnX,
+        ground ?? this.sampleWalkHeight(district.spawnX, district.spawnZ, true) ?? 1.02,
+        cell ? -cell.cellY * 2 : district.spawnZ,
+      );
+      citizen.group.visible = true;
+      citizen.groundY = citizen.group.position.y;
+      citizen.path = [];
+      citizen.pathIndex = 0;
+      citizen.destination = null;
+      citizen.activityId = null;
+      citizen.waitingUntil = 0;
+      citizen.nextDecisionAt = elapsed + citizen.index * .12;
+      citizen.transactionIndicator.visible = false;
+      this.setCitizenWalking(citizen, false);
+    }
+  }
+
+  private syncCitizenActivity(state: GameState, elapsed: number): void {
+    // Existing save history is already settled; only animate events created after
+    // this world loaded. Each district keeps its own cursor so a purchase made on
+    // another island is still waiting when the player travels there.
+    if (!this.citizenActivityInitialized) {
+      for (const island of ISLANDS) this.citizenActivityCursor.set(island.id, state.citizenActivitySequence);
+      this.citizenActivityInitialized = true;
+      return;
+    }
+    const islandId = this.currentIsland;
+    const cursor = this.citizenActivityCursor.get(islandId) ?? state.citizenActivitySequence;
+    const activities = state.citizenActivity
+      .filter((entry) => entry.island === islandId && entry.id > cursor)
+      .sort((a, b) => a.id - b.id);
+    this.citizenActivityCursor.set(islandId, state.citizenActivitySequence);
+    const queue = this.pendingCitizenTrips.get(islandId) ?? [];
+    const population = citizenPopulation(
+      Object.values(state.portfolio).filter((record) => record.buildingPlaced).length,
+      state.reputation,
+      state.visitorsServed,
+    );
+    const party = representedPartySize(population, VISIBLE_CITIZENS, 0);
+    for (const activity of activities) {
+      if (queue.some((entry) => entry.activityId === activity.id)) continue;
+      queue.push({
+        activityId: activity.id,
+        plotId: activity.plotId,
+        remainingActors: Math.min(6, Math.max(1, Math.ceil(activity.visitors / Math.max(1, party)))),
+        expiresAt: elapsed + 90,
+      });
+    }
+    this.pendingCitizenTrips.set(islandId, queue);
+
+    if (queue.length === 0) return;
+    const destinations = this.citizenDestinations(state);
+    for (const trip of queue) {
+      if (trip.remainingActors <= 0 || trip.expiresAt <= elapsed) continue;
+      const destination = destinations.find((entry) => entry.plotId === trip.plotId);
+      // A settled cohort never walks through a closed or missing business. Keep
+      // it queued briefly in case repairs finish, otherwise let it expire safely.
+      if (!destination?.operational || destination.capacity <= 0) continue;
+      const available = this.citizens
+        .filter((citizen) => citizen.activityId === null)
+        .sort((a, b) => {
+          const aDistance = (a.group.position.x - destination.x) ** 2 + (a.group.position.z - destination.z) ** 2;
+          const bDistance = (b.group.position.x - destination.x) ** 2 + (b.group.position.z - destination.z) ** 2;
+          return aDistance - bDistance;
+        });
+      for (const citizen of available) {
+        if (trip.remainingActors <= 0) break;
+        if (this.assignCitizenTrip(citizen, destination, elapsed, trip.activityId)) trip.remainingActors -= 1;
+      }
+    }
+    this.pendingCitizenTrips.set(islandId, queue.filter((entry) => entry.remainingActors > 0 && entry.expiresAt > elapsed));
   }
 
   /** Colour derived from the peer id so the same player looks the same to everyone. */
@@ -647,37 +1130,60 @@ export class World3D {
   private makePeerAvatar(playerId: string): THREE.Group {
     const group = new THREE.Group();
     const tint = this.peerColor(playerId);
+    const visualRoot = new THREE.Group();
+    visualRoot.name = "MM_PEER_VISUAL";
+    group.add(visualRoot);
 
     const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.78, 20),
+      new THREE.CircleGeometry(0.38, 20),
       new THREE.MeshBasicMaterial({ color: 0x0d3b3f, transparent: true, opacity: 0.2, depthWrite: false }),
     );
     shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = -0.98;
+    shadow.position.y = 0.02;
     group.add(shadow);
 
     const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.42, 0.86, 4, 10),
+      new THREE.CapsuleGeometry(0.28, 0.58, 4, 10),
       new THREE.MeshStandardMaterial({ color: tint, roughness: 0.72 }),
     );
-    body.position.y = 0.12;
-    group.add(body);
+    body.position.y = 1.02;
+    visualRoot.add(body);
 
     const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.36, 16, 12),
+      new THREE.SphereGeometry(0.25, 16, 12),
       new THREE.MeshStandardMaterial({ color: 0xf0d0ae, roughness: 0.86 }),
     );
-    head.position.y = 1.02;
-    group.add(head);
+    head.position.y = 1.56;
+    visualRoot.add(head);
+
+    const limbMaterial = new THREE.MeshStandardMaterial({ color: tint.clone().multiplyScalar(.72), roughness: .76 });
+    for (const side of [-1, 1]) {
+      const legPivot = new THREE.Group();
+      legPivot.name = side < 0 ? "MM_PEER_LEFT_LEG" : "MM_PEER_RIGHT_LEG";
+      legPivot.position.set(side * .14, .58, 0);
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .4, 3, 8), limbMaterial);
+      leg.position.y = -.29;
+      legPivot.add(leg);
+      visualRoot.add(legPivot);
+
+      const armPivot = new THREE.Group();
+      armPivot.name = side < 0 ? "MM_PEER_LEFT_ARM" : "MM_PEER_RIGHT_ARM";
+      armPivot.position.set(side * .35, 1.27, 0);
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(.07, .36, 3, 8), limbMaterial);
+      arm.position.y = -.25;
+      armPivot.add(arm);
+      visualRoot.add(armPivot);
+    }
 
     const marker = new THREE.Mesh(
       new THREE.ConeGeometry(0.22, 0.42, 10),
       new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.9 }),
     );
-    marker.position.y = 1.86;
+    marker.position.y = STANDARD_CHARACTER_HEIGHT_M + .42;
     marker.rotation.x = Math.PI;
     marker.userData.peerMarker = true;
     group.add(marker);
+    group.userData.characterHeightM = STANDARD_CHARACTER_HEIGHT_M;
 
     return group;
   }
@@ -692,7 +1198,12 @@ export class World3D {
         const groundY = this.sampleWalkHeight(player.x, player.z, true) ?? 1.02;
         group.position.set(player.x, groundY, player.z);
         this.peerRoot.add(group);
-        peer = { group, target: new THREE.Vector3(player.x, groundY, player.z), seen: now };
+        peer = {
+          group,
+          target: new THREE.Vector3(player.x, groundY, player.z),
+          seen: now,
+          gaitPhase: (group.id % 17) / 17 * Math.PI * 2,
+        };
         this.peers.set(player.playerId, peer);
       }
       peer.target.set(player.x, this.sampleWalkHeight(player.x, player.z, true) ?? peer.target.y, player.z);
@@ -723,10 +1234,33 @@ export class World3D {
   private updatePeers(delta: number, elapsed: number): void {
     const ease = Math.min(1, delta * 7.5);
     for (const peer of this.peers.values()) {
+      const previousX = peer.group.position.x;
+      const previousZ = peer.group.position.z;
       peer.group.position.lerp(peer.target, ease);
-      peer.group.position.y = peer.target.y + Math.sin(elapsed * 2.4 + peer.group.position.x) * 0.02;
+      peer.group.position.y = peer.target.y;
+      const movedX = peer.group.position.x - previousX;
+      const movedZ = peer.group.position.z - previousZ;
+      const speed = planarSpeed(movedX, movedZ, delta);
+      if (speed > .01) {
+        peer.group.rotation.y = dampWrappedYaw(peer.group.rotation.y, headingYaw(movedX, movedZ), delta, 10);
+      }
+      const gaitRate = walkAnimationRate(speed);
+      if (gaitRate > 0) peer.gaitPhase += delta * Math.PI * 2 * gaitRate;
+      const stride = gaitRate > 0 ? Math.sin(peer.gaitPhase) * .42 : 0;
+      const poseBlend = 1 - Math.exp(-delta * 12);
+      const leftLeg = peer.group.getObjectByName("MM_PEER_LEFT_LEG")!;
+      const rightLeg = peer.group.getObjectByName("MM_PEER_RIGHT_LEG")!;
+      const leftArm = peer.group.getObjectByName("MM_PEER_LEFT_ARM")!;
+      const rightArm = peer.group.getObjectByName("MM_PEER_RIGHT_ARM")!;
+      leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, stride, poseBlend);
+      rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -stride, poseBlend);
+      leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, -stride * .8, poseBlend);
+      rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, stride * .8, poseBlend);
+      const visualRoot = peer.group.getObjectByName("MM_PEER_VISUAL")!;
+      const soleCompensation = -.49 * (1 - Math.cos(stride));
+      visualRoot.position.y = THREE.MathUtils.lerp(visualRoot.position.y, soleCompensation, poseBlend);
       const marker = peer.group.children.find((child) => child.userData.peerMarker);
-      if (marker) marker.position.y = 1.86 + Math.sin(elapsed * 3 + peer.group.position.z) * 0.08;
+      if (marker) marker.position.y = STANDARD_CHARACTER_HEIGHT_M + .42 + Math.sin(elapsed * 3 + peer.group.position.z) * 0.08;
     }
   }
 
@@ -761,7 +1295,16 @@ export class World3D {
     this.onPositionCheckpoint = callback;
   }
 
+  setInputEnabled(enabled: boolean): void {
+    this.inputEnabled = enabled;
+    if (enabled) return;
+    this.keys.clear();
+    this.clickTarget = null;
+    this.walkMarker.visible = false;
+  }
+
   walkTo(x: number, z: number): void {
+    if (!this.inputEnabled) return;
     const groundY = this.sampleWalkHeight(x, z, true);
     if (groundY === null) return;
     const target = new THREE.Vector3(x, groundY, z);
@@ -906,13 +1449,14 @@ export class World3D {
   }
 
   private updateMovement(delta: number, state: GameState): number {
+    if (!this.inputEnabled) return 0;
     const previousX = this.avatar.position.x;
     const previousZ = this.avatar.position.z;
     const direction = this.movementVector();
     let moved = false;
     if (direction.lengthSq() > 0) {
       this.clickTarget = null;
-      const distance = delta * 6.5;
+      const distance = delta * PLAYER_WALK_SPEED_MPS;
       const nextX = this.avatar.position.x + direction.x * distance;
       const nextZ = this.avatar.position.z + direction.z * distance;
       moved = this.tryMoveTo(nextX, nextZ)
@@ -927,7 +1471,7 @@ export class World3D {
       }
       else {
         deltaTarget.normalize();
-        const distance = Math.min(delta * 6.5, this.avatar.position.distanceTo(this.clickTarget));
+        const distance = Math.min(delta * PLAYER_WALK_SPEED_MPS, this.avatar.position.distanceTo(this.clickTarget));
         moved = this.tryMoveTo(
           this.avatar.position.x + deltaTarget.x * distance,
           this.avatar.position.z + deltaTarget.z * distance,
@@ -954,32 +1498,87 @@ export class World3D {
     return movementSpeed;
   }
 
-  private updateCitizens(delta: number, elapsed: number): void {
-    if (this.currentIsland !== "hearth") {
-      for (const citizen of this.citizens) citizen.group.visible = false;
-      return;
-    }
+  private updateCitizens(delta: number, elapsed: number, state: GameState): void {
+    if (this.citizenDistrict !== state.island) this.resetCitizenDistrict(state, elapsed);
+    this.syncCitizenActivity(state, elapsed);
+    const population = citizenPopulation(
+      Object.values(state.portfolio).filter((record) => record.buildingPlaced).length,
+      state.reputation,
+      state.visitorsServed,
+    );
     for (const citizen of this.citizens) {
-      const angle = citizen.phase + elapsed * citizen.angularSpeed;
-      citizen.group.position.x = citizen.centerX + Math.cos(angle) * citizen.radius;
-      citizen.group.position.z = citizen.centerZ + Math.sin(angle * 1.11) * citizen.radius * 0.72;
-      if (elapsed >= citizen.nextGroundSample) {
-        const groundY = this.sampleWalkHeight(citizen.group.position.x, citizen.group.position.z, false);
-        citizen.group.visible = groundY !== null;
-        if (groundY !== null) citizen.groundY = groundY;
-        citizen.nextGroundSample = elapsed + 0.18;
+      citizen.group.visible = true;
+      citizen.group.userData.representedCitizens = representedPartySize(
+        population,
+        VISIBLE_CITIZENS,
+        citizen.index,
+      );
+      if (citizen.waitingUntil > 0) {
+        if (elapsed < citizen.waitingUntil) {
+          this.setCitizenWalking(citizen, false);
+          citizen.mixer.update(delta);
+          continue;
+        }
+        citizen.waitingUntil = 0;
+        citizen.activityId = null;
+        citizen.transactionIndicator.visible = false;
+        citizen.destination = null;
+        citizen.nextDecisionAt = elapsed;
       }
-      citizen.group.position.y = citizen.groundY;
-      if (!citizen.group.visible) continue;
-      const velocityX = -Math.sin(angle) * citizen.radius * citizen.angularSpeed;
-      const velocityZ = Math.cos(angle * 1.11) * citizen.radius * 0.72 * 1.11 * citizen.angularSpeed;
-      citizen.group.rotation.y = headingYaw(velocityX, velocityZ);
-      if (citizen.walkAction) {
-        citizen.walkAction.timeScale = THREE.MathUtils.clamp(
-          Math.hypot(velocityX, velocityZ) / 1.45,
-          0.72,
-          1.35,
+      if (citizen.pathIndex >= citizen.path.length) {
+        if (citizen.destination) {
+          const businessVisit = citizen.destination.kind === "business";
+          // Routine browsing is not a payment. Only a settled activity cohort
+          // receives the currency badge, so the world never invents a purchase.
+          citizen.transactionIndicator.visible = citizen.activityId !== null;
+          citizen.waitingUntil = elapsed + (businessVisit ? 4.5 + (citizen.index % 4) : 2.5 + (citizen.index % 3));
+          citizen.path = [];
+          citizen.pathIndex = 0;
+          this.setCitizenWalking(citizen, false);
+          citizen.mixer.update(delta);
+          continue;
+        }
+        if (elapsed >= citizen.nextDecisionAt) this.planCitizenRoutine(citizen, state, elapsed);
+        citizen.mixer.update(delta);
+        continue;
+      }
+
+      const previousX = citizen.group.position.x;
+      const previousZ = citizen.group.position.z;
+      let remaining = citizen.profile.walkingSpeedMps * delta;
+      while (remaining > 0 && citizen.pathIndex < citizen.path.length) {
+        const target = citizen.path[citizen.pathIndex]!;
+        const dx = target.x - citizen.group.position.x;
+        const dz = target.z - citizen.group.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance <= Math.max(.001, remaining)) {
+          citizen.group.position.copy(target);
+          citizen.groundY = target.y;
+          citizen.pathIndex += 1;
+          remaining -= distance;
+          continue;
+        }
+        const ratio = remaining / distance;
+        citizen.group.position.x += dx * ratio;
+        citizen.group.position.z += dz * ratio;
+        citizen.group.position.y += (target.y - citizen.group.position.y) * ratio;
+        citizen.groundY = citizen.group.position.y;
+        remaining = 0;
+      }
+      const movedX = citizen.group.position.x - previousX;
+      const movedZ = citizen.group.position.z - previousZ;
+      const speed = planarSpeed(movedX, movedZ, delta);
+      if (speed > .01) {
+        citizen.group.rotation.y = dampWrappedYaw(
+          citizen.group.rotation.y,
+          headingYaw(movedX, movedZ),
+          delta,
+          10,
         );
+        this.setCitizenWalking(citizen, true);
+        if (citizen.walkAction) citizen.walkAction.timeScale = walkAnimationRate(speed);
+      } else {
+        this.setCitizenWalking(citizen, false);
       }
       citizen.mixer.update(delta);
     }
@@ -1033,7 +1632,7 @@ export class World3D {
       const delta = Math.min(0.05, this.clock.getDelta());
       const movementSpeed = this.updateMovement(delta, state);
       this.updateAvatarAnimations(delta, movementSpeed);
-      this.updateCitizens(delta, this.clock.elapsedTime);
+      this.updateCitizens(delta, this.clock.elapsedTime, state);
       this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, movementSpeed > 0.05);
       this.updateCamera(delta);

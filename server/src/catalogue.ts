@@ -8,6 +8,11 @@
 export type Buyer = "government" | "citizens";
 export type Tier = "civic" | "raw" | "intermediate" | "capital" | "consumer" | "recovered";
 
+export const REALM_NAME = "Mercedonia";
+export const CITIZEN_NAME = "Mercedonians";
+export const CURRENCY_NAME = "Merc Dollars";
+export const CURRENCY_CODE = "MERCS";
+
 export interface ResourceSpec {
   governmentPrice: number; procurementPrice: number; buyer: Buyer; tier: Tier; volatility: number; civicSupply?: boolean;
 }
@@ -56,11 +61,11 @@ export const EPOCH_MM_BUDGET = 60_000;
 export const MIN_EPOCH_PAYOUT = 25;
 /** A share of every fee and tax funds the next epoch instead of only draining the vault. */
 export const RESERVE_FUNDING_RATE = 0.35;
-/** Peg: one USDT of $MM buys 10,000 Maker Dollars. Must match game/src/data.ts. */
-export const MOLLAR_PER_USD = 10_000;
+/** Peg: one USDT of $MM buys 10,000 Merc Dollars. Must match game/src/data.ts. */
+export const MERC_DOLLARS_PER_USD = 10_000;
 export const MM_REFERENCE_PRICE_USD = 0.01;
-/** Maker Dollars per $MM at the reference price. Fees are collected in MD, budgets in $MM. */
-export const MOLLAR_PER_MM = MOLLAR_PER_USD * MM_REFERENCE_PRICE_USD;
+/** Merc Dollars per $MM at the reference price. Fees are collected in MERCS, budgets in $MM. */
+export const MERC_DOLLARS_PER_MM = MERC_DOLLARS_PER_USD * MM_REFERENCE_PRICE_USD;
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 export const epochIdFor = (at = Date.now()): number => Math.floor(at / (EPOCH_LENGTH_DAYS * 86_400_000));

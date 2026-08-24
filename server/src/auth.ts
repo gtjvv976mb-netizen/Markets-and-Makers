@@ -31,7 +31,7 @@ export function isWalletAddress(value: string): boolean {
 export function challengeMessage(walletAddress: string, nonce: string, issuedAt: string): string {
   return [
     "Markets & Makers",
-    "Sign in to The Sunwoven Reach.",
+    "Sign in to Mercedonia.",
     "",
     `Wallet: ${walletAddress}`,
     `Nonce: ${nonce}`,

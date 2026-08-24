@@ -21,7 +21,7 @@ exhausted"* and the game stops.
 
 **Measured time to empty both pools:**
 
-| Concurrent players | modest (2 $MM/s) | typical maxed (20 $MM/s) | maxed recycler (51 $MM/s) |
+| Concurrent players | modest (2 MERCS/s) | typical maxed (20 MERCS/s) | maxed recycler (51 MERCS/s) |
 |---|---|---|---|
 | 1 | 289 days | 29 days | 11.3 days |
 | 100 | 69 h | 6.9 h | **2.7 h** |
@@ -48,7 +48,7 @@ never buy from or sell to another player.
 | Civic Construction | −85 | | Reclamation Hub | **+95** |
 | Sunwell Microgrid | −77 | | Greenloom Greenhouse | +44 |
 | Tideglass AquaWorks | −41 | | Freight Crate Mill | +27 |
-| Stonewake Mine | −29 | | Sunwoven Factory | +17 |
+| Stonewake Mine | −29 | | Mercedonian Factory | +17 |
 | Copper Quay Freight | −27 | | Maker Workshop | +11 |
 | Timbercoast Works | −25 | | | |
 | Supply Shop & Café | −19 | | | |
@@ -58,7 +58,7 @@ never buy from or sell to another player.
 
 The foundation doc's rule — *"player trade must be more profitable than buying from the
 municipality"* — is right. But with no player market, civic is the only counterparty, so
-two thirds of the license screen are traps that drain a 750 $MM starting wallet with no
+two thirds of the license screen are traps that drain a 750 MERCS starting wallet with no
 route back. The license is then locked forever.
 
 ### D4. The Capacity upgrade is free throughput
@@ -68,8 +68,8 @@ enters the duration.** Measured on the Factory:
 
 | Capacity | cycles | duration | profit/job | throughput |
 |---|---|---|---|---|
-| L0 | 1 | 24.0 s | 17 | 0.71 $MM/s |
-| L3 | 4 | **24.0 s** | 66 | **2.75 $MM/s (4.00×)** |
+| L0 | 1 | 24.0 s | 17 | 0.71 MERCS/s |
+| L3 | 4 | **24.0 s** | 66 | **2.75 MERCS/s (4.00×)** |
 
 `markets-and-makers-business-ecosystems-v0.1.md` specifies "Capacity adds 45% of base
 duration for each additional batch." That rule was never implemented.
@@ -77,8 +77,8 @@ duration for each additional batch." That rule was never implemented.
 ### D5. The Reclamation Hub is a money printer, and its input is free
 
 3 Scrap (15) + 1 Power (8) + labor (12) = **35 in**; 2 Building Modules (96) + 1 Utility
-Part (40) = **136 out**. **+95 per 20 s job at level zero**, 4.75 $MM/s before any upgrade,
-51 $MM/s fully upgraded — 10× the next best business. Scrap is simultaneously produced free
+Part (40) = **136 out**. **+95 per 20 s job at level zero**, 4.75 MERCS/s before any upgrade,
+51 MERCS/s fully upgraded — 10× the next best business. Scrap is simultaneously produced free
 as a by-product by ten of the fifteen businesses *and* purchasable from civic at 5.
 
 ### D6. The service price slider has one correct answer, permanently
@@ -97,7 +97,7 @@ It is a lookup, not a decision.
 
 ### D7. Consumer demand returns 14–24% of what it consumes
 
-The citizen pool's only inflows are payroll and 12 $MM per maintenance. **Measured net drain
+The Mercedonian spending pool's only inflows are payroll and 12 MERCS per maintenance. **Measured net drain
 per service job:** Freight +62, Restaurant +68, Cinema +59, Gym +34. Payroll returns
 14%–24% of service revenue. Consumer demand is a 5,000,000 bucket, not a renewing resource.
 
@@ -138,10 +138,10 @@ Everything below follows from that.
 
 ### 2.1 Three layers, and only one of them is money
 
-**Layer 1 — Coin.** Soft, off-chain, minted and burned freely, never withdrawable, never
+**Layer 1 — Merc Dollars (`MERCS`).** Soft, off-chain, minted and burned freely, never withdrawable, never
 convertible at a fixed rate. Wages, inputs, rent, maintenance, licenses, market fees. NPC
-demand *mints* Coin and sinks *destroy* it. This deletes D1 outright: consumer demand stops
-being a finite bucket. The design target is Coin **velocity**, not Coin conservation.
+demand *mints* Merc Dollars and sinks *destroy* them. This deletes D1 outright: consumer demand stops
+being a finite bucket. The design target is Merc Dollar **velocity**, not Merc Dollar conservation.
 
 **Layer 2 — Contribution.** A non-transferable, per-epoch score that resets weekly. It is
 the only bridge from gameplay to value.
@@ -320,7 +320,7 @@ not. Claims about economic behaviour need a simulation, not an argument.
 | Phase | Contains | Gate to pass before advancing |
 |---|---|---|
 | 0 | Server-authoritative economy, no token, closed test | 5 invariants hold under 500-bot fuzz |
-| 1 | Player market + contribution scoring, still no token | 4 weeks of real data; publish measured net Coin per player-week |
+| 1 | Player market + contribution scoring, still no token | 4 weeks of real data; publish measured net MERCS per player-week |
 | 2 | Devnet $MM, full claim path, zero real value | Claim path idempotent under replay; reserve reconciles |
 | 3 | Mainnet, budgeted emission, public reserve | Legal + independent security review per runbook §18 |
 
@@ -337,7 +337,7 @@ Two deployment rules carried over from Chikoria, both learned from live incident
 | # | Change | Fixes | Effort |
 |---|---|---|---|
 | 1 | Move all economic state to the server, idempotent + double-entry | D8 | high |
-| 2 | Coin/Contribution/$MM split with budgeted pro-rata emission | D1 | high |
+| 2 | Merc Dollar/Contribution/$MM split with budgeted pro-rata emission | D1 | high |
 | 3 | Player order books with escrow-on-list | D2 | high |
 | 4 | Civic price band + per-epoch quotas replacing the finite pool | D1, D7 | medium |
 | 5 | Rebalance so civic-priced inputs lose and player-priced inputs win | D3 | medium |

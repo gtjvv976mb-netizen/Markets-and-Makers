@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import html from "../index.html?raw";
 import main from "../src/main.ts?raw";
+import interior from "../src/interiorWorld.ts?raw";
+import styles from "../src/style.css?raw";
 
 describe("markup contract", () => {
   it("every element() selector main.ts requires actually exists in index.html", () => {
@@ -32,8 +34,47 @@ describe("markup contract", () => {
     expect(headerStats).toBeLessThanOrEqual(3);
   });
 
+  it("uses the official custom brand system instead of platform emoji navigation", () => {
+    expect(html).toContain("/assets/brand/markets-makers-official.avif");
+    expect(html).toContain("/assets/brand/mm-maker-crest.svg");
+    expect(html).toContain('id="mm-icon-enterprise"');
+    expect(html).toContain('id="mm-icon-exchange"');
+    expect(html).toContain('id="mm-icon-world"');
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain("⌥1");
+  });
+
+  it("uses the Mercedonia canon and shows MERCS beside every visible Merc Dollar price", () => {
+    const visibleSource = `${html}\n${main}\n${styles}`;
+    expect(visibleSource).toContain("Mercedonia");
+    expect(visibleSource).toContain("Mercedonians");
+    expect(visibleSource).toContain("Merc Dollars");
+    expect(visibleSource).toContain("MERCS");
+    expect(visibleSource).not.toMatch(/Makropolis|Mercadonia|Mollars?|Maker Dollars?|Sunmarks?/i);
+    expect(visibleSource).not.toMatch(/\b(?:MD|SM|MERC)\b/);
+    expect(main).toContain("${row.nextUnit} ${CURRENCY_CODE}");
+    expect(main).toContain("${store.marketBuyPrice(key)} ${CURRENCY_CODE}");
+    expect(main).toContain("${store.marketSellPrice(key)} ${CURRENCY_CODE}");
+    expect(main).toContain("${store.dailyPayroll()} ${CURRENCY_CODE}/day");
+    expect(styles).not.toContain('content: " MERCS"');
+  });
+
+  it("keeps hidden sheets and interiors out of the focus order", () => {
+    expect(html).toContain('id="sheet" data-open="false" aria-hidden="true" inert');
+    expect(html).toContain('id="interiorModal" aria-hidden="true" role="dialog"');
+    expect(main).toContain('sheet.setAttribute("inert", "")');
+    expect(main).toContain('sheet.removeAttribute("inert")');
+    expect(main).toContain("trapFocusWithin(interiorModal, event)");
+    expect(main).toContain("trapFocusWithin(sheet, event)");
+  });
+
   it("renders accessible, branded building banners above visible roofs", () => {
-    expect(main).toContain('class="marker-emblem"');
+    expect(main).toContain('class="marker-building-icon"');
+    expect(main).toContain('class="marker-building-copy"');
+    expect(main).toContain('class="marker-building-status"');
+    expect(main).toContain('class="marker-status-text"');
+    expect(main).toContain('data-building-sign="true"');
+    expect(main).toContain('data-building-state=');
     expect(main).toContain("aria-label=");
     expect(main).toContain("--sign-accent:");
     expect(main).toContain("y: model.y");
@@ -41,5 +82,22 @@ describe("markup contract", () => {
     expect(main).toContain("m.title");
     expect(main).toContain("m.icon");
     expect(main).toContain("m.accent");
+  });
+
+  it("keeps the walkable equipment room functional across mouse, keyboard and touch", () => {
+    expect(html).toContain('id="interiorCanvas"');
+    expect(html).toContain('id="interiorPrompt"');
+    expect(html).toContain('id="interiorInteract"');
+    expect(html).toContain('data-interior-move="forward"');
+    expect(main).toContain("interiorWorld.enter({");
+    expect(main).toContain("store.purchaseUpgrade(key)");
+    expect(main).toContain("store.upgradeCeiling()");
+    expect(main).toContain("world.setInputEnabled(false)");
+    expect(main).toContain("world.setInputEnabled(true)");
+    expect(main).not.toContain('element("#interiorStage").innerHTML');
+    expect(main).not.toContain("Math.min(3, level + 1)");
+    expect(interior).toContain("INTERIOR_EQUIPMENT_CATALOG");
+    expect(interior).toContain("station.blueprint.visible = level === 0");
+    expect(interior).toContain("setMoveInput(direction");
   });
 });

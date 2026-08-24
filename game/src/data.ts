@@ -56,7 +56,7 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     name: "Tideglass AquaWorks", sector: "Water utility", stage: "Infrastructure", islandAffinity: "Tideglass", icon: "≈", color: "#4eaeb7", model: "./assets/structures/b04-aquaworks.glb",
     copy: "Purifies and distributes water credits used by homes, farms, mines and service businesses.", duration: 18, licenseCost: 20, laborCost: 8,
     inputs: { power: 1, part: 1 }, output: { water: 36 }, starter: { power: 1, part: 1 },
-    ecosystem: { upstream: "SunGrid and workshops", process: "Purification and distribution", downstream: "Farms, mines, factories and citizens" },
+    ecosystem: { upstream: "SunGrid and workshops", process: "Purification and distribution", downstream: "Farms, mines, factories and Mercedonians" },
   },
   sungrid: {
     name: "Sunwell Microgrid", sector: "Energy utility", stage: "Infrastructure", islandAffinity: "Sunwell", icon: "☀", color: "#dda942", model: "./assets/structures/b03-sungrid-utility.glb",
@@ -68,7 +68,7 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     name: "Greenloom Greenhouse", sector: "Food and bio-production", stage: "Primary", islandAffinity: "Greenloom", icon: "♧", color: "#70a958", model: "./assets/structures/b05-canopy-greenhouse.glb",
     copy: "Turns water and power into fresh food for markets, cafés, restaurants and households.", duration: 16, licenseCost: 20, laborCost: 9,
     inputs: { water: 2, power: 1 }, output: { food: 4 }, wastePerCycle: 1, starter: { water: 2, power: 1 },
-    ecosystem: { upstream: "AquaWorks and SunGrid", process: "Controlled growing", downstream: "Shops, restaurants and citizens" },
+    ecosystem: { upstream: "AquaWorks and SunGrid", process: "Controlled growing", downstream: "Shops, restaurants and Mercedonians" },
   },
   mine: {
     name: "Stonewake Mine", sector: "Mineral extraction", stage: "Primary", islandAffinity: "Stonewake", icon: "◆", color: "#8d806d", model: "./assets/structures/b06-maker-workshop.glb",
@@ -114,19 +114,19 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   },
   shop: {
     name: "Supply Shop & Café", sector: "Retail production", stage: "Commerce", islandAffinity: "Lantern Row", icon: "S", color: "#b886c6", model: "./assets/structures/b07-starter-shop-cafe.glb",
-    copy: "Packages food, parts and crates into consumer supplies purchased by citizens and services.", duration: 14, licenseCost: 25, laborCost: 10,
+    copy: "Packages food, parts and crates into consumer supplies purchased by Mercedonians and services.", duration: 14, licenseCost: 25, laborCost: 10,
     inputs: { food: 2, crate: 1, part: 1, power: 1 }, output: { supply: 10 }, wastePerCycle: 1, starter: { food: 2, crate: 1, part: 1, power: 1 },
-    ecosystem: { upstream: "Greenhouses, workshops and logistics", process: "Packing and merchandising", downstream: "Citizens, gyms and cinemas" },
+    ecosystem: { upstream: "Greenhouses, workshops and logistics", process: "Packing and merchandising", downstream: "Mercedonians, gyms and cinemas" },
   },
   restaurant: {
     name: "Sunset Market Kitchen", sector: "Hospitality service", stage: "Services", islandAffinity: "Lantern Row", icon: "R", color: "#d47d5b", model: "./assets/structures/b07-starter-shop-cafe.glb",
-    copy: "Serves price-sensitive citizen demand and turns local food into district footfall.", duration: 13, licenseCost: 28, laborCost: 12,
+    copy: "Serves price-sensitive Mercedonian demand and turns local food into district footfall.", duration: 13, licenseCost: 28, laborCost: 12,
     inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 15, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
-    ecosystem: { upstream: "Greenhouses, shops and utilities", process: "Hospitality and dining", downstream: "Citizens and district demand" },
+    ecosystem: { upstream: "Greenhouses, shops and utilities", process: "Hospitality and dining", downstream: "Mercedonians and district demand" },
   },
   gym: {
     name: "Harbor Gym", sector: "Wellness service", stage: "Services", islandAffinity: "Pulsegrove", icon: "H", color: "#4d9487", model: "./assets/structures/b08-harbor-gym.glb",
-    copy: "Consumes supplies and utilities to serve citizens; equipment and appeal increase attendance.", duration: 12, licenseCost: 30, laborCost: 11,
+    copy: "Consumes supplies and utilities to serve Mercedonians; equipment and appeal increase attendance.", duration: 12, licenseCost: 30, laborCost: 11,
     inputs: { supply: 1, water: 1, power: 1 }, output: {}, servicePayout: 14, baseVisitors: 5, priceElasticity: 1.15, starter: { supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Retail, water and power", process: "Training and recovery", downstream: "Healthy workers and local demand" },
   },
@@ -153,12 +153,12 @@ export const UPGRADE_NAMES: Record<UpgradeKey, { name: string; icon: string; eff
   appeal: { name: "Customer Appeal", icon: "✦", effect: "+15% demand and improved procurement terms per level" },
 };
 
-export const UPGRADE_COSTS: Array<{ sunmarks: number; resources: Partial<Record<ResourceKey, number>> }> = [
-  { sunmarks: 0, resources: {} },
-  { sunmarks: 70, resources: { crate: 1, part: 1 } },
-  { sunmarks: 150, resources: { part: 2, equipment: 1, supply: 1 } },
-  { sunmarks: 280, resources: { part: 3, equipment: 2, material: 2 } },
-  { sunmarks: 520, resources: { part: 4, equipment: 3, material: 3, supply: 2 } },
+export const UPGRADE_COSTS: Array<{ mercDollars: number; resources: Partial<Record<ResourceKey, number>> }> = [
+  { mercDollars: 0, resources: {} },
+  { mercDollars: 70, resources: { crate: 1, part: 1 } },
+  { mercDollars: 150, resources: { part: 2, equipment: 1, supply: 1 } },
+  { mercDollars: 280, resources: { part: 3, equipment: 2, material: 2 } },
+  { mercDollars: 520, resources: { part: 4, equipment: 3, material: 3, supply: 2 } },
 ];
 
 export const SPECIALIZATIONS: Record<SpecializationKey, SpecializationConfig> = {
@@ -175,7 +175,7 @@ export const SPECIALIZATIONS: Record<SpecializationKey, SpecializationConfig> = 
   community: {
     name: "Community Enterprise", icon: "◎", color: "#6b8f55",
     summary: "Employs more residents, attracts 15% more visitors and earns reputation faster.",
-    tradeoff: "Payroll is 10% higher and returns more income to citizen households.",
+    tradeoff: "Payroll is 10% higher and returns more income to Mercedonian households.",
   },
 };
 
@@ -205,7 +205,7 @@ export const TUTORIAL = [
   ["built", "Build the business", "Place the existing 3D structure on your plot."],
   ["produced", "Run production", "Buy required inputs, pay labor and complete one job."],
   ["upgraded", "Improve the interior", "Install a yield, capacity, speed or appeal upgrade."],
-  ["sold", "Earn Merc Dollars", "Sell an output or serve price-sensitive citizen demand."],
+  ["sold", "Earn Merc Dollars", "Sell an output or serve price-sensitive Mercedonian demand."],
   ["contracted", "Fulfill a trade contract", "Complete a public, commercial or household order from the Contracts Board."],
   ["traveled", "Use Transit Hall", "Fast-travel to another economic district in the connected world."],
 ] as const;
@@ -218,7 +218,7 @@ export const CAPACITY_DURATION_STEP = 0.45;
 //     therefore always run; it just earns less once it saturates local demand.
 export const DEMAND_TRANCHE_DECAY = 0.72;
 export const DEMAND_PRICE_FLOOR = 0.34;
-// A district absorbs a VALUE of each good per day, not a unit count: 400 Sunmarks of
+// A district absorbs a VALUE of each good per day, not a unit count: 400 Merc Dollars of
 // water is a lot of water and very little capital equipment. Unit quotas are derived.
 export const CIVIC_DEMAND_BUDGET = 1_350;
 export const CITIZEN_DEMAND_BUDGET = 1_750;
@@ -359,23 +359,23 @@ export const TAX_RATE = 0.05;
 // ---------------------------------------------------------------------------
 // The Government Bank.
 //
-// A Maker Dollar is a claim on a FIXED fraction of a $MM held in the treasury,
+// A Merc Dollar is a claim on a FIXED fraction of a $MM held in the treasury,
 // so the bank is fully reserved and can always redeem. The token's market cap
-// therefore decides what a Mollar is WORTH in real money, not how many you get
+// therefore decides what a Merc Dollar is WORTH in real money, not how many you get
 // — which keeps in-game prices stable while a rally still enriches everyone.
 //
 // A floating rate would do the opposite: players convert in at a high price and,
 // when the token falls, redemption demands more $MM than the bank ever held.
 // ---------------------------------------------------------------------------
 /**
- * The peg: one USDT of $MM buys 10,000 Maker Dollars.
+ * The peg: one USDT of $MM buys 10,000 Merc Dollars.
  *
  * A dollar peg backed by a volatile token is only safe while it is
  * over-collateralised, so issuance is capped against the treasury's value. The seed
  * reserve is unencumbered collateral — nobody holds a claim against it — which is what
- * lets the peg survive a crash. At 4x, a 75% drawdown still leaves every Mollar covered.
+ * lets the peg survive a crash. At 4x, a 75% drawdown still leaves every Merc Dollar covered.
  */
-export const MOLLAR_PER_USD = 10_000;
+export const MERC_DOLLARS_PER_USD = 10_000;
 export const TARGET_COLLATERAL = 4;
 /** Share of the ceiling that may be issued in any one epoch, so supply cannot jump. */
 export const EPOCH_ISSUANCE_CAP = 0.08;
@@ -386,18 +386,18 @@ export const BANK_SPREAD = 0.02;
 export const MM_REFERENCE_PRICE_USD = 0.01;
 export const MM_CIRCULATING_SUPPLY = 1_000_000_000;
 
-// --- Markians: the citizens who work for the city and shop with players ------
+// --- Mercedonians: the citizens who work for the city and shop with players --
 /** Every business a city supports draws this many residents to it. */
-export const MARKIANS_PER_BUSINESS = 18;
-export const MARKIANS_BASE = 120;
+export const MERCEDONIANS_PER_BUSINESS = 18;
+export const MERCEDONIANS_BASE = 120;
 /** Share of a citizen's wage that comes back as spending in player shops. */
-export const MARKIAN_SPEND_RATE = 0.72;
+export const MERCEDONIAN_SPEND_RATE = 0.72;
 /** Civic wages scale with what the bank holds and what the token is worth. */
 export const CIVIC_WAGE_BASE = 9;
 
 // ---------------------------------------------------------------------------
 // The city's own industries. These exist before any player does: they are what
-// makes it possible to build anything at all, and the Markians work for them.
+// makes it possible to build anything at all, and the Mercedonians work for them.
 // ---------------------------------------------------------------------------
 export interface CivicBuilding {
   id: string; name: string; role: string; island: string;
@@ -431,13 +431,13 @@ export const WATER_STANDING_CHARGE = 6;
 export const POWER_STANDING_CHARGE = 8;
 export const UTILITY_PER_CAPACITY = 7;
 
-// --- Staff: you employ Markians, and their wages are their spending money ----
+// --- Staff: you employ Mercedonians, and their wages are their spending money -
 export const STAFF_DAILY_WAGE = 14;
 export const STAFF_APPEAL = 0.08;
 
-export const MOLLAR_NAME = "Merc Dollar";
-export const MOLLAR_CODE = "MERCS";
-export const INITIAL_MOLLAR_SUPPLY = 50_000_000;
+export const CURRENCY_NAME = "Merc Dollars";
+export const CURRENCY_CODE = "MERCS";
+export const INITIAL_MERC_DOLLAR_SUPPLY = 50_000_000;
 export const INITIAL_CITIZEN_POOL = 5_000_000;
 export const MM_TOTAL_SUPPLY = 1_000_000_000;
 export const INITIAL_MM_RESERVE = 50_000_000;

@@ -6,7 +6,7 @@ create table if not exists realm (
   created_at timestamptz not null default now()
 );
 
-insert into realm (id, name) values ('sunwoven-1', 'The Sunwoven Reach') on conflict do nothing;
+insert into realm (id, name) values ('sunwoven-1', 'Mercedonia') on conflict do nothing;
 
 create table if not exists player (
   id uuid primary key default gen_random_uuid(),

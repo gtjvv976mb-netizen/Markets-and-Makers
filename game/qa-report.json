@@ -12,8 +12,8 @@
       "game_tests": 17,
       "server_tests": 5,
       "coverage_intent": [
-        "fully covered opening Sunmark base and fixed $MM vault allocation",
-        "Sunmark retirement on $MM acquisition and bounded issuance on return",
+        "fully covered opening Merc Dollar base and fixed $MM vault allocation",
+        "Merc Dollar retirement on $MM acquisition and bounded issuance on return",
         "Civic Vault reserve-floor protection and malformed-save reconstruction",
         "closed-ledger purchases, wages, taxes, sales, travel and maintenance",
         "lease-build-produce-upgrade-sell and price-elastic service loops",
@@ -40,7 +40,7 @@
     "daily_reward_is_budget_transfer": true,
     "all_resources_have_producer": true,
     "all_resources_have_business_use_or_final_buyer": true,
-    "opening_sunmark_supply": 50000000,
+    "opening_merc_dollar_supply": 50000000,
     "mm_fixed_total_supply": 1000000000,
     "opening_civic_mm_reserve": 50000000,
     "reserve_exchange_spread_percent": 2,
@@ -91,7 +91,7 @@
   "boundaries": {
     "playable_vertical_slice": true,
     "full_live_mmo": false,
-    "prototype_sunmark_and_internal_mm_accounting_only": true,
+    "prototype_merc_dollar_and_internal_mm_accounting_only": true,
     "wallet_or_chain_connection": false,
     "multiplayer_server_connected": false,
     "durable_server_database_connected": false,

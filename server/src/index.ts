@@ -8,6 +8,13 @@ import { buyListing, cancelListing, listItem, readBook, MarketError } from "./ma
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
+import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, REALM_NAME } from "./catalogue.js";
+
+const REALM_ID = "sunwoven-1";
+
+function withMercCurrency<T extends object>(value: T): T & { currencyCode: typeof CURRENCY_CODE; currencyName: typeof CURRENCY_NAME } {
+  return { ...value, currencyCode: CURRENCY_CODE, currencyName: CURRENCY_NAME };
+}
 
 interface Presence {
   sessionId: string;
@@ -108,7 +115,11 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/public-config") {
       json(res, 200, {
-        realm: "sunwoven-1",
+        realm: REALM_ID,
+        realmName: REALM_NAME,
+        citizenName: CITIZEN_NAME,
+        currencyName: CURRENCY_NAME,
+        currencyCode: CURRENCY_CODE,
         tickRate: 10,
         chainNetwork: config.solanaNetwork,
         tokenMint: config.tokenMint || null,
@@ -165,8 +176,9 @@ const server = createServer(async (req, res) => {
     // Prices are public information: anyone may read the district board.
     if (req.method === "GET" && url.pathname === "/api/economy/board") {
       try {
-        json(res, 200, { island: url.searchParams.get("island") ?? "hearth",
-          quotes: await islandBoard("sunwoven-1", url.searchParams.get("island") ?? "hearth") });
+        json(res, 200, withMercCurrency({ island: url.searchParams.get("island") ?? "hearth",
+          realmName: REALM_NAME,
+          quotes: await islandBoard(REALM_ID, url.searchParams.get("island") ?? "hearth") }));
       } catch (error) {
         if (error instanceof EconomyError) { json(res, 409, { error: error.code, message: error.message }); return; }
         throw error;
@@ -177,7 +189,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/economy/standing") {
       const who = await authenticate(bearerFrom(req.headers.authorization));
       if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
-      json(res, 200, await epochStanding("sunwoven-1", who.playerId));
+      json(res, 200, await epochStanding(REALM_ID, who.playerId));
       return;
     }
 
@@ -197,7 +209,8 @@ const server = createServer(async (req, res) => {
         quantity: Number(payload.quantity),
       };
       try {
-        json(res, 200, url.pathname.endsWith("/sell") ? await sellToDistrict(args) : await buyFromCivic(args));
+        const settled = url.pathname.endsWith("/sell") ? await sellToDistrict(args) : await buyFromCivic(args);
+        json(res, 200, withMercCurrency(settled));
       } catch (error) {
         if (error instanceof EconomyError || error instanceof MarketError) {
           json(res, 409, { error: error.code, message: error.message }); return;
@@ -213,7 +226,7 @@ const server = createServer(async (req, res) => {
         if (req.method === "GET" && url.pathname === "/api/market/book") {
           const island = url.searchParams.get("island") ?? "hearth";
           const item = url.searchParams.get("item") ?? undefined;
-          json(res, 200, { listings: await readBook("sunwoven-1", island, item) });
+          json(res, 200, withMercCurrency({ listings: await readBook(REALM_ID, island, item) }));
           return;
         }
         if (req.method === "POST") {
@@ -234,12 +247,12 @@ const server = createServer(async (req, res) => {
           }
 
           if (url.pathname === "/api/market/list") {
-            json(res, 200, await listItem({
-              idempotencyKey: key, realmId: "sunwoven-1",
+            json(res, 200, withMercCurrency(await listItem({
+              idempotencyKey: key, realmId: REALM_ID,
               islandId: String(payload.islandId ?? "hearth"), sellerPlayerId: player,
               itemKey: String(payload.itemKey ?? ""), quantity: Number(payload.quantity),
               unitPrice: Number(payload.unitPrice),
-            }));
+            })));
             return;
           }
           if (url.pathname === "/api/market/cancel") {
@@ -248,8 +261,8 @@ const server = createServer(async (req, res) => {
             return;
           }
           if (url.pathname === "/api/market/buy") {
-            json(res, 200, await buyListing({
-              idempotencyKey: key, listingId: String(payload.listingId ?? ""), buyerPlayerId: player }));
+            json(res, 200, withMercCurrency(await buyListing({
+              idempotencyKey: key, listingId: String(payload.listingId ?? ""), buyerPlayerId: player })));
             return;
           }
         }

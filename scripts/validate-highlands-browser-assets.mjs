@@ -4,7 +4,18 @@ import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as THREE from "../game/node_modules/three/build/three.module.js";
+import { GLTFLoader } from "../game/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "../game/node_modules/three/examples/jsm/libs/meshopt_decoder.module.js";
+
+if (typeof globalThis.ProgressEvent === "undefined") {
+  globalThis.ProgressEvent = class ProgressEvent {
+    constructor(type, init = {}) {
+      this.type = type;
+      Object.assign(this, init);
+    }
+  };
+}
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = join(repository, "game/public/assets/world/highlands-rivers-v1");
@@ -130,6 +141,43 @@ const glbTriangles = (document) => (document?.meshes ?? []).reduce((total, mesh)
     const accessorIndex = primitive.indices ?? primitive.attributes?.POSITION;
     return meshTotal + Math.floor((document.accessors?.[accessorIndex]?.count ?? 0) / 3);
   }, 0), 0);
+
+const align4 = (value) => (value + 3) & ~3;
+const geometryOnlyGlb = (bytes) => {
+  const parts = glbParts(bytes);
+  if (!parts) throw new Error("not a valid binary glTF");
+  const document = structuredClone(parts.document);
+  for (const mesh of document.meshes ?? []) {
+    for (const primitive of mesh.primitives ?? []) delete primitive.material;
+  }
+  delete document.materials;
+  delete document.images;
+  delete document.textures;
+  delete document.samplers;
+  for (const key of ["extensionsUsed", "extensionsRequired"]) {
+    if (!Array.isArray(document[key])) continue;
+    document[key] = document[key].filter((extension) =>
+      extension !== "EXT_texture_webp" && extension !== "KHR_texture_basisu");
+    if (document[key].length === 0) delete document[key];
+  }
+
+  const json = Buffer.from(JSON.stringify(document));
+  const jsonLength = align4(json.length);
+  const binaryLength = align4(parts.binary.length);
+  const result = Buffer.alloc(12 + 8 + jsonLength + 8 + binaryLength);
+  result.write("glTF", 0, 4, "ascii");
+  result.writeUInt32LE(2, 4);
+  result.writeUInt32LE(result.length, 8);
+  result.writeUInt32LE(jsonLength, 12);
+  result.writeUInt32LE(0x4e4f534a, 16);
+  json.copy(result, 20);
+  result.fill(0x20, 20 + json.length, 20 + jsonLength);
+  const binaryHeader = 20 + jsonLength;
+  result.writeUInt32LE(binaryLength, binaryHeader);
+  result.writeUInt32LE(0x004e4942, binaryHeader + 4);
+  parts.binary.copy(result, binaryHeader + 8);
+  return result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength);
+};
 
 const accessorComponents = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 const componentBytes = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
@@ -286,6 +334,129 @@ const validateHumanoid = async (parts, label, expectedAxis, expectedYaw) => {
   }
 };
 
+const AVATAR_TARGET_HEIGHT_M = 1.82;
+const AVATAR_BIND_HEIGHT_TOLERANCE_M = 0.005;
+const AVATAR_BIND_RESIDUAL_TOLERANCE = 0.001;
+const AVATAR_WALK_SOLE_TOLERANCE_M = 0.025;
+const AVATAR_WALK_MIN_HEIGHT_M = 1.79;
+const AVATAR_WALK_MAX_HEIGHT_M = 1.86;
+const AVATAR_WALK_LOOP_TOLERANCE_M = 0.002;
+const AVATAR_WALK_SAMPLES = 128;
+let cpuValidatedAvatarCount = 0;
+
+const refreshSkinnedWorld = (object) => {
+  object.updateMatrixWorld(true);
+  object.traverse((child) => {
+    if (child.isSkinnedMesh) child.skeleton.update();
+  });
+};
+
+const exactSkinnedBounds = (object) => {
+  refreshSkinnedWorld(object);
+  return new THREE.Box3().setFromObject(object, true);
+};
+
+const matrixIdentityResidual = (matrix) => {
+  let residual = 0;
+  for (let index = 0; index < 16; index += 1) {
+    const expected = index === 0 || index === 5 || index === 10 || index === 15 ? 1 : 0;
+    residual = Math.max(residual, Math.abs(matrix.elements[index] - expected));
+  }
+  return residual;
+};
+
+const boxDifference = (left, right) => Math.max(
+  ...left.min.toArray().map((value, index) => Math.abs(value - right.min.getComponent(index))),
+  ...left.max.toArray().map((value, index) => Math.abs(value - right.max.getComponent(index))),
+);
+
+const validateAnimatedHumanoidGeometry = async (bytes, label, groundClearanceM = 0) => {
+  try {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const gltfAsset = await loader.parseAsync(geometryOnlyGlb(bytes), "");
+    const model = gltfAsset.scene;
+    const skinnedMeshes = [];
+    model.traverse((child) => { if (child.isSkinnedMesh) skinnedMeshes.push(child); });
+    check(skinnedMeshes.length > 0, `${label} has no CPU-skinnable mesh`);
+    if (skinnedMeshes.length === 0) return;
+
+    refreshSkinnedWorld(model);
+    const bindProduct = new THREE.Matrix4();
+    let maximumBindResidual = 0;
+    for (const mesh of skinnedMeshes) {
+      for (let index = 0; index < mesh.skeleton.bones.length; index += 1) {
+        bindProduct.multiplyMatrices(mesh.skeleton.bones[index].matrixWorld, mesh.skeleton.boneInverses[index]);
+        maximumBindResidual = Math.max(maximumBindResidual, matrixIdentityResidual(bindProduct));
+      }
+    }
+    check(maximumBindResidual <= AVATAR_BIND_RESIDUAL_TOLERANCE,
+      `${label} bind residual ${maximumBindResidual.toFixed(6)} exceeds ${AVATAR_BIND_RESIDUAL_TOLERANCE}`);
+
+    const runtimeRoot = new THREE.Group();
+    runtimeRoot.add(model);
+    const sourceBox = exactSkinnedBounds(runtimeRoot);
+    const sourceSize = sourceBox.getSize(new THREE.Vector3());
+    if (!Number.isFinite(sourceSize.y) || sourceSize.y <= 0) throw new Error("has no finite skinned height");
+    const sourceCenter = sourceBox.getCenter(new THREE.Vector3());
+    const scale = AVATAR_TARGET_HEIGHT_M / sourceSize.y;
+    runtimeRoot.scale.setScalar(scale);
+    runtimeRoot.position.set(
+      -sourceCenter.x * scale,
+      groundClearanceM - sourceBox.min.y * scale,
+      -sourceCenter.z * scale,
+    );
+
+    const bindBox = exactSkinnedBounds(runtimeRoot);
+    const bindHeight = bindBox.max.y - bindBox.min.y;
+    check(Math.abs(bindHeight - AVATAR_TARGET_HEIGHT_M) <= AVATAR_BIND_HEIGHT_TOLERANCE_M,
+      `${label} normalized bind height ${bindHeight.toFixed(4)}m is not 1.82m`);
+    check(Math.abs(bindBox.min.y - groundClearanceM) <= AVATAR_BIND_HEIGHT_TOLERANCE_M,
+      `${label} normalized bind sole ${bindBox.min.y.toFixed(4)}m misses its ${groundClearanceM.toFixed(3)}m clearance`);
+
+    const walk = gltfAsset.animations.find((clip) => clip.name === "Walk");
+    check(Boolean(walk) && Number.isFinite(walk?.duration) && walk.duration > 0, `${label} has no sampleable Walk clip`);
+    if (!walk || !Number.isFinite(walk.duration) || walk.duration <= 0) return;
+    const mixer = new THREE.AnimationMixer(runtimeRoot);
+    const action = mixer.clipAction(walk);
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+    action.play();
+
+    let minimumSole = Infinity;
+    let maximumSole = -Infinity;
+    let minimumHeight = Infinity;
+    let maximumHeight = -Infinity;
+    let firstBox;
+    let lastBox;
+    for (let sample = 0; sample <= AVATAR_WALK_SAMPLES; sample += 1) {
+      mixer.setTime(walk.duration * sample / AVATAR_WALK_SAMPLES);
+      const box = exactSkinnedBounds(runtimeRoot);
+      const sole = box.min.y - groundClearanceM;
+      const height = box.max.y - box.min.y;
+      minimumSole = Math.min(minimumSole, sole);
+      maximumSole = Math.max(maximumSole, sole);
+      minimumHeight = Math.min(minimumHeight, height);
+      maximumHeight = Math.max(maximumHeight, height);
+      if (sample === 0) firstBox = box.clone();
+      if (sample === AVATAR_WALK_SAMPLES) lastBox = box.clone();
+    }
+    const loopResidual = boxDifference(firstBox, lastBox);
+    check(minimumSole >= -AVATAR_WALK_SOLE_TOLERANCE_M,
+      `${label} Walk sole penetrates ${(minimumSole * 100).toFixed(2)}cm below ground`);
+    check(maximumSole <= AVATAR_WALK_SOLE_TOLERANCE_M,
+      `${label} Walk sole floats ${(maximumSole * 100).toFixed(2)}cm above ground`);
+    check(minimumHeight >= AVATAR_WALK_MIN_HEIGHT_M && maximumHeight <= AVATAR_WALK_MAX_HEIGHT_M,
+      `${label} Walk height range ${minimumHeight.toFixed(3)}-${maximumHeight.toFixed(3)}m leaves the 1.79-1.86m envelope`);
+    check(loopResidual <= AVATAR_WALK_LOOP_TOLERANCE_M,
+      `${label} Walk loop AABB residual ${loopResidual.toFixed(4)}m exceeds ${AVATAR_WALK_LOOP_TOLERANCE_M}m`);
+    mixer.stopAllAction();
+    cpuValidatedAvatarCount += 1;
+  } catch (error) {
+    problems.push(`${label} CPU skinning validation failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
 const citizenRoot = join(repository, "game/public/assets/avatars/mercedonians/runtime");
 const citizenManifest = JSON.parse(await readFile(join(citizenRoot, "manifest.json"), "utf8"));
 check(citizenManifest.schema === "markets-and-makers.mercedonians-runtime.v2", "unexpected citizen runtime schema");
@@ -311,6 +482,7 @@ for (const avatar of citizenManifest.avatars ?? []) {
     check(avatar.yawCorrectionDegrees === (avatar.frontAxis === "+X" ? -90 : 0),
       `${avatar.file} has the wrong game-facing yaw correction`);
     if (parts) await validateHumanoid(parts, avatar.file, avatar.frontAxis, avatar.yawCorrectionDegrees);
+    await validateAnimatedHumanoidGeometry(bytes, avatar.file, 0);
     check(document?.extensionsRequired?.includes("EXT_meshopt_compression"), `${avatar.file} is not Meshopt-compressed`);
     check(document?.extensionsRequired?.includes("EXT_texture_webp"), `${avatar.file} does not declare WebP textures`);
   } catch {
@@ -379,6 +551,7 @@ for (const asset of worldDesignManifest.assets ?? []) {
         `${asset.file} must declare its +X authoring axis and -90 degree visual correction`);
       check(grounding?.forwardAxis === "x", `${asset.file} grounding must preserve its authored X-forward axis`);
       if (parts) await validateHumanoid(parts, asset.file, "+X", -90);
+      await validateAnimatedHumanoidGeometry(bytes, asset.file, grounding?.groundClearanceM ?? 0);
     }
   } catch {
     problems.push(`${asset.file} is missing`);
@@ -782,6 +955,8 @@ for (const [assetId, expected] of Object.entries(worldDesignManifest.counts?.byA
 for (const assetId of placementCounts.keys()) {
   check(Object.hasOwn(worldDesignManifest.counts?.byAsset ?? {}, assetId), `${assetId} is missing from manifest counts.byAsset`);
 }
+check(cpuValidatedAvatarCount === 10,
+  `CPU skinning guard validated ${cpuValidatedAvatarCount} avatars instead of all nine citizens plus the civic player`);
 
 if (problems.length) {
   console.error(`Highlands browser validation failed (${problems.length}):`);

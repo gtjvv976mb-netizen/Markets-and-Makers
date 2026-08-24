@@ -17,11 +17,11 @@ async function seed(parts: number, coins: number): Promise<string> {
      on conflict (realm_id,owner_type,owner_id,item_key) do update set quantity = excluded.quantity`,
     [REALM, id, parts]);
   await pool!.query(
-    `insert into currency_account (realm_id,owner_type,owner_id,balance,currency_code) values ($1,'player',$2,$3,'SUNMARK')
+    `insert into currency_account (realm_id,owner_type,owner_id,balance,currency_code) values ($1,'player',$2,$3,'MERCS')
      on conflict (realm_id,owner_type,owner_id,currency_code) do update set balance = excluded.balance`,
     [REALM, id, coins]);
   await pool!.query(
-    `insert into currency_account (realm_id,owner_type,owner_id,balance,currency_code) values ($1,'government','treasury',5000000,'SUNMARK')
+    `insert into currency_account (realm_id,owner_type,owner_id,balance,currency_code) values ($1,'government','treasury',5000000,'MERCS')
      on conflict (realm_id,owner_type,owner_id,currency_code) do update set balance = 5000000`, [REALM]);
   return id;
 }

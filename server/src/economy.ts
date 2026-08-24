@@ -3,7 +3,7 @@ import { pool } from "./database.js";
 import {
   CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, DEMAND_PRICE_FLOOR, DEMAND_TIER_WEIGHT, DEMAND_TRANCHE_DECAY,
   DISTRICT_TRADER_BASELINE, EPOCH_EMISSION_RATE, EPOCH_MM_FLOOR, REWARDS_POOL_MM, MEAN_REVERSION_CAP, MEAN_REVERSION_PER_MINUTE, MIN_EPOCH_PAYOUT,
-  MOLLAR_PER_MM, PRESSURE_MAX, PRESSURE_MIN, RESERVE_FUNDING_RATE, RESOURCES, clamp, epochIdFor, utcDay,
+  CURRENCY_CODE, MERC_DOLLARS_PER_MM, PRESSURE_MAX, PRESSURE_MIN, RESERVE_FUNDING_RATE, RESOURCES, clamp, epochIdFor, utcDay,
 } from "./catalogue.js";
 
 export class EconomyError extends Error {
@@ -18,6 +18,7 @@ function db(): NonNullable<typeof pool> {
 export interface Quote {
   itemKey: string; islandId: string; pressure: number;
   buy: number; sell: number; soldToday: number; districtQuota: number; nextUnit: number;
+  currencyCode: typeof CURRENCY_CODE;
 }
 
 /** Pressure drifts back toward 1.0 over time; this is applied whenever it is read or written. */
@@ -74,7 +75,7 @@ export async function quote(realmId: string, islandId: string, itemKey: string):
       buy: Math.max(1, Math.round(spec.governmentPrice * pressure)),
       sell: unitPriceAt(itemKey, pressure, 0),
       soldToday, districtQuota: districtQuota(itemKey),
-      nextUnit: unitPriceAt(itemKey, pressure, soldToday),
+      nextUnit: unitPriceAt(itemKey, pressure, soldToday), currencyCode: CURRENCY_CODE,
     };
   } finally { client.release(); }
 }
@@ -214,7 +215,7 @@ export async function epochStanding(realmId: string, playerId: string, at = Date
 /**
  * Base budget plus what last epoch's fees contributed.
  *
- * Fees are collected in Maker Dollars and the budget is denominated in $MM, so the
+ * Fees are collected in Merc Dollars and the budget is denominated in $MM, so the
  * contribution has to be converted at the peg. Adding the raw figure over-credited the
  * reward pool by the peg ratio, and applying RESERVE_FUNDING_RATE here as well as at the
  * call site applied it twice.
@@ -223,20 +224,20 @@ export async function epochBudget(realmId: string, epochId: number): Promise<num
   const funded = await db().query<{ amount: string }>(
     `select coalesce(sum(amount),0) as amount from reserve_funding where realm_id = $1 and epoch_id = $2`,
     [realmId, epochId - 1]);
-  const mollars = Number(funded.rows[0]?.amount ?? 0);
+  const mercDollars = Number(funded.rows[0]?.amount ?? 0);
   const drawn = await db().query<{ total: string }>(
     `select coalesce(sum(claimed_units),0) as total from contribution_epoch where realm_id = $1`, [realmId]);
   const remaining = Math.max(0, REWARDS_POOL_MM - Number(drawn.rows[0]?.total ?? 0));
   const endowment = Math.max(Math.min(EPOCH_MM_FLOOR, remaining), Math.floor(remaining * EPOCH_EMISSION_RATE));
-  return endowment + Math.floor(mollars / MOLLAR_PER_MM);
+  return endowment + Math.floor(mercDollars / MERC_DOLLARS_PER_MM);
 }
 
 /**
  * Route a share of a fee or tax into the reserve so emission has a source, not just a
- * balance. `amount` is in Maker Dollars; the share is applied here, once.
+ * balance. `amount` is in Merc Dollars; the share is applied here, once.
  */
-export async function fundReserve(realmId: string, mollarAmount: number, source: string, at = Date.now()): Promise<void> {
-  const contribution = Math.floor(mollarAmount * RESERVE_FUNDING_RATE);
+export async function fundReserve(realmId: string, mercDollarAmount: number, source: string, at = Date.now()): Promise<void> {
+  const contribution = Math.floor(mercDollarAmount * RESERVE_FUNDING_RATE);
   if (contribution <= 0) return;
   await db().query(
     `insert into reserve_funding (realm_id, epoch_id, amount, source) values ($1,$2,$3,$4)`,

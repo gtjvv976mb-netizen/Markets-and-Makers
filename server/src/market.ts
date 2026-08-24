@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
+import { CURRENCY_CODE } from "./catalogue.js";
 
 export interface Owner { type: "player" | "business" | "government" | "escrow"; id: string }
 export interface ListingRow {
@@ -73,8 +74,8 @@ export async function takeItems(
     [commandId, realmId, itemKey, quantity, from.type, from.id, to.type, to.id, reason]);
 }
 
-/** The market settles in Sunmarks only; $MM is an earned reserve asset, not a trading currency. */
-const TRADE_CURRENCY = "SUNMARK";
+/** The market settles in Merc Dollars only; $MM is an earned reserve asset, not a trading currency. */
+const TRADE_CURRENCY = CURRENCY_CODE;
 
 async function accountId(client: PoolClient, realmId: string, owner: Owner): Promise<string> {
   const existing = await client.query<{ id: string }>(
@@ -101,7 +102,7 @@ export async function moveCurrency(
   const taken = await client.query(
     `update currency_account set balance = balance - $1 where id = $2 and balance >= $1`,
     [amount, debit]);
-  if (!taken.rowCount) throw new MarketError("insufficient-funds", "Not enough Sunmarks to settle.");
+  if (!taken.rowCount) throw new MarketError("insufficient-funds", "Not enough MERCS to settle.");
   await client.query(`update currency_account set balance = balance + $1 where id = $2`, [amount, credit]);
   await client.query(
     `insert into currency_ledger (realm_id, command_id, debit_account, credit_account, amount, reason, currency_code)

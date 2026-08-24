@@ -1,4 +1,4 @@
-import { BUSINESS, CIVIC_BUILDINGS, PLOTS, RESOURCES, MOLLAR_CODE, type ResourceKey } from "./data";
+import { BUSINESS, CIVIC_BUILDINGS, PLOTS, RESOURCES, CURRENCY_CODE, type ResourceKey } from "./data";
 import type { BusinessRecord } from "./state";
 
 export interface MarkerModel {
@@ -32,7 +32,7 @@ export function propertyMarkerModels(
     .filter((building) => building.island === state.island)
     .map((building): MarkerModel => {
       const supply = building.supplies
-        .map((resource) => `${RESOURCES[resource].short} ${marketBuyPrice(resource)} ${MOLLAR_CODE}`)
+        .map((resource) => `${RESOURCES[resource].short} ${marketBuyPrice(resource)} ${CURRENCY_CODE}`)
         .join(" · ");
       return {
         id: `civic-${building.id}`,
@@ -60,7 +60,7 @@ export function propertyMarkerModels(
           kind: "vacant",
           label: "For lease",
           title: plotName,
-          detail: `${plot.price} ${MOLLAR_CODE}`,
+          detail: `${plot.price} ${CURRENCY_CODE}`,
           x: plot.x,
           y: PLOT_BANNER_Y,
           z: plot.z,

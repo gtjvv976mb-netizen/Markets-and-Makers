@@ -5,7 +5,7 @@ export interface DeploymentStatus {
 
 export interface DistrictQuote {
   itemKey: string; islandId: string; pressure: number; buy: number; sell: number;
-  soldToday: number; districtQuota: number; nextUnit: number;
+  soldToday: number; districtQuota: number; nextUnit: number; currencyCode: "MERCS";
 }
 
 /** The district board is shared by everyone trading on that island. Public, read-only. */

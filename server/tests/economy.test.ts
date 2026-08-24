@@ -3,11 +3,20 @@ import { pool, closeDatabase } from "../src/database.js";
 import {
   districtQuota, epochBudget, epochStanding, fundReserve, islandBoard, quote, recordPurchase, recordSale,
 } from "../src/economy.js";
-import { EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
+import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
 
 const live = Boolean(process.env.DATABASE_URL);
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
+
+describe("Mercedonia economy canon", () => {
+  it("publishes one world, citizen, and Merc Dollar identity", () => {
+    expect(REALM_NAME).toBe("Mercedonia");
+    expect(CITIZEN_NAME).toBe("Mercedonians");
+    expect(CURRENCY_NAME).toBe("Merc Dollars");
+    expect(CURRENCY_CODE).toBe("MERCS");
+  });
+});
 
 async function player(name: string): Promise<string> {
   const r = await pool!.query<{ id: string }>(`insert into player (display_name) values ($1) returning id`, [name]);
@@ -115,6 +124,7 @@ suite("shared district economy", () => {
     for (const row of board) {
       expect(row.buy).toBeGreaterThan(0);
       expect(row.sell).toBeGreaterThan(0);
+      expect(row.currencyCode).toBe(CURRENCY_CODE);
       // The civic spread must hold on the server exactly as it does on the client.
       expect(row.sell).toBeLessThan(row.buy);
     }

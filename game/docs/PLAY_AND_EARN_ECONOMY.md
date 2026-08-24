@@ -22,9 +22,9 @@ This is an input-output network rather than a set of isolated crafting recipes. 
 
 ## The two currencies
 
-### Sunmark (`SM`) — operating money
+### Merc Dollar (`MERCS`) — operating money
 
-Sunmarks are the unit of account for prices, wages, leases, inputs, sales, transport, upgrades, maintenance, and taxes. Every ordinary payment moves existing Sunmarks between a player, citizen households, or the civic treasury.
+Merc Dollars are the unit of account for prices, wages, leases, inputs, sales, transport, upgrades, maintenance, and taxes. Every ordinary payment moves existing Merc Dollars between a player, Mercedonian households, or the civic treasury.
 
 ### `$MM` — reserve wealth
 
@@ -34,10 +34,10 @@ This separation prevents volatile reserve-asset speculation from becoming the pr
 
 ## Where value comes from
 
-Players earn Sunmarks by creating useful output, not by receiving emissions for logging in.
+Players earn Merc Dollars by creating useful output, not by receiving emissions for logging in.
 
 1. **Industrial sales:** sell resources needed by another sector or bounded civic procurement.
-2. **Household demand:** restaurants, gyms, cinemas, retail, hotels, and freight receive payments from the citizen spending pool.
+2. **Household demand:** restaurants, gyms, cinemas, retail, hotels, and freight receive payments from the Mercedonian spending pool.
 3. **Trade contracts:** complete a specific household or public order for a time-limited demand premium.
 4. **Daily enterprise dividend:** complete production, a contract, and trade activity. Its reward is transferred from the government budget and can be claimed once per civic day.
 5. **Long-term enterprise growth:** upgrades improve yield, capacity, speed, or appeal; career levels and one permanent specialization support different strategies.
@@ -61,7 +61,7 @@ The daily dividend and procurement premiums act like small automatic stabilizers
 
 ## Anti-inflation and anti-exploit rules
 
-- No ordinary command mints Sunmarks. Tests assert that purchases, wages, taxes, sales, contracts, ferry travel, and daily rewards conserve the opening supply.
+- No ordinary command mints Merc Dollars. Tests assert that purchases, wages, taxes, sales, contracts, ferry travel, and daily rewards conserve the opening supply.
 - Government purchasing has a per-resource daily quota. Contracts create targeted extra demand, but their payment still comes from the named buyer pool.
 - AI households can spend only accumulated liquidity. Player payroll replenishes that pool, so employment and consumption reinforce one another.
 - Civic fallback inputs are always available at a deliberately inferior price, preventing deadlocks while making player suppliers more competitive.
@@ -81,7 +81,7 @@ Career XP unlocks status and options, not purchased statistical power.
 - **Quality House:** 10% more goods and stronger quality pricing; best for premium production.
 - **Community Enterprise:** higher payroll, visitor demand, reputation, and XP; best for services and civic growth.
 
-The choice is permanent in the vertical slice so companies develop recognizable identities. Production careers progress through New Maker, Licensed Operator, Local Proprietor, District Supplier, Regional Founder, and Sunwoven Industrialist.
+The choice is permanent in the vertical slice so companies develop recognizable identities. Production careers progress through New Maker, Licensed Operator, Local Proprietor, District Supplier, Regional Founder, and Mercedonian Industrialist.
 
 ## Business-cycle feedback
 
@@ -89,7 +89,7 @@ The game surfaces a market price index, consumer confidence, household liquidity
 
 Production telemetry should follow the precedent of EVE Online's public [Monthly Economic Reports](https://www.eveonline.com/news/t/monthly-economic-reports): monitor production, destruction/sinks, currency flows, market prices, and concentration. At minimum, the live dashboard must track:
 
-- Sunmark supply by player, government, household, and escrow accounts;
+- Merc Dollar supply by player, government, household, and escrow accounts;
 - wages, taxes, fees, procurement, household spending, and Reserve Desk spread;
 - production and consumption by resource and business;
 - price indices, transaction volume, inventory velocity, and failed purchase rates;
@@ -118,4 +118,3 @@ The founder/mayor may propose fiscal settings, but production policy must be rat
 - A player can progress without owning `$MM`.
 - Browser refresh restores versioned state; malformed state is bounded and reconstructed safely.
 - The production server schema provides ledgers, idempotency receipts, contracts, daily progress, procurement ceilings, snapshots, plots, jobs, and reserve accounts.
-

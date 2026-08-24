@@ -1,6 +1,6 @@
 # Markets & Makers — real-economy model for the playable prototype
 
-This note documents the economic references and the deliberately simplified formulas introduced in v0.3. As of v0.5, every operational value described below is denominated in **Sunmarks (`SM`)**; `$MM` is handled only by the reserve system in `DUAL_CURRENCY_SYSTEM.md`. This is a game-design model, not a forecast of a real token, investment return, or sustainable cash yield.
+This note documents the economic references and the deliberately simplified formulas introduced in v0.3. As of v0.5, every operational value described below is denominated in **Merc Dollars (`MERCS`)**; `$MM` is handled only by the reserve system in `DUAL_CURRENCY_SYSTEM.md`. This is a game-design model, not a forecast of a real token, investment return, or sustainable cash yield.
 
 ## Research translated into mechanics
 
@@ -34,7 +34,7 @@ Game translation: the Market Price Index is a weighted average of the eleven res
 
 BEA notes that an industry's production function includes the commodities it consumes plus value added by labor and capital. Revenue alone is therefore not profit.
 
-Game translation: every operating cycle pays payroll from the owner wallet into the citizen pool before production begins. Equipment condition falls after use. The business panel estimates inputs, payroll, gross revenue, 5% transaction tax and profit. Maintenance pays both technicians and a civic service fee.
+Game translation: every operating cycle pays payroll from the owner wallet into the Mercedonian spending pool before production begins. Equipment condition falls after use. The business panel estimates inputs, payroll, gross revenue, 5% transaction tax and profit. Maintenance pays both technicians and a civic service fee.
 
 ### 5. Automatic stabilizers should withdraw themselves
 
@@ -58,8 +58,8 @@ Game translation: most material producers create recoverable scrap. Tideglass Re
 - Each license receives exactly one in-kind starter cycle; it cannot be claimed twice.
 - Civic fallback can sell every input, so a low-population realm cannot be permanently blocked.
 - Prices are bounded, deterministic and mean-reverting.
-- Government and citizen purchases fail rather than minting money when their pool is exhausted.
-- Wallet + treasury + citizen pool begins at 50,000,000 Sunmarks and is conserved by ordinary transactions. Reserve Desk conversions deliberately contract or expand that base against returning `$MM` collateral.
+- Government and Mercedonian purchases fail rather than minting money when their pool is exhausted.
+- Wallet + treasury + Mercedonian spending pool begins at 50,000,000 Merc Dollars and is conserved by ordinary transactions. Reserve Desk conversions deliberately contract or expand that base against returning `$MM` collateral.
 - Input, payroll, expected revenue, tax and expected profit are shown before a job starts.
 - No wallet connection, real-token transfer, cash-out, yield promise or Pump.fun dependency exists in this build.
 

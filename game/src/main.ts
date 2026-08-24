@@ -1,6 +1,7 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CURRENCY_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
+import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
 import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -20,9 +21,18 @@ const interiorModal = element<HTMLElement>("#interiorModal");
 const travelOverlay = element<HTMLElement>("#travelOverlay");
 const toastStack = element<HTMLElement>("#toastStack");
 const canvas = element<HTMLCanvasElement>("#worldCanvas");
+const interiorCanvas = element<HTMLCanvasElement>("#interiorCanvas");
+const interiorPromptNode = element<HTMLElement>("#interiorPrompt");
+const interiorInteractButton = element<HTMLButtonElement>("#interiorInteract");
 
-let activeTab = "guide";
+let activeTab = "shop";
 let interiorOpen = false;
+let sheetReturnFocus: HTMLElement | null = null;
+let interiorReturnFocus: HTMLElement | null = null;
+let interiorEntryTimer = 0;
+let interiorSelection: InteriorSelection | null = null;
+let interiorPrompt: InteriorPrompt | null = null;
+let interiorConsoleSignature = "";
 let movedOnce = false;
 let activeBusinessStage: "Recommended" | BusinessStage = "Recommended";
 let marketFilter: "all" | "needed" | "owned" = "needed";
@@ -46,6 +56,24 @@ const world = new World3D(canvas, {
   },
 });
 
+const interiorWorld = new InteriorWorld(interiorCanvas, {
+  onInteract: (key) => {
+    const result = store.purchaseUpgrade(key);
+    report(result);
+    interiorWorld.updateUpgradeLevels(store.state.upgrades, store.upgradeCeiling());
+    renderInterior();
+  },
+  onExit: () => closeInterior(),
+  onSelectionChange: (selection) => {
+    interiorSelection = selection;
+    renderInterior();
+  },
+  onPromptChange: (prompt) => {
+    interiorPrompt = prompt;
+    renderInteriorPrompt();
+  },
+});
+
 world.setPositionCheckpoint(() => store.savePosition());
 
 // ---------------------------------------------------------------------------
@@ -55,9 +83,25 @@ world.setPositionCheckpoint(() => store.savePosition());
 const sheet = element<HTMLElement>("#sheet");
 const markerLayer = element<HTMLElement>("#worldMarkers");
 
-function openSheet(): void { sheet.dataset.open = "true"; }
-function closeSheet(): void { sheet.dataset.open = "false"; }
-element("#sheetClose").addEventListener("click", closeSheet);
+function openSheet(): void {
+  if (sheet.dataset.open !== "true" && document.activeElement instanceof HTMLElement) {
+    sheetReturnFocus = document.activeElement;
+  }
+  sheet.removeAttribute("inert");
+  sheet.dataset.open = "true";
+  sheet.setAttribute("aria-hidden", "false");
+}
+
+function closeSheet(restoreFocus = true): void {
+  const focusWasInside = sheet.contains(document.activeElement);
+  sheet.dataset.open = "false";
+  sheet.setAttribute("aria-hidden", "true");
+  sheet.setAttribute("inert", "");
+  if (!restoreFocus || !focusWasInside) return;
+  const target = sheetReturnFocus?.isConnected ? sheetReturnFocus : canvas;
+  target.focus({ preventScroll: true });
+}
+element("#sheetClose").addEventListener("click", () => closeSheet());
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
 
 function markerModels(): MarkerModel[] {
@@ -75,7 +119,7 @@ function markerModels(): MarkerModel[] {
       id: "order", kind: ready ? "ready" : "buyer",
       label: ready ? "Deliver now" : "Order accepted",
       title: active.buyerName,
-      detail: ready ? `${active.grossReward} ${MOLLAR_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
+      detail: ready ? `${active.grossReward} ${CURRENCY_CODE} waiting` : `${held}/${active.quantity} ${RESOURCES[active.resource].short}`,
       x: island.x + 15, y: 3.2, z: island.z - 6, building: false,
     });
   } else {
@@ -84,7 +128,7 @@ function markerModels(): MarkerModel[] {
       models.push({
         id: "order", kind: "buyer", label: "Wants to buy",
         title: `${offer.quantity} ${RESOURCES[offer.resource].short}`,
-        detail: `pays ${offer.grossReward} ${MOLLAR_CODE}`,
+        detail: `pays ${offer.grossReward} ${CURRENCY_CODE}`,
         x: island.x + 15, y: 3.2, z: island.z - 6, building: false,
       });
     }
@@ -106,7 +150,7 @@ function markerModels(): MarkerModel[] {
   if (wanted) {
     models.push({
       id: "market", kind: "market", label: "Best price here",
-      title: `${RESOURCES[wanted.key].short} ${wanted.price} ${MOLLAR_CODE}`,
+      title: `${RESOURCES[wanted.key].short} ${wanted.price} ${CURRENCY_CODE}`,
       detail: `wants ${wanted.remaining} more`,
       x: island.x - 15, y: 3.2, z: island.z - 6, building: false,
     });
@@ -143,13 +187,18 @@ function syncMarkers(): void {
       const ariaLabel = escapeMarkup(`${model.title}. ${model.label}. ${model.detail}`);
       const buildingClass = model.building ? " building" : "";
       const style = model.accent ? ` style="--sign-accent:${escapeMarkup(model.accent)}"` : "";
-      const emblem = model.building && model.icon
-        ? `<i class="marker-emblem" aria-hidden="true">${escapeMarkup(model.icon)}</i>`
+      const buildingData = model.building
+        ? ` data-building-sign="true" data-building-state="${escapeMarkup(model.kind)}"`
         : "";
+      const content = model.building
+        ? `<span class="marker-building-icon" aria-hidden="true"><i>${escapeMarkup(model.icon ?? "M")}</i></span>
+          <span class="marker-building-copy"><strong>${title}</strong><small class="marker-building-status"><i aria-hidden="true"></i><span class="marker-status-text">${label}</span></small></span>
+          <span class="marker-detail">${detail}</span>`
+        : `<small>${label}</small><strong>${title}</strong><span class="marker-detail">${detail}</span>`;
       return `
-        <div class="marker ${escapeMarkup(model.kind)}${buildingClass}" data-marker="${markerId}"${style}>
+        <div class="marker ${escapeMarkup(model.kind)}${buildingClass}" data-marker="${markerId}"${buildingData}${style}>
           <button class="marker-pin" data-action="marker" data-plot="${markerId}" aria-label="${ariaLabel}">
-            ${emblem}<small>${label}</small><strong>${title}</strong><span class="marker-detail">${detail}</span>
+            ${content}
           </button>
         </div>`;
     }).join("");
@@ -161,6 +210,19 @@ function syncMarkers(): void {
   const height = markerLayer.clientHeight;
   const topbarBottom = document.querySelector<HTMLElement>(".topbar")?.getBoundingClientRect().bottom ?? 96;
   const safeTop = Math.ceil(topbarBottom + 12);
+  const markerBounds = markerLayer.getBoundingClientRect();
+  const reserved = [".world-label", ".selected-card"]
+    .map((selector) => document.querySelector<HTMLElement>(selector))
+    .filter((node): node is HTMLElement => Boolean(node && getComputedStyle(node).display !== "none"))
+    .map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left - markerBounds.left,
+        right: rect.right - markerBounds.left,
+        top: rect.top - markerBounds.top,
+        bottom: rect.bottom - markerBounds.top,
+      };
+    });
   // Anything the camera cannot see goes into a rail down the right edge, so the world
   // doubles as the map without the pins piling on top of one another.
   let railIndex = 0;
@@ -194,13 +256,26 @@ function syncMarkers(): void {
       placed.push({ node, x: width - 104, y, width: nodeWidth, height: nodeHeight });
     } else {
       const halfWidth = nodeWidth / 2;
-      placed.push({
+      const candidate = {
         node,
         x: Math.min(Math.max(point.sx, halfWidth + 8), Math.max(halfWidth + 8, width - halfWidth - 8)),
         y: Math.max(point.sy, safeTop + nodeHeight),
         width: nodeWidth,
         height: nodeHeight,
-      });
+      };
+      // The district plaque is stable wayfinding. When the camera projects a pin onto
+      // it, move the pin beside the plaque instead of making either label unreadable.
+      for (const obstacle of reserved) {
+        const overlapsX = candidate.x + halfWidth > obstacle.left - 8
+          && candidate.x - halfWidth < obstacle.right + 8;
+        const overlapsY = candidate.y > obstacle.top - 8
+          && candidate.y - candidate.height < obstacle.bottom + 8;
+        if (!overlapsX || !overlapsY) continue;
+        const beside = obstacle.right + halfWidth + 12;
+        if (beside + halfWidth <= width - 8) candidate.x = beside;
+        else candidate.y = obstacle.bottom + candidate.height + 12;
+      }
+      placed.push(candidate);
     }
   }
 
@@ -305,7 +380,10 @@ window.setInterval(() => {
   if (correction) world.applyCorrection(correction.x, correction.z, store.state);
 }, 100);
 
-window.addEventListener("beforeunload", () => realm.dispose());
+window.addEventListener("beforeunload", () => {
+  realm.dispose();
+  interiorWorld.dispose();
+});
 
 function formatNumber(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -326,9 +404,21 @@ function report(result: ActionResult): void {
 }
 
 const SHEET_TITLE: Record<string, string> = {
-  shop: "Your business",
-  trade: "Buy, sell and orders",
-  world: "Districts and progress",
+  shop: "Your enterprise",
+  trade: "Mercedonian exchange",
+  world: "Explore Mercedonia",
+};
+
+type UiIconName = "enterprise" | "exchange" | "world";
+
+function uiIcon(name: UiIconName): string {
+  return `<svg class="mm-icon" aria-hidden="true" focusable="false"><use href="#mm-icon-${name}"></use></svg>`;
+}
+
+const SHEET_META: Record<string, { icon: UiIconName; kicker: string }> = {
+  shop: { icon: "enterprise", kicker: "Enterprise desk" },
+  trade: { icon: "exchange", kicker: "Exchange hall" },
+  world: { icon: "world", kicker: "World atlas" },
 };
 
 function switchTab(requested: string): void {
@@ -336,13 +426,27 @@ function switchTab(requested: string): void {
   activeTab = tab;
   const title = document.querySelector("#sheetTitle");
   if (title) title.textContent = SHEET_TITLE[tab] ?? "Your business";
+  const meta = SHEET_META[tab] ?? SHEET_META.shop;
+  element("#sheetEmblem").innerHTML = uiIcon(meta.icon);
+  element("#sheetKicker").textContent = meta.kicker;
   openSheet();
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
     const active = button.dataset.tab === tab;
     button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
+    if (button.getAttribute("role") === "tab") {
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    } else {
+      button.setAttribute("aria-pressed", String(active));
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    }
   });
-  document.querySelectorAll<HTMLElement>("[data-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === tab));
+  document.querySelectorAll<HTMLElement>("[data-panel]").forEach((panel) => {
+    const active = panel.dataset.panel === tab;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
   element<HTMLElement>(".panel-scroll").scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -357,7 +461,7 @@ function renderHeader(): void {
   const state = store.state;
   // Treasury, citizens and the $MM vault moved into World > Realm figures: a new player
   // cannot act on them, so they were noise in the permanent header.
-  element("#walletValue").textContent = `${formatNumber(state.wallet)} ${MOLLAR_CODE}`;
+  element("#walletValue").textContent = `${formatNumber(state.wallet)} ${CURRENCY_CODE}`;
   element("#careerValue").textContent = `Lv ${store.careerLevel().level} · ${store.careerLevel().name}`;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
   element("#districtLabel").textContent = island.district;
@@ -419,13 +523,13 @@ function renderTutorial(): void {
     <article class="career-card">
       <div class="career-heading"><i>${store.careerLevel().level}</i><div><small>Level</small><strong>${store.careerLevel().name}</strong><span>${store.nextCareerLevel() ? `${store.nextCareerLevel()!.xp - store.state.experience} XP to ${store.nextCareerLevel()!.name}` : "Top rank"}</span></div><b>${store.careerProgress()}%</b></div>
       <div class="meter"><span style="width:${store.careerProgress()}%"></span></div>
-      <div class="career-stats"><span>Worth <strong>${formatNumber(store.netWorth())} ${MOLLAR_CODE}</strong></span><span>Orders <strong>${store.state.contractsCompleted}</strong></span><span>Plots <strong>${store.ownedPlotIds().length}/${store.plotAllowance()}</strong></span></div>
+      <div class="career-stats"><span>Worth <strong>${formatNumber(store.netWorth())} ${CURRENCY_CODE}</strong></span><span>Orders <strong>${store.state.contractsCompleted}</strong></span><span>Plots <strong>${store.ownedPlotIds().length}/${store.plotAllowance()}</strong></span></div>
     </article>
 
     <div class="section-title">Today</div>
     <article class="daily-card ${store.dailyComplete() ? "complete" : ""}">
       <div class="daily-goals"><span class="${store.state.daily.jobs >= DAILY_GOALS.jobs ? "done" : ""}">Jobs <b>${Math.min(store.state.daily.jobs, DAILY_GOALS.jobs)}/${DAILY_GOALS.jobs}</b></span><span class="${store.state.daily.contracts >= DAILY_GOALS.contracts ? "done" : ""}">Orders <b>${Math.min(store.state.daily.contracts, DAILY_GOALS.contracts)}/${DAILY_GOALS.contracts}</b></span><span class="${store.state.daily.trades >= DAILY_GOALS.trades ? "done" : ""}">Trades <b>${Math.min(store.state.daily.trades, DAILY_GOALS.trades)}/${DAILY_GOALS.trades}</b></span></div>
-      <div class="daily-reward"><div><small>Daily bonus</small><strong>${DAILY_GOALS.reward} ${MOLLAR_CODE}</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim"}</button></div>
+      <div class="daily-reward"><div><small>Daily bonus</small><strong>${DAILY_GOALS.reward} ${CURRENCY_CODE}</strong></div><button data-action="claim-daily" ${!store.dailyComplete() || store.state.daily.claimed ? "disabled" : ""}>${store.state.daily.claimed ? "Claimed" : "Claim"}</button></div>
     </article>
 
     <details class="journey-details"><summary>All steps <span>${done}/${TUTORIAL.length}</span></summary><div class="card-list">
@@ -433,7 +537,7 @@ function renderTutorial(): void {
     </div></details>
 
     <details class="journey-details"><summary>Mercedonia figures</summary>
-      <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Mercedonians</small><strong>${formatNumber(store.citizenCount())}</strong></div><div class="stat"><small>$MM vault</small><strong>${formatNumber(store.state.mmReserve)}</strong></div><div class="stat"><small>Reputation</small><strong>${store.state.reputation}</strong></div></div>
+      <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonians</small><strong>${formatNumber(store.citizenCount())}</strong></div><div class="stat"><small>$MM vault</small><strong>${formatNumber(store.state.mmReserve)}</strong></div><div class="stat"><small>Reputation</small><strong>${store.state.reputation}</strong></div></div>
     </details>
 
     <div class="section-title">Recent</div>
@@ -448,7 +552,7 @@ function renderSelectedPlot(): void {
   const plot = PLOTS.find((entry) => entry.id === state.selectedPlotId) ?? null;
   element("#selectedPlotName").textContent = plot?.name ?? "No plot selected";
   let status = "Click a glowing plot";
-  if (plot) status = plot.id === state.ownedPlotId ? "Your active lease" : `Available · ${plot.price} ${MOLLAR_CODE}`;
+  if (plot) status = plot.id === state.ownedPlotId ? "Your active lease" : `Available · ${plot.price} ${CURRENCY_CODE}`;
   element("#selectedPlotStatus").textContent = status;
   const lease = element<HTMLButtonElement>("#leaseAction");
   const build = element<HTMLButtonElement>("#buildAction");
@@ -456,6 +560,12 @@ function renderSelectedPlot(): void {
   lease.disabled = !plot || Boolean(state.ownedPlotId);
   build.disabled = !state.ownedPlotId || !state.license || state.buildingPlaced;
   enter.disabled = !state.buildingPlaced;
+  // The world tray is a next-action rail, not a wall of disabled choices.
+  // Keep the current step visible and reveal the next one as the business grows.
+  lease.hidden = Boolean(state.ownedPlotId);
+  build.hidden = !state.ownedPlotId || state.buildingPlaced;
+  enter.hidden = !state.buildingPlaced;
+  for (const action of [lease, build, enter]) action.classList.toggle("primary", !action.hidden);
   world.setSelectedPlot(state.selectedPlotId, state.ownedPlotId);
 }
 
@@ -470,7 +580,7 @@ function renderBuild(): void {
   const recommendation: Partial<Record<LicenseKey, string>> = {
     greenhouse: "Gentle renewable production loop",
     workshop: "Essential supplier with broad demand",
-    shop: "Simple citizen-facing trading business",
+    shop: "Simple Mercedonian-facing trading business",
   };
   // Show one decision at a time: pick the land, then pick the trade. The licence chooser
   // used to render before leasing, when none of it could be acted on.
@@ -484,12 +594,12 @@ function renderBuild(): void {
     <h2>Your plot</h2>
     <p class="lead">${intro}</p>
     ${!state.ownedPlotId ? `<article class="game-card selected">
-      <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${MOLLAR_CODE}` : "Click a plot in the 3D world"}</small></div></div>
+      <div class="card-head"><i class="card-icon" style="--card-color:#d5a43d">⌂</i><div class="card-copy"><strong>${selectedPlot?.name ?? "Select a plot"}</strong><small>${selectedPlot ? `${selectedPlot.width} × ${selectedPlot.depth} m · ${selectedPlot.price} ${CURRENCY_CODE}` : "Click a plot in the 3D world"}</small></div></div>
       <button data-action="lease" ${selectedPlot ? "" : "disabled"}>Lease selected plot</button>
     </article>` : ""}
     ${!state.ownedPlotId ? `<p class="hint-line">Once it is yours, you choose what it makes.</p>` : ""}
     ${choosing ? `<div class="section-title">What will it make?</div>
-    <div class="supply-chain-strip" aria-label="Supply chain"><span>Utilities</span><b>→</b><span>Inputs</span><b>→</b><span>Industry</span><b>→</b><span>Commerce</span><b>→</b><span>Citizens</span><b>↺</b><span>Recovery</span></div>
+    <div class="supply-chain-strip" aria-label="Supply chain"><span>Utilities</span><b>→</b><span>Inputs</span><b>→</b><span>Industry</span><b>→</b><span>Commerce</span><b>→</b><span>Mercedonians</span><b>↺</b><span>Recovery</span></div>
     <div class="filter-strip" aria-label="Business categories">${filters.map((filter) => `<button class="${activeBusinessStage === filter ? "active" : ""}" data-action="business-filter" data-filter="${filter}">${filter}</button>`).join("")}</div>
     <div class="business-grid">${visibleLicenses.map((key) => {
       const config = BUSINESS[key];
@@ -497,7 +607,7 @@ function renderBuild(): void {
       return `<article class="game-card business-card ${selected ? "selected" : ""}" style="--card-color:${config.color}">
         <div class="card-head"><i class="card-icon">${config.icon}</i><div class="card-copy"><strong>${config.name}</strong><small>${config.stage} · ${config.islandAffinity}</small></div></div>
         ${recommendation[key] ? `<div class="recommendation">★ ${recommendation[key]}</div>` : ""}
-        <div class="business-costs"><span>${config.licenseCost} ${MOLLAR_CODE} to start</span><span>${config.laborCost} ${MOLLAR_CODE} wages</span></div>
+        <div class="business-costs"><span>${config.licenseCost} ${CURRENCY_CODE} to start</span><span>${config.laborCost} ${CURRENCY_CODE} wages</span></div>
         <div class="flow-row"><div><small>Uses</small>${resourceCosts(config.inputs) || "<span>Demand</span>"}</div><b>→</b><div><small>Makes</small>${resourceCosts(config.output) || "<span>Service</span>"}</div></div>
         <details class="ecosystem-details"><summary>Who buys this</summary><div class="ecosystem"><div><small>Upstream</small><span>${config.ecosystem.upstream}</span></div><div><small>Process</small><span>${config.ecosystem.process}</span></div><div><small>Downstream</small><span>${config.ecosystem.downstream}</span></div></div></details>
         <button data-action="license" data-license="${key}" aria-label="Choose ${config.name}" ${!state.ownedPlotId || Boolean(state.license) || state.buildingPlaced ? "disabled" : ""}>${selected ? "Chosen" : `Choose this`}</button>
@@ -548,7 +658,7 @@ function shiftReportMarkup(): string {
       <div><small>Jobs</small><strong>${shift.jobs}</strong></div>
       <div><small>Made</small><strong>${formatNumber(shift.produced)}</strong></div>
       <div><small>Sold</small><strong>${formatNumber(shift.sold)}</strong></div>
-      <div class="${shift.revenue - shift.spent - shift.wages >= 0 ? "positive" : "negative"}"><small>Net</small><strong>${formatNumber(shift.revenue - shift.spent - shift.wages)} ${MOLLAR_CODE}</strong></div>
+      <div class="${shift.revenue - shift.spent - shift.wages >= 0 ? "positive" : "negative"}"><small>Net</small><strong>${formatNumber(shift.revenue - shift.spent - shift.wages)} ${CURRENCY_CODE}</strong></div>
     </div>
     <small class="shift-halt">Stopped because ${HALT_COPY[shift.halted] ?? shift.halted}.</small>
   </article>`;
@@ -565,13 +675,23 @@ function renderBusiness(): void {
     .map(([key, amount]) => ({ key, amount: Math.max(0, amount * cycles - state.inventory[key]) }))
     .filter(({ amount }) => amount > 0);
   const shortfall = missing.reduce((total, { key, amount }) => total + store.marketBuyPrice(key) * amount, 0);
+  const customerActivity = state.citizenActivity.filter((entry) => entry.plotId === state.ownedPlotId);
+  const customerVisits = customerActivity.filter((entry) => entry.kind === "service").reduce((total, entry) => total + entry.visitors, 0);
+  const retailUnits = customerActivity.filter((entry) => entry.kind === "retail").reduce((total, entry) => total + entry.visitors, 0);
+  const customerSpend = customerActivity.reduce((total, entry) => total + entry.gross, 0);
+  const latestCustomerActivity = customerActivity.at(-1) ?? null;
 
   // Everything except the thing you act on right now is folded away.
   element("#businessPanel").innerHTML = `
     <h2>${config.name}</h2>
     ${portfolioMarkup()}
-    ${state.suppliesCut ? `<article class="crisis-card"><i>!</i><div><strong>Water and power cut off</strong><p>The city stopped supply over unpaid standing charges.</p></div><button data-action="restore-supply">Settle ${store.dailyOverhead()} ${MOLLAR_CODE}</button></article>` : ""}
-    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${MOLLAR_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
+    <section class="game-card citizen-flow-card" aria-label="Live customer economy">
+      <div class="citizen-flow-heading"><span aria-hidden="true">◎</span><div><small>Live customer economy</small><strong>${latestCustomerActivity ? `${latestCustomerActivity.kind === "service" ? `${latestCustomerActivity.visitors} customer visits` : `${latestCustomerActivity.visitors} units bought`} recorded` : "Mercedonians are choosing destinations"}</strong></div></div>
+      <div class="citizen-flow-stats"><span><small>Recent visits</small><b>${formatNumber(customerVisits)}</b></span><span><small>Goods bought</small><b>${formatNumber(retailUnits)}</b></span><span><small>Recent spend</small><b>${formatNumber(customerSpend)} ${CURRENCY_CODE}</b></span><span><small>City spending</small><b>${formatNumber(state.householdSpend)} ${CURRENCY_CODE}</b></span></div>
+      <small class="ops-note">The recent figures use the city's last 48 purchase records. Settled purchases dispatch representative cohorts along walkable streets to the correct operating business; ordinary browsing never displays a payment badge.</small>
+    </section>
+    ${state.suppliesCut ? `<article class="crisis-card"><i>!</i><div><strong>Water and power cut off</strong><p>The city stopped supply over unpaid standing charges.</p></div><button data-action="restore-supply">Settle ${store.dailyOverhead()} ${CURRENCY_CODE}</button></article>` : ""}
+    ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${CURRENCY_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
 
     <article class="job-card">
@@ -586,8 +706,8 @@ function renderBusiness(): void {
         const share = store.marketShare(sold);
         return `<div class="share-row" title="Your share of local demand"><div class="share-bar"><span style="width:${(share * 100).toFixed(0)}%"></span></div><small>You win <b>${Math.round(share * 100)}%</b> of local ${RESOURCES[sold].short} custom — better equipment wins more</small></div>`;
       })()}
-      <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${MOLLAR_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${MOLLAR_CODE}</b></span></div>
-      ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${MOLLAR_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${MOLLAR_CODE} in total</small>` : ""}</div>` : ""}
+      <div class="job-money"><span>Costs <b>${economics.inputCost + economics.laborCost} ${CURRENCY_CODE}</b></span><span class="${economics.expectedProfit >= 0 ? "good" : "bad"}">Earns <b>${economics.expectedProfit >= 0 ? "+" : ""}${economics.expectedProfit} ${CURRENCY_CODE}</b></span></div>
+      ${missing.length ? `<div class="quick-buy"><small>You need</small>${missing.map(({ key, amount }) => `<button data-action="quick-buy" data-resource="${key}" data-quantity="${amount}">Buy ${amount} ${RESOURCES[key].short} · ${store.marketBuyPrice(key) * amount} ${CURRENCY_CODE}</button>`).join("")}${missing.length > 1 ? `<small class="quick-total">${shortfall} ${CURRENCY_CODE} in total</small>` : ""}</div>` : ""}
       ${jobMarkup()}
     </article>
 
@@ -599,14 +719,14 @@ function renderBusiness(): void {
       </div>
     </details>
 
-    <details class="fold"><summary>Payroll &amp; bills<span>${store.dailyOverhead()} ${MOLLAR_CODE}/day</span></summary>
-      <div class="stat-grid"><div class="stat"><small>Mercedonians employed</small><strong>${state.staff}</strong></div><div class="stat ${state.staff < store.staffRequired() ? "negative" : ""}"><small>Needed per job</small><strong>${store.staffRequired()}</strong></div><div class="stat"><small>Wages</small><strong>${store.dailyPayroll()}/day</strong></div><div class="stat"><small>Water &amp; power</small><strong>${store.dailyUtilityBill()}/day</strong></div></div>
+    <details class="fold"><summary>Payroll &amp; bills<span>${store.dailyOverhead()} ${CURRENCY_CODE}/day</span></summary>
+      <div class="stat-grid"><div class="stat"><small>Mercedonians employed</small><strong>${state.staff}</strong></div><div class="stat ${state.staff < store.staffRequired() ? "negative" : ""}"><small>Needed per job</small><strong>${store.staffRequired()}</strong></div><div class="stat"><small>Wages</small><strong>${store.dailyPayroll()} ${CURRENCY_CODE}/day</strong></div><div class="stat"><small>Water &amp; power</small><strong>${store.dailyUtilityBill()} ${CURRENCY_CODE}/day</strong></div></div>
       <div class="game-card two-up"><button data-action="hire">Hire a Mercedonian</button><button class="secondary" data-action="release" ${state.staff <= 0 ? "disabled" : ""}>Let one go</button></div>
-      <small class="ops-note">Their wages are their spending money — the citizens you employ are the customers who shop with you.</small>
+      <small class="ops-note">Their wages are their spending money — the Mercedonians you employ are the customers who shop with you.</small>
     </details>
 
     <details class="fold"><summary>Improve<span>Lv ${Object.values(state.upgrades).reduce((a, b) => a + b, 0)}</span></summary>
-      <div class="game-card two-up"><button data-action="interior">Upgrades</button><button class="secondary" data-action="maintain">Repair · 20 ${MOLLAR_CODE}</button></div>
+      <div class="game-card two-up"><button data-action="interior">Upgrades</button><button class="secondary" data-action="maintain">Repair · 20 ${CURRENCY_CODE}</button></div>
       ${config.servicePayout ? `<div class="price-choices">${[.85, 1, 1.15, 1.3].map((index) => `<button class="${Math.abs(state.servicePriceIndex - index) < .01 ? "active" : "secondary"}" data-action="service-price" data-price="${index}">${Math.round(index * 100)}%</button>`).join("")}</div>` : ""}
       ${state.specialization
         ? `<article class="specialization-selected" style="--special-color:${SPECIALIZATIONS[state.specialization].color}"><i>${SPECIALIZATIONS[state.specialization].icon}</i><div><strong>${SPECIALIZATIONS[state.specialization].name}</strong><p>${SPECIALIZATIONS[state.specialization].summary}</p></div></article>`
@@ -616,8 +736,8 @@ function renderBusiness(): void {
     </details>
 
     <details class="fold"><summary>Numbers<span>${state.jobsCompleted} jobs</span></summary>
-      <div class="stat-grid"><div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div><div class="stat"><small>Jobs</small><strong>${state.jobsCompleted}</strong></div><div class="stat"><small>Earned</small><strong>${formatNumber(state.lifetimeRevenue)}</strong></div><div class="stat"><small>Visitors</small><strong>${formatNumber(state.visitorsServed)}</strong></div></div>
-      <div class="stat-grid economics-grid"><div class="stat"><small>Inputs</small><strong>${economics.inputCost}</strong></div><div class="stat"><small>Wages</small><strong>${economics.laborCost}</strong></div><div class="stat"><small>Revenue</small><strong>${economics.expectedRevenue}</strong></div><div class="stat ${economics.expectedProfit >= 0 ? "positive" : "negative"}"><small>Profit</small><strong>${economics.expectedProfit}</strong></div></div>
+      <div class="stat-grid"><div class="stat"><small>Condition</small><strong>${Math.round(state.condition)}%</strong></div><div class="stat"><small>Jobs</small><strong>${state.jobsCompleted}</strong></div><div class="stat"><small>Earned</small><strong>${formatNumber(state.lifetimeRevenue)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Visitors</small><strong>${formatNumber(state.visitorsServed)}</strong></div></div>
+      <div class="stat-grid economics-grid"><div class="stat"><small>Inputs</small><strong>${economics.inputCost} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Wages</small><strong>${economics.laborCost} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Revenue</small><strong>${economics.expectedRevenue} ${CURRENCY_CODE}</strong></div><div class="stat ${economics.expectedProfit >= 0 ? "positive" : "negative"}"><small>Profit</small><strong>${economics.expectedProfit} ${CURRENCY_CODE}</strong></div></div>
     </details>
   `;
 }
@@ -677,7 +797,7 @@ function districtBoardMarkup(): string {
         return `<div class="district-row"><i style="--resource-color:${resource?.color ?? "#888"}">${resource?.icon ?? "•"}</i>
           <div class="district-name"><strong>${resource?.short ?? row.itemKey}</strong><small>${row.soldToday} of ${row.districtQuota} absorbed today</small></div>
           <div class="district-bar"><span style="width:${used.toFixed(1)}%"></span></div>
-          <div class="district-quote"><strong>${row.nextUnit}</strong><small>next unit</small></div></div>`;
+          <div class="district-quote"><strong>${row.nextUnit} ${CURRENCY_CODE}</strong><small>next unit</small></div></div>`;
       }).join("")}
     </div>
     ${anyTrade ? "" : `<small class="district-note">Nobody has traded here yet today. Prices are at their resting level.</small>`}
@@ -697,34 +817,34 @@ function renderMarket(): void {
   element("#marketPanel").innerHTML = `
     <h2>Buy &amp; sell</h2>
     <details class="journey-details"><summary>Market conditions</summary>
-      <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely citizens spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
+      <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
     </details>
     <section class="bank-desk">
       <div class="reserve-heading"><div><small>Government Bank</small><strong>Treasury &amp; exchange</strong></div><span>${Number.isFinite(store.collateralRatio()) ? Math.round(store.collateralRatio() * 100) : 100}% covered</span></div>
-      <p>One dollar of $MM buys ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}. The $MM stays in the treasury, deepening the city's liquidity and paying its citizens. The bank only issues while it holds several times what it owes, which is what keeps the rate safe in a downturn.</p>
+      <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}. The $MM stays in the treasury, deepening the city's liquidity and paying Mercedonians. The bank only issues while it holds several times what it owes, which is what keeps the rate safe in a downturn.</p>
       <div class="reserve-balance">
         <div><small>Treasury</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
-        <div><small>Money supply</small><strong>${formatNumber(store.mollarSupply())} ${MOLLAR_CODE}</strong></div>
-        <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${MOLLAR_CODE}</strong></div>
-        <div><small>This epoch</small><strong>${formatNumber(store.state.epochIssued)} issued</strong></div>
-        <div><small>Rate</small><strong>$1 = ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}</strong></div>
+        <div><small>Money supply</small><strong>${formatNumber(store.mercDollarSupply())} ${CURRENCY_CODE}</strong></div>
+        <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></div>
+        <div><small>Issued this epoch</small><strong>${formatNumber(store.state.epochIssued)} ${CURRENCY_CODE}</strong></div>
+        <div><small>Rate</small><strong>$1 = ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}</strong></div>
         <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
         <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
       </div>
       <div class="reserve-actions">
-        <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mollarsForMM(100))} ${MOLLAR_CODE}</small></button>
+        <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mercDollarsForMM(100))} ${CURRENCY_CODE}</small></button>
         <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
       </div>
       <div class="city-strip">
-        <div><small>Mercedonians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>
-        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}/day</strong></div>
-        <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${MOLLAR_CODE}/day</strong></div>
-        <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
-        <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${MOLLAR_CODE}</strong></div>
-        <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${MOLLAR_CODE}</strong></div>
+        <div><small>Mercedonians</small><strong>${formatNumber(store.mercedonianPopulation())}</strong></div>
+        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${CURRENCY_CODE}/day</strong></div>
+        <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${CURRENCY_CODE}/day</strong></div>
+        <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${CURRENCY_CODE}</strong></div>
+        <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${CURRENCY_CODE}</strong></div>
+        <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${CURRENCY_CODE}</strong></div>
       </div>
-      <small class="city-note">Mercedonia pays its citizens every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the city grows. Roughly nine in ten Merc Dollars of wages end up in player tills.</small>
-      <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
+      <small class="city-note">Mercedonia pays Mercedonians every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the world grows. Roughly nine in ten Merc Dollars of wages end up in player tills.</small>
+      <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Mercedonians are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${CURRENCY_CODE} out of nothing.</small>
     </section>
 
     <section class="reserve-desk">
@@ -765,18 +885,18 @@ function renderMarket(): void {
     </section>
     ${districtBoardMarkup()}
     <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
-    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${MOLLAR_CODE}</span><span>Trade</span></div>
+    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${CURRENCY_CODE}</span><span>Trade</span></div>
     <div class="card-list market-list">
       ${visibleKeys.map((key) => {
         const resource = RESOURCES[key];
         const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
         const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
-        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} <small>buy</small></strong><span>${store.marketSellPrice(key)} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><button class="sell" data-action="sell" data-resource="${key}">Sell 1</button></div></div>`;
+        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><button class="sell" data-action="sell" data-resource="${key}">Sell 1</button></div></div>`;
       }).join("")}
       ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
     </div>
     <div class="section-title">Ledger health</div>
-    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Citizen spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Payroll returned to citizens</small><strong>${formatNumber(store.state.laborPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${MOLLAR_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
+    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonian spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Payroll returned to Mercedonians</small><strong>${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
   `;
 }
@@ -791,19 +911,19 @@ function renderContracts(): void {
     <p class="lead">Filling a buyer's order pays more than selling loose stock.</p>
     <div class="economic-dashboard"><div><small>Economic cycle</small><strong>${store.economicPhase()}</strong><span>Trend ${store.economyTrend()}</span></div><div><small>Company rank</small><strong>Level ${store.careerLevel().level}</strong><span>${store.careerLevel().name}</span></div><div><small>Track record</small><strong>${store.state.contractsCompleted}</strong><span>Completed orders</span></div></div>
     ${active && activeResource ? `<div class="section-title">Active commitment</div><article class="active-contract" style="--contract-color:${activeResource.color}">
-      <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${MOLLAR_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
+      <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${CURRENCY_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
       <div class="contract-progress"><div><span>Inventory ready</span><strong>${Math.min(store.state.inventory[active.resource], active.quantity)} / ${active.quantity}</strong></div><div class="meter"><span style="width:${Math.min(100, (store.state.inventory[active.resource] / active.quantity) * 100)}%"></span></div></div>
-      ${shortfall ? `<button class="contract-supply" data-action="quick-buy" data-resource="${active.resource}" data-quantity="${shortfall}">Buy ${shortfall} missing ${activeResource.short} · ${shortfall * store.marketBuyPrice(active.resource)} ${MOLLAR_CODE}</button>` : ""}
-      <div class="contract-actions"><button data-action="fulfill-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${MOLLAR_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
+      ${shortfall ? `<button class="contract-supply" data-action="quick-buy" data-resource="${active.resource}" data-quantity="${shortfall}">Buy ${shortfall} missing ${activeResource.short} · ${shortfall * store.marketBuyPrice(active.resource)} ${CURRENCY_CODE}</button>` : ""}
+      <div class="contract-actions"><button data-action="fulfill-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${CURRENCY_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
     </article>` : ""}
     <div class="section-title">Verified offers</div>
     <div class="contract-list">${offers.map((offer) => { const resource = RESOURCES[offer.resource]; const held = store.state.inventory[offer.resource]; return `<article class="contract-card" style="--contract-color:${resource.color}">
       <div class="contract-head"><i>${resource.icon}</i><div><small>${offer.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${offer.buyerName}</strong><span>${offer.quantity} ${resource.short} · hold ${held}</span></div><b>+${offer.bonusPercent}%</b></div>
-      <div class="contract-value"><span>Gross payment <strong>${offer.grossReward} ${MOLLAR_CODE}</strong></span><span>Reputation <strong>+${offer.reputationReward}</strong></span><span>Career XP <strong>+${offer.xpReward}</strong></span></div>
+      <div class="contract-value"><span>Gross payment <strong>${offer.grossReward} ${CURRENCY_CODE}</strong></span><span>Reputation <strong>+${offer.reputationReward}</strong></span><span>Career XP <strong>+${offer.xpReward}</strong></span></div>
       <button data-action="accept-contract" data-contract="${offer.id}" ${active ? "disabled" : ""}>${active ? "One active order allowed" : "Accept contract"}</button>
     </article>`; }).join("")}</div>
-    <button class="refresh-board" data-action="refresh-contracts">Refresh verified offers · 5 ${MOLLAR_CODE}</button>
-    <p class="model-note">Contract bonuses reward planning and reliability. Public orders are bounded by the civic treasury; household orders are bounded by earned wages and citizen liquidity.</p>
+    <button class="refresh-board" data-action="refresh-contracts">Refresh verified offers · 5 ${CURRENCY_CODE}</button>
+    <p class="model-note">Contract bonuses reward planning and reliability. Public orders are bounded by the civic treasury; household orders are bounded by earned wages and Mercedonian liquidity.</p>
   `;
 }
 
@@ -837,7 +957,7 @@ function renderMap(): void {
       const here = store.state.island === island.id;
       return `<div class="island-row ${event ? "has-event" : ""}" style="--island-color:${island.color}"><i class="island-dot"></i><div><strong>${island.name}</strong>${event
         ? `<small class="island-event">Paying <b>+${Math.round((event.multiplier - 1) * 100)}%</b> for ${RESOURCES[event.resource].short} — ${event.reason}</small>`
-        : `<small>${island.district}</small>`}</div><button data-action="travel" data-island="${island.id}" ${here ? "disabled" : ""}>${here ? "Here" : store.state.tutorial.traveled ? `10 ${MOLLAR_CODE}` : "Free"}</button></div>`;
+        : `<small>${island.district}</small>`}</div><button data-action="travel" data-island="${island.id}" ${here ? "disabled" : ""}>${here ? "Here" : store.state.tutorial.traveled ? `10 ${CURRENCY_CODE}` : "Free"}</button></div>`;
     }).join("")}</div>
   `;
 }
@@ -851,21 +971,101 @@ function renderResources(): void {
   element("#resourceDock").innerHTML = shown.map((key) => {
     const resource = RESOURCES[key];
     const held = store.state.inventory[key];
-    return `<div class="resource-chip ${held === 0 ? "empty" : ""}" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${held}</strong></div><span>${store.marketBuyPrice(key)} ${MOLLAR_CODE}</span></div>`;
+    return `<div class="resource-chip ${held === 0 ? "empty" : ""}" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div><small>${resource.short}</small><strong>${held}</strong></div><span>${store.marketBuyPrice(key)} ${CURRENCY_CODE}</span></div>`;
   }).join("");
+}
+
+function renderInteriorPrompt(): void {
+  const icon = interiorPromptNode.querySelector<HTMLElement>("i");
+  const hint = interiorPromptNode.querySelector<HTMLElement>("small");
+  const title = interiorPromptNode.querySelector<HTMLElement>("strong");
+  if (!icon || !hint || !title) return;
+
+  if (!interiorPrompt) {
+    icon.textContent = "⌁";
+    hint.textContent = "Explore the room";
+    title.textContent = "Move close to an equipment station";
+    interiorInteractButton.textContent = "Walk closer";
+    interiorInteractButton.disabled = true;
+    return;
+  }
+
+  const selection = interiorPrompt.selection;
+  icon.textContent = selection.kind === "upgrade" ? UPGRADE_NAMES[selection.key].icon : "↗";
+  hint.textContent = interiorPrompt.inputHint;
+  title.textContent = `${interiorPrompt.title} · ${interiorPrompt.detail}`;
+  interiorInteractButton.textContent = interiorPrompt.actionLabel;
+  interiorInteractButton.disabled = !interiorPrompt.available;
+}
+
+function equipmentSelectorMarkup(license: LicenseKey, selectedKey: UpgradeKey | null): string {
+  return `<div class="equipment-selector" aria-label="Choose an equipment station">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
+    const design = INTERIOR_EQUIPMENT_CATALOG[license][key];
+    const level = store.state.upgrades[key];
+    const status = level === 0 ? "Not installed" : `Level ${level}`;
+    return `<button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button>`;
+  }).join("")}</div>`;
 }
 
 function renderInterior(): void {
   if (!interiorOpen || !store.state.license) return;
-  const config = BUSINESS[store.state.license];
+  const license = store.state.license;
+  const config = BUSINESS[license];
+  const ceiling = store.upgradeCeiling();
+  const installed = (Object.keys(UPGRADE_NAMES) as UpgradeKey[]).reduce((total, key) => total + store.state.upgrades[key], 0);
   element("#interiorTitle").textContent = config.name;
-  element("#interiorStage").innerHTML = `<div class="interior-room"><h3>${config.name}</h3><p>${config.copy} Installed modules visibly represent the systems that improve yield, capacity, turnaround and citizen demand.</p><div class="machine-grid">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => `<div class="machine" style="--machine-color:${config.color}"><i>${UPGRADE_NAMES[key].icon}</i><strong>${UPGRADE_NAMES[key].name}</strong><small>${UPGRADE_NAMES[key].effect}<br>Installed level: ${store.state.upgrades[key]} / 3</small></div>`).join("")}</div></div>`;
-  element("#interiorConsole").innerHTML = `<h2>Upgrades</h2><div class="upgrade-list">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
-    const level = store.state.upgrades[key];
-    const next = Math.min(3, level + 1);
-    const cost = UPGRADE_COSTS[next];
-    return `<article class="game-card"><div class="card-head"><i class="card-icon" style="--card-color:${config.color}">${UPGRADE_NAMES[key].icon}</i><div class="card-copy"><strong>${UPGRADE_NAMES[key].name} · Lv ${level}</strong><small>${UPGRADE_NAMES[key].effect}</small></div></div><div class="cost-row"><span>${cost.sunmarks} ${MOLLAR_CODE}</span>${resourceCosts(cost.resources)}</div><button data-action="upgrade" data-upgrade="${key}" ${level >= 3 ? "disabled" : ""}>${level >= 3 ? "Maximum level" : `Install level ${next}`}</button></article>`;
-  }).join("")}</div>`;
+  element("#interiorLevel").textContent = `Installed modules · ${installed}/${ceiling * 4}`;
+  renderInteriorPrompt();
+
+  const selectedKey = interiorSelection?.kind === "upgrade" ? interiorSelection.key : null;
+  const signature = [
+    license,
+    interiorSelection?.kind ?? "none",
+    selectedKey ?? "none",
+    interiorSelection?.nearby ?? false,
+    ceiling,
+    store.state.wallet,
+    ...Object.values(store.state.upgrades),
+    ...Object.values(store.state.inventory),
+  ].join(":");
+  if (signature === interiorConsoleSignature) return;
+  interiorConsoleSignature = signature;
+
+  const selector = equipmentSelectorMarkup(license, selectedKey);
+  const consoleNode = element("#interiorConsole");
+  if (!selectedKey) {
+    const atExit = interiorSelection?.kind === "exit";
+    consoleNode.innerHTML = `<div id="interiorEquipmentPanel" class="interior-console-empty"><i>${atExit ? "↗" : config.icon}</i><strong>${atExit ? "Ready to leave?" : "Choose what to buy first"}</strong><p>${atExit ? "Use the exit below or choose another equipment station to keep improving this business." : `Every ${escapeMarkup(config.name)} machine is purpose-built. Select one and your Maker will walk to it before purchasing.`}</p>${atExit ? `<button class="interior-buy" data-action="interior-exit">Return to Mercedonia</button>` : ""}${selector}</div>`;
+    consoleNode.scrollTop = 0;
+    return;
+  }
+
+  const design = INTERIOR_EQUIPMENT_CATALOG[license][selectedKey];
+  const upgrade = UPGRADE_NAMES[selectedKey];
+  const level = store.state.upgrades[selectedKey];
+  const nextLevel = Math.min(MAX_UPGRADE_LEVEL, level + 1);
+  const atMaximum = level >= ceiling;
+  const needsCharter = atMaximum && !store.state.chartered && ceiling < MAX_UPGRADE_LEVEL;
+  const nearby = interiorSelection?.kind === "upgrade" && interiorSelection.key === selectedKey && interiorSelection.nearby;
+  const cost = UPGRADE_COSTS[nextLevel];
+  const buttonLabel = atMaximum
+    ? needsCharter ? `Master charter required for level ${MAX_UPGRADE_LEVEL}` : "Maximum level installed"
+    : !nearby ? `Walk to ${escapeMarkup(design.name)} to buy`
+      : level === 0 ? `Buy ${escapeMarkup(design.name)}` : `Install level ${nextLevel}`;
+
+  consoleNode.innerHTML = `<div id="interiorEquipmentPanel" style="--equipment-color:${design.secondary}">
+    <small class="equipment-kicker">${escapeMarkup(config.name)} · ${escapeMarkup(upgrade.name)}</small>
+    <div class="equipment-title"><i>${upgrade.icon}</i><div><h3>${escapeMarkup(design.name)}</h3><small>${level === 0 ? "Blueprint ready · not installed" : `Physical equipment · level ${level} of ${ceiling}`}</small></div></div>
+    <p class="equipment-copy">${escapeMarkup(design.description)}</p>
+    <div class="equipment-benefit"><small>Business improvement</small><strong>${escapeMarkup(upgrade.effect)}</strong></div>
+    <div class="equipment-meter" aria-label="${level} of ${ceiling} equipment levels installed">${Array.from({ length: MAX_UPGRADE_LEVEL }, (_, index) => `<i class="${index < level ? "on" : index >= ceiling ? "locked" : ""}"></i>`).join("")}</div>
+    ${atMaximum
+      ? `<div class="equipment-cost"><small>${needsCharter ? "Next step" : "Installation complete"}</small><strong>${needsCharter ? `Earn a master charter to unlock level ${MAX_UPGRADE_LEVEL}.` : "This machine is fully developed."}</strong></div>`
+      : `<div class="equipment-cost"><small>${level === 0 ? "Purchase cost" : `Level ${nextLevel} installation cost`}</small><div class="cost-row"><span>${cost.mercDollars} ${CURRENCY_CODE}</span>${resourceCosts(cost.resources)}</div></div>`}
+    <button class="interior-buy" data-action="interior-interact" ${atMaximum || !nearby ? "disabled" : ""}>${buttonLabel}</button>
+    ${selector}
+  </div>`;
+  consoleNode.scrollTop = 0;
 }
 
 function renderAll(): void {
@@ -888,19 +1088,75 @@ function openInterior(): void {
     return;
   }
   if (!world.isNearOwnedBusiness(store.state)) {
-    toast("Walk closer to your business entrance.", true);
+    const plot = PLOTS.find((entry) => entry.id === store.state.ownedPlotId);
+    if (!plot) {
+      toast("Your business entrance could not be located.", true);
+      return;
+    }
+    const arrival = plotArrival(plot);
+    world.walkTo(arrival.x, arrival.z);
+    window.clearInterval(interiorEntryTimer);
+    const approachStarted = performance.now();
+    interiorEntryTimer = window.setInterval(() => {
+      if (world.isNearOwnedBusiness(store.state)) {
+        window.clearInterval(interiorEntryTimer);
+        interiorEntryTimer = 0;
+        openInterior();
+      } else if (performance.now() - approachStarted > 30_000) {
+        window.clearInterval(interiorEntryTimer);
+        interiorEntryTimer = 0;
+        toast("The route is blocked. Walk closer and try the entrance again.", true);
+      }
+    }, 120);
+    toast(`Walking to ${BUSINESS[store.state.license].name}…`);
     return;
   }
+  window.clearInterval(interiorEntryTimer);
+  interiorEntryTimer = 0;
+  const license = store.state.license;
   interiorOpen = true;
+  interiorSelection = null;
+  interiorPrompt = null;
+  interiorConsoleSignature = "";
+  closeSheet();
+  interiorReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : element("#enterAction");
+  world.setInputEnabled(false);
+  element<HTMLElement>(".app-shell").setAttribute("inert", "");
+  interiorModal.removeAttribute("inert");
   interiorModal.classList.add("show");
   interiorModal.setAttribute("aria-hidden", "false");
   renderInterior();
+  requestAnimationFrame(() => {
+    if (!interiorOpen || store.state.license !== license) return;
+    interiorWorld.enter({
+      business: BUSINESS[license],
+      license,
+      upgrades: store.state.upgrades,
+      upgradeCeiling: store.upgradeCeiling(),
+    });
+    interiorCanvas.focus({ preventScroll: true });
+  });
 }
 
 function closeInterior(): void {
+  window.clearInterval(interiorEntryTimer);
+  interiorEntryTimer = 0;
+  interiorWorld.exit();
+  for (const direction of ["forward", "backward", "left", "right"] as const) {
+    interiorWorld.setMoveInput(direction, false);
+  }
   interiorOpen = false;
+  interiorSelection = null;
+  interiorPrompt = null;
+  interiorConsoleSignature = "";
+  world.setInputEnabled(true);
   interiorModal.classList.remove("show");
   interiorModal.setAttribute("aria-hidden", "true");
+  interiorModal.setAttribute("inert", "");
+  element<HTMLElement>(".app-shell").removeAttribute("inert");
+  const target = interiorReturnFocus?.isConnected ? interiorReturnFocus : element<HTMLElement>("#enterAction");
+  target.focus({ preventScroll: true });
+  interiorReturnFocus = null;
 }
 
 function travelTo(islandId: string): void {
@@ -927,15 +1183,69 @@ function travelTo(islandId: string): void {
 }
 
 document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab ?? "guide")));
+element<HTMLElement>(".sheet-route").addEventListener("keydown", (event) => {
+  if (!(event instanceof KeyboardEvent) || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>(".sheet-route [role='tab']")];
+  const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+  const next = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? tabs.length - 1
+      : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  event.preventDefault();
+  tabs[next]?.focus();
+  tabs[next]?.click();
+});
 element("#leaseAction").dataset.action = "lease";
 element("#buildAction").dataset.action = "build";
 element("#enterAction").dataset.action = "interior";
 element("#closeInterior").addEventListener("click", closeInterior);
-window.addEventListener("keydown", (event) => {
-  if (event.code === "Escape" && interiorOpen) closeInterior();
-  if (event.altKey && ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6"].includes(event.code)) {
+document.querySelectorAll<HTMLButtonElement>("[data-interior-move]").forEach((button) => {
+  const direction = button.dataset.interiorMove as InteriorMoveDirection;
+  const start = (event: PointerEvent): void => {
     event.preventDefault();
-    switchTab(["guide", "build", "business", "market", "contracts", "map"][Number(event.code.at(-1)) - 1]);
+    button.setPointerCapture?.(event.pointerId);
+    interiorWorld.setMoveInput(direction, true);
+  };
+  const stop = (event: PointerEvent): void => {
+    event.preventDefault();
+    interiorWorld.setMoveInput(direction, false);
+  };
+  button.addEventListener("pointerdown", start);
+  button.addEventListener("pointerup", stop);
+  button.addEventListener("pointercancel", stop);
+  button.addEventListener("lostpointercapture", stop);
+});
+new ResizeObserver(() => {
+  if (interiorOpen) interiorWorld.resize();
+}).observe(element("#interiorStage"));
+
+function trapFocusWithin(container: HTMLElement, event: KeyboardEvent): void {
+  const focusable = [...container.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )].filter((node) => node.getClientRects().length > 0);
+  if (!focusable.length) return;
+  const first = focusable[0]!;
+  const last = focusable.at(-1)!;
+  if (!container.contains(document.activeElement)) {
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && interiorOpen) trapFocusWithin(interiorModal, event);
+  else if (event.key === "Tab" && sheet.dataset.open === "true") trapFocusWithin(sheet, event);
+  if (event.code === "Escape" && interiorOpen) closeInterior();
+  if (event.altKey && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
+    event.preventDefault();
+    switchTab(["shop", "trade", "world"][Number(event.code.at(-1)) - 1]);
   }
 });
 
@@ -970,8 +1280,8 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
-  else if (action === "bank-in") report(store.exchangeMMForMollars(100));
-  else if (action === "bank-out") report(store.exchangeMollarsForMM(1000));
+  else if (action === "bank-in") report(store.exchangeMMForMercDollars(100));
+  else if (action === "bank-out") report(store.exchangeMercDollarsForMM(1000));
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "restore-supply") report(store.restoreSupply());
   else if (action === "hire") report(store.hireStaff());
@@ -1013,7 +1323,15 @@ document.body.addEventListener("click", (event) => {
   else if (action === "refresh-contracts") report(store.refreshContracts());
   else if (action === "claim-daily") report(store.claimDailyReward());
   else if (action === "service-price") report(store.setServicePrice(Number(button.dataset.price)));
-  else if (action === "upgrade") report(store.purchaseUpgrade(button.dataset.upgrade as UpgradeKey));
+  else if (action === "interior-focus") {
+    interiorWorld.focusTarget(button.dataset.upgrade as UpgradeKey);
+    interiorCanvas.focus({ preventScroll: true });
+  }
+  else if (action === "interior-interact") {
+    interiorWorld.interact();
+    if (interiorOpen) interiorCanvas.focus({ preventScroll: true });
+  }
+  else if (action === "interior-exit") closeInterior();
   else if (action === "specialize") report(store.chooseSpecialization(button.dataset.specialization as SpecializationKey));
   else if (action === "travel") travelTo(button.dataset.island ?? "");
   else if (action === "interior") openInterior();

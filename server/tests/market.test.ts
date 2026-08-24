@@ -14,7 +14,7 @@ async function makePlayer(name: string, coins: number): Promise<string> {
   const id = created.rows[0]!.id;
   await pool!.query(
     `insert into currency_account (realm_id, owner_type, owner_id, balance, currency_code)
-     values ($1,'player',$2,$3,'SUNMARK')
+     values ($1,'player',$2,$3,'MERCS')
      on conflict (realm_id, owner_type, owner_id, currency_code) do update set balance = excluded.balance`,
     [REALM, id, coins]);
   return id;
@@ -34,7 +34,7 @@ async function items(ownerType: string, ownerId: string, itemKey: string): Promi
 async function coins(playerId: string): Promise<number> {
   const r = await pool!.query<{ balance: string }>(
     `select balance from currency_account
-      where realm_id=$1 and owner_type='player' and owner_id=$2 and currency_code='SUNMARK'`,
+      where realm_id=$1 and owner_type='player' and owner_id=$2 and currency_code='MERCS'`,
     [REALM, playerId]);
   return Number(r.rows[0]?.balance ?? 0);
 }

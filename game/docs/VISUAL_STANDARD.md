@@ -5,7 +5,8 @@ The canonical visual and GLB contract is [`../../ART-DIRECTION.md`](../../ART-DI
 ## Current implementation status
 
 - **Approved:** visual direction and fifteen business turnaround masters.
-- **Temporary:** existing Sunwoven Reach world GLB and eight reused B01–B08 structure GLBs.
+- **Active world:** Mercedonia Highlands & Rivers browser package, with validated roads, plots, terrain and district placement.
+- **Temporary businesses:** eight reused B01–B08 structure GLBs while fifteen unique production GLBs are completed.
 - **Pending:** fifteen unique production GLBs, exact plot-footprint classes, exact-scale placement, authored PBR material preservation, LODs, collision, sockets, and rebuilt public districts.
 
 ## Runtime integration rule
@@ -21,4 +22,3 @@ At integration time:
 5. Validate customer/service sockets, collision, LODs, texture sizes, triangle counts, and GLB hash.
 6. Capture all four fixed gameplay-camera screenshots for visual approval.
 7. Rebuild and test the browser release; never hand-edit `dist/`.
-

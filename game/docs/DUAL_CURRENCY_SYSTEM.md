@@ -2,18 +2,18 @@
 
 ## Currency names
 
-- **Sunmark (`SM`)** — everyday in-game money. Prices, wages, taxes, rent, inputs, services, transport and accounting are denominated in Sunmarks.
+- **Merc Dollar (`MERCS`)** — everyday in-game money. Prices, wages, taxes, rent, inputs, services, transport and accounting are denominated in Merc Dollars.
 - **`$MM`** — scarce reserve and long-term wealth asset. Its fixed total supply is 1,000,000,000. It is never required to operate an ordinary business.
 
-The name Sunmark ties the money to the Sunwoven Reach, is easy to say in singular and plural, and has the monetary familiarity of “mark” without using the game's token ticker.
+The name Merc Dollar ties everyday money directly to Mercedonia's markets, while `MERCS` gives every displayed price one short, unmistakable code.
 
 ## Economic roles
 
-| Function | Sunmark | `$MM` |
+| Function | Merc Dollar | `$MM` |
 |---|---:|---:|
 | Unit of account | Yes | No |
 | Everyday medium of exchange | Yes | No |
-| Payroll and citizen spending | Yes | No |
+| Payroll and Mercedonian spending | Yes | No |
 | Taxes, leases and permits | Yes | No |
 | Inputs and business upgrades | Yes | No |
 | Government procurement | Yes | No |
@@ -32,27 +32,27 @@ This follows the conventional separation between a transaction currency and a re
 - Remaining external/public supply: **950,000,000 `$MM`**.
 - The game cannot mint more `$MM`.
 
-### Sunmarks
+### Merc Dollars
 
-- Opening Sunmark monetary base: **50,000,000 SM**.
-- Civic operating treasury: **44,999,250 SM**.
-- AI-citizen spending pool: **5,000,000 SM**.
-- New-player wallet: **750 SM**.
+- Opening Merc Dollar monetary base: **50,000,000 MERCS**.
+- Civic operating treasury: **44,999,250 MERCS**.
+- Mercedonian spending pool: **5,000,000 MERCS**.
+- New-player wallet: **750 MERCS**.
 - Opening reserve coverage: **100% at the prototype reference parity**.
 
-The Sunmark supply is a balance-sheet quantity, not an arbitrary score. Ordinary transactions move existing Sunmarks between players, businesses, citizens and government without changing total circulation.
+The Merc Dollar supply is a balance-sheet quantity, not an arbitrary score. Ordinary transactions move existing Merc Dollars between players, businesses, Mercedonians and government without changing total circulation.
 
 ## The operating loop
 
 ```text
 Civic infrastructure
-  sells utilities and starter inputs for SM
+  sells utilities and starter inputs for MERCS
              ↓
 Player businesses
   buy inputs → pay wages → produce goods/services
              ↓
-AI citizens and civic procurement
-  buy output and services with SM
+Mercedonians and civic procurement
+  buy output and services with MERCS
              ↓
 Player revenue
   pays tax, maintenance, upgrades and suppliers
@@ -62,19 +62,19 @@ Player revenue
 ### Transfers that do not create money
 
 - Resource purchase: player wallet → civic treasury.
-- Payroll: player wallet → citizen pool.
-- Citizen purchase: citizen pool → player wallet, less tax.
+- Payroll: player wallet → Mercedonian spending pool.
+- Mercedonian purchase: Mercedonian spending pool → player wallet, less tax.
 - Civic procurement: civic treasury → player wallet, less tax.
 - Tax, licenses, leases and ferry fees: player wallet → civic treasury.
 - Maintenance: player wallet → technician households and civic services.
 
-These flows conserve total Sunmarks.
+These flows conserve total Merc Dollars.
 
 ## Reserve Desk
 
 The local vertical slice uses a transparent currency-board simulation:
 
-- Reference parity: **1 `$MM` = 1 SM**.
+- Reference parity: **1 `$MM` = 1 MERCS**.
 - Trade unit: **100 `$MM`**.
 - Two-way spread: **2%**.
 - Civic Vault hard floor: **25,000,000 `$MM`**.
@@ -83,9 +83,9 @@ The local vertical slice uses a transparent currency-board simulation:
 
 For a 100 `$MM` order:
 
-1. Player pays 102 SM.
-2. 100 SM are retired from circulation.
-3. 2 SM move to the stabilization fund inside the civic treasury.
+1. Player pays 102 MERCS.
+2. 100 MERCS are retired from circulation.
+3. 2 MERCS move to the stabilization fund inside the civic treasury.
 4. 100 `$MM` move from the Civic Vault to the player's reserve holdings.
 
 The monetary base and reserve both contract by 100 units, preserving coverage.
@@ -95,8 +95,8 @@ The monetary base and reserve both contract by 100 units, preserving coverage.
 For a 100 `$MM` return:
 
 1. 100 `$MM` move from the player to the Civic Vault.
-2. 98 new SM enter the player's wallet.
-3. The unissued 2 SM equivalent increases the reserve protection margin.
+2. 98 new MERCS enter the player's wallet.
+3. The unissued 2 MERCS equivalent increases the reserve protection margin.
 
 The monetary base expands only after reserve `$MM` returns to the vault.
 
@@ -108,17 +108,17 @@ The UI publishes:
 
 - Civic Vault `$MM` balance.
 - Player `$MM` reserve holdings.
-- Sunmarks in circulation.
+- Merc Dollars in circulation.
 - Reserve coverage percentage.
 - Consumer confidence.
 - Market price index.
-- Civic treasury and citizen spending balances.
+- Civic treasury and Mercedonian spending balances.
 
 Formula:
 
 ```text
-reserve coverage = ($MM in Civic Vault × reference SM per $MM)
-                   ÷ Sunmarks in circulation
+reserve coverage = ($MM in Civic Vault × reference MERCS per $MM)
+                   ÷ Merc Dollars in circulation
 ```
 
 Policy states:
@@ -129,12 +129,12 @@ Policy states:
 
 ## Inflation and deflation controls
 
-Sunmarks are not issued because the mayor wants a larger budget. New Sunmarks enter circulation only when:
+Merc Dollars are not issued because the mayor wants a larger budget. New Merc Dollars enter circulation only when:
 
 1. `$MM` returns to the Civic Vault through the Reserve Desk; or
 2. a future audited monetary-policy action receives equivalent additional reserve assets first.
 
-Sunmarks leave circulation when players acquire reserve `$MM`. Taxes do not burn Sunmarks; they fund infrastructure, procurement and public services. Resource scarcity changes individual prices inside bounded ranges, while monetary-base changes remain separate and publicly visible.
+Merc Dollars leave circulation when players acquire reserve `$MM`. Taxes do not burn Merc Dollars; they fund infrastructure, procurement and public services. Resource scarcity changes individual prices inside bounded ranges, while monetary-base changes remain separate and publicly visible.
 
 The BIS emphasizes that stable monetary arrangements depend on a single unit of account, settlement at par and confidence in stable value. It also warns that reserve-backed token promises depend on the issuer's ability to meet redemption. Source: [BIS Annual Economic Report 2025](https://www.bis.org/publ/arpdf/ar2025e3.htm).
 
@@ -156,4 +156,3 @@ Before real `$MM` conversion is enabled, the project requires:
 The Basel framework for cryptoasset reserve arrangements calls for disclosure of the outstanding amount and reserve composition and discusses bankruptcy-remoteness and currency-mismatch risk. Source: [BIS Basel Framework SCO60](https://www.bis.org/basel_framework/chapter/SCO/60.htm?inforce=20260101&published=20240717&tldate=20290402).
 
 For a real launch, the safest first conversion mechanism is a **scheduled, capped reserve auction** using a manipulation-resistant reference price—not continuous automatic redemption against Pump.fun spot prices.
-

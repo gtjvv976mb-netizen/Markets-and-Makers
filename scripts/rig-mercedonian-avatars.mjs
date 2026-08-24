@@ -128,8 +128,10 @@ function buildWeights(positionData, frontAxis) {
     const lateral = frontAxis === "+X" ? z : x;
     const leftSide = frontAxis === "+X" ? lateral < 0 : lateral >= 0;
     if (y < -0.76) addInfluence(jointData, weightData, vertex, leftSide ? 11 : 14);
-    else if (y < -0.42) addInfluence(jointData, weightData, vertex, leftSide ? 10 : 13, leftSide ? 11 : 14, (y + 0.76) / 0.34);
-    else if (y < -0.08) addInfluence(jointData, weightData, vertex, leftSide ? 9 : 12, leftSide ? 10 : 13, (y + 0.42) / 0.34);
+    // Blend upward through the anatomy: foot -> lower leg -> upper leg.
+    // The old order was reversed, pulling knees toward feet and hips toward knees.
+    else if (y < -0.42) addInfluence(jointData, weightData, vertex, leftSide ? 11 : 14, leftSide ? 10 : 13, (y + 0.76) / 0.34);
+    else if (y < -0.08) addInfluence(jointData, weightData, vertex, leftSide ? 10 : 13, leftSide ? 9 : 12, (y + 0.42) / 0.34);
     else if (y > 0.66) addInfluence(jointData, weightData, vertex, 4);
     else if (y > 0.54) addInfluence(jointData, weightData, vertex, 3, 4, (y - 0.54) / 0.12);
     else if (Math.abs(lateral) > 0.08 && y > 0.02) {
@@ -177,8 +179,10 @@ async function rig(source, output, frontAxis) {
   primitive.attributes.WEIGHTS_0 = appendData(state, weightData, { componentType: 5121, count: positions.count, type: "VEC4", normalized: true, target: 34962 });
 
   const meshNode = state.json.nodes.findIndex((node) => node.mesh === 0);
-  const nodeScale = state.json.nodes[meshNode].scale ?? [1, 1, 1];
-  const rigRoot = state.json.nodes.push({ name: "MercedonianRig", scale: nodeScale, children: [] }) - 1;
+  // Keep the armature in mesh-local bind space. Copying the mesh scale onto the
+  // skeleton while leaving translation-only inverse bind matrices made 0.5-scale
+  // characters double in height as soon as an animation played.
+  const rigRoot = state.json.nodes.push({ name: "MercedonianRig", children: [] }) - 1;
   const jointNodes = joints.map((joint) => state.json.nodes.push({ name: joint.name, translation: joint.t, children: [] }) - 1);
   joints.forEach((joint, index) => {
     const node = jointNodes[index];
@@ -197,9 +201,22 @@ async function rig(source, output, frontAxis) {
   state.json.skins = [{ name: "MercedonianHumanoid", inverseBindMatrices: inverseAccessor, skeleton: jointNodes[0], joints: jointNodes }];
   state.json.nodes[meshNode].skin = 0;
 
-  const limbRotation = frontAxis === "+X" ? quatZ : quatX;
+  // Author once in +X space, then conjugate the rotation axis into +Z.
+  // Using quatX(+angle) mirrored the stride and made +Z avatars shuffle.
+  const limbRotation = frontAxis === "+X" ? quatZ : (angle) => quatX(-angle);
   const idleSway = frontAxis === "+X" ? quatX : quatZ;
-  const kneeBendSign = frontAxis === "+X" ? -1 : 1;
+  const kneeBendSign = -1;
+  // Most supplied bodies face +X and have wider front/back geometry than the
+  // two +Z bodies. A shared stride over-extended their knees and briefly put
+  // both soles in the air. Keep one coherent walk style, but fit its leg range
+  // to the authored axis so every avatar stays planted within 2.5 cm.
+  const hipSwingAmplitude = frontAxis === "+X" ? 0.352 : 0.44;
+  const kneeBendAmplitude = frontAxis === "+X" ? 0.434 : 0.62;
+  // Independent ankle counter-rotation: keeping this fuller than the reduced
+  // +X knee arc improves sole contact on the stylized wide-foot meshes.
+  const footCounterBendReference = 0.62;
+  const walkRootY = frontAxis === "+X" ? -0.06 : -0.063;
+  const walkRootBob = frontAxis === "+X" ? 0.018 : 0;
   const idleTimes = [0, 1, 2];
   addAnimation(state, "Idle", idleTimes, [
     { node: jointNodes[2], path: "rotation", values: [idleSway(-0.015), idleSway(0.015), idleSway(-0.015)] },
@@ -210,12 +227,12 @@ async function rig(source, output, frontAxis) {
   const phaseAt = (index, offset = 0) => (index / (walkTimes.length - 1)) * Math.PI * 2 + offset;
   const cycle = (amplitude, offset = 0) => walkTimes.map((_, index) => limbRotation(Math.sin(phaseAt(index, offset)) * amplitude));
   const kneeCycle = (offset = 0) => walkTimes.map((_, index) => {
-    const bend = Math.max(0, Math.sin(phaseAt(index, offset))) * 0.62 * kneeBendSign;
+    const bend = Math.max(0, Math.sin(phaseAt(index, offset))) * kneeBendAmplitude * kneeBendSign;
     return limbRotation(bend);
   });
   const footCycle = (offset = 0) => walkTimes.map((_, index) => {
     const phase = phaseAt(index, offset);
-    const bend = Math.max(0, Math.sin(phase)) * 0.62 * kneeBendSign;
+    const bend = Math.max(0, Math.sin(phase)) * footCounterBendReference * kneeBendSign;
     return limbRotation(-bend * 0.58 - Math.sin(phase) * 0.08);
   });
   const elbowCycle = (offset = 0) => walkTimes.map((_, index) => {
@@ -223,9 +240,9 @@ async function rig(source, output, frontAxis) {
     return limbRotation(bend);
   });
   addAnimation(state, "Walk", walkTimes, [
-    { node: jointNodes[0], path: "translation", values: walkTimes.map((_, index) => [0, -0.06 + Math.abs(Math.sin(phaseAt(index))) * 0.018, 0]) },
-    { node: jointNodes[9], path: "rotation", values: cycle(0.44) },
-    { node: jointNodes[12], path: "rotation", values: cycle(0.44, Math.PI) },
+    { node: jointNodes[0], path: "translation", values: walkTimes.map((_, index) => [0, walkRootY + Math.abs(Math.sin(phaseAt(index))) * walkRootBob, 0]) },
+    { node: jointNodes[9], path: "rotation", values: cycle(hipSwingAmplitude) },
+    { node: jointNodes[12], path: "rotation", values: cycle(hipSwingAmplitude, Math.PI) },
     { node: jointNodes[10], path: "rotation", values: kneeCycle(Math.PI) },
     { node: jointNodes[13], path: "rotation", values: kneeCycle(0) },
     { node: jointNodes[11], path: "rotation", values: footCycle(Math.PI) },
@@ -248,6 +265,8 @@ async function rig(source, output, frontAxis) {
       frontAxis,
       yawCorrectionDegrees,
       rootMotion: "in-place-xz",
+      bindSpace: "mesh-local",
+      weighting: "anatomy-banded-v3",
       clips: ["Idle", "Walk"],
     },
   };

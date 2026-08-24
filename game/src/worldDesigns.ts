@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
+import { characterHeightScale, STANDARD_CHARACTER_HEIGHT_M, yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
 import { HIGHLANDS_WORLD_BASE, worldChunkAt } from "./highlandsWorld";
 
 export const WORLD_DESIGNS_BASE = `${HIGHLANDS_WORLD_BASE}/world-designs-v1`;
@@ -222,9 +222,9 @@ function prepareAvatar(
   dynamicShadows: boolean,
 ): { group: THREE.Group; animations: THREE.AnimationClip[] } {
   const avatar = cloneSkeleton(source) as THREE.Group;
-  const bounds = new THREE.Box3().setFromObject(avatar);
+  const bounds = new THREE.Box3().setFromObject(avatar, true);
   const size = bounds.getSize(new THREE.Vector3());
-  const scale = asset.targetM / Math.max(size.y, 0.001);
+  const scale = characterHeightScale(size.y);
   avatar.scale.setScalar(scale);
   avatar.position.set(
     -(bounds.min.x + bounds.max.x) * 0.5 * scale - grounding.baseAnchorXZ[0],
@@ -239,6 +239,7 @@ function prepareAvatar(
   });
   const wrapper = new THREE.Group();
   wrapper.name = "MM_CIVIC_MAKER_PLAYER_MODEL";
+  wrapper.userData.characterHeightM = STANDARD_CHARACTER_HEIGHT_M;
   const facing = new THREE.Group();
   const inferredFrontAxis: CharacterFrontAxis = grounding.forwardAxis === "x" ? "+X" : "+Z";
   facing.rotation.y = Number.isFinite(asset.yawCorrectionDegrees)

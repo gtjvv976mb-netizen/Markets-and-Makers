@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { dampWrappedYaw, headingYaw, planarSpeed, yawCorrectionFor, type CharacterFrontAxis } from "../src/characterRig";
+import {
+  characterHeightScale, dampWrappedYaw, headingYaw, planarSpeed, STANDARD_CHARACTER_HEIGHT_M,
+  walkAnimationRate, yawCorrectionFor, type CharacterFrontAxis,
+} from "../src/characterRig";
 
 function correctedFacing(frontAxis: CharacterFrontAxis, deltaX: number, deltaZ: number): [number, number] {
   const yaw = headingYaw(deltaX, deltaZ) + yawCorrectionFor(frontAxis);
@@ -34,5 +37,19 @@ describe("character rig orientation", () => {
   it("derives animation speed from actual displacement", () => {
     expect(planarSpeed(0.3, 0.4, 0.1)).toBeCloseTo(5);
     expect(planarSpeed(1, 1, 0)).toBe(0);
+  });
+
+  it("normalizes every imported body to one physical height", () => {
+    for (const sourceHeight of [.91, 1.82, 2.05, 3.64, 12]) {
+      expect(sourceHeight * characterHeightScale(sourceHeight)).toBeCloseTo(STANDARD_CHARACTER_HEIGHT_M, 8);
+    }
+  });
+
+  it("keeps walking cadence in a planted-foot range", () => {
+    expect(walkAnimationRate(0)).toBe(0);
+    expect(walkAnimationRate(.02)).toBe(0);
+    expect(walkAnimationRate(1.35)).toBeCloseTo(1);
+    expect(walkAnimationRate(.1)).toBe(.18);
+    expect(walkAnimationRate(4)).toBe(1.45);
   });
 });

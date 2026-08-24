@@ -1,14 +1,14 @@
-alter table currency_account add column if not exists currency_code text not null default 'SUNMARK';
+alter table currency_account add column if not exists currency_code text not null default 'MERCS';
 
 alter table currency_account drop constraint if exists currency_account_realm_id_owner_type_owner_id_key;
 create unique index if not exists currency_account_owner_currency_idx
   on currency_account (realm_id, owner_type, owner_id, currency_code);
 
-alter table currency_ledger add column if not exists currency_code text not null default 'SUNMARK';
+alter table currency_ledger add column if not exists currency_code text not null default 'MERCS';
 
 create table if not exists monetary_policy (
   realm_id text primary key references realm(id),
-  transaction_currency text not null default 'SUNMARK' check (transaction_currency = 'SUNMARK'),
+  transaction_currency text not null default 'MERCS' check (transaction_currency = 'MERCS'),
   reserve_asset text not null default 'MM' check (reserve_asset = 'MM'),
   mm_total_supply numeric(30,0) not null default 1000000000 check (mm_total_supply = 1000000000),
   reference_sunmarks_per_mm numeric(30,8) not null default 1 check (reference_sunmarks_per_mm > 0),
@@ -38,7 +38,7 @@ create table if not exists reserve_exchange (
   realm_id text not null references realm(id),
   command_id uuid not null unique,
   player_id uuid not null references player(id),
-  direction text not null check (direction in ('SUNMARK_TO_MM','MM_TO_SUNMARK')),
+  direction text not null check (direction in ('MERCS_TO_MM','MM_TO_MERCS')),
   mm_amount numeric(30,0) not null check (mm_amount > 0),
   sunmark_principal numeric(30,0) not null check (sunmark_principal > 0),
   sunmark_fee numeric(30,0) not null check (sunmark_fee >= 0),
@@ -49,4 +49,3 @@ create table if not exists reserve_exchange (
 );
 
 create index if not exists reserve_exchange_player_created_idx on reserve_exchange (player_id, created_at desc);
-

@@ -3,14 +3,15 @@ import {
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
   BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
-  APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
-  MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  CHARTER_COST_MM, DEED_COST_MM, POWER_STANDING_CHARGE, STAFF_APPEAL, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY, WATER_STANDING_CHARGE, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_APPEAL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
-  MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
+  BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
+  MERCEDONIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
+  CHARTER_COST_MM, DEED_COST_MM, POWER_STANDING_CHARGE, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY, WATER_STANDING_CHARGE, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MERC_DOLLARS_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
-  INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
-  MOLLAR_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
+  INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
+  CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
 } from "./data";
+import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
 export interface UnitEconomics { inputCost: number; laborCost: number; expectedRevenue: number; expectedTax: number; expectedProfit: number; visitors: number; }
@@ -33,6 +34,7 @@ export interface BusinessRecord {
   job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
   condition: number; brokenDown: boolean; jobsCompleted: number;
 }
+type CitizenBusinessSource = Pick<BusinessRecord, "plotId" | "license" | "buildingPlaced">;
 export type HaltReason = "running" | "storage" | "demand" | "inputs" | "funds" | "breakdown" | "idle";
 export interface ShiftReport {
   hours: number; jobs: number; produced: number; sold: number;
@@ -59,6 +61,7 @@ export interface GameState {
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
   condition: number; jobsCompleted: number; visitorsServed: number; lifetimeRevenue: number;
+  householdSpend: number; citizenActivitySequence: number; citizenActivity: CitizenEconomyActivity[];
   tutorial: Record<(typeof TUTORIAL)[number][0], boolean>;
   feed: Array<{ text: string; tone: "normal" | "success" | "warning"; at: number }>;
 }
@@ -89,7 +92,7 @@ export function createFreshState(): GameState {
   return {
     version: 4,
     wallet: 750,
-    governmentTreasury: INITIAL_MOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
+    governmentTreasury: INITIAL_MERC_DOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
     citizenPool: INITIAL_CITIZEN_POOL,
     mmHoldings: 0,
     mmReserve: INITIAL_MM_RESERVE,
@@ -131,6 +134,9 @@ export function createFreshState(): GameState {
     jobsCompleted: 0,
     visitorsServed: 0,
     lifetimeRevenue: 0,
+    householdSpend: 0,
+    citizenActivitySequence: 0,
+    citizenActivity: [],
     tutorial,
     feed: [
       { text: "Merc Dollars (MERCS) opened as Mercedonia's everyday currency, fully covered by the Civic Vault's 50 million $MM reserve.", tone: "success", at: Date.now() },
@@ -141,6 +147,21 @@ export function createFreshState(): GameState {
 
 function finite(value: unknown, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER): number {
   return typeof value === "number" && Number.isFinite(value) ? clamp(value, min, max) : fallback;
+}
+
+/** Upgrade historical player-visible copy without resetting an existing local save. */
+function canonicalizeSavedCopy(value: string): string {
+  return value
+    .replace(/Makropolis|Mercadonia/gi, "Mercedonia")
+    .replace(/\bMarkians\b/gi, "Mercedonians")
+    .replace(/\bMarkian\b/gi, "Mercedonian")
+    .replace(/\bMaker Dollars\b/gi, "Merc Dollars")
+    .replace(/\bMaker Dollar\b/gi, "Merc Dollar")
+    .replace(/\bMollars\b/gi, "Merc Dollars")
+    .replace(/\bMollar\b/gi, "Merc Dollar")
+    .replace(/\bSunmarks\b/gi, "Merc Dollars")
+    .replace(/\bSunmark\b/gi, "Merc Dollar")
+    .replace(/\b(?:MD|SM|MERC)\b/g, CURRENCY_CODE);
 }
 
 export function loadState(): GameState {
@@ -158,7 +179,8 @@ export function loadState(): GameState {
       marketPressure[key] = finite(saved.marketPressure?.[key], 1, .7, 1.6);
     }
     const upgrades = { ...fresh.upgrades };
-    for (const key of upgradeKeys) upgrades[key] = Math.floor(finite(saved.upgrades?.[key], 0, 0, 3));
+    const savedUpgradeCeiling = saved.chartered ? MAX_UPGRADE_LEVEL : 3;
+    for (const key of upgradeKeys) upgrades[key] = Math.floor(finite(saved.upgrades?.[key], 0, 0, savedUpgradeCeiling));
     const license = saved.license && saved.license in BUSINESS ? saved.license : null;
     const ownedPlotId = PLOTS.some((plot) => plot.id === saved.ownedPlotId) ? saved.ownedPlotId! : null;
     // Player holdings and the Civic Vault are two sides of one fixed opening
@@ -187,11 +209,39 @@ export function loadState(): GameState {
       quantity: Math.floor(finite(active.quantity, 1, 1, 99)),
       grossReward: Math.floor(finite(active.grossReward, 1, 1, 100_000)),
       buyer: active.buyer === "citizens" ? "citizens" as const : "government" as const,
-      buyerName: typeof active.buyerName === "string" ? active.buyerName.slice(0, 60) : "Civic buyer",
+      buyerName: typeof active.buyerName === "string" ? canonicalizeSavedCopy(active.buyerName).slice(0, 60) : "Civic buyer",
       bonusPercent: Math.floor(finite(active.bonusPercent, 0, 0, 100)),
       reputationReward: Math.floor(finite(active.reputationReward, 1, 1, 100)),
       xpReward: Math.floor(finite(active.xpReward, 10, 1, 500)),
     } : null;
+    const restoredCitizenActivity = Array.isArray(saved.citizenActivity) ? saved.citizenActivity.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const activity = entry as Partial<CitizenEconomyActivity>;
+      if (!Number.isFinite(activity.id) || !Number.isFinite(activity.at) || typeof activity.plotId !== "string"
+        || !PLOTS.some((plot) => plot.id === activity.plotId) || !activity.license || !(activity.license in BUSINESS)) return [];
+      const plot = PLOTS.find((candidate) => candidate.id === activity.plotId)!;
+      return [{
+        id: Math.floor(finite(activity.id, 0, 0)),
+        at: finite(activity.at, Date.now(), 0),
+        // A saved event cannot choose its own district; the plot is authoritative.
+        island: plot.island,
+        plotId: activity.plotId,
+        license: activity.license,
+        kind: activity.kind === "retail" ? "retail" as const : "service" as const,
+        visitors: Math.floor(finite(activity.visitors, 1, 1, 99_999)),
+        gross: Math.floor(finite(activity.gross, 0, 0)),
+        ...(activity.resource && resourceKeys.includes(activity.resource) ? { resource: activity.resource } : {}),
+      }];
+    }) : [];
+    // Sort and deduplicate before bounding the log. The sequence must never be
+    // lower than a retained id or an old event can be emitted again after load.
+    const citizenActivity = [...new Map(restoredCitizenActivity
+      .sort((a, b) => a.id - b.id)
+      .map((entry) => [entry.id, entry])).values()].slice(-48);
+    const citizenActivitySequence = Math.max(
+      Math.floor(finite(saved.citizenActivitySequence, 0, 0)),
+      ...citizenActivity.map((entry) => entry.id),
+    );
     return {
       ...fresh,
       wallet: finite(saved.wallet, fresh.wallet), governmentTreasury: finite(saved.governmentTreasury, fresh.governmentTreasury),
@@ -223,7 +273,7 @@ export function loadState(): GameState {
           const record = entry as Partial<BusinessRecord>;
           const licence = record.license && record.license in BUSINESS ? record.license : null;
           const levels = { yield: 0, capacity: 0, speed: 0, appeal: 0 } as Record<UpgradeKey, number>;
-          for (const key of upgradeKeys) levels[key] = Math.floor(finite(record.upgrades?.[key], 0, 0, 3));
+          for (const key of upgradeKeys) levels[key] = Math.floor(finite(record.upgrades?.[key], 0, 0, savedUpgradeCeiling));
           restored[plotId] = {
             plotId, license: licence, buildingPlaced: Boolean(record.buildingPlaced && licence),
             job: record.job && licence && record.job.license === licence ? record.job : null,
@@ -265,8 +315,19 @@ export function loadState(): GameState {
       } : null,
       upgrades, condition: finite(saved.condition, 100, 0, 100), jobsCompleted: Math.floor(finite(saved.jobsCompleted, 0)),
       visitorsServed: Math.floor(finite(saved.visitorsServed, 0)), lifetimeRevenue: finite(saved.lifetimeRevenue, 0),
+      householdSpend: finite(saved.householdSpend, 0),
+      citizenActivitySequence,
+      citizenActivity,
       tutorial: { ...fresh.tutorial, ...(saved.tutorial ?? {}) },
-      feed: Array.isArray(saved.feed) ? saved.feed.slice(0, 18) as GameState["feed"] : fresh.feed,
+      feed: Array.isArray(saved.feed)
+        ? saved.feed.slice(0, 18).flatMap((entry) => {
+          if (!entry || typeof entry !== "object") return [];
+          const item = entry as Partial<GameState["feed"][number]>;
+          if (typeof item.text !== "string") return [];
+          const tone = item.tone === "success" || item.tone === "warning" ? item.tone : "normal";
+          return [{ text: canonicalizeSavedCopy(item.text), tone, at: finite(item.at, Date.now(), 0) }];
+        })
+        : fresh.feed,
     };
   } catch {
     return fresh;
@@ -299,6 +360,64 @@ export class GameStore {
       treasury: this.state.governmentTreasury, citizenPool: this.state.citizenPool,
     });
     this.state.economyHistory = this.state.economyHistory.slice(-24);
+  }
+
+  /**
+   * Keep the household ledger and the visible crowd on the same source of truth.
+   * Money is settled by the existing transaction first; this compact event tells
+   * the world which business those customers actually travelled to.
+   */
+  private activeCitizenBusiness(): CitizenBusinessSource | null {
+    const { ownedPlotId: plotId, license, buildingPlaced } = this.state;
+    return plotId && license && buildingPlaced ? { plotId, license, buildingPlaced } : null;
+  }
+
+  /** Attribute a household goods purchase to a business that actually makes it. */
+  private citizenBusinessForResource(resource: ResourceKey): CitizenBusinessSource | null {
+    const candidates = Object.values(this.state.portfolio)
+      .filter((record): record is BusinessRecord & { license: LicenseKey } => Boolean(
+        record.buildingPlaced
+        && record.license
+        && (BUSINESS[record.license].output[resource] ?? 0) > 0,
+      ))
+      .sort((a, b) => {
+        if (a.plotId === this.state.ownedPlotId) return -1;
+        if (b.plotId === this.state.ownedPlotId) return 1;
+        return (b.upgrades.appeal - a.upgrades.appeal) || (b.jobsCompleted - a.jobsCompleted);
+      });
+    const source = candidates[0];
+    return source ? { plotId: source.plotId, license: source.license, buildingPlaced: true } : null;
+  }
+
+  private recordCitizenActivity(
+    kind: CitizenEconomyActivity["kind"],
+    visitors: number,
+    gross: number,
+    resource?: ResourceKey,
+    at = Date.now(),
+    source: CitizenBusinessSource | null = this.activeCitizenBusiness(),
+  ): void {
+    if (gross <= 0 || visitors <= 0) return;
+    this.state.householdSpend += gross;
+    const plotId = source?.plotId;
+    const license = source?.license;
+    if (!plotId || !license || !source.buildingPlaced) return;
+    const plot = PLOTS.find((entry) => entry.id === plotId);
+    if (!plot) return;
+    const id = this.state.citizenActivitySequence + 1;
+    this.state.citizenActivitySequence = id;
+    this.state.citizenActivity.push({
+      id,
+      at,
+      island: plot.island,
+      plotId,
+      license,
+      kind,
+      visitors: Math.max(1, Math.floor(visitors)),
+      gross: Math.max(1, Math.floor(gross)),
+      ...(resource ? { resource } : {}),
+    });
+    this.state.citizenActivity = this.state.citizenActivity.slice(-48);
   }
 
   private commit(message?: string, tone: GameState["feed"][number]["tone"] = "normal"): void {
@@ -338,7 +457,7 @@ export class GameStore {
     const held = this.ownedPlotIds().length;
     if (held >= this.plotAllowance()) return this.result(false, `Your civic standing supports ${this.plotAllowance()} plot${this.plotAllowance() === 1 ? "" : "s"}. Reach ${this.nextCareerLevel()?.name ?? "the next career level"} to lease another.`);
     if (this.state.island !== plot.island) return this.result(false, "Travel to the plot's district before leasing it.");
-    if (this.state.wallet < plot.price) return this.result(false, `You do not have enough ${MOLLAR_CODE} for the lease.`);
+    if (this.state.wallet < plot.price) return this.result(false, `You do not have enough ${CURRENCY_CODE} for the lease.`);
     this.state.wallet -= plot.price; this.state.governmentTreasury += plot.price; this.state.tutorial.leased = true; this.addExperience(10);
     this.syncActive();
     this.state.portfolio[plot.id] = {
@@ -347,7 +466,7 @@ export class GameStore {
       condition: 100, brokenDown: false, jobsCompleted: 0,
     };
     this.loadBusiness(plot.id);
-    this.commit(`You leased ${plot.name} for ${plot.price} ${MOLLAR_CODE}.`, "success");
+    this.commit(`You leased ${plot.name} for ${plot.price} ${CURRENCY_CODE}.`, "success");
     return this.result(true, "Plot leased.");
   }
 
@@ -356,10 +475,10 @@ export class GameStore {
     if (this.state.buildingPlaced) return this.result(false, "The built business license is locked for this prototype.");
     if (this.state.license) return this.result(false, `${BUSINESS[this.state.license].name} is already licensed to this plot.`);
     const config = BUSINESS[key];
-    if (this.state.wallet < config.licenseCost) return this.result(false, `This license needs ${config.licenseCost} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < config.licenseCost) return this.result(false, `This license needs ${config.licenseCost} ${CURRENCY_CODE}.`);
     this.state.wallet -= config.licenseCost; this.state.governmentTreasury += config.licenseCost; this.state.license = key; this.state.tutorial.licensed = true; this.addExperience(15);
     for (const resource of resourceKeys) this.state.inventory[resource] += config.starter[resource] ?? 0;
-    this.commit(`${config.name} licensed for ${config.licenseCost} ${MOLLAR_CODE}. One operating cycle was delivered as an in-kind starter grant.`, "success");
+    this.commit(`${config.name} licensed for ${config.licenseCost} ${CURRENCY_CODE}. One operating cycle was delivered as an in-kind starter grant.`, "success");
     return this.result(true, "License selected.");
   }
 
@@ -385,9 +504,9 @@ export class GameStore {
     const amount = Math.max(1, Math.floor(quantity));
     if (RESOURCES[key].civicSupply === false) return this.result(false, `${RESOURCES[key].name} is recovered from production, not sold by the civic supplier.`);
     const unitPrice = this.marketBuyPrice(key); const cost = unitPrice * amount;
-    if (this.state.wallet < cost) return this.result(false, `You need ${cost} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < cost) return this.result(false, `You need ${cost} ${CURRENCY_CODE}.`);
     this.state.wallet -= cost; this.state.governmentTreasury += cost; this.state.inventory[key] += amount; this.state.daily.trades += amount; this.moveMarket(key, 1, amount);
-    this.commit(`Civic fallback supplied ${amount} ${RESOURCES[key].short} at ${unitPrice} ${MOLLAR_CODE} each. Scarcity moved the market price.`, "success");
+    this.commit(`Civic fallback supplied ${amount} ${RESOURCES[key].short} at ${unitPrice} ${CURRENCY_CODE} each. Scarcity moved the market price.`, "success");
     return this.result(true, "Resource purchased.");
   }
 
@@ -420,12 +539,12 @@ export class GameStore {
       const required = (config.inputs[key] ?? 0) * cycles;
       if (this.state.inventory[key] < required) return this.result(false, `Buy ${required} ${RESOURCES[key].short} to run this job.`);
     }
-    if (this.state.wallet < laborCost) return this.result(false, `Payroll needs ${laborCost} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < laborCost) return this.result(false, `Payroll needs ${laborCost} ${CURRENCY_CODE}.`);
     for (const key of resourceKeys) this.state.inventory[key] -= (config.inputs[key] ?? 0) * cycles;
     this.state.wallet -= laborCost; this.state.citizenPool += laborCost; this.state.laborPaid += laborCost;
     const duration = this.jobDuration(this.state.license, cycles);
     this.state.job = { license: this.state.license, startedAt: now, completeAt: now + duration * 1000, cycles, laborCost };
-    this.commit(`${config.name} began ${cycles} cycle${cycles === 1 ? "" : "s"}; ${laborCost} ${MOLLAR_CODE} entered citizen households as wages.`, "success");
+    this.commit(`${config.name} began ${cycles} cycle${cycles === 1 ? "" : "s"}; ${laborCost} ${CURRENCY_CODE} entered Mercedonian households as wages.`, "success");
     return this.result(true, "Job started.");
   }
 
@@ -480,6 +599,7 @@ export class GameStore {
       this.state.citizenPool -= gross; this.state.wallet += gross - tax; this.state.governmentTreasury += tax;
       this.state.taxPaid += tax; this.state.lifetimeRevenue += gross; this.state.visitorsServed += visitors;
       this.state.daily.visits += visitors;
+      this.recordCitizenActivity("service", visitors, gross, undefined, now);
     } else {
       for (const key of resourceKeys) {
         const base = (config.output[key] ?? 0) * job.cycles;
@@ -508,20 +628,21 @@ export class GameStore {
     const sale = this.demandSaleGross(key, amount);
     const gross = sale.gross; const tax = Math.floor(gross * TAX_RATE);
     const buyerPool = citizenDemand ? this.state.citizenPool : this.state.governmentTreasury;
-    if (buyerPool < gross) return this.result(false, `${citizenDemand ? "AI-citizen demand" : "Government procurement"} is temporarily exhausted.`);
+    if (buyerPool < gross) return this.result(false, `${citizenDemand ? "Mercedonian demand" : "Government procurement"} is temporarily exhausted.`);
     this.state.inventory[key] -= amount;
     if (citizenDemand) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
     this.state.wallet += gross - tax; this.state.governmentTreasury += tax; this.state.taxPaid += tax; this.state.lifetimeRevenue += gross;
     this.state.procurement.used[key] += amount;
+    if (citizenDemand) this.recordCitizenActivity("retail", amount, gross, key, Date.now(), this.citizenBusinessForResource(key));
     this.addContribution(gross, citizenDemand ? "household" : "civic");
     this.state.daily.trades += amount; this.addExperience(Math.max(2, amount * 2));
     this.state.reputation += Math.max(1, Math.floor(amount / 2)); this.state.tutorial.sold = true; this.moveMarket(key, -1, amount);
     this.recordEconomy();
     const buyer = citizenDemand ? "Households" : "The city";
     const softened = sale.lastUnit < sale.firstUnit
-      ? ` They had enough by the end — the last ones only fetched ${sale.lastUnit} each.`
+      ? ` They had enough by the end — the last ones only fetched ${sale.lastUnit} ${CURRENCY_CODE} each.`
       : ` They will take ${this.procurementRemaining(key)} more at this price today.`;
-    this.commit(`${buyer} bought ${amount} ${RESOURCES[key].short} for ${gross} ${MOLLAR_CODE}.${softened}`, "success");
+    this.commit(`${buyer} bought ${amount} ${RESOURCES[key].short} for ${gross} ${CURRENCY_CODE}.${softened}`, "success");
     return this.result(true, "Sale settled.");
   }
 
@@ -538,22 +659,22 @@ export class GameStore {
   treasuryValueUsd(): number { return this.state.bankTreasuryMM * this.tokenPriceUsd(); }
 
   /**
-   * Maker Dollars in existence: every wallet plus every civic pool. Derived rather than
+   * Merc Dollars in existence: every wallet plus every civic pool. Derived rather than
    * counted, so no code path can mint money without it showing up here.
    */
-  mollarSupply(): number {
+  mercDollarSupply(): number {
     return this.state.wallet + this.state.governmentTreasury + this.state.citizenPool;
   }
 
-  /** Dollars owed if every Maker Dollar were redeemed at the peg. */
-  mollarClaimsUsd(): number { return this.mollarSupply() / MOLLAR_PER_USD; }
+  /** Dollars owed if every Merc Dollar were redeemed at the peg. */
+  mercDollarClaimsUsd(): number { return this.mercDollarSupply() / MERC_DOLLARS_PER_USD; }
 
   /**
-   * Treasury value against outstanding claims. Above 100% every Mollar is covered;
+   * Treasury value against outstanding claims. Above 100% every Merc Dollar is covered;
    * the seed reserve is what keeps this high enough to survive a crash.
    */
   collateralRatio(): number {
-    const claims = this.mollarClaimsUsd();
+    const claims = this.mercDollarClaimsUsd();
     return claims <= 0 ? Infinity : this.treasuryValueUsd() / claims;
   }
 
@@ -565,23 +686,23 @@ export class GameStore {
 
   /** The most the bank may ever have outstanding at today's price. */
   issuanceCeiling(): number {
-    return Math.floor((this.treasuryValueUsd() / TARGET_COLLATERAL) * MOLLAR_PER_USD);
+    return Math.floor((this.treasuryValueUsd() / TARGET_COLLATERAL) * MERC_DOLLARS_PER_USD);
   }
 
   /**
    * How much more may be issued right now. Bounded twice: by the collateral ceiling, and
    * by a per-epoch cap so one holder cannot convert to the limit in a single transaction
-   * and shock the money supply. MakerDAO calls the second one a debt ceiling.
+   * and shock the money supply. The second limit acts as a debt ceiling.
    */
   issuanceHeadroom(): number {
-    const room = this.issuanceCeiling() - this.mollarSupply();
+    const room = this.issuanceCeiling() - this.mercDollarSupply();
     const epochRoom = Math.floor(this.issuanceCeiling() * EPOCH_ISSUANCE_CAP) - this.state.epochIssued;
     return Math.max(0, Math.floor(Math.min(room, epochRoom)));
   }
 
-  /** The brief's rate: one USDT of $MM buys 10,000 Maker Dollars, less the bank's spread. */
-  mollarsForMM(units: number): number {
-    return Math.floor(units * this.tokenPriceUsd() * MOLLAR_PER_USD * (1 - BANK_SPREAD));
+  /** The brief's rate: one USDT of $MM buys 10,000 Merc Dollars, less the bank's spread. */
+  mercDollarsForMM(units: number): number {
+    return Math.floor(units * this.tokenPriceUsd() * MERC_DOLLARS_PER_USD * (1 - BANK_SPREAD));
   }
 
   /**
@@ -591,8 +712,8 @@ export class GameStore {
    */
   redemptionRate(): number { return Math.min(1, this.collateralRatio()); }
 
-  mmForMollars(amount: number): number {
-    const usd = (amount / MOLLAR_PER_USD) * this.redemptionRate() * (1 - BANK_SPREAD);
+  mmForMercDollars(amount: number): number {
+    const usd = (amount / MERC_DOLLARS_PER_USD) * this.redemptionRate() * (1 - BANK_SPREAD);
     return Math.floor(usd / this.tokenPriceUsd());
   }
 
@@ -603,21 +724,21 @@ export class GameStore {
    * Convert token holdings into spending money. The $MM stays in the treasury, which
    * deepens the city's liquidity and pays its citizens.
    */
-  exchangeMMForMollars(units: number): ActionResult {
+  exchangeMMForMercDollars(units: number): ActionResult {
     const amount = Math.floor(units);
     if (amount <= 0) return this.result(false, "Choose how much $MM to bring in.");
     if (this.state.mmHoldings < amount) return this.result(false, `You only hold ${this.state.mmHoldings} $MM.`);
-    const credited = this.mollarsForMM(amount);
+    const credited = this.mercDollarsForMM(amount);
     if (credited <= 0) return this.result(false, "That is too little to convert at today's price.");
     if (credited > this.issuanceHeadroom()) {
-      return this.result(false, `The bank will only issue ${this.issuanceHeadroom()} more ${MOLLAR_CODE} until the treasury grows.`);
+      return this.result(false, `The bank will only issue ${this.issuanceHeadroom()} more ${CURRENCY_CODE} until the treasury grows.`);
     }
     this.state.mmHoldings -= amount;
     this.state.bankTreasuryMM += amount;
     this.state.wallet += credited;
     this.state.epochIssued += credited;
     this.state.mmDeposited += amount;
-    this.commit(`The Government Bank took ${amount} $MM and issued ${credited} ${MOLLAR_CODE}.`, "success");
+    this.commit(`The Government Bank took ${amount} $MM and issued ${credited} ${CURRENCY_CODE}.`, "success");
     return this.result(true, "Converted.");
   }
 
@@ -632,12 +753,12 @@ export class GameStore {
     return Math.max(0, this.state.mmDeposited - this.state.mmWithdrawn);
   }
 
-  /** Redeem the other way; the Maker Dollars are destroyed, not recycled. */
-  exchangeMollarsForMM(amount: number): ActionResult {
+  /** Redeem the other way; the Merc Dollars are destroyed, not recycled. */
+  exchangeMercDollarsForMM(amount: number): ActionResult {
     const spend = Math.floor(amount);
     if (spend <= 0) return this.result(false, "Choose how much to redeem.");
-    if (this.state.wallet < spend) return this.result(false, `You only hold ${this.state.wallet} ${MOLLAR_CODE}.`);
-    const units = this.mmForMollars(spend);
+    if (this.state.wallet < spend) return this.result(false, `You only hold ${this.state.wallet} ${CURRENCY_CODE}.`);
+    const units = this.mmForMercDollars(spend);
     if (units <= 0) return this.result(false, "Redeem a larger amount to receive whole $MM.");
     if (units > this.withdrawableCapitalMM()) {
       return this.result(false, this.withdrawableCapitalMM() > 0
@@ -650,19 +771,18 @@ export class GameStore {
     this.state.mmHoldings += units;
     this.state.mmWithdrawn += units;
     const haircut = this.redemptionRate() < 1 ? ` Coverage is ${(this.collateralRatio() * 100).toFixed(0)}%, so redemptions are shared evenly.` : "";
-    this.commit(`Redeemed ${spend} ${MOLLAR_CODE} for ${units} $MM.${haircut}`, "success");
+    this.commit(`Redeemed ${spend} ${CURRENCY_CODE} for ${units} $MM.${haircut}`, "success");
     return this.result(true, "Redeemed.");
   }
 
   // ---------------------------------------------------------------------
-  // Markians
+  // Mercedonians
   // ---------------------------------------------------------------------
 
   /** A city grows around its businesses; more trade draws more residents. */
-  markianPopulation(): number {
-    const businesses = Math.max(1, this.ownedPlotIds().filter((id) => this.state.portfolio[id]?.buildingPlaced).length);
-    const civic = Math.floor(this.state.reputation / 8);
-    return MARKIANS_BASE + businesses * MARKIANS_PER_BUSINESS + civic + Math.floor(this.state.visitorsServed / 40);
+  mercedonianPopulation(): number {
+    const businesses = this.ownedPlotIds().filter((id) => this.state.portfolio[id]?.buildingPlaced).length;
+    return citizenPopulation(businesses, this.state.reputation, this.state.visitorsServed);
   }
 
   /**
@@ -675,19 +795,19 @@ export class GameStore {
     return Math.max(1, Math.round(CIVIC_WAGE_BASE * Math.cbrt(depth * strength) * 10) / 10);
   }
 
-  /** The city's daily wage bill for every Markian on its books. */
+  /** The city's daily wage bill for every Mercedonian on its books. */
   civicWageBill(): number {
-    return Math.round(this.markianPopulation() * this.civicDailyWage());
+    return Math.round(this.mercedonianPopulation() * this.civicDailyWage());
   }
 
   /**
-   * Pay the Markians for whole days that have passed.
+   * Pay the Mercedonians for whole days that have passed.
    *
    * The city recycles its own revenue first and ISSUES the shortfall against the bank's
    * reserves — it is a currency issuer, not a pot that drains. That matters because
    * roughly 93% of every wage leaks permanently into player wallets: the leak IS the
    * earning, and it has to be funded by something that grows with the city. Issuance
-   * stays inside the same collateral ceiling as every other Maker Dollar, so wages fall
+   * stays inside the same collateral ceiling as every other Merc Dollar, so wages fall
    * automatically when the treasury thins — a stabiliser rather than a cliff.
    */
   settleCivicPayroll(now = Date.now()): number {
@@ -705,9 +825,9 @@ export class GameStore {
     return recycled + issued;
   }
 
-  /** Money the Markians will spend in player shops today. */
+  /** Money the Mercedonians will spend in player shops today. */
   citizenSpendingPower(): number {
-    return Math.round(this.markianPopulation() * this.civicDailyWage() * MARKIAN_SPEND_RATE);
+    return Math.round(this.mercedonianPopulation() * this.civicDailyWage() * MERCEDONIAN_SPEND_RATE);
   }
 
   /** Your share of this epoch's fixed budget. Grinding harder raises your share, never the budget. */
@@ -738,7 +858,7 @@ export class GameStore {
     return WATER_STANDING_CHARGE + POWER_STANDING_CHARGE + capacity * UTILITY_PER_CAPACITY;
   }
 
-  /** Markians on the payroll. One is needed per batch a job runs. */
+  /** Mercedonians on the payroll. One is needed per batch a job runs. */
   staffRequired(): number { return this.inputMultiplier(); }
 
   dailyPayroll(): number { return this.state.staff * STAFF_DAILY_WAGE; }
@@ -749,7 +869,7 @@ export class GameStore {
     if (!this.state.buildingPlaced) return this.result(false, "Build your business before hiring.");
     const hired = Math.max(1, Math.floor(count));
     this.state.staff += hired;
-    this.commit(`${hired} Mercedonian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${MOLLAR_CODE} a day each.`, "success");
+    this.commit(`${hired} Mercedonian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${CURRENCY_CODE} a day each.`, "success");
     return this.result(true, "Hired.");
   }
 
@@ -777,7 +897,7 @@ export class GameStore {
     if (this.state.wallet < owed) {
       // Unpaid bills cut the supply rather than pushing anyone into debt.
       this.state.suppliesCut = true;
-      this.commit(`The city cut your water and power: ${owed} ${MOLLAR_CODE} of standing charges went unpaid.`, "warning");
+      this.commit(`The city cut your water and power: ${owed} ${CURRENCY_CODE} of standing charges went unpaid.`, "warning");
       return 0;
     }
     this.state.wallet -= owed;
@@ -792,7 +912,7 @@ export class GameStore {
   restoreSupply(): ActionResult {
     if (!this.state.suppliesCut) return this.result(false, "Your supply is connected.");
     const owed = this.dailyOverhead();
-    if (this.state.wallet < owed) return this.result(false, `Reconnection needs ${owed} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < owed) return this.result(false, `Reconnection needs ${owed} ${CURRENCY_CODE}.`);
     this.state.wallet -= owed;
     this.state.governmentTreasury += this.dailyUtilityBill();
     this.state.citizenPool += this.dailyPayroll();
@@ -805,7 +925,7 @@ export class GameStore {
   sponsorshipActive(now = Date.now()): boolean { return this.state.sponsoredUntil > now; }
 
   /**
-   * Buy a week of district sponsorship: your business is promoted to the Markians, which
+   * Buy a week of district sponsorship: your business is promoted to Mercedonians, which
    * wins you a larger share of local custom. Repeatable, which is what makes it the
    * sink that actually balances emission.
    */
@@ -896,9 +1016,9 @@ export class GameStore {
         : "Level 3 is the limit without a master charter.");
     }
     const cost = UPGRADE_COSTS[current + 1];
-    if (this.state.wallet < cost.sunmarks) return this.result(false, `You need ${cost.sunmarks} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < cost.mercDollars) return this.result(false, `You need ${cost.mercDollars} ${CURRENCY_CODE}.`);
     for (const resource of resourceKeys) { const needed = cost.resources[resource] ?? 0; if (this.state.inventory[resource] < needed) return this.result(false, `You need ${needed} ${RESOURCES[resource].short}.`); }
-    this.state.wallet -= cost.sunmarks; this.state.governmentTreasury += cost.sunmarks;
+    this.state.wallet -= cost.mercDollars; this.state.governmentTreasury += cost.mercDollars;
     for (const resource of resourceKeys) this.state.inventory[resource] -= cost.resources[resource] ?? 0;
     this.state.upgrades[key] += 1; this.state.tutorial.upgraded = true; this.addExperience(18 + (current + 1) * 7);
     this.commit(`${key[0].toUpperCase()}${key.slice(1)} improved to level ${current + 1}.`, "success");
@@ -907,7 +1027,7 @@ export class GameStore {
 
   maintainBusiness(): ActionResult {
     if (this.state.condition >= 100) return this.result(false, "Equipment condition is already 100%.");
-    if (this.state.wallet < 20 || this.state.inventory.part < 1) return this.result(false, `Maintenance needs 20 ${MOLLAR_CODE} and one Utility Part.`);
+    if (this.state.wallet < 20 || this.state.inventory.part < 1) return this.result(false, `Maintenance needs 20 ${CURRENCY_CODE} and one Utility Part.`);
     this.state.wallet -= 20; this.state.citizenPool += 12; this.state.governmentTreasury += 8; this.state.laborPaid += 12;
     this.state.inventory.part -= 1; this.state.condition = Math.min(100, this.state.condition + 35);
     this.commit("Maintenance restored equipment condition; most of the fee became technician wages.", "success");
@@ -996,7 +1116,7 @@ export class GameStore {
   /** A breakdown halts the line until a person deals with it. Timers cannot clear it. */
   repairBreakdown(): ActionResult {
     if (!this.state.brokenDown) return this.result(false, "Nothing is broken down.");
-    if (this.state.wallet < BREAKDOWN_REPAIR_COST) return this.result(false, `Emergency repair costs ${BREAKDOWN_REPAIR_COST} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < BREAKDOWN_REPAIR_COST) return this.result(false, `Emergency repair costs ${BREAKDOWN_REPAIR_COST} ${CURRENCY_CODE}.`);
     if (this.state.inventory.part < BREAKDOWN_REPAIR_PARTS) return this.result(false, `Emergency repair needs ${BREAKDOWN_REPAIR_PARTS} Utility Parts.`);
     this.state.wallet -= BREAKDOWN_REPAIR_COST;
     this.state.citizenPool += Math.round(BREAKDOWN_REPAIR_COST * .7);
@@ -1010,7 +1130,7 @@ export class GameStore {
   }
 
   /** Sell unattended through a broker, who keeps a cut. Selling by hand always pays more. */
-  private brokerSell(key: ResourceKey, amount: number): { sold: number; revenue: number } {
+  private brokerSell(key: ResourceKey, amount: number, at = Date.now()): { sold: number; revenue: number } {
     if (amount <= 0) return { sold: 0, revenue: 0 };
     // Only sell the units that still clear above the floor; hold the rest.
     let sellable = 0;
@@ -1031,6 +1151,7 @@ export class GameStore {
     this.state.taxPaid += tax;
     this.state.lifetimeRevenue += gross;
     this.state.procurement.used[key] += amount;
+    if (citizenDemand) this.recordCitizenActivity("retail", amount, gross, key, at, this.citizenBusinessForResource(key));
     this.state.tutorial.sold = true;
     this.addContribution(gross, "auto");
     this.moveMarket(key, -1, amount);
@@ -1217,6 +1338,7 @@ export class GameStore {
           const served = this.serviceVisitors(config, cycles);
           this.state.visitorsServed += served;
           this.state.daily.visits += served;
+          this.recordCitizenActivity("service", served, gross, undefined, clock);
           this.state.tutorial.sold = true;
           this.addContribution(gross, "auto");
           report.revenue += gross - tax;
@@ -1229,7 +1351,7 @@ export class GameStore {
           this.state.inventory[key] += made;
           report.produced += made;
           if (this.state.operations.autoSell) {
-            const sale = this.brokerSell(key, made);
+            const sale = this.brokerSell(key, made, clock);
             report.sold += sale.sold;
             report.revenue += sale.revenue;
           }
@@ -1248,7 +1370,7 @@ export class GameStore {
     this.state.lastTickAt = now;
     this.state.lastShift = report;
     if (report.jobs > 0) {
-      this.commit(`While you were away: ${report.jobs} job${report.jobs === 1 ? "" : "s"}, ${report.produced} units made, ${report.revenue} ${MOLLAR_CODE} net.`, "success");
+      this.commit(`While you were away: ${report.jobs} job${report.jobs === 1 ? "" : "s"}, ${report.produced} units made, ${report.revenue} ${CURRENCY_CODE} net.`, "success");
     }
     return report;
   }
@@ -1326,13 +1448,14 @@ export class GameStore {
 
   /** What makes a customer pick you: appeal, product quality, and your track record. */
   businessAppeal(): number {
-    return 1
-      + (this.sponsorshipActive() ? SPONSORSHIP_APPEAL : 0)
-      + Math.min(1, this.state.staff * STAFF_APPEAL)
-      + this.state.upgrades.appeal * APPEAL_SHARE_WEIGHT
-      + this.state.upgrades.yield * QUALITY_SHARE_WEIGHT
-      + Math.min(1.2, this.state.reputation * REPUTATION_SHARE_WEIGHT)
-      + (this.state.specialization === "premium" ? .3 : this.state.specialization === "community" ? .2 : 0);
+    return customerAppeal({
+      staff: this.state.staff,
+      appealLevel: this.state.upgrades.appeal,
+      qualityLevel: this.state.upgrades.yield,
+      reputation: this.state.reputation,
+      specialization: this.state.specialization,
+      sponsored: this.sponsorshipActive(),
+    });
   }
 
   /** Your slice of this district's daily appetite for one good. */
@@ -1511,18 +1634,28 @@ export class GameStore {
     this.state.contractsCompleted += 1;
     this.state.daily.contracts += 1;
     this.state.daily.trades += contract.quantity;
+    if (contract.buyer === "citizens") {
+      this.recordCitizenActivity(
+        "retail",
+        contract.quantity,
+        contract.grossReward,
+        contract.resource,
+        Date.now(),
+        this.citizenBusinessForResource(contract.resource),
+      );
+    }
     this.state.tutorial.contracted = true;
     this.moveMarket(contract.resource, -1, contract.quantity);
     this.state.activeContract = null;
     this.state.contractSequence += 1;
     this.recordEconomy();
-    this.commit(`${contract.buyerName} paid ${contract.grossReward} ${MOLLAR_CODE} for the completed order; ${tax} ${MOLLAR_CODE} tax funded public services.`, "success");
+    this.commit(`${contract.buyerName} paid ${contract.grossReward} ${CURRENCY_CODE} for the completed order; ${tax} ${CURRENCY_CODE} tax funded public services.`, "success");
     return this.result(true, "Contract fulfilled.");
   }
 
   refreshContracts(): ActionResult {
     const fee = 5;
-    if (this.state.wallet < fee) return this.result(false, `A new verified board costs ${fee} ${MOLLAR_CODE}.`);
+    if (this.state.wallet < fee) return this.result(false, `A new verified board costs ${fee} ${CURRENCY_CODE}.`);
     this.state.wallet -= fee;
     this.state.governmentTreasury += fee;
     this.state.contractSequence += 1;
@@ -1539,7 +1672,7 @@ export class GameStore {
     this.state.wallet += DAILY_GOALS.reward;
     this.state.daily.claimed = true;
     this.addExperience(DAILY_GOALS.xp);
-    this.commit(`Civic development paid ${DAILY_GOALS.reward} ${MOLLAR_CODE} and ${DAILY_GOALS.xp} XP for today's verified economic activity.`, "success");
+    this.commit(`Civic development paid ${DAILY_GOALS.reward} ${CURRENCY_CODE} and ${DAILY_GOALS.xp} XP for today's verified economic activity.`, "success");
     return this.result(true, "Daily enterprise dividend claimed.");
   }
 
@@ -1549,13 +1682,13 @@ export class GameStore {
     if (!island) return this.result(false, "That route is unavailable.");
     if (this.state.island === islandId) return this.result(false, `You are already on ${island.name}.`);
     const fare = this.state.tutorial.traveled ? 10 : 0;
-    if (this.state.wallet < fare) return this.result(false, `You need 10 ${MOLLAR_CODE} for this Transit Hall route.`);
+    if (this.state.wallet < fare) return this.result(false, `You need 10 ${CURRENCY_CODE} for this Transit Hall route.`);
     this.state.wallet -= fare; this.state.governmentTreasury += fare; this.state.island = island.id; this.state.player = { x: island.spawnX, z: island.spawnZ }; this.addExperience(4);
-    this.state.tutorial.traveled = true; this.commit(`Transit Hall moved you to ${island.name}${fare ? ` for 10 ${MOLLAR_CODE}` : " on your free first trip"}.`, "success");
+    this.state.tutorial.traveled = true; this.commit(`Transit Hall moved you to ${island.name}${fare ? ` for 10 ${CURRENCY_CODE}` : " on your free first trip"}.`, "success");
     return this.result(true, "Travel complete.");
   }
 
-  reset(): void { this.state = createFreshState(); this.commit("A new local Mercedonia was created.", "success"); }
+  reset(): void { this.state = createFreshState(); this.commit("A new Mercedonia profile was created.", "success"); }
 
   consumerConfidenceIndex(): number {
     const activity = Math.min(14, this.state.jobsCompleted * 1.2 + this.state.reputation * .45);
@@ -1581,8 +1714,8 @@ export class GameStore {
   }
 
   reserveBackingRatio(): number {
-    const sunmarks = Math.max(1, this.totalMoneySupply());
-    return (this.state.mmReserve * MM_REFERENCE_RATE / sunmarks) * 100;
+    const mercDollars = Math.max(1, this.totalMoneySupply());
+    return (this.state.mmReserve * MM_REFERENCE_RATE / mercDollars) * 100;
   }
 
   monetaryPolicyPhase(): string {
@@ -1614,7 +1747,7 @@ export class GameStore {
 
   totalMoneySupply(): number { return this.state.wallet + this.state.governmentTreasury + this.state.citizenPool; }
   totalMMInGameVaults(): number { return this.state.mmReserve + this.state.mmHoldings; }
-  citizenCount(): number { return 120 + this.state.reputation * 4 + this.state.upgrades.appeal * 25 + Math.floor(this.state.visitorsServed / 5); }
+  citizenCount(): number { return this.mercedonianPopulation(); }
   careerLevel(): (typeof CAREER_LEVELS)[number] {
     return [...CAREER_LEVELS].reverse().find((entry) => this.state.experience >= entry.xp) ?? CAREER_LEVELS[0];
   }

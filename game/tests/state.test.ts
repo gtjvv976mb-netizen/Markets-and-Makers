@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, CHARTER_COST_MM, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
-  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
+  MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -18,9 +18,9 @@ beforeEach(() => {
 });
 
 describe("Markets & Makers economy", () => {
-  it("opens with a fully covered Sunmark monetary base and conserved $MM vault allocation", () => {
+  it("opens with a fully covered Merc Dollar monetary base and conserved $MM vault allocation", () => {
     const store = new GameStore(createFreshState());
-    expect(store.totalMoneySupply()).toBe(INITIAL_MOLLAR_SUPPLY);
+    expect(store.totalMoneySupply()).toBe(INITIAL_MERC_DOLLAR_SUPPLY);
     expect(store.state.mmReserve).toBe(INITIAL_MM_RESERVE);
     expect(store.state.mmHoldings).toBe(0);
     expect(store.totalMMInGameVaults()).toBe(INITIAL_MM_RESERVE);
@@ -69,6 +69,65 @@ describe("Markets & Makers economy", () => {
     expect(state.mmReserve + state.mmHoldings).toBe(INITIAL_MM_RESERVE);
   });
 
+  it("upgrades legacy names in saved player-visible copy", () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      activeContract: {
+        id: "legacy-order", resource: "food", quantity: 2, grossReward: 40,
+        buyer: "citizens", buyerName: "Makropolis Markian Market", bonusPercent: 5,
+        reputationReward: 2, xpReward: 10,
+      },
+      feed: [
+        { text: "A Markian paid 20 MD in Makropolis.", tone: "success", at: 1 },
+        { text: "10 Sunmarks became Mollars.", tone: "normal", at: 2 },
+      ],
+    }));
+
+    const state = loadState();
+    expect(state.activeContract?.buyerName).toBe("Mercedonia Mercedonian Market");
+    expect(state.feed.map((entry) => entry.text)).toEqual([
+      "A Mercedonian paid 20 MERCS in Mercedonia.",
+      "10 Merc Dollars became Merc Dollars.",
+    ]);
+  });
+
+  it("repairs citizen activity ids and derives districts from their plots on load", () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      citizenActivitySequence: 2,
+      citizenActivity: [
+        { id: 9, at: 90, island: "not-a-district", plotId: "garden-row", license: "shop", kind: "retail", visitors: 2, gross: 20 },
+        { id: 7, at: 70, island: "summit", plotId: "garden-row", license: "shop", kind: "retail", visitors: 1, gross: 10 },
+        { id: 9, at: 91, island: "summit", plotId: "garden-row", license: "shop", kind: "retail", visitors: 3, gross: 30 },
+      ],
+    }));
+    const state = loadState();
+    expect(state.citizenActivitySequence).toBe(9);
+    expect(state.citizenActivity.map((entry) => entry.id)).toEqual([7, 9]);
+    expect(state.citizenActivity.every((entry) => entry.island === "hearth")).toBe(true);
+  });
+
+  it("sends a household goods trip to the business that produced the item", () => {
+    const state = createFreshState();
+    state.portfolio = {
+      "garden-row": {
+        plotId: "garden-row", license: "greenhouse", buildingPlaced: true, job: null,
+        upgrades: { yield: 1, capacity: 0, speed: 0, appeal: 2 }, condition: 100, brokenDown: false, jobsCompleted: 5,
+      },
+      seabreeze: {
+        plotId: "seabreeze", license: "shop", buildingPlaced: true, job: null,
+        upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 }, condition: 100, brokenDown: false, jobsCompleted: 1,
+      },
+    };
+    state.ownedPlotId = "seabreeze";
+    state.license = "shop";
+    state.buildingPlaced = true;
+    state.inventory.food = 2;
+    const store = new GameStore(state);
+    expect(store.sellResource("food", 2).ok).toBe(true);
+    expect(store.state.citizenActivity.at(-1)).toMatchObject({
+      plotId: "garden-row", license: "greenhouse", resource: "food", kind: "retail",
+    });
+  });
+
   it("conserves value when government supplies a resource", () => {
     const store = new GameStore(createFreshState());
     const before = store.totalMoneySupply();
@@ -113,6 +172,7 @@ describe("Markets & Makers economy", () => {
     store.leaseSelectedPlot();
     store.chooseLicense("gym");
     store.placeBuilding();
+    const moneyBefore = store.totalMoneySupply();
     const citizenBefore = store.state.citizenPool;
     const treasuryBefore = store.state.governmentTreasury;
     expect(store.startJob(10).ok).toBe(true);
@@ -121,6 +181,13 @@ describe("Markets & Makers economy", () => {
     expect(store.state.citizenPool).toBeLessThan(citizenBefore);
     expect(store.state.governmentTreasury).toBeGreaterThan(treasuryBefore);
     expect(store.state.visitorsServed).toBeGreaterThan(0);
+    expect(store.totalMoneySupply()).toBe(moneyBefore);
+    expect(store.state.householdSpend).toBeGreaterThan(0);
+    expect(store.state.citizenActivity).toHaveLength(1);
+    expect(store.state.citizenActivity[0]).toMatchObject({
+      island: "hearth", plotId: "seabreeze", license: "gym", kind: "service",
+    });
+    expect(store.state.citizenActivity[0]!.visitors).toBe(store.state.visitorsServed);
   });
 
   it("moves between islands without duplicating money", () => {
@@ -145,7 +212,7 @@ describe("Markets & Makers economy", () => {
     expect(store.marketSellPrice("ore")).toBeLessThanOrEqual(scarcePrice);
   });
 
-  it("settles contract rewards from an existing buyer pool without minting Sunmarks", () => {
+  it("settles contract rewards from an existing buyer pool without minting Merc Dollars", () => {
     const store = new GameStore(createFreshState());
     const before = store.totalMoneySupply();
     const offer = store.contractOffers()[0];
@@ -185,7 +252,7 @@ describe("Markets & Makers economy", () => {
       state.wallet = 500_000;
       state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
       state.upgrades = { yield: 3, capacity: 3, speed: 3, appeal: 3 };
-      state.staff = 4;                     // one Markian per batch
+      state.staff = 4;                     // one Mercedonian per batch
       const store = new GameStore(state);
       const config = BUSINESS[license];
       const cycles = 4;
@@ -347,18 +414,18 @@ describe("Markets & Makers economy", () => {
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
     store.state.mmHoldings = 10_000;
-    expect(store.exchangeMMForMollars(4_000).ok).toBe(true);
+    expect(store.exchangeMMForMercDollars(4_000).ok).toBe(true);
     expect(store.state.bankTreasuryMM).toBe(BANK_TREASURY_MM + 4_000);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
-    expect(store.exchangeMollarsForMM(50_000).ok).toBe(true);
+    expect(store.exchangeMercDollarsForMM(50_000).ok).toBe(true);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
     // Outstanding claims are always a fraction of what the bank actually holds.
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
-  it("lets no gameplay action mint an unbacked Maker Dollar", () => {
+  it("lets no gameplay action mint an unbacked Merc Dollar", () => {
     // The whole peg rests on this: money may only enter through the bank, against
     // reserves. An unbacked mint path is exactly what turned UST into a death spiral.
     const state = createFreshState();
@@ -366,7 +433,7 @@ describe("Markets & Makers economy", () => {
     state.experience = 5_000;
     const store = new GameStore(state);
 
-    const supplyBefore = store.mollarSupply();
+    const supplyBefore = store.mercDollarSupply();
 
     store.state.selectedPlotId = "garden-row";
     store.leaseSelectedPlot();
@@ -393,17 +460,17 @@ describe("Markets & Makers economy", () => {
 
     // Producing, trading, contracting, travelling and a whole unattended shift move
     // money between wallets and civic pools — they never create it.
-    expect(store.mollarSupply()).toBe(supplyBefore);
+    expect(store.mercDollarSupply()).toBe(supplyBefore);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
-  it("pays the Markians by recycling revenue first, and issuing only if it must", () => {
+  it("pays the Mercedonians by recycling revenue first, and issuing only if it must", () => {
     const state = createFreshState();
     state.wallet = 40_000;
     state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
     const store = new GameStore(state);
 
-    const supplyBefore = store.mollarSupply();
+    const supplyBefore = store.mercDollarSupply();
     const treasuryBefore = store.state.governmentTreasury;
     const paid = store.settleCivicPayroll(Date.now() + 30 * 86_400_000);
 
@@ -411,7 +478,7 @@ describe("Markets & Makers economy", () => {
     expect(store.state.citizenPool).toBeGreaterThan(createFreshState().citizenPool);
     // While the city can afford it out of revenue, no new money is created at all.
     expect(store.state.governmentTreasury).toBe(treasuryBefore - paid);
-    expect(store.mollarSupply()).toBe(supplyBefore);
+    expect(store.mercDollarSupply()).toBe(supplyBefore);
     // Settles once per whole day.
     expect(store.settleCivicPayroll(Date.now() + 30 * 86_400_000)).toBe(0);
   });
@@ -422,15 +489,15 @@ describe("Markets & Makers economy", () => {
     state.governmentTreasury = 0;          // the city has spent everything it collected
     const store = new GameStore(state);
 
-    const supplyBefore = store.mollarSupply();
+    const supplyBefore = store.mercDollarSupply();
     const paid = store.settleCivicPayroll(Date.now() + 10 * 86_400_000);
 
     // The city keeps paying — it is an issuer, not a pot that drains.
     expect(paid).toBeGreaterThan(0);
-    expect(store.mollarSupply()).toBeGreaterThan(supplyBefore);
-    // ...but the new money is backed like every other Maker Dollar.
+    expect(store.mercDollarSupply()).toBeGreaterThan(supplyBefore);
+    // ...but the new money is backed like every other Merc Dollar.
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
-    expect(store.mollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
+    expect(store.mercDollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
   });
 
   it("stops issuing rather than breaking the peg when reserves cannot cover it", () => {
@@ -442,30 +509,30 @@ describe("Markets & Makers economy", () => {
 
     store.settleCivicPayroll(Date.now() + 4_000 * 86_400_000);
     // Wages are capped by backing; the peg is never allowed to break to pay them.
-    expect(store.mollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
+    expect(store.mercDollarSupply()).toBeLessThanOrEqual(store.issuanceCeiling());
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
   it("returns capital but never lets grinding be cashed out directly", () => {
     // The anti-farm design lives in contribution-weighted emission. If gameplay
-    // Maker Dollars redeemed freely, grinding NPC sales would convert straight into
+    // Merc Dollars redeemed freely, grinding NPC sales would convert straight into
     // $MM and walk around it.
     const store = new GameStore(createFreshState());
     store.state.wallet = 5_000_000;          // as if earned in game
     expect(store.withdrawableCapitalMM()).toBe(0);
-    expect(store.exchangeMollarsForMM(1_000_000).ok).toBe(false);
+    expect(store.exchangeMercDollarsForMM(1_000_000).ok).toBe(false);
 
     // Bring capital in, and the bank will always give that back.
     store.state.mmHoldings = 5_000;
-    expect(store.exchangeMMForMollars(5_000).ok).toBe(true);
+    expect(store.exchangeMMForMercDollars(5_000).ok).toBe(true);
     expect(store.withdrawableCapitalMM()).toBe(5_000);
 
     // Redeeming the whole wallet would exceed the capital owed, so it is refused...
-    expect(store.exchangeMollarsForMM(store.state.wallet).ok).toBe(false);
+    expect(store.exchangeMercDollarsForMM(store.state.wallet).ok).toBe(false);
 
     // ...but redeeming within the capital works.
     const before = store.state.mmHoldings;
-    expect(store.exchangeMollarsForMM(400_000).ok).toBe(true);
+    expect(store.exchangeMercDollarsForMM(400_000).ok).toBe(true);
     const returned = store.state.mmHoldings - before;
     expect(returned).toBeGreaterThan(0);
     expect(returned).toBeLessThanOrEqual(5_000);
@@ -473,7 +540,7 @@ describe("Markets & Makers economy", () => {
 
     // Once the capital is back, the door closes again.
     store.state.mmWithdrawn = store.state.mmDeposited;
-    expect(store.exchangeMollarsForMM(100_000).ok).toBe(false);
+    expect(store.exchangeMercDollarsForMM(100_000).ok).toBe(false);
   });
 
   it("bills a business for water, power and wages whether it trades or not", () => {
@@ -489,7 +556,7 @@ describe("Markets & Makers economy", () => {
     const paid = store.settleStandingCharges();
 
     expect(paid).toBe(store.dailyOverhead() * 3);
-    // The city keeps the utility bill; the wages go to the Markians who earned them.
+    // The city keeps the utility bill; the wages go to the Mercedonians who earned them.
     expect(store.state.governmentTreasury).toBe(treasuryBefore + store.dailyUtilityBill() * 3);
     expect(store.state.citizenPool).toBe(citizensBefore + store.dailyPayroll() * 3);
     // Charges settle once, not twice.
@@ -514,7 +581,7 @@ describe("Markets & Makers economy", () => {
     expect(store.state.suppliesCut).toBe(false);
   });
 
-  it("needs a Markian on the payroll for every batch a job runs", () => {
+  it("needs a Mercedonian on the payroll for every batch a job runs", () => {
     const state = createFreshState();
     state.wallet = 60_000;
     state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
@@ -572,9 +639,27 @@ describe("Markets & Makers economy", () => {
 
     expect(store.purchaseUpgrade("yield").ok).toBe(true);
     expect(store.state.upgrades.yield).toBe(4);
+    const restored = loadState();
+    expect(restored.chartered).toBe(true);
+    expect(restored.upgrades.yield).toBe(4);
+    expect(restored.portfolio["garden-row"]?.upgrades.yield).toBe(4);
     // And it stops there.
     expect(store.purchaseUpgrade("yield").ok).toBe(false);
     expect(store.purchaseCharter().ok).toBe(false);
+  });
+
+  it("rejects a forged fourth equipment tier without a master charter", () => {
+    const state = createFreshState();
+    state.upgrades.yield = MAX_UPGRADE_LEVEL;
+    state.portfolio["garden-row"] = {
+      plotId: "garden-row", license: "workshop", buildingPlaced: true, job: null,
+      upgrades: { ...state.upgrades }, condition: 100, brokenDown: false, jobsCompleted: 0,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+
+    const restored = loadState();
+    expect(restored.upgrades.yield).toBe(3);
+    expect(restored.portfolio["garden-row"]?.upgrades.yield).toBe(3);
   });
 
   it("draws emission from the pool as a share, so it never runs dry", () => {
@@ -626,13 +711,13 @@ describe("Markets & Makers economy", () => {
     expect(headroom).toBeLessThan(ceiling);
 
     // Converting everything at once is refused rather than shocking the money supply.
-    expect(store.exchangeMMForMollars(100_000_000).ok).toBe(false);
-    expect(store.mollarSupply()).toBe(createFreshState().wallet
+    expect(store.exchangeMMForMercDollars(100_000_000).ok).toBe(false);
+    expect(store.mercDollarSupply()).toBe(createFreshState().wallet
       + createFreshState().governmentTreasury + createFreshState().citizenPool);
 
     // A conversion inside the cap is fine, and consumes the epoch's allowance.
     const modest = Math.floor(headroom / (store.tokenPriceUsd() * 10_000) / 2);
-    expect(store.exchangeMMForMollars(modest).ok).toBe(true);
+    expect(store.exchangeMMForMercDollars(modest).ok).toBe(true);
     expect(store.issuanceHeadroom()).toBeLessThan(headroom);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
@@ -642,8 +727,8 @@ describe("Markets & Makers economy", () => {
     store.state.mmHoldings = 5_000;
     const openingMM = store.state.mmHoldings;
 
-    store.exchangeMMForMollars(5_000);
-    store.exchangeMollarsForMM(store.state.wallet);
+    store.exchangeMMForMercDollars(5_000);
+    store.exchangeMercDollarsForMM(store.state.wallet);
 
     // The bank's spread means a round trip always costs the player something.
     expect(store.state.mmHoldings).toBeLessThan(openingMM);
@@ -659,7 +744,7 @@ describe("Markets & Makers economy", () => {
     rallied.tokenPriceUsd = () => 0.1;
 
     expect(rallied.economyValueUsd()).toBeCloseTo(valueBefore * 10, 4);
-    expect(rallied.mollarsForMM(1)).toBeCloseTo(store.mollarsForMM(1) * 10, 0);
+    expect(rallied.mercDollarsForMM(1)).toBeCloseTo(store.mercDollarsForMM(1) * 10, 0);
     // ...and a loaf still costs the same inside the city.
     expect(rallied.marketBuyPrice("food")).toBe(breadBefore);
     // ...but the citizens who shop with you are better paid.
@@ -677,7 +762,7 @@ describe("Markets & Makers economy", () => {
       busy.chooseLicense(licence);
       busy.placeBuilding();
     }
-    expect(busy.markianPopulation()).toBeGreaterThan(empty.markianPopulation());
+    expect(busy.mercedonianPopulation()).toBeGreaterThan(empty.mercedonianPopulation());
     expect(busy.citizenSpendingPower()).toBeGreaterThan(empty.citizenSpendingPower());
   });
 

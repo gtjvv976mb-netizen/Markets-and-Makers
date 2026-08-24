@@ -8,7 +8,7 @@
     "sourceTriangles": 16522084,
     "runtimeTriangles": 230978,
     "sourceBytes": 100738568,
-    "runtimeBytes": 3014196
+    "runtimeBytes": 3014140
   },
   "assets": [
     {
@@ -422,7 +422,7 @@
       "category": "avatar",
       "file": "models/av01-civic-maker.glb",
       "fit": "height",
-      "targetM": 2.05,
+      "targetM": 1.82,
       "textureSize": 512,
       "source": {
         "relativeFile": "avatar/av01_civic_maker_player/civic.glb",
@@ -431,8 +431,8 @@
         "triangles": 996806
       },
       "runtime": {
-        "bytes": 220452,
-        "sha256": "9681d77bf451ee006463457199efe8db47cf2a251522ade1e00cdc0fabfb2249",
+        "bytes": 220396,
+        "sha256": "046dff2a9a2d7d6374a2ab9790b46bf0073ecf650d584d83db3d67d632ae5e47",
         "triangles": 18000
       },
       "render": {

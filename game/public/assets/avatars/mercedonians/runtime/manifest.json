@@ -14,12 +14,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9334696,
-        "sha256": "08fba171c60a472a373a193ecf6b02494dade3b9b9d48b9536f795daea2f9ce2"
+        "bytes": 9334732,
+        "sha256": "bc1d774713832d9c681b1862ee9dda5491b153207a3262f2070460e381ac0c96"
       },
       "runtime": {
-        "bytes": 145892,
-        "sha256": "953afc0c42b7f0876b9438c8af2da8ddf18fd956c5df5d37a39688c658881d52",
+        "bytes": 145868,
+        "sha256": "befc7ece4c6777bf27fab9ad2283b30de44d71cdaba1199bd03ec818d7e7804b",
         "triangles": 13196,
         "animations": [
           "Idle",
@@ -48,12 +48,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9360224,
-        "sha256": "d3942a09b4621902b31bf3542dcd85519915844a37cb076b5d39485d2a7ec153"
+        "bytes": 9360260,
+        "sha256": "fe87c08a7a56b096a4bd10b40f96320a3ac1233566d21989d8fea1b3b039b0a0"
       },
       "runtime": {
-        "bytes": 152364,
-        "sha256": "a9ba6cefd73cdb226df3072fde30798f8000daa6417d97a30fa2525bd7c69c61",
+        "bytes": 152340,
+        "sha256": "4b38a14a7925d67f96f0053b4e5a90bcc7f7631834d6c4f0223ec76b42bca228",
         "triangles": 13248,
         "animations": [
           "Idle",
@@ -82,12 +82,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9566924,
-        "sha256": "b0e98be7949e44d33b67395b4c052eee17b4aa112ff9a781f7b92688d477c1a5"
+        "bytes": 9566960,
+        "sha256": "65a268424493cf161a93b3485fb59d464fcb641c043b877e416119eacff44fce"
       },
       "runtime": {
-        "bytes": 160388,
-        "sha256": "9326689ee3582620b90f5970b80748df01e2f9dc4f318b402b69a53d7172b089",
+        "bytes": 160368,
+        "sha256": "07e0c12a3d278d3bdfaf4b586fb8c542aaf65249a475e28004cba24204a65e49",
         "triangles": 13332,
         "animations": [
           "Idle",
@@ -116,12 +116,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9847324,
-        "sha256": "d3f54e9440f54765f285ab77bec7b819ec389970a1d211dfdf084c504c62bde2"
+        "bytes": 9847360,
+        "sha256": "a7f3bae42caa0c91aaadd4cee63efd9386d18fe87d769337e4f91ba27648ed32"
       },
       "runtime": {
-        "bytes": 159268,
-        "sha256": "3a259d94fb46990af9f4f2ed5cd1c1b63b1bcd523ebf2585a27a0f244ecd18aa",
+        "bytes": 159216,
+        "sha256": "6f8b5ea6979a166a4fcf61118756708d66169c017d06448a284ceb37a1ddc51a",
         "triangles": 13964,
         "animations": [
           "Idle",
@@ -150,12 +150,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 20714640,
-        "sha256": "687afe9ee74791c007c9cab0e068e0a18523f8862d7355391060a269bccf7435"
+        "bytes": 20714636,
+        "sha256": "48261db55c3a2ab92bd3a9e6d50fd29fc9bd82e5448b6fe3a2f84ffde3d9802c"
       },
       "runtime": {
-        "bytes": 169752,
-        "sha256": "3ae1992a756526ce8610d728e39ebcb27009ec07c7ddf8263683ef319bf26c5a",
+        "bytes": 169760,
+        "sha256": "1f3a700f6511fa22a5ce63e6d54049f998d85f71c5096f8c8deaaca1d55a795b",
         "triangles": 13930,
         "animations": [
           "Idle",
@@ -184,12 +184,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9540388,
-        "sha256": "78d255b99fb5d9551e24eb2c8d86325628cb134e3bb9f5720488f09bffd1705a"
+        "bytes": 9540420,
+        "sha256": "683c00fd8a0c0ee5404f813515d8cf7af1123c284b39e0d87890860b6fe43c31"
       },
       "runtime": {
-        "bytes": 155640,
-        "sha256": "fea1c18b87fe6d667c0c822fc1963f5c747a270933d688e8abd5931f92783e7b",
+        "bytes": 155628,
+        "sha256": "f70e5b60aa02ba0b40eddc7404fcfbcdac0f7f67f747af1032039a1c5468cfce",
         "triangles": 13604,
         "animations": [
           "Idle",
@@ -218,12 +218,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 20825604,
-        "sha256": "d7488cde299fd515c6252026c4bed155c714a58fd14dcd8e6edc5cdc4a4839e2"
+        "bytes": 20825592,
+        "sha256": "d97b5e8149dc682f82b7a0b13b2b0c527edc756f22b52774789ddfea2171a93b"
       },
       "runtime": {
-        "bytes": 164824,
-        "sha256": "d5b5155e68a91179d656451489111797f5d104e0ca41b820daf3b625b046be63",
+        "bytes": 164868,
+        "sha256": "8e226d3458ab6129bf90855245fc8d96ab1787cf58f0a2e6f9804f4c239ab022",
         "triangles": 13930,
         "animations": [
           "Idle",
@@ -252,12 +252,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9555984,
-        "sha256": "413efde23109a3e4fac9d4c070fdd4e24c222442b6e3f7027a988db424c486dd"
+        "bytes": 9556016,
+        "sha256": "e253f1d1590712565c57b25edab8a7e33ab86b719978d05d2c859b9637a7427c"
       },
       "runtime": {
-        "bytes": 159336,
-        "sha256": "707f950a47cef200101ed49f4a6d71ac9c8eda7b9c83800b6facb2f38e2d3fc0",
+        "bytes": 159284,
+        "sha256": "9696667a8bd657854679510b4a4f7f0c13b1605184c48dae373f925f9b0daadc",
         "triangles": 13176,
         "animations": [
           "Idle",
@@ -286,12 +286,12 @@
         "rootMotion": "in-place-xz"
       },
       "source": {
-        "bytes": 9302764,
-        "sha256": "ea6d01e0036e86fd221e6e3854f4ebca327bf714f7cc0321ddf6aa359ebd063e"
+        "bytes": 9302800,
+        "sha256": "2cf5d1ea65b94b89dee68cb70a22cc4417fc718251eb65e272959dda6375c955"
       },
       "runtime": {
-        "bytes": 151116,
-        "sha256": "63a41c47db359afb4d44a29522942bfc2bc3b01333d8454d29162f054051f7b6",
+        "bytes": 151080,
+        "sha256": "0665b03c8e0ef96a14d9ae68f564daa6cd11739204eb39e45fb11b498570bc56",
         "triangles": 13226,
         "animations": [
           "Idle",
