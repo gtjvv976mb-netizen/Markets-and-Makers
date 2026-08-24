@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -670,6 +670,7 @@ function renderMarket(): void {
         <div><small>Treasury</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
         <div><small>Money supply</small><strong>${formatNumber(store.mollarSupply())} ${MOLLAR_CODE}</strong></div>
         <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${MOLLAR_CODE}</strong></div>
+        <div><small>This epoch</small><strong>${formatNumber(store.state.epochIssued)} issued</strong></div>
         <div><small>Rate</small><strong>$1 = ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}</strong></div>
         <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
       </div>
@@ -682,7 +683,7 @@ function renderMarket(): void {
         <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${MOLLAR_CODE}</strong></div>
         <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${MOLLAR_CODE}</strong></div>
       </div>
-      <small class="reserve-boundary">The citizens who shop with you are paid from this treasury. A deeper treasury means richer customers.</small>
+      <small class="reserve-boundary">Citizens are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${MOLLAR_CODE} out of nothing.</small>
     </section>
 
     <section class="reserve-desk">
@@ -701,7 +702,6 @@ function renderMarket(): void {
       <p class="epoch-note">Orders are worth <strong>10&times;</strong> what dumping stock on the city is.</p>
       <div class="reserve-actions">
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
-        <button class="secondary" data-action="sell-mm" ${store.state.mmHoldings < MM_EXCHANGE_BUNDLE ? "disabled" : ""}>Spend ${MM_EXCHANGE_BUNDLE} $MM <small>${store.reserveSellPayout()} ${MOLLAR_CODE}</small></button>
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
@@ -937,7 +937,6 @@ document.body.addEventListener("click", (event) => {
     const key = button.dataset.operation as "autoProduce" | "autoBuy" | "autoSell";
     report(store.setOperation(key, !store.state.operations[key]));
   }
-  else if (action === "sell-mm") report(store.sellMMToReserve());
   else if (action === "accept-contract") report(store.acceptContract(button.dataset.contract ?? ""));
   else if (action === "fulfill-contract") report(store.fulfillContract());
   else if (action === "release-contract") report(store.releaseContract());

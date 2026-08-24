@@ -28,17 +28,6 @@ describe("Markets & Makers economy", () => {
     expect(store.monetaryPolicyPhase()).toBe("Fully covered");
   });
 
-  it("issues Sunmarks when earned $MM is spent back into the economy", () => {
-    const store = new GameStore(createFreshState());
-    const openingSunmarks = store.totalMoneySupply();
-    store.state.mmHoldings = 100;
-    store.state.mmReserve = INITIAL_MM_RESERVE - 100;
-    expect(store.sellMMToReserve().ok).toBe(true);
-    expect(store.state.mmHoldings).toBe(0);
-    expect(store.state.mmReserve).toBe(INITIAL_MM_RESERVE);
-    expect(store.totalMoneySupply()).toBe(openingSunmarks + 98);
-  });
-
   it("cannot be bought: $MM is only distributed against contribution", () => {
     const store = new GameStore(createFreshState());
     expect("buyMMFromReserve" in store).toBe(false);
@@ -365,6 +354,66 @@ describe("Markets & Makers economy", () => {
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
     // Outstanding claims are always a fraction of what the bank actually holds.
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
+  it("lets no gameplay action mint an unbacked Maker Dollar", () => {
+    // The whole peg rests on this: money may only enter through the bank, against
+    // reserves. An unbacked mint path is exactly what turned UST into a death spiral.
+    const state = createFreshState();
+    state.wallet = 40_000;
+    state.experience = 5_000;
+    const store = new GameStore(state);
+
+    const supplyBefore = store.mollarSupply();
+
+    store.state.selectedPlotId = "garden-row";
+    store.leaseSelectedPlot();
+    store.chooseLicense("greenhouse");
+    store.placeBuilding();
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+      const need = BUSINESS.greenhouse.inputs[key] ?? 0;
+      if (need) store.buyResource(key, need * 4);
+    }
+    store.startJob();
+    store.collectJob(store.state.job!.completeAt);
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
+      if (store.state.inventory[key] > 0) store.sellResource(key, store.state.inventory[key]);
+    }
+    const offer = store.contractOffers()[0]!;
+    store.state.inventory[offer.resource] += offer.quantity;
+    store.acceptContract(offer.id);
+    store.fulfillContract();
+    store.maintainBusiness();
+    store.travelTo("kiln");
+    store.state.lastTickAt = Date.now() - 12 * 3_600_000;
+    store.catchUp();
+    store.claimDailyReward();
+
+    // Producing, trading, contracting, travelling and a whole unattended shift move
+    // money between wallets and civic pools — they never create it.
+    expect(store.mollarSupply()).toBe(supplyBefore);
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
+  it("caps how much the bank may issue in one epoch", () => {
+    const store = new GameStore(createFreshState());
+    store.state.mmHoldings = 100_000_000;
+
+    const headroom = store.issuanceHeadroom();
+    const ceiling = store.issuanceCeiling();
+    // The epoch cap binds before the collateral ceiling does.
+    expect(headroom).toBeLessThan(ceiling);
+
+    // Converting everything at once is refused rather than shocking the money supply.
+    expect(store.exchangeMMForMollars(100_000_000).ok).toBe(false);
+    expect(store.mollarSupply()).toBe(createFreshState().wallet
+      + createFreshState().governmentTreasury + createFreshState().citizenPool);
+
+    // A conversion inside the cap is fine, and consumes the epoch's allowance.
+    const modest = Math.floor(headroom / (store.tokenPriceUsd() * 10_000) / 2);
+    expect(store.exchangeMMForMollars(modest).ok).toBe(true);
+    expect(store.issuanceHeadroom()).toBeLessThan(headroom);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 

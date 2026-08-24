@@ -361,6 +361,8 @@ export const TAX_RATE = 0.05;
  */
 export const MOLLAR_PER_USD = 10_000;
 export const TARGET_COLLATERAL = 4;
+/** Share of the ceiling that may be issued in any one epoch, so supply cannot jump. */
+export const EPOCH_ISSUANCE_CAP = 0.08;
 export const BANK_TREASURY_MM = 50_000_000;
 /** The bank keeps a spread on conversion; it funds civic wages. */
 export const BANK_SPREAD = 0.02;

@@ -5,11 +5,10 @@ import {
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
   APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  EPOCH_ISSUANCE_CAP, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
-  INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
-  DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
+  INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   MOLLAR_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
 } from "./data";
 
@@ -49,7 +48,7 @@ export interface GameState {
   experience: number; specialization: SpecializationKey | null; contractsCompleted: number; contractSequence: number;
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
-  bankTreasuryMM: number; mollarSupply: number;
+  bankTreasuryMM: number; epochIssued: number;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
@@ -99,7 +98,7 @@ export function createFreshState(): GameState {
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
-    mollarSupply: INITIAL_MOLLAR_SUPPLY,
+    epochIssued: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -228,7 +227,7 @@ export function loadState(): GameState {
         return restored;
       })(),
       bankTreasuryMM: finite(saved.bankTreasuryMM, BANK_TREASURY_MM, 0),
-      mollarSupply: finite(saved.mollarSupply, INITIAL_MOLLAR_SUPPLY, 0),
+      epochIssued: finite(saved.epochIssued, 0, 0),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -268,7 +267,7 @@ export class GameStore {
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
     if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
     const epoch = epochId(now);
-    if (this.state.epoch.id !== epoch) this.state.epoch = { id: epoch, contribution: 0, claimed: false };
+    if (this.state.epoch.id !== epoch) { this.state.epoch = { id: epoch, contribution: 0, claimed: false }; this.state.epochIssued = 0; }
   }
 
   private addExperience(amount: number): void {
@@ -505,11 +504,6 @@ export class GameStore {
     return this.result(true, "Sale settled.");
   }
 
-  reserveSellPayout(amount = MM_EXCHANGE_BUNDLE): number {
-    const principal = Math.round(amount * MM_REFERENCE_RATE);
-    return Math.max(0, principal - Math.max(1, Math.ceil(principal * MM_EXCHANGE_FEE_RATE)));
-  }
-
   // ---------------------------------------------------------------------
   // The Government Bank
   // ---------------------------------------------------------------------
@@ -522,11 +516,16 @@ export class GameStore {
   /** Dollar value of everything the bank holds. */
   treasuryValueUsd(): number { return this.state.bankTreasuryMM * this.tokenPriceUsd(); }
 
-  /** Maker Dollars in circulation. Issued on conversion, destroyed on redemption. */
-  mollarSupply(): number { return this.state.mollarSupply; }
+  /**
+   * Maker Dollars in existence: every wallet plus every civic pool. Derived rather than
+   * counted, so no code path can mint money without it showing up here.
+   */
+  mollarSupply(): number {
+    return this.state.wallet + this.state.governmentTreasury + this.state.citizenPool;
+  }
 
   /** Dollars owed if every Maker Dollar were redeemed at the peg. */
-  mollarClaimsUsd(): number { return this.state.mollarSupply / MOLLAR_PER_USD; }
+  mollarClaimsUsd(): number { return this.mollarSupply() / MOLLAR_PER_USD; }
 
   /**
    * Treasury value against outstanding claims. Above 100% every Mollar is covered;
@@ -543,10 +542,20 @@ export class GameStore {
     return Number.isFinite(ratio) ? ratio * 100 : 100;
   }
 
-  /** How many more Maker Dollars the bank may safely issue at today's price. */
+  /** The most the bank may ever have outstanding at today's price. */
+  issuanceCeiling(): number {
+    return Math.floor((this.treasuryValueUsd() / TARGET_COLLATERAL) * MOLLAR_PER_USD);
+  }
+
+  /**
+   * How much more may be issued right now. Bounded twice: by the collateral ceiling, and
+   * by a per-epoch cap so one holder cannot convert to the limit in a single transaction
+   * and shock the money supply. MakerDAO calls the second one a debt ceiling.
+   */
   issuanceHeadroom(): number {
-    const ceiling = (this.treasuryValueUsd() / TARGET_COLLATERAL) * MOLLAR_PER_USD;
-    return Math.max(0, Math.floor(ceiling - this.state.mollarSupply));
+    const room = this.issuanceCeiling() - this.mollarSupply();
+    const epochRoom = Math.floor(this.issuanceCeiling() * EPOCH_ISSUANCE_CAP) - this.state.epochIssued;
+    return Math.max(0, Math.floor(Math.min(room, epochRoom)));
   }
 
   /** The brief's rate: one USDT of $MM buys 10,000 Maker Dollars, less the bank's spread. */
@@ -584,8 +593,8 @@ export class GameStore {
     }
     this.state.mmHoldings -= amount;
     this.state.bankTreasuryMM += amount;
-    this.state.mollarSupply += credited;
     this.state.wallet += credited;
+    this.state.epochIssued += credited;
     this.commit(`The Government Bank took ${amount} $MM and issued ${credited} ${MOLLAR_CODE}.`, "success");
     return this.result(true, "Converted.");
   }
@@ -599,7 +608,6 @@ export class GameStore {
     if (units <= 0) return this.result(false, "Redeem a larger amount to receive whole $MM.");
     if (this.state.bankTreasuryMM < units) return this.result(false, "The bank is settling other redemptions.");
     this.state.wallet -= spend;
-    this.state.mollarSupply = Math.max(0, this.state.mollarSupply - spend);
     this.state.bankTreasuryMM -= units;
     this.state.mmHoldings += units;
     const haircut = this.redemptionRate() < 1 ? ` Coverage is ${(this.collateralRatio() * 100).toFixed(0)}%, so redemptions are shared evenly.` : "";
@@ -664,19 +672,6 @@ export class GameStore {
     this.addExperience(40);
     this.commit(`Epoch distribution paid ${units} $MM for a ${(this.epochShare() * 100).toFixed(2)}% contribution share of the ${EPOCH_MM_BUDGET.toLocaleString()} $MM budget.`, "success");
     return this.result(true, "Epoch rewards claimed.");
-  }
-
-  sellMMToReserve(amount = MM_EXCHANGE_BUNDLE): ActionResult {
-    const units = Math.floor(amount);
-    if (units < MM_EXCHANGE_BUNDLE || units > 1_000 || units % MM_EXCHANGE_BUNDLE !== 0) return this.result(false, `Reserve trades use ${MM_EXCHANGE_BUNDLE} $MM bundles, up to 1,000 per order.`);
-    if (this.state.mmHoldings < units) return this.result(false, `You need ${units} $MM in reserve holdings.`);
-    const payout = this.reserveSellPayout(units);
-    this.state.mmHoldings -= units;
-    this.state.mmReserve += units;
-    this.state.wallet += payout;
-    this.state.mmExchangeVolume += units;
-    this.commit(`${units} $MM returned to the Civic Vault and ${payout} new ${MOLLAR_CODE} entered circulation after the reserve spread.`, "success");
-    return this.result(true, "$MM reserve sold.");
   }
 
   setServicePrice(index: number): ActionResult {
