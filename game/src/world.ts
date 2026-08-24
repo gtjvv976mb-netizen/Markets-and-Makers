@@ -22,6 +22,8 @@ interface Citizen {
 }
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
+const MAX_WALK_STEP = 0.62;
+const GRID_SEAM_PROBE = 0.025;
 
 export class World3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -269,6 +271,13 @@ export class World3D {
         if (material instanceof THREE.MeshStandardMaterial) this.styleMaterial(material);
       }
     });
+    const bridgeProxyMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      colorWrite: false,
+    });
+    bridgeProxyMaterial.name = "MAT_BRIDGE_WALK_PROXY";
     for (const object of gltf.scene.children) {
       const index = object.userData.chunk_index as unknown;
       if (Array.isArray(index) && index.length === 2 && index.every(Number.isFinite)) {
@@ -279,7 +288,22 @@ export class World3D {
         });
         continue;
       }
-      if (/BRIDGE|HARBOR/.test(object.name)) {
+      if (object.userData.family === "bridge") {
+        const footprint = Array.isArray(object.userData.footprint_tiles) ? object.userData.footprint_tiles : [1, 1];
+        // Overlap adjacent invisible proxies very slightly so visual plank seams
+        // never become navigation gaps at a bridge segment boundary.
+        const width = Math.max(0.5, Number(footprint[0] ?? 1) * 2 + 0.04);
+        const depth = Math.max(0.5, Number(footprint[1] ?? 1) * 2 + 0.04);
+        const walkY = Number(object.userData.walk_z_m ?? 1);
+        const proxy = new THREE.Mesh(new THREE.BoxGeometry(width, 0.04, depth), bridgeProxyMaterial);
+        proxy.name = `${object.name}_WALK_PROXY`;
+        proxy.position.y = walkY - 0.02;
+        proxy.castShadow = false;
+        proxy.receiveShadow = false;
+        object.add(proxy);
+        this.walkableMeshes.push(proxy);
+      }
+      if (/BRIDGE|HARBOR|_BR_/.test(object.name)) {
         object.traverse((child) => {
           if (child instanceof THREE.Mesh) this.walkableMeshes.push(child);
         });
@@ -316,11 +340,50 @@ export class World3D {
     return true;
   }
 
-  private sampleWalkHeight(x: number, z: number, allowHidden = false): number | null {
+  private raycastWalkHeight(x: number, z: number, allowHidden: boolean): number | null {
     this.raycaster.set(new THREE.Vector3(x, 40, z), this.down);
     const hits = this.raycaster.intersectObjects(this.walkableMeshes, false)
       .filter((hit) => allowHidden || this.isEffectivelyVisible(hit.object));
     return this.firstWalkableHit(hits)?.point.y ?? null;
+  }
+
+  private sampleWalkHeight(x: number, z: number, allowHidden = false): number | null {
+    const direct = this.raycastWalkHeight(x, z, allowHidden);
+    if (direct !== null) return direct;
+
+    // Authored tile keylines intentionally leave a hairline reveal at the 2 m
+    // grid edge. Probe both sides of a seam, but only bridge it when opposite
+    // walk surfaces agree in height. A coast/water edge has no matching pair,
+    // and a cliff step exceeds MAX_WALK_STEP, so both remain blocked.
+    const axisPairs = [
+      [[GRID_SEAM_PROBE, 0], [-GRID_SEAM_PROBE, 0]],
+      [[0, GRID_SEAM_PROBE], [0, -GRID_SEAM_PROBE]],
+    ] as const;
+    for (const pair of axisPairs) {
+      const first = this.raycastWalkHeight(x + pair[0][0], z + pair[0][1], allowHidden);
+      const second = this.raycastWalkHeight(x + pair[1][0], z + pair[1][1], allowHidden);
+      if (first !== null && second !== null && Math.abs(first - second) <= MAX_WALK_STEP) {
+        return (first + second) / 2;
+      }
+    }
+
+    // At a four-tile corner, axial probes still lie on keylines. Require all
+    // four quadrants to be walkable and mutually compatible before crossing.
+    const corners = [
+      [GRID_SEAM_PROBE, GRID_SEAM_PROBE],
+      [GRID_SEAM_PROBE, -GRID_SEAM_PROBE],
+      [-GRID_SEAM_PROBE, GRID_SEAM_PROBE],
+      [-GRID_SEAM_PROBE, -GRID_SEAM_PROBE],
+    ] as const;
+    const cornerHeights = corners.map(([dx, dz]) => this.raycastWalkHeight(x + dx, z + dz, allowHidden));
+    if (cornerHeights.every((height): height is number => height !== null)) {
+      const minimum = Math.min(...cornerHeights);
+      const maximum = Math.max(...cornerHeights);
+      if (maximum - minimum <= MAX_WALK_STEP) {
+        return cornerHeights.reduce((sum, height) => sum + height, 0) / cornerHeights.length;
+      }
+    }
+    return null;
   }
 
   private updateChunkVisibility(force = false): void {
@@ -511,11 +574,8 @@ export class World3D {
 
   /** The server may reject a step; when it does we accept its position. */
   applyCorrection(x: number, z: number, state: GameState): void {
-    this.avatar.position.x = x;
-    this.avatar.position.z = z;
-    state.player.x = x;
-    state.player.z = z;
-    this.clickTarget = null;
+    state.player = { x, z };
+    this.teleportToState(state);
   }
 
   private updatePeers(delta: number, elapsed: number): void {
@@ -678,7 +738,7 @@ export class World3D {
 
   private tryMoveTo(x: number, z: number): boolean {
     const groundY = this.sampleWalkHeight(x, z);
-    if (groundY === null || Math.abs(groundY - this.avatarGroundY) > 0.62) return false;
+    if (groundY === null || Math.abs(groundY - this.avatarGroundY) > MAX_WALK_STEP) return false;
     this.avatar.position.x = x;
     this.avatar.position.z = z;
     this.avatarGroundY = groundY;

@@ -156,6 +156,17 @@ export class RealmConnection {
     }
   }
 
+  /** Re-declare an intentional local teleport even when the economic district is unchanged. */
+  reseedPosition(): void {
+    this.sequence = 0;
+    this.lastSentAt = 0;
+    this.lastX = Number.NaN;
+    this.lastZ = Number.NaN;
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    const at = this.handlers.position();
+    this.socket.send(JSON.stringify({ type: "hello", playerId: this.playerId, islandId: this.islandId, x: at.x, z: at.z }));
+  }
+
   /** Rate-limited to the server's 10 Hz tick, and only when the avatar actually moved. */
   sendMove(x: number, z: number, now = Date.now()): void {
     if (this.socket?.readyState !== WebSocket.OPEN) return;

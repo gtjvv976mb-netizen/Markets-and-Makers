@@ -62,8 +62,8 @@
         9
       ],
       "center_m": [
-        -1.0,
-        25.0,
+        -1,
+        25,
         1.035
       ],
       "collision": [
@@ -195,8 +195,8 @@
         9
       ],
       "center_m": [
-        -19.0,
-        23.0,
+        -19,
+        23,
         1.035
       ],
       "collision": [
@@ -328,8 +328,8 @@
         9
       ],
       "center_m": [
-        17.0,
-        21.0,
+        17,
+        21,
         1.035
       ],
       "collision": [
@@ -461,8 +461,8 @@
         -26
       ],
       "center_m": [
-        45.0,
-        -47.0,
+        45,
+        -47,
         1.035
       ],
       "collision": [
@@ -594,8 +594,8 @@
         10
       ],
       "center_m": [
-        43.0,
-        25.0,
+        43,
+        25,
         1.035
       ],
       "collision": [
@@ -727,8 +727,8 @@
         -6
       ],
       "center_m": [
-        45.0,
-        -7.0,
+        45,
+        -7,
         1.035
       ],
       "collision": [
@@ -860,8 +860,8 @@
         -6
       ],
       "center_m": [
-        -73.0,
-        -7.0,
+        -73,
+        -7,
         1.035
       ],
       "collision": [
@@ -993,8 +993,8 @@
         10
       ],
       "center_m": [
-        -47.0,
-        27.0,
+        -47,
+        27,
         1.035
       ],
       "collision": [
@@ -1126,8 +1126,8 @@
         10
       ],
       "center_m": [
-        73.0,
-        27.0,
+        73,
+        27,
         1.035
       ],
       "collision": [
@@ -1289,8 +1289,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_0_V1_LOD0",
       "origin_m": [
-        -256.0,
-        -160.0
+        -256,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1329,8 +1329,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_0_V1_LOD0",
       "origin_m": [
-        -224.0,
-        -160.0
+        -224,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1369,8 +1369,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_0_V1_LOD0",
       "origin_m": [
-        -192.0,
-        -160.0
+        -192,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1409,8 +1409,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_0_V1_LOD0",
       "origin_m": [
-        -160.0,
-        -160.0
+        -160,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1449,8 +1449,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_0_V1_LOD0",
       "origin_m": [
-        -128.0,
-        -160.0
+        -128,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1489,8 +1489,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_0_V1_LOD0",
       "origin_m": [
-        -96.0,
-        -160.0
+        -96,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1529,8 +1529,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_0_V1_LOD0",
       "origin_m": [
-        -64.0,
-        -160.0
+        -64,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1569,8 +1569,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_0_V1_LOD0",
       "origin_m": [
-        -32.0,
-        -160.0
+        -32,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1609,8 +1609,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_0_V1_LOD0",
       "origin_m": [
-        0.0,
-        -160.0
+        0,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1649,8 +1649,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_0_V1_LOD0",
       "origin_m": [
-        32.0,
-        -160.0
+        32,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1689,8 +1689,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_0_V1_LOD0",
       "origin_m": [
-        64.0,
-        -160.0
+        64,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1729,8 +1729,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_0_V1_LOD0",
       "origin_m": [
-        96.0,
-        -160.0
+        96,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1769,8 +1769,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_0_V1_LOD0",
       "origin_m": [
-        128.0,
-        -160.0
+        128,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1809,8 +1809,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_0_V1_LOD0",
       "origin_m": [
-        160.0,
-        -160.0
+        160,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1849,8 +1849,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_0_V1_LOD0",
       "origin_m": [
-        192.0,
-        -160.0
+        192,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1889,8 +1889,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_0_V1_LOD0",
       "origin_m": [
-        224.0,
-        -160.0
+        224,
+        -160
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1929,8 +1929,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_1_V1_LOD0",
       "origin_m": [
-        -256.0,
-        -128.0
+        -256,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -1970,8 +1970,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_1_V1_LOD0",
       "origin_m": [
-        -224.0,
-        -128.0
+        -224,
+        -128
       ],
       "triangles": 4,
       "water_cells": 256
@@ -2014,8 +2014,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_1_V1_LOD0",
       "origin_m": [
-        -192.0,
-        -128.0
+        -192,
+        -128
       ],
       "triangles": 168,
       "water_cells": 225
@@ -2057,8 +2057,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_1_V1_LOD0",
       "origin_m": [
-        -160.0,
-        -128.0
+        -160,
+        -128
       ],
       "triangles": 166,
       "water_cells": 224
@@ -2100,8 +2100,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_1_V1_LOD0",
       "origin_m": [
-        -128.0,
-        -128.0
+        -128,
+        -128
       ],
       "triangles": 16,
       "water_cells": 254
@@ -2140,8 +2140,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_1_V1_LOD0",
       "origin_m": [
-        -96.0,
-        -128.0
+        -96,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2180,8 +2180,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_1_V1_LOD0",
       "origin_m": [
-        -64.0,
-        -128.0
+        -64,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2220,8 +2220,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_1_V1_LOD0",
       "origin_m": [
-        -32.0,
-        -128.0
+        -32,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2260,8 +2260,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_1_V1_LOD0",
       "origin_m": [
-        0.0,
-        -128.0
+        0,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2300,8 +2300,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_1_V1_LOD0",
       "origin_m": [
-        32.0,
-        -128.0
+        32,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2340,8 +2340,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_1_V1_LOD0",
       "origin_m": [
-        64.0,
-        -128.0
+        64,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2383,8 +2383,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_1_V1_LOD0",
       "origin_m": [
-        96.0,
-        -128.0
+        96,
+        -128
       ],
       "triangles": 10,
       "water_cells": 255
@@ -2426,8 +2426,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_1_V1_LOD0",
       "origin_m": [
-        128.0,
-        -128.0
+        128,
+        -128
       ],
       "triangles": 124,
       "water_cells": 234
@@ -2469,8 +2469,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_1_V1_LOD0",
       "origin_m": [
-        160.0,
-        -128.0
+        160,
+        -128
       ],
       "triangles": 112,
       "water_cells": 236
@@ -2509,8 +2509,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_1_V1_LOD0",
       "origin_m": [
-        192.0,
-        -128.0
+        192,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2549,8 +2549,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_1_V1_LOD0",
       "origin_m": [
-        224.0,
-        -128.0
+        224,
+        -128
       ],
       "triangles": 2,
       "water_cells": 256
@@ -2592,8 +2592,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_2_V1_LOD0",
       "origin_m": [
-        -256.0,
-        -96.0
+        -256,
+        -96
       ],
       "triangles": 70,
       "water_cells": 244
@@ -2636,8 +2636,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_2_V1_LOD0",
       "origin_m": [
-        -224.0,
-        -96.0
+        -224,
+        -96
       ],
       "triangles": 978,
       "water_cells": 35
@@ -2680,8 +2680,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_2_V1_LOD0",
       "origin_m": [
-        -192.0,
-        -96.0
+        -192,
+        -96
       ],
       "triangles": 988,
       "water_cells": 40
@@ -2722,8 +2722,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_2_V1_LOD0",
       "origin_m": [
-        -160.0,
-        -96.0
+        -160,
+        -96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -2765,8 +2765,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_2_V1_LOD0",
       "origin_m": [
-        -128.0,
-        -96.0
+        -128,
+        -96
       ],
       "triangles": 1022,
       "water_cells": 9
@@ -2808,8 +2808,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_2_V1_LOD0",
       "origin_m": [
-        -96.0,
-        -96.0
+        -96,
+        -96
       ],
       "triangles": 870,
       "water_cells": 48
@@ -2854,8 +2854,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_2_V1_LOD0",
       "origin_m": [
-        -64.0,
-        -96.0
+        -64,
+        -96
       ],
       "triangles": 744,
       "water_cells": 79
@@ -2900,8 +2900,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_2_V1_LOD0",
       "origin_m": [
-        -32.0,
-        -96.0
+        -32,
+        -96
       ],
       "triangles": 788,
       "water_cells": 68
@@ -2948,8 +2948,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_2_V1_LOD0",
       "origin_m": [
-        0.0,
-        -96.0
+        0,
+        -96
       ],
       "triangles": 826,
       "water_cells": 76
@@ -2992,8 +2992,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_2_V1_LOD0",
       "origin_m": [
-        32.0,
-        -96.0
+        32,
+        -96
       ],
       "triangles": 738,
       "water_cells": 80
@@ -3035,8 +3035,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_2_V1_LOD0",
       "origin_m": [
-        64.0,
-        -96.0
+        64,
+        -96
       ],
       "triangles": 882,
       "water_cells": 46
@@ -3078,8 +3078,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_2_V1_LOD0",
       "origin_m": [
-        96.0,
-        -96.0
+        96,
+        -96
       ],
       "triangles": 1042,
       "water_cells": 4
@@ -3120,8 +3120,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_2_V1_LOD0",
       "origin_m": [
-        128.0,
-        -96.0
+        128,
+        -96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3164,8 +3164,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_2_V1_LOD0",
       "origin_m": [
-        160.0,
-        -96.0
+        160,
+        -96
       ],
       "triangles": 1028,
       "water_cells": 17
@@ -3208,8 +3208,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_2_V1_LOD0",
       "origin_m": [
-        192.0,
-        -96.0
+        192,
+        -96
       ],
       "triangles": 790,
       "water_cells": 90
@@ -3251,8 +3251,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_2_V1_LOD0",
       "origin_m": [
-        224.0,
-        -96.0
+        224,
+        -96
       ],
       "triangles": 104,
       "water_cells": 237
@@ -3294,8 +3294,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_3_V1_LOD0",
       "origin_m": [
-        -256.0,
-        -64.0
+        -256,
+        -64
       ],
       "triangles": 306,
       "water_cells": 190
@@ -3336,8 +3336,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_3_V1_LOD0",
       "origin_m": [
-        -224.0,
-        -64.0
+        -224,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3380,8 +3380,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_3_V1_LOD0",
       "origin_m": [
-        -192.0,
-        -64.0
+        -192,
+        -64
       ],
       "triangles": 1010,
       "water_cells": 48
@@ -3422,8 +3422,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_3_V1_LOD0",
       "origin_m": [
-        -160.0,
-        -64.0
+        -160,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3464,8 +3464,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_3_V1_LOD0",
       "origin_m": [
-        -128.0,
-        -64.0
+        -128,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3509,8 +3509,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_3_V1_LOD0",
       "origin_m": [
-        -96.0,
-        -64.0
+        -96,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3553,8 +3553,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_3_V1_LOD0",
       "origin_m": [
-        -64.0,
-        -64.0
+        -64,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3597,8 +3597,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_3_V1_LOD0",
       "origin_m": [
-        -32.0,
-        -64.0
+        -32,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3643,8 +3643,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_3_V1_LOD0",
       "origin_m": [
-        0.0,
-        -64.0
+        0,
+        -64
       ],
       "triangles": 1058,
       "water_cells": 16
@@ -3687,8 +3687,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_3_V1_LOD0",
       "origin_m": [
-        32.0,
-        -64.0
+        32,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3731,8 +3731,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_3_V1_LOD0",
       "origin_m": [
-        64.0,
-        -64.0
+        64,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3773,8 +3773,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_3_V1_LOD0",
       "origin_m": [
-        96.0,
-        -64.0
+        96,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3815,8 +3815,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_3_V1_LOD0",
       "origin_m": [
-        128.0,
-        -64.0
+        128,
+        -64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -3859,8 +3859,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_3_V1_LOD0",
       "origin_m": [
-        160.0,
-        -64.0
+        160,
+        -64
       ],
       "triangles": 1012,
       "water_cells": 25
@@ -3903,8 +3903,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_3_V1_LOD0",
       "origin_m": [
-        192.0,
-        -64.0
+        192,
+        -64
       ],
       "triangles": 1014,
       "water_cells": 23
@@ -3946,8 +3946,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_3_V1_LOD0",
       "origin_m": [
-        224.0,
-        -64.0
+        224,
+        -64
       ],
       "triangles": 436,
       "water_cells": 158
@@ -3989,8 +3989,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_4_V1_LOD0",
       "origin_m": [
-        -256.0,
-        -32.0
+        -256,
+        -32
       ],
       "triangles": 476,
       "water_cells": 146
@@ -4031,8 +4031,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_4_V1_LOD0",
       "origin_m": [
-        -224.0,
-        -32.0
+        -224,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4075,8 +4075,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_4_V1_LOD0",
       "origin_m": [
-        -192.0,
-        -32.0
+        -192,
+        -32
       ],
       "triangles": 1010,
       "water_cells": 48
@@ -4117,8 +4117,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_4_V1_LOD0",
       "origin_m": [
-        -160.0,
-        -32.0
+        -160,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4159,8 +4159,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_4_V1_LOD0",
       "origin_m": [
-        -128.0,
-        -32.0
+        -128,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4204,8 +4204,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_4_V1_LOD0",
       "origin_m": [
-        -96.0,
-        -32.0
+        -96,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4248,8 +4248,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_4_V1_LOD0",
       "origin_m": [
-        -64.0,
-        -32.0
+        -64,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4294,8 +4294,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_4_V1_LOD0",
       "origin_m": [
-        -32.0,
-        -32.0
+        -32,
+        -32
       ],
       "triangles": 1068,
       "water_cells": 21
@@ -4340,8 +4340,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_4_V1_LOD0",
       "origin_m": [
-        0.0,
-        -32.0
+        0,
+        -32
       ],
       "triangles": 1084,
       "water_cells": 30
@@ -4384,8 +4384,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_4_V1_LOD0",
       "origin_m": [
-        32.0,
-        -32.0
+        32,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4428,8 +4428,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_4_V1_LOD0",
       "origin_m": [
-        64.0,
-        -32.0
+        64,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4470,8 +4470,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_4_V1_LOD0",
       "origin_m": [
-        96.0,
-        -32.0
+        96,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4512,8 +4512,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_4_V1_LOD0",
       "origin_m": [
-        128.0,
-        -32.0
+        128,
+        -32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4556,8 +4556,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_4_V1_LOD0",
       "origin_m": [
-        160.0,
-        -32.0
+        160,
+        -32
       ],
       "triangles": 976,
       "water_cells": 48
@@ -4599,8 +4599,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_4_V1_LOD0",
       "origin_m": [
-        192.0,
-        -32.0
+        192,
+        -32
       ],
       "triangles": 1050,
       "water_cells": 0
@@ -4642,8 +4642,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_4_V1_LOD0",
       "origin_m": [
-        224.0,
-        -32.0
+        224,
+        -32
       ],
       "triangles": 546,
       "water_cells": 128
@@ -4685,8 +4685,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_5_V1_LOD0",
       "origin_m": [
-        -256.0,
-        0.0
+        -256,
+        0
       ],
       "triangles": 532,
       "water_cells": 132
@@ -4727,8 +4727,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_5_V1_LOD0",
       "origin_m": [
-        -224.0,
-        0.0
+        -224,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4771,8 +4771,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_5_V1_LOD0",
       "origin_m": [
-        -192.0,
-        0.0
+        -192,
+        0
       ],
       "triangles": 1008,
       "water_cells": 48
@@ -4814,8 +4814,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_5_V1_LOD0",
       "origin_m": [
-        -160.0,
-        0.0
+        -160,
+        0
       ],
       "triangles": 1028,
       "water_cells": 0
@@ -4856,8 +4856,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_5_V1_LOD0",
       "origin_m": [
-        -128.0,
-        0.0
+        -128,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4901,8 +4901,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_5_V1_LOD0",
       "origin_m": [
-        -96.0,
-        0.0
+        -96,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4945,8 +4945,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_5_V1_LOD0",
       "origin_m": [
-        -64.0,
-        0.0
+        -64,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -4991,8 +4991,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_5_V1_LOD0",
       "origin_m": [
-        -32.0,
-        0.0
+        -32,
+        0
       ],
       "triangles": 1058,
       "water_cells": 16
@@ -5037,8 +5037,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_5_V1_LOD0",
       "origin_m": [
-        0.0,
-        0.0
+        0,
+        0
       ],
       "triangles": 1058,
       "water_cells": 16
@@ -5081,8 +5081,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_5_V1_LOD0",
       "origin_m": [
-        32.0,
-        0.0
+        32,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5126,8 +5126,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_5_V1_LOD0",
       "origin_m": [
-        64.0,
-        0.0
+        64,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5168,8 +5168,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_5_V1_LOD0",
       "origin_m": [
-        96.0,
-        0.0
+        96,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5210,8 +5210,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_5_V1_LOD0",
       "origin_m": [
-        128.0,
-        0.0
+        128,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5254,8 +5254,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_5_V1_LOD0",
       "origin_m": [
-        160.0,
-        0.0
+        160,
+        0
       ],
       "triangles": 1002,
       "water_cells": 48
@@ -5296,8 +5296,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_5_V1_LOD0",
       "origin_m": [
-        192.0,
-        0.0
+        192,
+        0
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5339,8 +5339,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_5_V1_LOD0",
       "origin_m": [
-        224.0,
-        0.0
+        224,
+        0
       ],
       "triangles": 546,
       "water_cells": 128
@@ -5382,8 +5382,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_6_V1_LOD0",
       "origin_m": [
-        -256.0,
-        32.0
+        -256,
+        32
       ],
       "triangles": 554,
       "water_cells": 127
@@ -5424,8 +5424,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_6_V1_LOD0",
       "origin_m": [
-        -224.0,
-        32.0
+        -224,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5468,8 +5468,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_6_V1_LOD0",
       "origin_m": [
-        -192.0,
-        32.0
+        -192,
+        32
       ],
       "triangles": 1016,
       "water_cells": 24
@@ -5513,8 +5513,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_6_V1_LOD0",
       "origin_m": [
-        -160.0,
-        32.0
+        -160,
+        32
       ],
       "triangles": 1016,
       "water_cells": 24
@@ -5556,8 +5556,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_6_V1_LOD0",
       "origin_m": [
-        -128.0,
-        32.0
+        -128,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5601,8 +5601,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_6_V1_LOD0",
       "origin_m": [
-        -96.0,
-        32.0
+        -96,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5646,8 +5646,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_6_V1_LOD0",
       "origin_m": [
-        -64.0,
-        32.0
+        -64,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5694,8 +5694,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_6_V1_LOD0",
       "origin_m": [
-        -32.0,
-        32.0
+        -32,
+        32
       ],
       "triangles": 1084,
       "water_cells": 29
@@ -5742,8 +5742,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_6_V1_LOD0",
       "origin_m": [
-        0.0,
-        32.0
+        0,
+        32
       ],
       "triangles": 1096,
       "water_cells": 36
@@ -5787,8 +5787,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_6_V1_LOD0",
       "origin_m": [
-        32.0,
-        32.0
+        32,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5832,8 +5832,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_6_V1_LOD0",
       "origin_m": [
-        64.0,
-        32.0
+        64,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5875,8 +5875,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_6_V1_LOD0",
       "origin_m": [
-        96.0,
-        32.0
+        96,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5918,8 +5918,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_6_V1_LOD0",
       "origin_m": [
-        128.0,
-        32.0
+        128,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -5962,8 +5962,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_6_V1_LOD0",
       "origin_m": [
-        160.0,
-        32.0
+        160,
+        32
       ],
       "triangles": 1002,
       "water_cells": 48
@@ -6004,8 +6004,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_6_V1_LOD0",
       "origin_m": [
-        192.0,
-        32.0
+        192,
+        32
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6047,8 +6047,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_6_V1_LOD0",
       "origin_m": [
-        224.0,
-        32.0
+        224,
+        32
       ],
       "triangles": 544,
       "water_cells": 130
@@ -6090,8 +6090,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_7_V1_LOD0",
       "origin_m": [
-        -256.0,
-        64.0
+        -256,
+        64
       ],
       "triangles": 482,
       "water_cells": 145
@@ -6132,8 +6132,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_7_V1_LOD0",
       "origin_m": [
-        -224.0,
-        64.0
+        -224,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6175,8 +6175,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_7_V1_LOD0",
       "origin_m": [
-        -192.0,
-        64.0
+        -192,
+        64
       ],
       "triangles": 1038,
       "water_cells": 0
@@ -6221,8 +6221,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_7_V1_LOD0",
       "origin_m": [
-        -160.0,
-        64.0
+        -160,
+        64
       ],
       "triangles": 990,
       "water_cells": 48
@@ -6265,8 +6265,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_7_V1_LOD0",
       "origin_m": [
-        -128.0,
-        64.0
+        -128,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6310,8 +6310,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_7_V1_LOD0",
       "origin_m": [
-        -96.0,
-        64.0
+        -96,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6354,8 +6354,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_7_V1_LOD0",
       "origin_m": [
-        -64.0,
-        64.0
+        -64,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6400,8 +6400,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_7_V1_LOD0",
       "origin_m": [
-        -32.0,
-        64.0
+        -32,
+        64
       ],
       "triangles": 1046,
       "water_cells": 11
@@ -6446,8 +6446,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_7_V1_LOD0",
       "origin_m": [
-        0.0,
-        64.0
+        0,
+        64
       ],
       "triangles": 1042,
       "water_cells": 35
@@ -6492,8 +6492,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_7_V1_LOD0",
       "origin_m": [
-        32.0,
-        64.0
+        32,
+        64
       ],
       "triangles": 1032,
       "water_cells": 0
@@ -6536,8 +6536,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_7_V1_LOD0",
       "origin_m": [
-        64.0,
-        64.0
+        64,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6580,8 +6580,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_7_V1_LOD0",
       "origin_m": [
-        96.0,
-        64.0
+        96,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6624,8 +6624,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_7_V1_LOD0",
       "origin_m": [
-        128.0,
-        64.0
+        128,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6668,8 +6668,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_7_V1_LOD0",
       "origin_m": [
-        160.0,
-        64.0
+        160,
+        64
       ],
       "triangles": 1008,
       "water_cells": 48
@@ -6710,8 +6710,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_7_V1_LOD0",
       "origin_m": [
-        192.0,
-        64.0
+        192,
+        64
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6753,8 +6753,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_7_V1_LOD0",
       "origin_m": [
-        224.0,
-        64.0
+        224,
+        64
       ],
       "triangles": 442,
       "water_cells": 155
@@ -6796,8 +6796,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_8_V1_LOD0",
       "origin_m": [
-        -256.0,
-        96.0
+        -256,
+        96
       ],
       "triangles": 418,
       "water_cells": 160
@@ -6838,8 +6838,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_8_V1_LOD0",
       "origin_m": [
-        -224.0,
-        96.0
+        -224,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -6883,8 +6883,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_8_V1_LOD0",
       "origin_m": [
-        -192.0,
-        96.0
+        -192,
+        96
       ],
       "triangles": 1018,
       "water_cells": 26
@@ -6928,8 +6928,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_8_V1_LOD0",
       "origin_m": [
-        -160.0,
-        96.0
+        -160,
+        96
       ],
       "triangles": 1018,
       "water_cells": 22
@@ -6971,8 +6971,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_8_V1_LOD0",
       "origin_m": [
-        -128.0,
-        96.0
+        -128,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7014,8 +7014,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_8_V1_LOD0",
       "origin_m": [
-        -96.0,
-        96.0
+        -96,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7058,8 +7058,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_8_V1_LOD0",
       "origin_m": [
-        -64.0,
-        96.0
+        -64,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7102,8 +7102,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_8_V1_LOD0",
       "origin_m": [
-        -32.0,
-        96.0
+        -32,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7147,8 +7147,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_8_V1_LOD0",
       "origin_m": [
-        0.0,
-        96.0
+        0,
+        96
       ],
       "triangles": 994,
       "water_cells": 32
@@ -7192,8 +7192,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_8_V1_LOD0",
       "origin_m": [
-        32.0,
-        96.0
+        32,
+        96
       ],
       "triangles": 1058,
       "water_cells": 0
@@ -7236,8 +7236,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_8_V1_LOD0",
       "origin_m": [
-        64.0,
-        96.0
+        64,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7280,8 +7280,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_8_V1_LOD0",
       "origin_m": [
-        96.0,
-        96.0
+        96,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7323,8 +7323,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_8_V1_LOD0",
       "origin_m": [
-        128.0,
-        96.0
+        128,
+        96
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7368,8 +7368,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_8_V1_LOD0",
       "origin_m": [
-        160.0,
-        96.0
+        160,
+        96
       ],
       "triangles": 994,
       "water_cells": 41
@@ -7412,8 +7412,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_8_V1_LOD0",
       "origin_m": [
-        192.0,
-        96.0
+        192,
+        96
       ],
       "triangles": 1038,
       "water_cells": 7
@@ -7455,8 +7455,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_8_V1_LOD0",
       "origin_m": [
-        224.0,
-        96.0
+        224,
+        96
       ],
       "triangles": 364,
       "water_cells": 174
@@ -7498,8 +7498,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_9_V1_LOD0",
       "origin_m": [
-        -256.0,
-        128.0
+        -256,
+        128
       ],
       "triangles": 518,
       "water_cells": 136
@@ -7540,8 +7540,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_9_V1_LOD0",
       "origin_m": [
-        -224.0,
-        128.0
+        -224,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7586,8 +7586,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_9_V1_LOD0",
       "origin_m": [
-        -192.0,
-        128.0
+        -192,
+        128
       ],
       "triangles": 1042,
       "water_cells": 43
@@ -7628,8 +7628,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_9_V1_LOD0",
       "origin_m": [
-        -160.0,
-        128.0
+        -160,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7670,8 +7670,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_9_V1_LOD0",
       "origin_m": [
-        -128.0,
-        128.0
+        -128,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7712,8 +7712,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_9_V1_LOD0",
       "origin_m": [
-        -96.0,
-        128.0
+        -96,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7755,8 +7755,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_9_V1_LOD0",
       "origin_m": [
-        -64.0,
-        128.0
+        -64,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7798,8 +7798,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_9_V1_LOD0",
       "origin_m": [
-        -32.0,
-        128.0
+        -32,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7842,8 +7842,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_9_V1_LOD0",
       "origin_m": [
-        0.0,
-        128.0
+        0,
+        128
       ],
       "triangles": 994,
       "water_cells": 32
@@ -7887,8 +7887,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_9_V1_LOD0",
       "origin_m": [
-        32.0,
-        128.0
+        32,
+        128
       ],
       "triangles": 1058,
       "water_cells": 0
@@ -7930,8 +7930,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_9_V1_LOD0",
       "origin_m": [
-        64.0,
-        128.0
+        64,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -7973,8 +7973,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_9_V1_LOD0",
       "origin_m": [
-        96.0,
-        128.0
+        96,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -8016,8 +8016,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_9_V1_LOD0",
       "origin_m": [
-        128.0,
-        128.0
+        128,
+        128
       ],
       "triangles": 1026,
       "water_cells": 0
@@ -8062,8 +8062,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_9_V1_LOD0",
       "origin_m": [
-        160.0,
-        128.0
+        160,
+        128
       ],
       "triangles": 996,
       "water_cells": 48
@@ -8106,8 +8106,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_9_V1_LOD0",
       "origin_m": [
-        192.0,
-        128.0
+        192,
+        128
       ],
       "triangles": 1044,
       "water_cells": 0
@@ -8149,8 +8149,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_9_V1_LOD0",
       "origin_m": [
-        224.0,
-        128.0
+        224,
+        128
       ],
       "triangles": 486,
       "water_cells": 144
@@ -8192,8 +8192,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_10_V1_LOD0",
       "origin_m": [
-        -256.0,
-        160.0
+        -256,
+        160
       ],
       "triangles": 610,
       "water_cells": 114
@@ -8236,8 +8236,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_10_V1_LOD0",
       "origin_m": [
-        -224.0,
-        160.0
+        -224,
+        160
       ],
       "triangles": 1066,
       "water_cells": 0
@@ -8283,8 +8283,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_10_V1_LOD0",
       "origin_m": [
-        -192.0,
-        160.0
+        -192,
+        160
       ],
       "triangles": 1092,
       "water_cells": 34
@@ -8327,8 +8327,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_10_V1_LOD0",
       "origin_m": [
-        -160.0,
-        160.0
+        -160,
+        160
       ],
       "triangles": 1068,
       "water_cells": 0
@@ -8371,8 +8371,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_10_V1_LOD0",
       "origin_m": [
-        -128.0,
-        160.0
+        -128,
+        160
       ],
       "triangles": 1070,
       "water_cells": 0
@@ -8415,8 +8415,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_10_V1_LOD0",
       "origin_m": [
-        -96.0,
-        160.0
+        -96,
+        160
       ],
       "triangles": 1084,
       "water_cells": 0
@@ -8461,8 +8461,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_10_V1_LOD0",
       "origin_m": [
-        -64.0,
-        160.0
+        -64,
+        160
       ],
       "triangles": 1074,
       "water_cells": 0
@@ -8507,8 +8507,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_10_V1_LOD0",
       "origin_m": [
-        -32.0,
-        160.0
+        -32,
+        160
       ],
       "triangles": 1080,
       "water_cells": 0
@@ -8554,8 +8554,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_10_V1_LOD0",
       "origin_m": [
-        0.0,
-        160.0
+        0,
+        160
       ],
       "triangles": 1072,
       "water_cells": 33
@@ -8600,8 +8600,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_10_V1_LOD0",
       "origin_m": [
-        32.0,
-        160.0
+        32,
+        160
       ],
       "triangles": 1096,
       "water_cells": 0
@@ -8646,8 +8646,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_10_V1_LOD0",
       "origin_m": [
-        64.0,
-        160.0
+        64,
+        160
       ],
       "triangles": 1080,
       "water_cells": 0
@@ -8692,8 +8692,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_10_V1_LOD0",
       "origin_m": [
-        96.0,
-        160.0
+        96,
+        160
       ],
       "triangles": 1086,
       "water_cells": 0
@@ -8737,8 +8737,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_10_V1_LOD0",
       "origin_m": [
-        128.0,
-        160.0
+        128,
+        160
       ],
       "triangles": 1064,
       "water_cells": 0
@@ -8783,8 +8783,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_10_V1_LOD0",
       "origin_m": [
-        160.0,
-        160.0
+        160,
+        160
       ],
       "triangles": 1150,
       "water_cells": 59
@@ -8827,8 +8827,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_10_V1_LOD0",
       "origin_m": [
-        192.0,
-        160.0
+        192,
+        160
       ],
       "triangles": 1058,
       "water_cells": 0
@@ -8870,8 +8870,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_10_V1_LOD0",
       "origin_m": [
-        224.0,
-        160.0
+        224,
+        160
       ],
       "triangles": 596,
       "water_cells": 118
@@ -8914,8 +8914,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_11_V1_LOD0",
       "origin_m": [
-        -256.0,
-        192.0
+        -256,
+        192
       ],
       "triangles": 456,
       "water_cells": 160
@@ -8958,8 +8958,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_11_V1_LOD0",
       "origin_m": [
-        -224.0,
-        192.0
+        -224,
+        192
       ],
       "triangles": 1086,
       "water_cells": 0
@@ -9004,8 +9004,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_11_V1_LOD0",
       "origin_m": [
-        -192.0,
-        192.0
+        -192,
+        192
       ],
       "triangles": 1126,
       "water_cells": 32
@@ -9049,8 +9049,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_11_V1_LOD0",
       "origin_m": [
-        -160.0,
-        192.0
+        -160,
+        192
       ],
       "triangles": 1090,
       "water_cells": 0
@@ -9093,8 +9093,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_11_V1_LOD0",
       "origin_m": [
-        -128.0,
-        192.0
+        -128,
+        192
       ],
       "triangles": 1108,
       "water_cells": 0
@@ -9136,8 +9136,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_11_V1_LOD0",
       "origin_m": [
-        -96.0,
-        192.0
+        -96,
+        192
       ],
       "triangles": 1082,
       "water_cells": 0
@@ -9179,8 +9179,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_11_V1_LOD0",
       "origin_m": [
-        -64.0,
-        192.0
+        -64,
+        192
       ],
       "triangles": 1104,
       "water_cells": 0
@@ -9222,8 +9222,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_11_V1_LOD0",
       "origin_m": [
-        -32.0,
-        192.0
+        -32,
+        192
       ],
       "triangles": 1072,
       "water_cells": 0
@@ -9267,8 +9267,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_11_V1_LOD0",
       "origin_m": [
-        0.0,
-        192.0
+        0,
+        192
       ],
       "triangles": 1102,
       "water_cells": 34
@@ -9312,8 +9312,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_11_V1_LOD0",
       "origin_m": [
-        32.0,
-        192.0
+        32,
+        192
       ],
       "triangles": 1080,
       "water_cells": 0
@@ -9356,8 +9356,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_11_V1_LOD0",
       "origin_m": [
-        64.0,
-        192.0
+        64,
+        192
       ],
       "triangles": 1082,
       "water_cells": 0
@@ -9399,8 +9399,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_11_V1_LOD0",
       "origin_m": [
-        96.0,
-        192.0
+        96,
+        192
       ],
       "triangles": 1080,
       "water_cells": 0
@@ -9445,8 +9445,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_11_V1_LOD0",
       "origin_m": [
-        128.0,
-        192.0
+        128,
+        192
       ],
       "triangles": 1128,
       "water_cells": 16
@@ -9490,8 +9490,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_11_V1_LOD0",
       "origin_m": [
-        160.0,
-        192.0
+        160,
+        192
       ],
       "triangles": 1136,
       "water_cells": 44
@@ -9534,8 +9534,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_11_V1_LOD0",
       "origin_m": [
-        192.0,
-        192.0
+        192,
+        192
       ],
       "triangles": 1086,
       "water_cells": 0
@@ -9578,8 +9578,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_11_V1_LOD0",
       "origin_m": [
-        224.0,
-        192.0
+        224,
+        192
       ],
       "triangles": 372,
       "water_cells": 181
@@ -9622,8 +9622,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_12_V1_LOD0",
       "origin_m": [
-        -256.0,
-        224.0
+        -256,
+        224
       ],
       "triangles": 152,
       "water_cells": 227
@@ -9666,8 +9666,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_12_V1_LOD0",
       "origin_m": [
-        -224.0,
-        224.0
+        -224,
+        224
       ],
       "triangles": 1098,
       "water_cells": 8
@@ -9714,8 +9714,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_12_V1_LOD0",
       "origin_m": [
-        -192.0,
-        224.0
+        -192,
+        224
       ],
       "triangles": 1146,
       "water_cells": 36
@@ -9762,8 +9762,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_12_V1_LOD0",
       "origin_m": [
-        -160.0,
-        224.0
+        -160,
+        224
       ],
       "triangles": 804,
       "water_cells": 176
@@ -9809,8 +9809,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_12_V1_LOD0",
       "origin_m": [
-        -128.0,
-        224.0
+        -128,
+        224
       ],
       "triangles": 1120,
       "water_cells": 6
@@ -9854,8 +9854,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_12_V1_LOD0",
       "origin_m": [
-        -96.0,
-        224.0
+        -96,
+        224
       ],
       "triangles": 1094,
       "water_cells": 0
@@ -9898,8 +9898,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_12_V1_LOD0",
       "origin_m": [
-        -64.0,
-        224.0
+        -64,
+        224
       ],
       "triangles": 1102,
       "water_cells": 0
@@ -9944,8 +9944,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_12_V1_LOD0",
       "origin_m": [
-        -32.0,
-        224.0
+        -32,
+        224
       ],
       "triangles": 1148,
       "water_cells": 5
@@ -9991,8 +9991,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_12_V1_LOD0",
       "origin_m": [
-        0.0,
-        224.0
+        0,
+        224
       ],
       "triangles": 806,
       "water_cells": 182
@@ -10037,8 +10037,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_12_V1_LOD0",
       "origin_m": [
-        32.0,
-        224.0
+        32,
+        224
       ],
       "triangles": 1178,
       "water_cells": 6
@@ -10082,8 +10082,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_12_V1_LOD0",
       "origin_m": [
-        64.0,
-        224.0
+        64,
+        224
       ],
       "triangles": 1134,
       "water_cells": 0
@@ -10129,8 +10129,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_12_V1_LOD0",
       "origin_m": [
-        96.0,
-        224.0
+        96,
+        224
       ],
       "triangles": 1170,
       "water_cells": 3
@@ -10176,8 +10176,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_12_V1_LOD0",
       "origin_m": [
-        128.0,
-        224.0
+        128,
+        224
       ],
       "triangles": 1222,
       "water_cells": 24
@@ -10222,8 +10222,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_12_V1_LOD0",
       "origin_m": [
-        160.0,
-        224.0
+        160,
+        224
       ],
       "triangles": 1198,
       "water_cells": 39
@@ -10265,8 +10265,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_12_V1_LOD0",
       "origin_m": [
-        192.0,
-        224.0
+        192,
+        224
       ],
       "triangles": 1028,
       "water_cells": 21
@@ -10309,8 +10309,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_12_V1_LOD0",
       "origin_m": [
-        224.0,
-        224.0
+        224,
+        224
       ],
       "triangles": 50,
       "water_cells": 249
@@ -10349,8 +10349,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_13_V1_LOD0",
       "origin_m": [
-        -256.0,
-        256.0
+        -256,
+        256
       ],
       "triangles": 2,
       "water_cells": 256
@@ -10394,8 +10394,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_13_V1_LOD0",
       "origin_m": [
-        -224.0,
-        256.0
+        -224,
+        256
       ],
       "triangles": 490,
       "water_cells": 160
@@ -10442,8 +10442,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_13_V1_LOD0",
       "origin_m": [
-        -192.0,
-        256.0
+        -192,
+        256
       ],
       "triangles": 1118,
       "water_cells": 2
@@ -10488,8 +10488,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_13_V1_LOD0",
       "origin_m": [
-        -160.0,
-        256.0
+        -160,
+        256
       ],
       "triangles": 1126,
       "water_cells": 76
@@ -10534,8 +10534,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_13_V1_LOD0",
       "origin_m": [
-        -128.0,
-        256.0
+        -128,
+        256
       ],
       "triangles": 1148,
       "water_cells": 1
@@ -10578,8 +10578,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_13_V1_LOD0",
       "origin_m": [
-        -96.0,
-        256.0
+        -96,
+        256
       ],
       "triangles": 1132,
       "water_cells": 0
@@ -10622,8 +10622,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_13_V1_LOD0",
       "origin_m": [
-        -64.0,
-        256.0
+        -64,
+        256
       ],
       "triangles": 1124,
       "water_cells": 0
@@ -10666,8 +10666,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_13_V1_LOD0",
       "origin_m": [
-        -32.0,
-        256.0
+        -32,
+        256
       ],
       "triangles": 1116,
       "water_cells": 0
@@ -10712,8 +10712,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_13_V1_LOD0",
       "origin_m": [
-        0.0,
-        256.0
+        0,
+        256
       ],
       "triangles": 1128,
       "water_cells": 47
@@ -10757,8 +10757,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_13_V1_LOD0",
       "origin_m": [
-        32.0,
-        256.0
+        32,
+        256
       ],
       "triangles": 1138,
       "water_cells": 0
@@ -10802,8 +10802,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_13_V1_LOD0",
       "origin_m": [
-        64.0,
-        256.0
+        64,
+        256
       ],
       "triangles": 1142,
       "water_cells": 0
@@ -10848,8 +10848,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_13_V1_LOD0",
       "origin_m": [
-        96.0,
-        256.0
+        96,
+        256
       ],
       "triangles": 1190,
       "water_cells": 30
@@ -10894,8 +10894,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_13_V1_LOD0",
       "origin_m": [
-        128.0,
-        256.0
+        128,
+        256
       ],
       "triangles": 932,
       "water_cells": 131
@@ -10940,8 +10940,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_13_V1_LOD0",
       "origin_m": [
-        160.0,
-        256.0
+        160,
+        256
       ],
       "triangles": 1166,
       "water_cells": 6
@@ -10984,8 +10984,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_13_V1_LOD0",
       "origin_m": [
-        192.0,
-        256.0
+        192,
+        256
       ],
       "triangles": 444,
       "water_cells": 171
@@ -11024,8 +11024,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_13_V1_LOD0",
       "origin_m": [
-        224.0,
-        256.0
+        224,
+        256
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11064,8 +11064,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_14_V1_LOD0",
       "origin_m": [
-        -256.0,
-        288.0
+        -256,
+        288
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11104,8 +11104,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_14_V1_LOD0",
       "origin_m": [
-        -224.0,
-        288.0
+        -224,
+        288
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11150,8 +11150,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_14_V1_LOD0",
       "origin_m": [
-        -192.0,
-        288.0
+        -192,
+        288
       ],
       "triangles": 476,
       "water_cells": 166
@@ -11193,8 +11193,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_14_V1_LOD0",
       "origin_m": [
-        -160.0,
-        288.0
+        -160,
+        288
       ],
       "triangles": 1102,
       "water_cells": 20
@@ -11238,8 +11238,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_14_V1_LOD0",
       "origin_m": [
-        -128.0,
-        288.0
+        -128,
+        288
       ],
       "triangles": 1180,
       "water_cells": 7
@@ -11282,8 +11282,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_14_V1_LOD0",
       "origin_m": [
-        -96.0,
-        288.0
+        -96,
+        288
       ],
       "triangles": 1134,
       "water_cells": 0
@@ -11326,8 +11326,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_14_V1_LOD0",
       "origin_m": [
-        -64.0,
-        288.0
+        -64,
+        288
       ],
       "triangles": 1120,
       "water_cells": 0
@@ -11370,8 +11370,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_14_V1_LOD0",
       "origin_m": [
-        -32.0,
-        288.0
+        -32,
+        288
       ],
       "triangles": 1166,
       "water_cells": 0
@@ -11415,8 +11415,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_14_V1_LOD0",
       "origin_m": [
-        0.0,
-        288.0
+        0,
+        288
       ],
       "triangles": 1190,
       "water_cells": 11
@@ -11459,8 +11459,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_14_V1_LOD0",
       "origin_m": [
-        32.0,
-        288.0
+        32,
+        288
       ],
       "triangles": 1154,
       "water_cells": 0
@@ -11506,8 +11506,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_14_V1_LOD0",
       "origin_m": [
-        64.0,
-        288.0
+        64,
+        288
       ],
       "triangles": 1156,
       "water_cells": 18
@@ -11551,8 +11551,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_14_V1_LOD0",
       "origin_m": [
-        96.0,
-        288.0
+        96,
+        288
       ],
       "triangles": 1130,
       "water_cells": 1
@@ -11597,8 +11597,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_14_V1_LOD0",
       "origin_m": [
-        128.0,
-        288.0
+        128,
+        288
       ],
       "triangles": 1176,
       "water_cells": 20
@@ -11641,8 +11641,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_14_V1_LOD0",
       "origin_m": [
-        160.0,
-        288.0
+        160,
+        288
       ],
       "triangles": 554,
       "water_cells": 145
@@ -11681,8 +11681,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_14_V1_LOD0",
       "origin_m": [
-        192.0,
-        288.0
+        192,
+        288
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11721,8 +11721,8 @@
       ],
       "object": "MM_TERRAIN_CH_15_14_V1_LOD0",
       "origin_m": [
-        224.0,
-        288.0
+        224,
+        288
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11761,8 +11761,8 @@
       ],
       "object": "MM_TERRAIN_CH_0_15_V1_LOD0",
       "origin_m": [
-        -256.0,
-        320.0
+        -256,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11801,8 +11801,8 @@
       ],
       "object": "MM_TERRAIN_CH_1_15_V1_LOD0",
       "origin_m": [
-        -224.0,
-        320.0
+        -224,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11841,8 +11841,8 @@
       ],
       "object": "MM_TERRAIN_CH_2_15_V1_LOD0",
       "origin_m": [
-        -192.0,
-        320.0
+        -192,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
@@ -11884,8 +11884,8 @@
       ],
       "object": "MM_TERRAIN_CH_3_15_V1_LOD0",
       "origin_m": [
-        -160.0,
-        320.0
+        -160,
+        320
       ],
       "triangles": 104,
       "water_cells": 236
@@ -11929,8 +11929,8 @@
       ],
       "object": "MM_TERRAIN_CH_4_15_V1_LOD0",
       "origin_m": [
-        -128.0,
-        320.0
+        -128,
+        320
       ],
       "triangles": 460,
       "water_cells": 165
@@ -11974,8 +11974,8 @@
       ],
       "object": "MM_TERRAIN_CH_5_15_V1_LOD0",
       "origin_m": [
-        -96.0,
-        320.0
+        -96,
+        320
       ],
       "triangles": 660,
       "water_cells": 109
@@ -12017,8 +12017,8 @@
       ],
       "object": "MM_TERRAIN_CH_6_15_V1_LOD0",
       "origin_m": [
-        -64.0,
-        320.0
+        -64,
+        320
       ],
       "triangles": 816,
       "water_cells": 70
@@ -12061,8 +12061,8 @@
       ],
       "object": "MM_TERRAIN_CH_7_15_V1_LOD0",
       "origin_m": [
-        -32.0,
-        320.0
+        -32,
+        320
       ],
       "triangles": 964,
       "water_cells": 40
@@ -12106,8 +12106,8 @@
       ],
       "object": "MM_TERRAIN_CH_8_15_V1_LOD0",
       "origin_m": [
-        0.0,
-        320.0
+        0,
+        320
       ],
       "triangles": 1006,
       "water_cells": 31
@@ -12151,8 +12151,8 @@
       ],
       "object": "MM_TERRAIN_CH_9_15_V1_LOD0",
       "origin_m": [
-        32.0,
-        320.0
+        32,
+        320
       ],
       "triangles": 928,
       "water_cells": 46
@@ -12195,8 +12195,8 @@
       ],
       "object": "MM_TERRAIN_CH_10_15_V1_LOD0",
       "origin_m": [
-        64.0,
-        320.0
+        64,
+        320
       ],
       "triangles": 834,
       "water_cells": 72
@@ -12241,8 +12241,8 @@
       ],
       "object": "MM_TERRAIN_CH_11_15_V1_LOD0",
       "origin_m": [
-        96.0,
-        320.0
+        96,
+        320
       ],
       "triangles": 586,
       "water_cells": 133
@@ -12286,8 +12286,8 @@
       ],
       "object": "MM_TERRAIN_CH_12_15_V1_LOD0",
       "origin_m": [
-        128.0,
-        320.0
+        128,
+        320
       ],
       "triangles": 168,
       "water_cells": 223
@@ -12326,8 +12326,8 @@
       ],
       "object": "MM_TERRAIN_CH_13_15_V1_LOD0",
       "origin_m": [
-        160.0,
-        320.0
+        160,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
@@ -12366,8 +12366,8 @@
       ],
       "object": "MM_TERRAIN_CH_14_15_V1_LOD0",
       "origin_m": [
-        192.0,
-        320.0
+        192,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
@@ -12406,18 +12406,18 @@
       ],
       "object": "MM_TERRAIN_CH_15_15_V1_LOD0",
       "origin_m": [
-        224.0,
-        320.0
+        224,
+        320
       ],
       "triangles": 2,
       "water_cells": 256
     }
   ],
   "coordinate_contract": {
-    "base_walk_z_m": 1.0,
+    "base_walk_z_m": 1,
     "cell_anchor": "integer cell center",
     "civic_canal_water_z_m": 0.68,
-    "elevation_step_m": 1.0,
+    "elevation_step_m": 1,
     "natural_river_bed_z_formula": "0.28 + elevation_level",
     "natural_river_water_z_formula": "0.62 + elevation_level",
     "ocean_z_m": -0.18,
@@ -12449,7 +12449,7 @@
       "north": "+Y",
       "up": "+Z"
     },
-    "tile_size_m": 2.0,
+    "tile_size_m": 2,
     "water_inset_below_walk_m": 0.32
   },
   "counts": {
@@ -13162,7 +13162,7 @@
       {
         "anchor_cell_sw": [
           42,
-          58
+          66
         ],
         "border_tiles": [
           "T35",
@@ -13179,13 +13179,13 @@
         "leaseable": true,
         "occupied_bounds_cells": {
           "inclusive": true,
-          "max": [
-            47,
-            65
-          ],
           "min": [
             42,
-            58
+            66
+          ],
+          "max": [
+            47,
+            73
           ]
         },
         "owner_type": "unowned",
@@ -13197,7 +13197,7 @@
         "surface_tile": "T34",
         "utility_connection_cell": [
           45,
-          57
+          65
         ],
         "utility_verge_tile": "T38"
       },
@@ -14371,8 +14371,8 @@
           "name": "MM_TILE_T51_MOUNTAIN_SLOPE_OUTER_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "GRID"
         },
@@ -14382,9 +14382,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T51_MOUNTAIN_SLOPE_OUTER_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -14395,8 +14395,8 @@
           "name": "MM_TILE_T51_MOUNTAIN_SLOPE_OUTER_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -14406,9 +14406,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T51_MOUNTAIN_SLOPE_OUTER_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -14476,8 +14476,8 @@
           "name": "MM_TILE_T52_MOUNTAIN_SLOPE_INNER_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "GRID"
         },
@@ -14487,9 +14487,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T52_MOUNTAIN_SLOPE_INNER_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -14500,8 +14500,8 @@
           "name": "MM_TILE_T52_MOUNTAIN_SLOPE_INNER_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -14511,9 +14511,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T52_MOUNTAIN_SLOPE_INNER_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -14565,7 +14565,7 @@
         "MAT_TERRAIN_GRID_BORDER"
       ],
       "nav": {
-        "crest_trail_width_m": 0.0,
+        "crest_trail_width_m": 0,
         "walkable": false
       },
       "preview": "previews/T53_mountain_ridge_straight.png",
@@ -14581,8 +14581,8 @@
           "name": "MM_TILE_T53_MOUNTAIN_RIDGE_STRAIGHT_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "RIDGE"
         },
@@ -14592,9 +14592,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T53_MOUNTAIN_RIDGE_STRAIGHT_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -14606,8 +14606,8 @@
           "name": "MM_TILE_T53_MOUNTAIN_RIDGE_STRAIGHT_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "RIDGE"
         },
@@ -14617,9 +14617,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T53_MOUNTAIN_RIDGE_STRAIGHT_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -14688,8 +14688,8 @@
           "name": "MM_TILE_T54_MOUNTAIN_RIDGE_CORNER_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "RIDGE"
         },
@@ -14700,9 +14700,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T54_MOUNTAIN_RIDGE_CORNER_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "RIDGE"
         },
@@ -14713,8 +14713,8 @@
           "name": "MM_TILE_T54_MOUNTAIN_RIDGE_CORNER_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -14724,9 +14724,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T54_MOUNTAIN_RIDGE_CORNER_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -14796,8 +14796,8 @@
           "name": "MM_TILE_T55_MOUNTAIN_RIDGE_T_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "RIDGE"
         },
@@ -14808,9 +14808,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T55_MOUNTAIN_RIDGE_T_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "RIDGE"
         },
@@ -14821,8 +14821,8 @@
           "name": "MM_TILE_T55_MOUNTAIN_RIDGE_T_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -14833,9 +14833,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T55_MOUNTAIN_RIDGE_T_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "RIDGE"
         }
@@ -14903,8 +14903,8 @@
           "name": "MM_TILE_T56_MOUNTAIN_RIDGE_END_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "RIDGE"
         },
@@ -14914,9 +14914,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T56_MOUNTAIN_RIDGE_END_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -14927,8 +14927,8 @@
           "name": "MM_TILE_T56_MOUNTAIN_RIDGE_END_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -14938,9 +14938,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T56_MOUNTAIN_RIDGE_END_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15006,8 +15006,8 @@
           "name": "MM_TILE_T57_MOUNTAIN_PEAK_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            3.0,
-            1.0
+            3,
+            1
           ],
           "role": "GRID"
         },
@@ -15017,9 +15017,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T57_MOUNTAIN_PEAK_V1_LOD0_SOCKET_E",
           "position_m": [
-            3.0,
+            3,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -15030,8 +15030,8 @@
           "name": "MM_TILE_T57_MOUNTAIN_PEAK_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -3.0,
-            1.0
+            -3,
+            1
           ],
           "role": "GRID"
         },
@@ -15041,16 +15041,16 @@
           "level_delta": 0,
           "name": "MM_TILE_T57_MOUNTAIN_PEAK_V1_LOD0_SOCKET_W",
           "position_m": [
-            -3.0,
+            -3,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
       ],
       "triangles_lod0": 353,
       "visual_bounds_z_local_m": [
-        1.0,
+        1,
         3.45
       ]
     },
@@ -15117,8 +15117,8 @@
           "name": "MM_TILE_T58_MOUNTAIN_VALLEY_STRAIGHT_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "VALLEY"
         },
@@ -15128,9 +15128,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T58_MOUNTAIN_VALLEY_STRAIGHT_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -15142,8 +15142,8 @@
           "name": "MM_TILE_T58_MOUNTAIN_VALLEY_STRAIGHT_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "VALLEY"
         },
@@ -15153,9 +15153,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T58_MOUNTAIN_VALLEY_STRAIGHT_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15227,8 +15227,8 @@
           "name": "MM_TILE_T59_MOUNTAIN_VALLEY_CORNER_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "VALLEY"
         },
@@ -15239,9 +15239,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T59_MOUNTAIN_VALLEY_CORNER_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "VALLEY"
         },
@@ -15252,8 +15252,8 @@
           "name": "MM_TILE_T59_MOUNTAIN_VALLEY_CORNER_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -15263,9 +15263,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T59_MOUNTAIN_VALLEY_CORNER_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15338,8 +15338,8 @@
           "name": "MM_TILE_T60_MOUNTAIN_VALLEY_T_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "VALLEY"
         },
@@ -15350,9 +15350,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T60_MOUNTAIN_VALLEY_T_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "VALLEY"
         },
@@ -15363,8 +15363,8 @@
           "name": "MM_TILE_T60_MOUNTAIN_VALLEY_T_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -15375,9 +15375,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T60_MOUNTAIN_VALLEY_T_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "VALLEY"
         }
@@ -15437,7 +15437,7 @@
         "walkable": true
       },
       "portal": {
-        "floor_z_local_m": 1.0,
+        "floor_z_local_m": 1,
         "height_m": 2.3,
         "socket": "CAVE_PORTAL_S",
         "streamed_interior": true,
@@ -15455,8 +15455,8 @@
           "name": "MM_TILE_T61_MOUNTAIN_CAVE_ENTRANCE_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "GRID"
         },
@@ -15466,9 +15466,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T61_MOUNTAIN_CAVE_ENTRANCE_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -15479,8 +15479,8 @@
           "name": "MM_TILE_T61_MOUNTAIN_CAVE_ENTRANCE_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "GRID"
         },
@@ -15490,21 +15490,21 @@
           "level_delta": 0,
           "name": "MM_TILE_T61_MOUNTAIN_CAVE_ENTRANCE_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
         {
           "edge": "S",
-          "floor_z_local_m": 1.0,
+          "floor_z_local_m": 1,
           "height_m": 2.3,
           "name": "CAVE_PORTAL_S",
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "CAVE_PORTAL",
           "socket": "CAVE_PORTAL_S",
@@ -15588,8 +15588,8 @@
           "nominal_speed_mps": 0.85,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -15601,9 +15601,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T62_RIVER_STRAIGHT_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -15619,8 +15619,8 @@
           "nominal_speed_mps": 0.85,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -15632,9 +15632,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T62_RIVER_STRAIGHT_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15717,8 +15717,8 @@
           "nominal_speed_mps": 0.7,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -15735,9 +15735,9 @@
           "name": "MM_TILE_T63_RIVER_CORNER_V1_LOD0_SOCKET_E",
           "nominal_speed_mps": 0.7,
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -15750,8 +15750,8 @@
           "name": "MM_TILE_T63_RIVER_CORNER_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "GRID"
         },
@@ -15761,9 +15761,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T63_RIVER_CORNER_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15851,8 +15851,8 @@
           "nominal_speed_mps": 0.55,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -15869,9 +15869,9 @@
           "name": "MM_TILE_T64_RIVER_T_CONFLUENCE_V1_LOD0_SOCKET_E",
           "nominal_speed_mps": 0.55,
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -15889,8 +15889,8 @@
           "nominal_speed_mps": 0.55,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -15902,9 +15902,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T64_RIVER_T_CONFLUENCE_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -15992,8 +15992,8 @@
           "nominal_speed_mps": 0.6,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -16010,9 +16010,9 @@
           "name": "MM_TILE_T65_RIVER_T_DISTRIBUTARY_V1_LOD0_SOCKET_E",
           "nominal_speed_mps": 0.6,
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16030,8 +16030,8 @@
           "nominal_speed_mps": 0.6,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16043,9 +16043,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T65_RIVER_T_DISTRIBUTARY_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16138,8 +16138,8 @@
           "nominal_speed_mps": 0.45,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -16156,9 +16156,9 @@
           "name": "MM_TILE_T66_RIVER_CROSS_BRAIDED_V1_LOD0_SOCKET_E",
           "nominal_speed_mps": 0.45,
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16176,8 +16176,8 @@
           "nominal_speed_mps": 0.45,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16194,9 +16194,9 @@
           "name": "MM_TILE_T66_RIVER_CROSS_BRAIDED_V1_LOD0_SOCKET_W",
           "nominal_speed_mps": 0.45,
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -16272,8 +16272,8 @@
           "name": "MM_TILE_T67_RIVER_SOURCE_SPRING_V1_LOD0_SOCKET_N",
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "GRID"
         },
@@ -16283,9 +16283,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T67_RIVER_SOURCE_SPRING_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16301,8 +16301,8 @@
           "nominal_speed_mps": 0.35,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16314,9 +16314,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T67_RIVER_SOURCE_SPRING_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16403,8 +16403,8 @@
           "nominal_speed_mps": 0.12,
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -16416,9 +16416,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T68_RIVER_POND_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16434,8 +16434,8 @@
           "nominal_speed_mps": 0.12,
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16447,9 +16447,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T68_RIVER_POND_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16529,8 +16529,8 @@
           "nominal_speed_mps": 0.05,
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 0.62,
@@ -16542,9 +16542,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T69_RIVER_END_BASIN_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16555,8 +16555,8 @@
           "name": "MM_TILE_T69_RIVER_END_BASIN_V1_LOD0_SOCKET_S",
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "GRID"
         },
@@ -16566,9 +16566,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T69_RIVER_END_BASIN_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16652,8 +16652,8 @@
           "nominal_speed_mps": 1.45,
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 1.62,
@@ -16665,9 +16665,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T70_RIVER_RAPID_STRAIGHT_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16683,8 +16683,8 @@
           "nominal_speed_mps": 1.45,
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16696,9 +16696,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T70_RIVER_RAPID_STRAIGHT_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16789,8 +16789,8 @@
           "nominal_speed_mps": 2.8,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN",
           "surface_z_local_m": 1.62,
@@ -16802,9 +16802,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T71_RIVER_WATERFALL_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16820,8 +16820,8 @@
           "nominal_speed_mps": 2.8,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16833,9 +16833,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T71_RIVER_WATERFALL_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -16924,8 +16924,8 @@
           "nominal_speed_mps": 0.22,
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "IN_FROM_FALL",
           "surface_z_local_m": 0.62,
@@ -16937,9 +16937,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T72_RIVER_PLUNGE_BASIN_V1_LOD0_SOCKET_E",
           "position_m": [
-            2.0,
+            2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -16955,8 +16955,8 @@
           "nominal_speed_mps": 0.22,
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "OUT",
           "surface_z_local_m": 0.62,
@@ -16968,9 +16968,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T72_RIVER_PLUNGE_BASIN_V1_LOD0_SOCKET_W",
           "position_m": [
-            -2.0,
+            -2,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -17055,8 +17055,8 @@
           "nominal_speed_mps": 0.5,
           "position_m": [
             0,
-            2.0,
-            1.0
+            2,
+            1
           ],
           "role": "IN_RIVER",
           "surface_z_local_m": 0.62,
@@ -17068,9 +17068,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T73_RIVER_OCEAN_MOUTH_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -17086,8 +17086,8 @@
           "nominal_speed_mps": 0.5,
           "position_m": [
             0,
-            -2.0,
-            1.0
+            -2,
+            1
           ],
           "role": "OUT_OCEAN",
           "surface_z_local_m": -0.18,
@@ -17099,9 +17099,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T73_RIVER_OCEAN_MOUTH_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }
@@ -17194,8 +17194,8 @@
           "nominal_speed_mps": 0.3,
           "position_m": [
             0,
-            1.0,
-            1.0
+            1,
+            1
           ],
           "role": "IN_RIVER",
           "surface_z_local_m": 0.62,
@@ -17207,9 +17207,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T74_RIVER_CANAL_HEADWORKS_V1_LOD0_SOCKET_E",
           "position_m": [
-            1.0,
+            1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         },
@@ -17225,8 +17225,8 @@
           "nominal_speed_mps": 0.3,
           "position_m": [
             0,
-            -1.0,
-            1.0
+            -1,
+            1
           ],
           "role": "OUT_CANAL",
           "surface_z_local_m": 0.68,
@@ -17238,9 +17238,9 @@
           "level_delta": 0,
           "name": "MM_TILE_T74_RIVER_CANAL_HEADWORKS_V1_LOD0_SOCKET_W",
           "position_m": [
-            -1.0,
+            -1,
             0,
-            1.0
+            1
           ],
           "role": "GRID"
         }

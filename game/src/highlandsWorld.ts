@@ -59,7 +59,7 @@ const PLOT_CELLS: readonly PlotCells[] = [
   ["NV02", "pulse", -18, 58, -13, 65, 220],
   ["NV03", "pulse", -10, 58, -5, 65, 220],
   ["forge-lane", "kiln", 34, 58, 39, 65, 240],
-  ["cinderworks", "kiln", 42, 58, 47, 65, 240],
+  ["cinderworks", "kiln", 42, 66, 47, 73, 240],
   ["NV06", "kiln", 50, 58, 55, 65, 240],
   ["kitecrest-loft", "kite", -26, 82, -21, 89, 260],
   ["updraft-yard", "kite", -18, 82, -13, 89, 260],

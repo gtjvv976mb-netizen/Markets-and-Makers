@@ -938,6 +938,7 @@ document.body.addEventListener("click", (event) => {
         store.markTutorial("moved");
         store.savePosition();
         world.teleportToState(store.state);
+        realm.reseedPosition();
       }
     }
   }
@@ -1022,6 +1023,7 @@ renderAll();
 try {
   await world.load();
   world.teleportToState(store.state);
+  realm.reseedPosition();
   await world.syncBuilding(store.state);
   world.start(store.state);
   window.setTimeout(() => loadingScreen.classList.add("hidden"), 260);

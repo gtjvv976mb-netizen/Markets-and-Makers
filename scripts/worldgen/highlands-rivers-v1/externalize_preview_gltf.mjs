@@ -8,6 +8,16 @@ const GLB_MAGIC = 0x46546c67;
 const JSON_CHUNK = 0x4e4f534a;
 const BIN_CHUNK = 0x004e4942;
 const MAX_BUFFER_BYTES = 18 * 1024 * 1024;
+const NV05_RUNTIME_RELOCATION = {
+  from: { minX: 82, maxX: 96, minZ: -132, maxZ: -114 },
+  deltaZ: -16,
+  expectedVertices: 100,
+};
+const NV05_RESTORED_GRASS_CELLS = [
+  [42, 58], [46, 58], [47, 58],
+  ...[59, 60, 61, 62, 63].flatMap((y) => [[42, y], [43, y], [46, y], [47, y]]),
+  ...[64, 65].flatMap((y) => [42, 43, 44, 45, 46, 47].map((x) => [x, y])),
+];
 
 function fail(message) {
   throw new Error(message);
@@ -64,16 +74,170 @@ function parseGlb(bytes) {
   return { json, binary };
 }
 
+function relocateUnsafePlot(json, binary) {
+  const node = (json.nodes ?? []).find((entry) => entry.name === "MM_HRW_EMPTY_PLOTS_42");
+  const mesh = Number.isInteger(node?.mesh) ? json.meshes?.[node.mesh] : null;
+  if (!mesh) fail("The combined empty-plot mesh is missing");
+  let moved = 0;
+  for (const primitive of mesh.primitives ?? []) {
+    const accessor = json.accessors?.[primitive.attributes?.POSITION];
+    const view = json.bufferViews?.[accessor?.bufferView];
+    if (!accessor || !view || accessor.componentType !== 5126 || accessor.type !== "VEC3" || view.buffer !== 0) {
+      fail("The combined empty-plot positions are not tightly packed FLOAT VEC3 data");
+    }
+    const stride = view.byteStride ?? 12;
+    const start = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+    for (let index = 0; index < accessor.count; index += 1) {
+      const offset = start + index * stride;
+      const x = binary.readFloatLE(offset);
+      const z = binary.readFloatLE(offset + 8);
+      if (x < NV05_RUNTIME_RELOCATION.from.minX || x > NV05_RUNTIME_RELOCATION.from.maxX ||
+          z < NV05_RUNTIME_RELOCATION.from.minZ || z > NV05_RUNTIME_RELOCATION.from.maxZ) continue;
+      binary.writeFloatLE(z + NV05_RUNTIME_RELOCATION.deltaZ, offset + 8);
+      moved += 1;
+    }
+  }
+  if (moved !== NV05_RUNTIME_RELOCATION.expectedVertices) {
+    fail(`Expected to relocate ${NV05_RUNTIME_RELOCATION.expectedVertices} NV05 vertices, moved ${moved}`);
+  }
+  return moved;
+}
+
+function appendNv05Restoration(json, sourceBinary) {
+  const grassMaterial = (json.materials ?? []).findIndex((entry) => entry.name === "MAT_TERRAIN_GRASS_SAGE");
+  if (grassMaterial < 0) fail("The canonical grass material is missing");
+
+  const positions = [];
+  const normals = [];
+  const uvs = [];
+  const indices = [];
+  const inset = 0.975;
+  const elevation = 1.008;
+  for (const [cellX, cellY] of NV05_RESTORED_GRASS_CELLS) {
+    const centerX = cellX * 2;
+    const centerZ = -cellY * 2;
+    const base = positions.length / 3;
+    positions.push(
+      centerX - inset, elevation, centerZ - inset,
+      centerX + inset, elevation, centerZ - inset,
+      centerX + inset, elevation, centerZ + inset,
+      centerX - inset, elevation, centerZ + inset,
+    );
+    normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+    uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
+    indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+
+  const payloads = [
+    { bytes: Buffer.from(new Float32Array(positions).buffer), target: 34962 },
+    { bytes: Buffer.from(new Float32Array(normals).buffer), target: 34962 },
+    { bytes: Buffer.from(new Float32Array(uvs).buffer), target: 34962 },
+    { bytes: Buffer.from(new Uint16Array(indices).buffer), target: 34963 },
+  ];
+  let binary = Buffer.from(sourceBinary);
+  const viewIndexes = [];
+  for (const payload of payloads) {
+    const offset = align4(binary.length);
+    if (offset > binary.length) binary = Buffer.concat([binary, Buffer.alloc(offset - binary.length)]);
+    viewIndexes.push(json.bufferViews.length);
+    json.bufferViews.push({ buffer: 0, byteOffset: offset, byteLength: payload.bytes.length, target: payload.target });
+    binary = Buffer.concat([binary, payload.bytes]);
+  }
+
+  const accessorBase = json.accessors.length;
+  const xs = positions.filter((_, index) => index % 3 === 0);
+  const ys = positions.filter((_, index) => index % 3 === 1);
+  const zs = positions.filter((_, index) => index % 3 === 2);
+  json.accessors.push(
+    { bufferView: viewIndexes[0], componentType: 5126, count: positions.length / 3, type: "VEC3",
+      min: [Math.min(...xs), Math.min(...ys), Math.min(...zs)], max: [Math.max(...xs), Math.max(...ys), Math.max(...zs)] },
+    { bufferView: viewIndexes[1], componentType: 5126, count: normals.length / 3, type: "VEC3" },
+    { bufferView: viewIndexes[2], componentType: 5126, count: uvs.length / 2, type: "VEC2" },
+    { bufferView: viewIndexes[3], componentType: 5123, count: indices.length, type: "SCALAR", min: [0], max: [positions.length / 3 - 1] },
+  );
+  const meshIndex = json.meshes.length;
+  json.meshes.push({
+    name: "MM_HRW_NV05_OLD_SITE_RESTORED_GRASS",
+    primitives: [{
+      attributes: { POSITION: accessorBase, NORMAL: accessorBase + 1, TEXCOORD_0: accessorBase + 2 },
+      indices: accessorBase + 3,
+      material: grassMaterial,
+      mode: 4,
+    }],
+    extras: { runtime_patch: "NV05_OLD_SITE_RESTORED", cells: NV05_RESTORED_GRASS_CELLS.length },
+  });
+  const nodeIndex = json.nodes.length;
+  json.nodes.push({ name: "MM_HRW_NV05_OLD_SITE_RESTORED_GRASS", mesh: meshIndex,
+    extras: { runtime_patch: "NV05_OLD_SITE_RESTORED", cells: NV05_RESTORED_GRASS_CELLS.length } });
+  const scene = json.scenes?.[json.scene ?? 0];
+  if (!scene) fail("The canonical scene is missing");
+  scene.nodes = [...(scene.nodes ?? []), nodeIndex];
+  json.buffers[0].byteLength = binary.length;
+  return binary;
+}
+
+function patchNv05Records(value) {
+  if (!value || typeof value !== "object") return;
+  if (value.id === "NV05" && value.occupied_bounds_cells) {
+    value.anchor_cell_sw = [42, 66];
+    value.occupied_bounds_cells = { inclusive: true, min: [42, 66], max: [47, 73] };
+    value.utility_connection_cell = [45, 65];
+  }
+  for (const child of Object.values(value)) patchNv05Records(child);
+}
+
+function patchTerrainGrid(grid) {
+  const counts = {};
+  for (const row of grid.rows ?? []) {
+    const cells = new Map();
+    for (const run of row.runs ?? []) {
+      for (let x = run.x0; x <= run.x1; x += 1) cells.set(x, run.surface);
+    }
+    if (row.y >= 58 && row.y <= 65) {
+      for (let x = 42; x <= 47; x += 1) {
+        if (cells.get(x) === "empty_plot") cells.set(x, "land_l0");
+      }
+    }
+    if (row.y >= 66 && row.y <= 73) {
+      for (let x = 42; x <= 47; x += 1) {
+        if (cells.get(x) !== "land_l0") fail(`NV05 safe cell ${x},${row.y} is not canonical land_l0`);
+        cells.set(x, "empty_plot");
+      }
+    }
+    const runs = [];
+    for (const [x, surface] of [...cells.entries()].sort((a, b) => a[0] - b[0])) {
+      const last = runs.at(-1);
+      if (last && last.surface === surface && last.x1 + 1 === x) last.x1 = x;
+      else runs.push({ x0: x, x1: x, surface });
+      counts[surface] = (counts[surface] ?? 0) + 1;
+    }
+    row.runs = runs;
+  }
+  grid.surface_counts = Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+  grid.runtime_patches = [{
+    id: "NV05",
+    reason: "road-free relocation",
+    old_bounds_cells: { min: [42, 58], max: [47, 65] },
+    new_bounds_cells: { min: [42, 66], max: [47, 73] },
+    restored_grass_cells: NV05_RESTORED_GRASS_CELLS.length,
+  }];
+}
+
 async function main() {
-  const [sourceArg, outputArg] = process.argv.slice(2);
+  const [sourceArg, outputArg, metadataArg] = process.argv.slice(2);
   if (!sourceArg || !outputArg) {
-    fail("Usage: node externalize_preview_gltf.mjs <source.glb> <output-directory>");
+    fail("Usage: node externalize_preview_gltf.mjs <source.glb> <output-directory> [source-package-directory]");
   }
 
   const source = resolve(sourceArg);
   const output = resolve(outputArg);
   const glbBytes = await readFile(source);
-  const { json, binary } = parseGlb(glbBytes);
+  const sourceSha256 = sha256(glbBytes);
+  const parsed = parseGlb(glbBytes);
+  const json = parsed.json;
+  let binary = Buffer.from(parsed.binary);
+  const relocatedPlotVertices = relocateUnsafePlot(json, binary);
+  binary = appendNv05Restoration(json, binary);
   const originalViews = json.bufferViews ?? [];
   const embeddedImageViews = new Set(
     (json.images ?? []).map((image) => image.bufferView).filter((value) => Number.isInteger(value)),
@@ -92,6 +256,23 @@ async function main() {
       sha256: sha256(bytes),
     });
   };
+
+  if (metadataArg) {
+    const metadataRoot = resolve(metadataArg);
+    for (const filename of ["manifest.json", "layout.json", "hydrology.json", "terrain-grid.json"]) {
+      const sourceBytes = await readFile(join(metadataRoot, filename));
+      if (filename === "hydrology.json") {
+        await recordFile(join(output, filename), sourceBytes);
+        continue;
+      }
+      const document = JSON.parse(sourceBytes.toString("utf8"));
+      if (filename === "manifest.json" || filename === "layout.json") patchNv05Records(document);
+      if (filename === "terrain-grid.json") patchTerrainGrid(document);
+      const indent = filename === "terrain-grid.json" ? undefined : 2;
+      const bytes = Buffer.from(`${JSON.stringify(document, null, indent)}\n`, "utf8");
+      await recordFile(join(output, filename), bytes);
+    }
+  }
 
   for (const [index, image] of (json.images ?? []).entries()) {
     if (!Number.isInteger(image.bufferView)) continue;
@@ -170,7 +351,7 @@ async function main() {
       ...(json.asset?.extras ?? {}),
       browserPackage: "markets-and-makers.highlands-rivers-world.browser.v1",
       sourceGlb: basename(source),
-      sourceSha256: sha256(glbBytes),
+      sourceSha256,
     },
   };
   const gltfBytes = Buffer.from(`${JSON.stringify(json)}\n`, "utf8");
@@ -179,7 +360,15 @@ async function main() {
   const packageManifest = {
     schema: "markets-and-makers.highlands-rivers-world.browser-package.v1",
     version: 1,
-    source: { file: basename(source), bytes: glbBytes.length, sha256: sha256(glbBytes) },
+    source: { file: basename(source), bytes: glbBytes.length, sha256: sourceSha256 },
+    runtimePatches: [{
+      id: "NV05",
+      reason: "avoid road overlap",
+      delta_m: [0, -16],
+      vertices: relocatedPlotVertices,
+      applied_during_externalization: true,
+      restored_grass_cells: NV05_RESTORED_GRASS_CELLS.length,
+    }],
     entrypoint: "world.gltf",
     limits: { maximum_buffer_bytes: MAX_BUFFER_BYTES },
     counts: {

@@ -6,17 +6,30 @@
     "bytes": 35822912,
     "sha256": "a351cc398ac3b6987ab5177e60bba3b42d623843046a0a003d0b8ea77c14a05e"
   },
+  "runtimePatches": [
+    {
+      "id": "NV05",
+      "reason": "avoid road overlap",
+      "delta_m": [
+        0,
+        -16
+      ],
+      "vertices": 100,
+      "applied_during_externalization": true,
+      "restored_grass_cells": 35
+    }
+  ],
   "entrypoint": "world.gltf",
   "limits": {
     "maximum_buffer_bytes": 18874368
   },
   "counts": {
-    "nodes": 326,
-    "meshes": 275,
+    "nodes": 327,
+    "meshes": 276,
     "materials": 31,
     "images": 40,
     "buffers": 2,
-    "bufferViews": 5089
+    "bufferViews": 5093
   },
   "files": [
     {
@@ -26,8 +39,28 @@
     },
     {
       "file": "buffers/world-1.bin",
-      "bytes": 8535804,
-      "sha256": "1846b2144d323ea1639f7014b57708403ba47756bd5ec8a735de141660e57933"
+      "bytes": 8540704,
+      "sha256": "5b655aead1ab2ecf95d353caba5ad6b61d0e7d2e97bc254e908311830b1a6f0d"
+    },
+    {
+      "file": "hydrology.json",
+      "bytes": 732839,
+      "sha256": "7b0632260d04a7d2a8b8af5fd4dacd6ab8b073d9b04b364643e9bae53733fac5"
+    },
+    {
+      "file": "layout.json",
+      "bytes": 369914,
+      "sha256": "899e88779604603223183dfe6e0e8ac5e55c9635b49f7219c5afaf9806dd0bd8"
+    },
+    {
+      "file": "manifest.json",
+      "bytes": 384019,
+      "sha256": "a29ac10fe3e52217df72c599885a16a8406452b29e8a265aa0d246fd7c9bf822"
+    },
+    {
+      "file": "terrain-grid.json",
+      "bytes": 224462,
+      "sha256": "34311f81684957df4fe11805529ce4e336b6204a13176e38f771643aa9bb6743"
     },
     {
       "file": "textures/00-14_deep_water.png",
@@ -231,8 +264,8 @@
     },
     {
       "file": "world.gltf",
-      "bytes": 1034550,
-      "sha256": "c3d435b6cea308b669797a43bc8b9a8aca6a1e0dfb415373c26fe7f7d4a1e4d6"
+      "bytes": 1035521,
+      "sha256": "9e3e083569e785d766df582e814191d154e4fc8b6a468e7acc58e0c8e7c3780e"
     }
   ]
 }
