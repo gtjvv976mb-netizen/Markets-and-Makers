@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, ISLANDS, PLOTS, MOLLAR_CODE } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
 import { HIGHLANDS_WORLD_ENTRY, worldChunkAt } from "./highlandsWorld";
@@ -14,12 +16,26 @@ interface WorldCallbacks {
 
 interface Citizen {
   group: THREE.Group;
+  model: THREE.Group;
+  mixer: THREE.AnimationMixer;
   phase: number;
   radius: number;
   speed: number;
   centerX: number;
   centerZ: number;
 }
+
+const CITIZEN_AVATARS = [
+  "av02-urban-gardener.glb",
+  "av03-solar-technician.glb",
+  "av04-market-grocer.glb",
+  "av05-fabricator-engineer.glb",
+  "av06-harbor-courier.glb",
+  "av07-community-chef.glb",
+  "av08-cooperative-shopkeeper.glb",
+  "av10-repair-mechanic.glb",
+  "av12-water-systems-biologist.glb",
+].map((file) => `./assets/avatars/mercedonians/${file}`);
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
 const MAX_WALK_STEP = 0.62;
@@ -72,6 +88,7 @@ export class World3D {
   constructor(canvas: HTMLCanvasElement, callbacks: WorldCallbacks) {
     this.canvas = canvas;
     this.callbacks = callbacks;
+    this.loader.setMeshoptDecoder(MeshoptDecoder);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.AgXToneMapping;
@@ -459,9 +476,35 @@ export class World3D {
     }
   }
 
-  private createCitizens(): void {
-    const bodyGeometry = new THREE.CapsuleGeometry(0.24, 0.52, 3, 7);
-    const colors = [0x2f7777, 0xe17a58, 0xd1a445, 0x739667, 0x735f8d];
+  private normalizeCitizenModel(source: THREE.Object3D): THREE.Group {
+    const model = new THREE.Group();
+    const avatar = cloneSkeleton(source);
+    const bounds = new THREE.Box3().setFromObject(avatar);
+    const size = bounds.getSize(new THREE.Vector3());
+    const humanHeight = 1.86;
+    const scale = humanHeight / Math.max(size.y, 0.001);
+    avatar.scale.setScalar(scale);
+    avatar.position.set(
+      -(bounds.min.x + bounds.max.x) * 0.5 * scale,
+      -bounds.min.y * scale,
+      -(bounds.min.z + bounds.max.z) * 0.5 * scale,
+    );
+    avatar.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = this.dynamicShadows;
+      object.receiveShadow = true;
+      object.frustumCulled = true;
+    });
+    model.add(avatar);
+    return model;
+  }
+
+  private async createCitizens(): Promise<void> {
+    this.callbacks.onLoadProgress(0.9, "Welcoming Mercedonia's citizens");
+    const templates = await Promise.all(CITIZEN_AVATARS.map(async (url) => {
+      const gltf = await this.loader.loadAsync(url);
+      return { model: this.normalizeCitizenModel(gltf.scene), animations: gltf.animations };
+    }));
     for (let index = 0; index < 24; index += 1) {
       const group = new THREE.Group();
       const shadow = new THREE.Mesh(
@@ -471,21 +514,22 @@ export class World3D {
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.02;
       group.add(shadow);
-      const body = new THREE.Mesh(
-        bodyGeometry,
-        new THREE.MeshStandardMaterial({ color: colors[index % colors.length], roughness: 0.78 }),
-      );
-      body.position.y = 0.8;
-      group.add(body);
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18, 8, 6),
-        new THREE.MeshStandardMaterial({ color: index % 3 === 0 ? 0x8e5d42 : 0xc98c65, roughness: 0.8 }),
-      );
-      head.position.y = 1.42;
-      group.add(head);
+      const template = templates[index % templates.length];
+      const model = cloneSkeleton(template.model) as THREE.Group;
+      model.rotation.y = Math.PI;
+      group.add(model);
+      const mixer = new THREE.AnimationMixer(model);
+      const walk = THREE.AnimationClip.findByName(template.animations, "Walk");
+      if (walk) {
+        const action = mixer.clipAction(walk);
+        action.time = (index * 0.173) % walk.duration;
+        action.play();
+      }
       this.scene.add(group);
       this.citizens.push({
         group,
+        model,
+        mixer,
         phase: index * 0.79,
         radius: 10 + (index % 6) * 6.2,
         speed: 0.09 + (index % 5) * 0.012,
@@ -785,13 +829,17 @@ export class World3D {
     this.callbacks.onMoved();
   }
 
-  private updateCitizens(elapsed: number): void {
+  private updateCitizens(delta: number, elapsed: number): void {
     for (const citizen of this.citizens) {
       const angle = citizen.phase + elapsed * citizen.speed;
       citizen.group.position.x = citizen.centerX + Math.cos(angle) * citizen.radius;
       citizen.group.position.z = citizen.centerZ + Math.sin(angle * 1.11) * citizen.radius * 0.72;
-      citizen.group.position.y = 1.04;
-      citizen.group.rotation.y = -angle + Math.PI / 2;
+      const groundY = this.sampleWalkHeight(citizen.group.position.x, citizen.group.position.z, false);
+      citizen.group.position.y = groundY ?? 1.04;
+      const velocityX = -Math.sin(angle) * citizen.radius;
+      const velocityZ = Math.cos(angle * 1.11) * citizen.radius * 0.72 * 1.11;
+      citizen.group.rotation.y = Math.atan2(velocityX, velocityZ);
+      citizen.mixer.update(delta);
       citizen.group.visible = this.currentIsland === "hearth";
     }
   }
@@ -841,7 +889,7 @@ export class World3D {
       requestAnimationFrame(animate);
       const delta = Math.min(0.05, this.clock.getDelta());
       this.updateMovement(delta, state);
-      this.updateCitizens(this.clock.elapsedTime);
+      this.updateCitizens(delta, this.clock.elapsedTime);
       this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, this.keys.size > 0 || Boolean(this.clickTarget));
       this.updateCamera(delta);
