@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, MOLLAR_PER_MM, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
+import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, EPOCH_MM_BUDGET, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
@@ -354,18 +354,18 @@ describe("Markets & Makers economy", () => {
   it("keeps the Government Bank fully reserved, whatever players do", () => {
     const store = new GameStore(createFreshState());
     expect(store.state.bankTreasuryMM).toBe(BANK_TREASURY_MM);
-    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
     store.state.mmHoldings = 10_000;
     expect(store.exchangeMMForMollars(4_000).ok).toBe(true);
     expect(store.state.bankTreasuryMM).toBe(BANK_TREASURY_MM + 4_000);
-    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
     expect(store.exchangeMollarsForMM(50_000).ok).toBe(true);
-    expect(store.reserveCoverage()).toBeCloseTo(100, 6);
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
 
-    // Every Mollar in the world is still a claim on treasury that exists.
-    expect(store.mollarSupply()).toBe(store.state.bankTreasuryMM * MOLLAR_PER_MM);
+    // Outstanding claims are always a fraction of what the bank actually holds.
+    expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
   });
 
   it("cannot be round-tripped for free", () => {
@@ -390,6 +390,7 @@ describe("Markets & Makers economy", () => {
     rallied.tokenPriceUsd = () => 0.1;
 
     expect(rallied.economyValueUsd()).toBeCloseTo(valueBefore * 10, 4);
+    expect(rallied.mollarsForMM(1)).toBeCloseTo(store.mollarsForMM(1) * 10, 0);
     // ...and a loaf still costs the same inside the city.
     expect(rallied.marketBuyPrice("food")).toBe(breadBefore);
     // ...but the citizens who shop with you are better paid.

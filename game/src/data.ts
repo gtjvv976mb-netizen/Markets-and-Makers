@@ -351,7 +351,16 @@ export const TAX_RATE = 0.05;
 // A floating rate would do the opposite: players convert in at a high price and,
 // when the token falls, redemption demands more $MM than the bank ever held.
 // ---------------------------------------------------------------------------
-export const MOLLAR_PER_MM = 100;
+/**
+ * The peg: one USDT of $MM buys 10,000 Maker Dollars.
+ *
+ * A dollar peg backed by a volatile token is only safe while it is
+ * over-collateralised, so issuance is capped against the treasury's value. The seed
+ * reserve is unencumbered collateral — nobody holds a claim against it — which is what
+ * lets the peg survive a crash. At 4x, a 75% drawdown still leaves every Mollar covered.
+ */
+export const MOLLAR_PER_USD = 10_000;
+export const TARGET_COLLATERAL = 4;
 export const BANK_TREASURY_MM = 50_000_000;
 /** The bank keeps a spread on conversion; it funds civic wages. */
 export const BANK_SPREAD = 0.02;

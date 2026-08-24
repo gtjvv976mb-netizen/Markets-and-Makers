@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_MM, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, EPOCH_MM_BUDGET, ISLANDS, MM_EXCHANGE_BUNDLE, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -664,17 +664,18 @@ function renderMarket(): void {
       <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely citizens spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
     </details>
     <section class="bank-desk">
-      <div class="reserve-heading"><div><small>Government Bank</small><strong>Treasury &amp; exchange</strong></div><span>${store.reserveCoverage().toFixed(0)}% reserved</span></div>
-      <p>Bring $MM in and the bank holds it, deepening the city's treasury and paying its citizens. Every ${MOLLAR_CODE} is a claim on a fixed slice of that treasury, so the bank can always pay you back.</p>
+      <div class="reserve-heading"><div><small>Government Bank</small><strong>Treasury &amp; exchange</strong></div><span>${Number.isFinite(store.collateralRatio()) ? Math.round(store.collateralRatio() * 100) : 100}% covered</span></div>
+      <p>One dollar of $MM buys ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}. The $MM stays in the treasury, deepening the city's liquidity and paying its citizens. The bank only issues while it holds several times what it owes, which is what keeps the rate safe in a downturn.</p>
       <div class="reserve-balance">
         <div><small>Treasury</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
         <div><small>Money supply</small><strong>${formatNumber(store.mollarSupply())} ${MOLLAR_CODE}</strong></div>
-        <div><small>Rate</small><strong>1 $MM = ${MOLLAR_PER_MM} ${MOLLAR_CODE}</strong></div>
+        <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${MOLLAR_CODE}</strong></div>
+        <div><small>Rate</small><strong>$1 = ${formatNumber(MOLLAR_PER_USD)} ${MOLLAR_CODE}</strong></div>
         <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
       </div>
       <div class="reserve-actions">
         <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mollarsForMM(100))} ${MOLLAR_CODE}</small></button>
-        <button class="secondary" data-action="bank-out" ${store.state.wallet < MOLLAR_PER_MM ? "disabled" : ""}>Redeem 1,000 ${MOLLAR_CODE} <small>get ${store.mmForMollars(1000)} $MM</small></button>
+        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 ? "disabled" : ""}>Redeem 1,000 ${MOLLAR_CODE} <small>get ${store.mmForMollars(1000)} $MM</small></button>
       </div>
       <div class="city-strip">
         <div><small>Markians</small><strong>${formatNumber(store.markianPopulation())}</strong></div>

@@ -5,7 +5,7 @@ import {
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
   APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  MM_REFERENCE_PRICE_USD, MOLLAR_PER_MM, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE, MM_EXCHANGE_BUNDLE, MM_EXCHANGE_FEE_RATE,
@@ -49,7 +49,7 @@ export interface GameState {
   experience: number; specialization: SpecializationKey | null; contractsCompleted: number; contractSequence: number;
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
-  bankTreasuryMM: number;
+  bankTreasuryMM: number; mollarSupply: number;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
@@ -99,6 +99,7 @@ export function createFreshState(): GameState {
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
+    mollarSupply: INITIAL_MOLLAR_SUPPLY,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -227,6 +228,7 @@ export function loadState(): GameState {
         return restored;
       })(),
       bankTreasuryMM: finite(saved.bankTreasuryMM, BANK_TREASURY_MM, 0),
+      mollarSupply: finite(saved.mollarSupply, INITIAL_MOLLAR_SUPPLY, 0),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -517,55 +519,91 @@ export class GameStore {
 
   tokenMarketCapUsd(): number { return this.tokenPriceUsd() * MM_CIRCULATING_SUPPLY; }
 
-  /** Every Mollar in the world is backed by a fixed slice of the treasury. */
-  mollarSupply(): number { return Math.round(this.state.bankTreasuryMM * MOLLAR_PER_MM); }
+  /** Dollar value of everything the bank holds. */
+  treasuryValueUsd(): number { return this.state.bankTreasuryMM * this.tokenPriceUsd(); }
 
-  /** What the entire in-game money supply is worth outside the game. */
-  economyValueUsd(): number { return this.state.bankTreasuryMM * this.tokenPriceUsd(); }
+  /** Maker Dollars in circulation. Issued on conversion, destroyed on redemption. */
+  mollarSupply(): number { return this.state.mollarSupply; }
 
-  /** The bank is fully reserved by construction; this proves it rather than assumes it. */
+  /** Dollars owed if every Maker Dollar were redeemed at the peg. */
+  mollarClaimsUsd(): number { return this.state.mollarSupply / MOLLAR_PER_USD; }
+
+  /**
+   * Treasury value against outstanding claims. Above 100% every Mollar is covered;
+   * the seed reserve is what keeps this high enough to survive a crash.
+   */
+  collateralRatio(): number {
+    const claims = this.mollarClaimsUsd();
+    return claims <= 0 ? Infinity : this.treasuryValueUsd() / claims;
+  }
+
+  /** Kept for the older reserve readout. */
   reserveCoverage(): number {
-    const claims = this.mollarSupply() / MOLLAR_PER_MM;
-    return claims <= 0 ? 100 : (this.state.bankTreasuryMM / claims) * 100;
+    const ratio = this.collateralRatio();
+    return Number.isFinite(ratio) ? ratio * 100 : 100;
   }
 
+  /** How many more Maker Dollars the bank may safely issue at today's price. */
+  issuanceHeadroom(): number {
+    const ceiling = (this.treasuryValueUsd() / TARGET_COLLATERAL) * MOLLAR_PER_USD;
+    return Math.max(0, Math.floor(ceiling - this.state.mollarSupply));
+  }
+
+  /** The brief's rate: one USDT of $MM buys 10,000 Maker Dollars, less the bank's spread. */
   mollarsForMM(units: number): number {
-    return Math.floor(units * MOLLAR_PER_MM * (1 - BANK_SPREAD));
-  }
-
-  mmForMollars(amount: number): number {
-    return Math.floor((amount / MOLLAR_PER_MM) * (1 - BANK_SPREAD));
+    return Math.floor(units * this.tokenPriceUsd() * MOLLAR_PER_USD * (1 - BANK_SPREAD));
   }
 
   /**
+   * Redemption pays the peg while the bank is fully covered. If a crash ever pushes
+   * coverage below 100%, everyone takes the same haircut instead of the first in line
+   * draining what is left.
+   */
+  redemptionRate(): number { return Math.min(1, this.collateralRatio()); }
+
+  mmForMollars(amount: number): number {
+    const usd = (amount / MOLLAR_PER_USD) * this.redemptionRate() * (1 - BANK_SPREAD);
+    return Math.floor(usd / this.tokenPriceUsd());
+  }
+
+  /** What the whole in-game money supply is worth outside the game. */
+  economyValueUsd(): number { return this.treasuryValueUsd(); }
+
+  /**
    * Convert token holdings into spending money. The $MM stays in the treasury, which
-   * is what deepens the city's liquidity and pays civic wages.
+   * deepens the city's liquidity and pays its citizens.
    */
   exchangeMMForMollars(units: number): ActionResult {
     const amount = Math.floor(units);
     if (amount <= 0) return this.result(false, "Choose how much $MM to bring in.");
     if (this.state.mmHoldings < amount) return this.result(false, `You only hold ${this.state.mmHoldings} $MM.`);
     const credited = this.mollarsForMM(amount);
+    if (credited <= 0) return this.result(false, "That is too little to convert at today's price.");
+    if (credited > this.issuanceHeadroom()) {
+      return this.result(false, `The bank will only issue ${this.issuanceHeadroom()} more ${MOLLAR_CODE} until the treasury grows.`);
+    }
     this.state.mmHoldings -= amount;
     this.state.bankTreasuryMM += amount;
+    this.state.mollarSupply += credited;
     this.state.wallet += credited;
-    this.state.governmentTreasury += Math.round(amount * MOLLAR_PER_MM * BANK_SPREAD);
-    this.commit(`The Government Bank took ${amount} $MM into the treasury and issued ${credited} ${MOLLAR_CODE}.`, "success");
+    this.commit(`The Government Bank took ${amount} $MM and issued ${credited} ${MOLLAR_CODE}.`, "success");
     return this.result(true, "Converted.");
   }
 
-  /** Redeem the other way. Always possible: the claim is fixed, so the bank cannot run dry. */
+  /** Redeem the other way; the Maker Dollars are destroyed, not recycled. */
   exchangeMollarsForMM(amount: number): ActionResult {
     const spend = Math.floor(amount);
     if (spend <= 0) return this.result(false, "Choose how much to redeem.");
     if (this.state.wallet < spend) return this.result(false, `You only hold ${this.state.wallet} ${MOLLAR_CODE}.`);
     const units = this.mmForMollars(spend);
-    if (units <= 0) return this.result(false, `Redeem at least ${Math.ceil(MOLLAR_PER_MM / (1 - BANK_SPREAD))} ${MOLLAR_CODE}.`);
+    if (units <= 0) return this.result(false, "Redeem a larger amount to receive whole $MM.");
     if (this.state.bankTreasuryMM < units) return this.result(false, "The bank is settling other redemptions.");
     this.state.wallet -= spend;
+    this.state.mollarSupply = Math.max(0, this.state.mollarSupply - spend);
     this.state.bankTreasuryMM -= units;
     this.state.mmHoldings += units;
-    this.commit(`Redeemed ${spend} ${MOLLAR_CODE} for ${units} $MM.`, "success");
+    const haircut = this.redemptionRate() < 1 ? ` Coverage is ${(this.collateralRatio() * 100).toFixed(0)}%, so redemptions are shared evenly.` : "";
+    this.commit(`Redeemed ${spend} ${MOLLAR_CODE} for ${units} $MM.${haircut}`, "success");
     return this.result(true, "Redeemed.");
   }
 
