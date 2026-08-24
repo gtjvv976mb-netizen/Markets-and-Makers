@@ -529,6 +529,11 @@ for (const asset of worldDesignManifest.assets ?? []) {
   const path = inside(worldDesignRoot, asset.file);
   check(Boolean(path), `unsafe world design path ${asset.file}`);
   if (!path) continue;
+  // Scenery is generated in the browser from src/proceduralAssets.ts, so there is no
+  // GLB to weigh or hash. Its grounding, placement and count rules are still checked
+  // above and below; tests/proceduralAssets.test.ts proves the client can build every
+  // non-avatar asset this manifest declares. Rigged avatars still ship as GLB.
+  if (asset.category !== "avatar") continue;
   try {
     const bytes = await readFile(path);
     const parts = glbParts(bytes);

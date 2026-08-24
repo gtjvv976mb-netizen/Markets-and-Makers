@@ -186,6 +186,25 @@ export function worldDesignGrounding(asset: WorldDesignAsset): WorldDesignGround
   return resolved;
 }
 
+// The world is drawn on a 2 m grid whose cell centres land on even world coordinates,
+// and its coordinate contract allows only quarter-turn rotations. The authored scenery
+// drifts up to 0.25 m off those centres and uses 15-degree yaw steps, which is what
+// makes a street of props read as scattered rather than laid out. Snap what we draw.
+const TILE_SIZE_M = 2;
+
+export function snapToTileCentre(metres: number): number {
+  return Math.round(metres / TILE_SIZE_M) * TILE_SIZE_M;
+}
+
+/**
+ * Built things line up with the tiles; planting keeps its authored spin, because a
+ * hedgerow rotated onto four headings reads as a grid, not as a garden.
+ */
+export function tileYaw(category: string, yawDegrees: number): number {
+  if (category === "trees" || category === "shrubs") return yawDegrees;
+  return Math.round(yawDegrees / 90) * 90;
+}
+
 function prepareGeometry(source: THREE.Object3D, asset: WorldDesignAsset, grounding: WorldDesignGrounding): { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] } {
   source.updateWorldMatrix(true, true);
   const meshes: THREE.Mesh[] = [];
@@ -382,11 +401,14 @@ export async function loadWorldDesigns(
         instances.userData.category = asset.category;
         instances.userData.grounding = grounding;
         group.placements.forEach((placement, index) => {
-          const x = placement.position[0];
-          const z = placement.position[1];
+          // Ground probing stays on the authored point so the surface checks above keep
+          // validating the tile the prop was authored against; only what we draw is
+          // snapped onto the grid.
           const groundY = worldDesignPlacementY(placement, grounding, sampleGround);
+          const x = snapToTileCentre(placement.position[0]);
+          const z = snapToTileCentre(placement.position[1]);
           position.set(x, groundY, z);
-          rotation.setFromAxisAngle(yAxis, THREE.MathUtils.degToRad(placement.yawDegrees));
+          rotation.setFromAxisAngle(yAxis, THREE.MathUtils.degToRad(tileYaw(asset.category, placement.yawDegrees)));
           matrix.compose(position, rotation, unitScale);
           instances.setMatrixAt(index, matrix);
         });

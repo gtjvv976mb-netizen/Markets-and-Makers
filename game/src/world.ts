@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { installProceduralLoader } from "./proceduralAssets";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
@@ -110,7 +111,8 @@ export class World3D {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.OrthographicCamera;
 
-  private readonly loader = new GLTFLoader();
+  // Buildings and decorations are generated; terrain and rigged avatars still load.
+  private readonly loader = installProceduralLoader(new GLTFLoader());
   private readonly callbacks: WorldCallbacks;
   private readonly canvas: HTMLCanvasElement;
   private readonly clock = new THREE.Clock();
