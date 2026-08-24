@@ -185,6 +185,7 @@ describe("Markets & Makers economy", () => {
       state.wallet = 500_000;
       state.ownedPlotId = "garden-row"; state.license = license; state.buildingPlaced = true;
       state.upgrades = { yield: 3, capacity: 3, speed: 3, appeal: 3 };
+      state.staff = 4;                     // one Markian per batch
       const store = new GameStore(state);
       const config = BUSINESS[license];
       const cycles = 4;
@@ -394,6 +395,64 @@ describe("Markets & Makers economy", () => {
     // money between wallets and civic pools — they never create it.
     expect(store.mollarSupply()).toBe(supplyBefore);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
+  it("bills a business for water, power and wages whether it trades or not", () => {
+    const state = createFreshState();
+    state.wallet = 5_000;
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.staff = 2;
+    state.chargesSettledAt = Date.now() - 3 * 86_400_000;
+    const store = new GameStore(state);
+
+    const treasuryBefore = store.state.governmentTreasury;
+    const citizensBefore = store.state.citizenPool;
+    const paid = store.settleStandingCharges();
+
+    expect(paid).toBe(store.dailyOverhead() * 3);
+    // The city keeps the utility bill; the wages go to the Markians who earned them.
+    expect(store.state.governmentTreasury).toBe(treasuryBefore + store.dailyUtilityBill() * 3);
+    expect(store.state.citizenPool).toBe(citizensBefore + store.dailyPayroll() * 3);
+    // Charges settle once, not twice.
+    expect(store.settleStandingCharges()).toBe(0);
+  });
+
+  it("cuts the supply when the bill goes unpaid, and will not run until it is settled", () => {
+    const state = createFreshState();
+    state.wallet = 5;
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.chargesSettledAt = Date.now() - 2 * 86_400_000;
+    const store = new GameStore(state);
+
+    store.settleStandingCharges();
+    expect(store.state.suppliesCut).toBe(true);
+    expect(store.startJob().ok).toBe(false);
+
+    // Nobody is pushed into debt; you simply owe a reconnection.
+    expect(store.state.wallet).toBe(5);
+    store.state.wallet = 1_000;
+    expect(store.restoreSupply().ok).toBe(true);
+    expect(store.state.suppliesCut).toBe(false);
+  });
+
+  it("needs a Markian on the payroll for every batch a job runs", () => {
+    const state = createFreshState();
+    state.wallet = 60_000;
+    state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
+    state.upgrades = { yield: 0, capacity: 2, speed: 0, appeal: 0 };
+    state.staff = 1;
+    const store = new GameStore(state);
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) store.state.inventory[key] = 40;
+
+    expect(store.staffRequired()).toBe(3);
+    expect(store.startJob().ok).toBe(false);
+
+    const shareBefore = store.marketShare("food");
+    store.hireStaff(2);
+    expect(store.state.staff).toBe(3);
+    // More hands also means better service, so staffing wins custom too.
+    expect(store.marketShare("food")).toBeGreaterThan(shareBefore);
+    expect(store.startJob().ok).toBe(true);
   });
 
   it("burns $MM through a repeatable sink, not just a one-off purchase", () => {
@@ -741,6 +800,7 @@ describe("Markets & Makers economy", () => {
       state.ownedPlotId = "garden-row"; state.license = "factory"; state.buildingPlaced = true;
       state.upgrades = { yield: 0, capacity, speed: 0, appeal: 0 };
       state.jobsCompleted = OPENING_JOBS;   // past the accelerated opening
+      state.staff = 4;
       const store = new GameStore(state);
       for (const key of Object.keys(RESOURCES) as ResourceKey[]) {
         const need = (BUSINESS.factory.inputs[key] ?? 0) * (1 + capacity);

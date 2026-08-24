@@ -577,6 +577,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .marker.event .marker-pin { background: linear-gradient(140deg, rgba(150,92,20,.96), rgba(196,132,40,.92)); }
 .marker.event .marker-pin::after { background: rgba(196,132,40,.94); }
 .marker.event .marker-pin small { color: #ffe6ac; }
+.marker.civic .marker-pin { background: linear-gradient(140deg, rgba(96,84,52,.95), rgba(128,112,68,.9)); }
+.marker.civic .marker-pin::after { background: rgba(128,112,68,.92); }
+.marker.civic .marker-pin small { color: #ffe9b8; }
 .marker.far { opacity: .62; }
 .marker.far .marker-pin { min-width: 150px; padding: 6px 10px; }
 .marker.far .marker-pin small { font-size: 10px; }

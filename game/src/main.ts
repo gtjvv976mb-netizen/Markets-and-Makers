@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -88,6 +88,16 @@ function markerModels(): MarkerModel[] {
         x: island.x + 15, z: island.z - 6,
       });
     }
+  }
+
+  // The city's own industries: they were here before any player, and they are where
+  // the resources to build anything come from.
+  for (const civic of CIVIC_BUILDINGS.filter((entry) => entry.island === state.island)) {
+    const supply = civic.supplies.length
+      ? civic.supplies.map((key) => `${RESOURCES[key].short} ${store.marketBuyPrice(key)}`).join(" · ")
+      : civic.role;
+    models.push({ id: `civic-${civic.id}`, kind: "civic", label: civic.name, title: supply,
+                  detail: civic.supplies.length ? "Tap to buy" : "Tap to open", x: civic.x, z: civic.z });
   }
 
   const shock = store.districtEvent(state.island);
@@ -541,6 +551,7 @@ function renderBusiness(): void {
   element("#businessPanel").innerHTML = `
     <h2>${config.name}</h2>
     ${portfolioMarkup()}
+    ${state.suppliesCut ? `<article class="crisis-card"><i>!</i><div><strong>Water and power cut off</strong><p>The city stopped supply over unpaid standing charges.</p></div><button data-action="restore-supply">Settle ${store.dailyOverhead()} ${MOLLAR_CODE}</button></article>` : ""}
     ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${MOLLAR_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
 
@@ -567,6 +578,12 @@ function renderBusiness(): void {
       <div class="ops-toggles">
         ${([["autoProduce","Keep working","Run jobs while you are away"],["autoBuy","Restock","Buy what it needs, 3% extra"],["autoSell","Auto-sell","A broker sells for you, keeps 7%"]] as const).map(([key, name, hint]) => `<button class="ops-toggle ${state.operations[key] ? "on" : "off"}" data-action="operation" data-operation="${key}" aria-pressed="${state.operations[key]}"><span class="ops-dot"></span><span><strong>${name}</strong><small>${hint}</small></span></button>`).join("")}
       </div>
+    </details>
+
+    <details class="fold"><summary>Payroll &amp; bills<span>${store.dailyOverhead()} ${MOLLAR_CODE}/day</span></summary>
+      <div class="stat-grid"><div class="stat"><small>Markians employed</small><strong>${state.staff}</strong></div><div class="stat ${state.staff < store.staffRequired() ? "negative" : ""}"><small>Needed per job</small><strong>${store.staffRequired()}</strong></div><div class="stat"><small>Wages</small><strong>${store.dailyPayroll()}/day</strong></div><div class="stat"><small>Water &amp; power</small><strong>${store.dailyUtilityBill()}/day</strong></div></div>
+      <div class="game-card two-up"><button data-action="hire">Hire a Markian</button><button class="secondary" data-action="release" ${state.staff <= 0 ? "disabled" : ""}>Let one go</button></div>
+      <small class="ops-note">Their wages are their spending money — the citizens you employ are the customers who shop with you.</small>
     </details>
 
     <details class="fold"><summary>Improve<span>Lv ${Object.values(state.upgrades).reduce((a, b) => a + b, 0)}</span></summary>
@@ -930,6 +947,9 @@ document.body.addEventListener("click", (event) => {
   else if (action === "bank-in") report(store.exchangeMMForMollars(100));
   else if (action === "bank-out") report(store.exchangeMollarsForMM(1000));
   else if (action === "repair") report(store.repairBreakdown());
+  else if (action === "restore-supply") report(store.restoreSupply());
+  else if (action === "hire") report(store.hireStaff());
+  else if (action === "release") report(store.releaseStaff());
   else if (action === "switch-business") report(store.switchBusiness(button.dataset.plot ?? ""));
   else if (action === "marker" && button.dataset.plot === "order") {
     const active = store.state.activeContract;
@@ -938,6 +958,10 @@ document.body.addEventListener("click", (event) => {
     else switchTab("trade");
   }
   else if (action === "marker" && button.dataset.plot === "market") switchTab("trade");
+  else if (action === "marker" && (button.dataset.plot ?? "").startsWith("civic-")) {
+    const civic = CIVIC_BUILDINGS.find((entry) => `civic-${entry.id}` === button.dataset.plot);
+    switchTab(civic?.opens ?? "trade");
+  }
   else if (action === "marker" && button.dataset.plot === "event") switchTab("world");
   else if (action === "marker") {
     const plotId = button.dataset.plot ?? "";

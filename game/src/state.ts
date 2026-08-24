@@ -5,7 +5,7 @@ import {
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
   APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  CHARTER_COST_MM, DEED_COST_MM, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_APPEAL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  CHARTER_COST_MM, DEED_COST_MM, POWER_STANDING_CHARGE, STAFF_APPEAL, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY, WATER_STANDING_CHARGE, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_APPEAL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
@@ -49,6 +49,7 @@ export interface GameState {
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
+  staff: number; chargesSettledAt: number; suppliesCut: boolean;
   sponsoredUntil: number; chartered: boolean;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
@@ -100,6 +101,7 @@ export function createFreshState(): GameState {
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
     epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
+    staff: 1, chargesSettledAt: Date.now(), suppliesCut: false,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -232,6 +234,9 @@ export function loadState(): GameState {
       deeds: Math.floor(finite(saved.deeds, 0, 0, 40)),
       mmBurned: finite(saved.mmBurned, 0, 0),
       sponsoredUntil: finite(saved.sponsoredUntil, 0, 0),
+      staff: Math.floor(finite(saved.staff, 1, 0, 200)),
+      chargesSettledAt: finite(saved.chargesSettledAt, Date.now()),
+      suppliesCut: Boolean(saved.suppliesCut),
       chartered: Boolean(saved.chartered),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
@@ -396,6 +401,8 @@ export class GameStore {
     if (!this.state.buildingPlaced || !this.state.license) return this.result(false, "Build your licensed business first.");
     if (this.state.job) return this.result(false, "A production job is already active.");
     if (this.state.brokenDown) return this.result(false, "The line is broken down. Send an emergency repair crew first.");
+    if (this.state.suppliesCut) return this.result(false, "The city cut your water and power. Settle the standing charges first.");
+    if (this.state.staff < this.staffRequired()) return this.result(false, `This job needs ${this.staffRequired()} Markian${this.staffRequired() === 1 ? "" : "s"} on the payroll.`);
     if (this.state.condition < 20) return this.result(false, "Repair the equipment before starting another job.");
     const config = BUSINESS[this.state.license]; const cycles = this.inputMultiplier();
     const laborMultiplier = this.state.specialization === "community" ? 1.1 : 1;
@@ -661,6 +668,80 @@ export class GameStore {
   projectedEpochMM(): number {
     const budgeted = Math.floor(this.epochBudget() * this.epochShare());
     return Math.max(0, Math.min(budgeted, this.state.mmReserve - MIN_MM_RESERVE));
+  }
+
+  // ---------------------------------------------------------------------
+  // Standing charges and staff
+  // ---------------------------------------------------------------------
+
+  /** What the city bills this business each day, trading or not. */
+  dailyUtilityBill(): number {
+    if (!this.state.buildingPlaced) return 0;
+    const capacity = this.state.upgrades.capacity;
+    return WATER_STANDING_CHARGE + POWER_STANDING_CHARGE + capacity * UTILITY_PER_CAPACITY;
+  }
+
+  /** Markians on the payroll. One is needed per batch a job runs. */
+  staffRequired(): number { return this.inputMultiplier(); }
+
+  dailyPayroll(): number { return this.state.staff * STAFF_DAILY_WAGE; }
+
+  dailyOverhead(): number { return this.dailyUtilityBill() + this.dailyPayroll(); }
+
+  hireStaff(count = 1): ActionResult {
+    if (!this.state.buildingPlaced) return this.result(false, "Build your business before hiring.");
+    const hired = Math.max(1, Math.floor(count));
+    this.state.staff += hired;
+    this.commit(`${hired} Markian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${MOLLAR_CODE} a day each.`, "success");
+    return this.result(true, "Hired.");
+  }
+
+  releaseStaff(count = 1): ActionResult {
+    if (this.state.staff <= 0) return this.result(false, "Nobody is on your payroll.");
+    const released = Math.min(this.state.staff, Math.max(1, Math.floor(count)));
+    this.state.staff -= released;
+    this.state.reputation = Math.max(0, this.state.reputation - released);
+    this.commit(`${released} Markian${released === 1 ? "" : "s"} left the payroll.`, "warning");
+    return this.result(true, "Released.");
+  }
+
+  /** Settle the city's bill and the payroll for any whole days that have passed. */
+  settleStandingCharges(now = Date.now()): number {
+    if (!this.state.buildingPlaced) { this.state.chargesSettledAt = now; return 0; }
+    const elapsed = now - this.state.chargesSettledAt;
+    const days = Math.floor(elapsed / 86_400_000);
+    if (days <= 0) return 0;
+
+    const bill = this.dailyUtilityBill() * days;
+    const payroll = this.dailyPayroll() * days;
+    const owed = bill + payroll;
+    this.state.chargesSettledAt += days * 86_400_000;
+
+    if (this.state.wallet < owed) {
+      // Unpaid bills cut the supply rather than pushing anyone into debt.
+      this.state.suppliesCut = true;
+      this.commit(`The city cut your water and power: ${owed} ${MOLLAR_CODE} of standing charges went unpaid.`, "warning");
+      return 0;
+    }
+    this.state.wallet -= owed;
+    this.state.governmentTreasury += bill;
+    this.state.citizenPool += payroll;
+    this.state.laborPaid += payroll;
+    this.state.suppliesCut = false;
+    return owed;
+  }
+
+  /** Pay off a cut supply and get the line running again. */
+  restoreSupply(): ActionResult {
+    if (!this.state.suppliesCut) return this.result(false, "Your supply is connected.");
+    const owed = this.dailyOverhead();
+    if (this.state.wallet < owed) return this.result(false, `Reconnection needs ${owed} ${MOLLAR_CODE}.`);
+    this.state.wallet -= owed;
+    this.state.governmentTreasury += this.dailyUtilityBill();
+    this.state.citizenPool += this.dailyPayroll();
+    this.state.suppliesCut = false;
+    this.commit("Water and power reconnected.", "success");
+    return this.result(true, "Reconnected.");
   }
 
   /** Whether this week's district sponsorship is still running. */
@@ -969,6 +1050,9 @@ export class GameStore {
       return report;
     }
 
+    this.settleStandingCharges(now);
+    if (this.state.suppliesCut) { report.halted = "funds"; this.state.lastTickAt = now; this.state.lastShift = report; return report; }
+
     let day = utcDay(clock);
     for (let guard = 0; guard < 400; guard += 1) {
       if (this.state.brokenDown) { report.halted = "breakdown"; break; }
@@ -1186,6 +1270,7 @@ export class GameStore {
   businessAppeal(): number {
     return 1
       + (this.sponsorshipActive() ? SPONSORSHIP_APPEAL : 0)
+      + Math.min(1, this.state.staff * STAFF_APPEAL)
       + this.state.upgrades.appeal * APPEAL_SHARE_WEIGHT
       + this.state.upgrades.yield * QUALITY_SHARE_WEIGHT
       + Math.min(1.2, this.state.reputation * REPUTATION_SHARE_WEIGHT)

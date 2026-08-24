@@ -413,6 +413,38 @@ export const MARKIAN_SPEND_RATE = 0.72;
 /** Civic wages scale with what the bank holds and what the token is worth. */
 export const CIVIC_WAGE_BASE = 9;
 
+// ---------------------------------------------------------------------------
+// The city's own industries. These exist before any player does: they are what
+// makes it possible to build anything at all, and the Markians work for them.
+// ---------------------------------------------------------------------------
+export interface CivicBuilding {
+  id: string; name: string; role: string; island: string;
+  x: number; z: number; icon: string; color: string;
+  supplies: ResourceKey[]; opens: "trade" | "world";
+}
+
+export const CIVIC_BUILDINGS: CivicBuilding[] = [
+  { id: "cityhall", name: "City Hall", role: "Plots, licences and civic records", island: "hearth",
+    x: 0, z: -8, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
+  { id: "bank", name: "Government Bank", role: "$MM treasury and the Maker Dollar", island: "hearth",
+    x: 26, z: -4, icon: "\u25C8", color: "#5b7fb0", supplies: [], opens: "trade" },
+  { id: "waterworks", name: "Civic Waterworks", role: "Water for every business in the city", island: "tide",
+    x: 0, z: 8, icon: "\u2248", color: "#4eaeb7", supplies: ["water"], opens: "trade" },
+  { id: "powerhouse", name: "Civic Power Station", role: "Electricity for every business", island: "sun",
+    x: 0, z: 8, icon: "\u03DF", color: "#dda942", supplies: ["power"], opens: "trade" },
+  { id: "quarry", name: "Civic Quarry", role: "Raw mineral and timber for builders", island: "kiln",
+    x: 0, z: 10, icon: "\u25C6", color: "#8d806d", supplies: ["ore", "timber"], opens: "trade" },
+];
+
+// --- Standing charges: a business owes the city whether it trades or not -----
+export const WATER_STANDING_CHARGE = 6;
+export const POWER_STANDING_CHARGE = 8;
+export const UTILITY_PER_CAPACITY = 7;
+
+// --- Staff: you employ Markians, and their wages are their spending money ----
+export const STAFF_DAILY_WAGE = 14;
+export const STAFF_APPEAL = 0.08;
+
 export const MOLLAR_NAME = "Maker Dollar";
 export const MOLLAR_CODE = "MD";
 export const INITIAL_MOLLAR_SUPPLY = 50_000_000;
