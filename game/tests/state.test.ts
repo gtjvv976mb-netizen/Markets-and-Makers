@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, DEED_COST_MM, MM_BURN_RATE, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
+import { BANK_TREASURY_MM, BREAKDOWN_CONDITION, CHARTER_COST_MM, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, BUSINESS, CAPACITY_DURATION_STEP, TARGET_COLLATERAL, EVENT_MAX_BONUS, EVENT_MIN_BONUS, ISLANDS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, COHORT_CONTRIBUTION_BASE, DEMAND_PRICE_FLOOR, INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, MIN_MM_RESERVE, RESOURCES, SAVE_KEY, type LicenseKey, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
@@ -394,6 +394,49 @@ describe("Markets & Makers economy", () => {
     // money between wallets and civic pools — they never create it.
     expect(store.mollarSupply()).toBe(supplyBefore);
     expect(store.collateralRatio()).toBeGreaterThanOrEqual(TARGET_COLLATERAL);
+  });
+
+  it("burns $MM through a repeatable sink, not just a one-off purchase", () => {
+    // A one-off purchase burns once. Sponsorship is bought again every week, which is
+    // what balances a continuous emission against continuous demand.
+    const store = new GameStore(createFreshState());
+    store.state.mmHoldings = SPONSORSHIP_COST_MM * 2;
+    const shareBefore = store.marketShare("food");
+
+    expect(store.purchaseSponsorship().ok).toBe(true);
+    expect(store.sponsorshipActive()).toBe(true);
+    expect(store.marketShare("food")).toBeGreaterThan(shareBefore);
+    expect(store.state.mmBurned).toBe(Math.round(SPONSORSHIP_COST_MM * MM_BURN_RATE));
+
+    // It cannot be stacked; you buy it again next week.
+    expect(store.purchaseSponsorship().ok).toBe(false);
+
+    const later = Date.now() + 8 * 86_400_000;
+    expect(store.sponsorshipActive(later)).toBe(false);
+    expect(store.purchaseSponsorship(later).ok).toBe(true);
+  });
+
+  it("gates the fourth equipment tier behind a charter bought with $MM", () => {
+    const state = createFreshState();
+    state.wallet = 90_000;
+    state.ownedPlotId = "garden-row"; state.license = "workshop"; state.buildingPlaced = true;
+    state.upgrades = { yield: 3, capacity: 0, speed: 0, appeal: 0 };
+    const store = new GameStore(state);
+    for (const key of Object.keys(RESOURCES) as ResourceKey[]) store.state.inventory[key] = 40;
+
+    expect(store.upgradeCeiling()).toBe(3);
+    expect(store.purchaseUpgrade("yield").ok).toBe(false);
+
+    store.state.mmHoldings = CHARTER_COST_MM;
+    expect(store.purchaseCharter().ok).toBe(true);
+    expect(store.upgradeCeiling()).toBe(MAX_UPGRADE_LEVEL);
+    expect(store.state.mmBurned).toBe(Math.round(CHARTER_COST_MM * MM_BURN_RATE));
+
+    expect(store.purchaseUpgrade("yield").ok).toBe(true);
+    expect(store.state.upgrades.yield).toBe(4);
+    // And it stops there.
+    expect(store.purchaseUpgrade("yield").ok).toBe(false);
+    expect(store.purchaseCharter().ok).toBe(false);
   });
 
   it("draws emission from the pool as a share, so it never runs dry", () => {

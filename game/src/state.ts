@@ -5,7 +5,7 @@ import {
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
   APPEAL_SHARE_WEIGHT, BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MARKIANS_BASE, MARKIANS_PER_BUSINESS, MARKIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
-  DEED_COST_MM, EPOCH_EMISSION_RATE, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
+  CHARTER_COST_MM, DEED_COST_MM, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_APPEAL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MOLLAR_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE, QUALITY_SHARE_WEIGHT, REPUTATION_SHARE_WEIGHT,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
@@ -49,6 +49,7 @@ export interface GameState {
   activeContract: ContractOffer | null; daily: DailyProgress; procurement: ProcurementLedger; economyHistory: EconomySnapshot[];
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
+  sponsoredUntil: number; chartered: boolean;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
@@ -98,7 +99,7 @@ export function createFreshState(): GameState {
     daily: { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false },
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
-    epochIssued: 0, deeds: 0, mmBurned: 0,
+    epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -230,6 +231,8 @@ export function loadState(): GameState {
       epochIssued: finite(saved.epochIssued, 0, 0),
       deeds: Math.floor(finite(saved.deeds, 0, 0, 40)),
       mmBurned: finite(saved.mmBurned, 0, 0),
+      sponsoredUntil: finite(saved.sponsoredUntil, 0, 0),
+      chartered: Boolean(saved.chartered),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
       procurement: { date: today, used: procurementUsed },
@@ -660,6 +663,43 @@ export class GameStore {
     return Math.max(0, Math.min(budgeted, this.state.mmReserve - MIN_MM_RESERVE));
   }
 
+  /** Whether this week's district sponsorship is still running. */
+  sponsorshipActive(now = Date.now()): boolean { return this.state.sponsoredUntil > now; }
+
+  /**
+   * Buy a week of district sponsorship: your business is promoted to the Markians, which
+   * wins you a larger share of local custom. Repeatable, which is what makes it the
+   * sink that actually balances emission.
+   */
+  purchaseSponsorship(now = Date.now()): ActionResult {
+    if (this.sponsorshipActive(now)) return this.result(false, "Your sponsorship is still running this week.");
+    if (this.state.mmHoldings < SPONSORSHIP_COST_MM) return this.result(false, `Sponsorship costs ${SPONSORSHIP_COST_MM} $MM.`);
+    const burned = Math.round(SPONSORSHIP_COST_MM * MM_BURN_RATE);
+    this.state.mmHoldings -= SPONSORSHIP_COST_MM;
+    this.state.mmBurned += burned;
+    this.state.mmReserve += SPONSORSHIP_COST_MM - burned;
+    this.state.sponsoredUntil = now + EPOCH_LENGTH_DAYS * 86_400_000;
+    this.addExperience(20);
+    this.commit(`The district is advertising your business this week. ${burned} $MM was destroyed.`, "success");
+    return this.result(true, "Sponsored.");
+  }
+
+  /** Raise one equipment track past its normal ceiling, permanently. */
+  purchaseCharter(): ActionResult {
+    if (this.state.chartered) return this.result(false, "This business already holds a master charter.");
+    if (this.state.mmHoldings < CHARTER_COST_MM) return this.result(false, `A master charter costs ${CHARTER_COST_MM} $MM.`);
+    const burned = Math.round(CHARTER_COST_MM * MM_BURN_RATE);
+    this.state.mmHoldings -= CHARTER_COST_MM;
+    this.state.mmBurned += burned;
+    this.state.mmReserve += CHARTER_COST_MM - burned;
+    this.state.chartered = true;
+    this.addExperience(120);
+    this.commit(`Master charter granted: your equipment may now reach level ${MAX_UPGRADE_LEVEL}. ${burned} $MM was destroyed.`, "success");
+    return this.result(true, "Chartered.");
+  }
+
+  upgradeCeiling(): number { return this.state.chartered ? MAX_UPGRADE_LEVEL : 3; }
+
   /** Deeds a player has bought outright, on top of the allowance civic standing grants. */
   deedAllowance(): number { return this.state.deeds; }
 
@@ -712,7 +752,11 @@ export class GameStore {
   purchaseUpgrade(key: UpgradeKey): ActionResult {
     if (!this.state.buildingPlaced || !this.state.license) return this.result(false, "Build a business before installing equipment.");
     const current = this.state.upgrades[key];
-    if (current >= 3) return this.result(false, "This improvement is already at level 3.");
+    if (current >= this.upgradeCeiling()) {
+      return this.result(false, this.state.chartered
+        ? `This improvement is at its maximum of level ${MAX_UPGRADE_LEVEL}.`
+        : "Level 3 is the limit without a master charter.");
+    }
     const cost = UPGRADE_COSTS[current + 1];
     if (this.state.wallet < cost.sunmarks) return this.result(false, `You need ${cost.sunmarks} ${MOLLAR_CODE}.`);
     for (const resource of resourceKeys) { const needed = cost.resources[resource] ?? 0; if (this.state.inventory[resource] < needed) return this.result(false, `You need ${needed} ${RESOURCES[resource].short}.`); }
@@ -1141,6 +1185,7 @@ export class GameStore {
   /** What makes a customer pick you: appeal, product quality, and your track record. */
   businessAppeal(): number {
     return 1
+      + (this.sponsorshipActive() ? SPONSORSHIP_APPEAL : 0)
       + this.state.upgrades.appeal * APPEAL_SHARE_WEIGHT
       + this.state.upgrades.yield * QUALITY_SHARE_WEIGHT
       + Math.min(1.2, this.state.reputation * REPUTATION_SHARE_WEIGHT)

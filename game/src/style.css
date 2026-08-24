@@ -635,3 +635,12 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #f0be50; outline
 .city-strip > div { padding: 8px 6px; border-radius: 10px; background: rgba(255,255,255,.76); text-align: center; }
 .city-strip small { display: block; color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .city-strip strong { display: block; margin-top: 2px; font-size: 14.5px; }
+
+/* ---- what $MM is for ---- */
+.sink-list { display: grid; gap: 6px; }
+.sink { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 11px 12px; border: 1px solid rgba(145,113,43,.28); border-radius: 12px; background: rgba(255,255,255,.72); text-align: left; }
+.sink strong { display: block; font-size: 14px; }
+.sink small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.sink b { padding: 5px 10px; border-radius: 999px; background: #efe2c0; color: #7a5a18; font-size: 13px; white-space: nowrap; }
+.sink:not(:disabled):hover { border-color: #c8922f; background: #fff; }
+.sink:disabled { opacity: .5; }

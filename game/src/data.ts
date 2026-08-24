@@ -146,6 +146,7 @@ export const UPGRADE_COSTS: Array<{ sunmarks: number; resources: Partial<Record<
   { sunmarks: 70, resources: { crate: 1, part: 1 } },
   { sunmarks: 150, resources: { part: 2, equipment: 1, supply: 1 } },
   { sunmarks: 280, resources: { part: 3, equipment: 2, material: 2 } },
+  { sunmarks: 520, resources: { part: 4, equipment: 3, material: 3, supply: 2 } },
 ];
 
 export const SPECIALIZATIONS: Record<SpecializationKey, SpecializationConfig> = {
@@ -276,6 +277,18 @@ export const EPOCH_MM_BUDGET = 60_000;
  * neutral.
  */
 export const DEED_COST_MM = 250;
+
+/**
+ * The recurring sink matters most. A one-off purchase burns once; sponsorship is bought
+ * again every week, which is what the model asked for — a premium spend priced near a
+ * player's own weekly emission, so the flow balances instead of only accumulating.
+ */
+export const SPONSORSHIP_COST_MM = 80;
+export const SPONSORSHIP_APPEAL = 0.6;
+
+/** A permanent ceiling-raiser: the only way past level 3 on any equipment track. */
+export const CHARTER_COST_MM = 600;
+export const MAX_UPGRADE_LEVEL = 4;
 export const MM_BURN_RATE = 0.4;
 export const COHORT_CONTRIBUTION_BASE = 45_000;
 export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, civic: 0.1, auto: 0.05 } as const;

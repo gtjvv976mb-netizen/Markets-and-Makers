@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, DEED_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MOLLAR_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, MOLLAR_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
@@ -700,8 +700,24 @@ function renderMarket(): void {
       </div>
       ${walletMarkup()}
       <p class="epoch-note">Orders are worth <strong>10&times;</strong> what dumping stock on the city is.</p>
+      <div class="section-title">Spend it</div>
+      <div class="sink-list">
+        <button class="sink" data-action="buy-sponsor" ${store.state.mmHoldings < SPONSORSHIP_COST_MM || store.sponsorshipActive() ? "disabled" : ""}>
+          <div><strong>${store.sponsorshipActive() ? "Sponsored this week" : "Sponsor your district"}</strong><small>A week of promotion — wins you more local custom</small></div>
+          <b>${SPONSORSHIP_COST_MM} $MM</b>
+        </button>
+        <button class="sink" data-action="buy-deed" ${store.state.mmHoldings < DEED_COST_MM ? "disabled" : ""}>
+          <div><strong>Civic deed</strong><small>A permanent extra plot${store.state.deeds ? ` · you hold ${store.state.deeds}` : ""}</small></div>
+          <b>${DEED_COST_MM} $MM</b>
+        </button>
+        <button class="sink" data-action="buy-charter" ${store.state.mmHoldings < CHARTER_COST_MM || store.state.chartered ? "disabled" : ""}>
+          <div><strong>${store.state.chartered ? "Master charter held" : "Master charter"}</strong><small>Raises every equipment ceiling to level ${MAX_UPGRADE_LEVEL}</small></div>
+          <b>${CHARTER_COST_MM} $MM</b>
+        </button>
+      </div>
+      <small class="epoch-note">${Math.round(MM_BURN_RATE * 100)}% of everything spent here is destroyed for good; the rest returns to next week's pool. ${store.state.mmBurned ? `You have burned ${formatNumber(store.state.mmBurned)} $MM.` : ""}</small>
       <div class="reserve-actions">
-        <button class="secondary" data-action="buy-deed" ${store.state.mmHoldings < DEED_COST_MM ? "disabled" : ""}>Buy a civic deed <small>${DEED_COST_MM} $MM · +1 plot</small></button>
+        <button class="secondary" hidden data-action="buy-deed" ${store.state.mmHoldings < DEED_COST_MM ? "disabled" : ""}>Buy a civic deed <small>${DEED_COST_MM} $MM · +1 plot</small></button>
         <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
@@ -909,6 +925,8 @@ document.body.addEventListener("click", (event) => {
   else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
   else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "buy-deed") report(store.purchaseDeed());
+  else if (action === "buy-sponsor") report(store.purchaseSponsorship());
+  else if (action === "buy-charter") report(store.purchaseCharter());
   else if (action === "bank-in") report(store.exchangeMMForMollars(100));
   else if (action === "bank-out") report(store.exchangeMollarsForMM(1000));
   else if (action === "repair") report(store.repairBreakdown());
