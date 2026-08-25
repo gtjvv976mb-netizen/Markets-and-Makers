@@ -1,0 +1,301 @@
+import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+
+// Streets: asphalt, lane markings, kerbs, lamps and moving traffic, all raised from the
+// extracted carriageway bands.
+//
+// The tile texture underneath cannot carry a centre line, because one tile serves roads
+// running both ways and their junctions — a dash baked into it would point the wrong way
+// half the time. Markings therefore live here, where the road's axis is known.
+
+export interface RoadNet {
+  tileSize: number;
+  laneWidthCells: number;
+  /** [axis (0 = east-west, 1 = north-south), centre cell, from cell, to cell] */
+  carriageways: Array<[number, number, number, number]>;
+  footways: Array<[number, number, number, number]>;
+}
+
+const ASPHALT = 0x3f4147;
+const MARKING = 0xe8e2cc;
+const KERB = 0xc9c2a8;
+const FOOTWAY = 0xd8cfb0;
+const LAMP_POST = 0x8d9298;
+const LAMP_HEAD = 0xffd980;
+const SOLAR = 0x2b3f63;
+
+/** Ground height under a point, so streets follow the terrain they are cut into. */
+export type SampleGround = (x: number, z: number) => number | null;
+
+interface Segment { x: number; z: number; length: number; horizontal: boolean; y: number }
+
+const CAR_BODY = [0xd9d3c4, 0x9fb4c4, 0xc98c5f, 0x8fa9a2, 0xb46e63, 0xe0c07a] as const;
+
+export interface BuiltStreets {
+  group: THREE.Group;
+  update: (delta: number) => void;
+  carCount: number;
+  lampCount: number;
+}
+
+export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: { shadows: boolean }): BuiltStreets {
+  const group = new THREE.Group();
+  group.name = "MM_STREETS";
+  const tile = net.tileSize;
+  const laneWidth = net.laneWidthCells * tile;
+
+  // Roads are cut into terraces, so a long run can change level. Sampling every few
+  // cells keeps the surface on the ground without paying for per-cell geometry.
+  const STEP_CELLS = 4;
+  const segments: Segment[] = [];
+  for (const [axis, centre, from, to] of net.carriageways) {
+    const horizontal = axis === 0;
+    for (let start = from; start < to; start += STEP_CELLS) {
+      const end = Math.min(start + STEP_CELLS, to);
+      const midRun = (start + end) / 2;
+      const x = horizontal ? midRun * tile : centre * tile;
+      const z = horizontal ? -centre * tile : -midRun * tile;
+      const ground = sampleGround(x, z);
+      if (ground === null) continue;
+      segments.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
+    }
+  }
+
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const matrix = new THREE.Matrix4();
+  const material = (color: number, roughness = 0.95) =>
+    new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  // --- carriageway surface ---------------------------------------------------
+  const asphalt = new THREE.InstancedMesh(box, material(ASPHALT, 0.98), segments.length);
+  asphalt.name = "MM_STREET_ASPHALT";
+  asphalt.receiveShadow = options.shadows;
+  asphalt.castShadow = false;
+  segments.forEach((s, i) => {
+    matrix.makeScale(s.horizontal ? s.length : laneWidth, 0.09, s.horizontal ? laneWidth : s.length);
+    matrix.setPosition(s.x, s.y + 0.045, s.z);
+    asphalt.setMatrixAt(i, matrix);
+  });
+  asphalt.instanceMatrix.needsUpdate = true;
+  group.add(asphalt);
+
+  // --- kerbs -----------------------------------------------------------------
+  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), segments.length * 2);
+  kerbs.name = "MM_STREET_KERBS";
+  kerbs.receiveShadow = options.shadows;
+  let kerbIndex = 0;
+  for (const s of segments) {
+    for (const side of [-1, 1]) {
+      const offset = (laneWidth / 2 + 0.18) * side;
+      matrix.makeScale(s.horizontal ? s.length : 0.36, 0.18, s.horizontal ? 0.36 : s.length);
+      matrix.setPosition(s.x + (s.horizontal ? 0 : offset), s.y + 0.09, s.z + (s.horizontal ? offset : 0));
+      kerbs.setMatrixAt(kerbIndex, matrix);
+      kerbIndex += 1;
+    }
+  }
+  kerbs.instanceMatrix.needsUpdate = true;
+  group.add(kerbs);
+
+  // --- broken centre line ----------------------------------------------------
+  // Dashes are laid along the road's own axis, two metres on and two off.
+  const dashes: Array<{ x: number; z: number; horizontal: boolean; y: number }> = [];
+  const DASH = 2.0;
+  const GAP = 2.0;
+  for (const [axis, centre, from, to] of net.carriageways) {
+    const horizontal = axis === 0;
+    const startM = from * tile;
+    const endM = to * tile;
+    for (let at = startM + GAP; at + DASH < endM; at += DASH + GAP) {
+      const along = at + DASH / 2;
+      const x = horizontal ? along : centre * tile;
+      const z = horizontal ? -centre * tile : -along;
+      const ground = sampleGround(x, z);
+      if (ground === null) continue;
+      dashes.push({ x, z, horizontal, y: ground });
+    }
+  }
+  const markings = new THREE.InstancedMesh(box, material(MARKING, 0.7), dashes.length);
+  markings.name = "MM_STREET_MARKINGS";
+  dashes.forEach((d, i) => {
+    matrix.makeScale(d.horizontal ? DASH : 0.22, 0.02, d.horizontal ? 0.22 : DASH);
+    matrix.setPosition(d.x, d.y + 0.1, d.z);
+    markings.setMatrixAt(i, matrix);
+  });
+  markings.instanceMatrix.needsUpdate = true;
+  group.add(markings);
+
+  // --- footways --------------------------------------------------------------
+  const footSegments: Segment[] = [];
+  for (const [axis, centre, from, to] of net.footways) {
+    const horizontal = axis === 0;
+    for (let start = from; start < to; start += STEP_CELLS) {
+      const end = Math.min(start + STEP_CELLS, to);
+      const midRun = (start + end) / 2;
+      const x = horizontal ? midRun * tile : centre * tile;
+      const z = horizontal ? -centre * tile : -midRun * tile;
+      const ground = sampleGround(x, z);
+      if (ground === null) continue;
+      footSegments.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
+    }
+  }
+  const footway = new THREE.InstancedMesh(box, material(FOOTWAY, 0.94), footSegments.length);
+  footway.name = "MM_STREET_FOOTWAYS";
+  footway.receiveShadow = options.shadows;
+  footSegments.forEach((s, i) => {
+    matrix.makeScale(s.horizontal ? s.length : tile * 0.85, 0.07, s.horizontal ? tile * 0.85 : s.length);
+    matrix.setPosition(s.x, s.y + 0.035, s.z);
+    footway.setMatrixAt(i, matrix);
+  });
+  footway.instanceMatrix.needsUpdate = true;
+  group.add(footway);
+
+  // --- lamps -----------------------------------------------------------------
+  // Standing on the kerb, alternating sides, at an even spacing so a street reads as
+  // laid out rather than scattered.
+  const SPACING = 18;
+  const lamps: Array<{ x: number; z: number; y: number }> = [];
+  for (const [axis, centre, from, to] of net.carriageways) {
+    const horizontal = axis === 0;
+    const startM = from * tile;
+    const endM = to * tile;
+    let side = 1;
+    for (let at = startM + SPACING / 2; at < endM; at += SPACING) {
+      const offset = (laneWidth / 2 + 0.55) * side;
+      const x = horizontal ? at : centre * tile + offset;
+      const z = horizontal ? -centre * tile + offset : -at;
+      const ground = sampleGround(x, z);
+      side *= -1;
+      if (ground === null) continue;
+      lamps.push({ x, z, y: ground });
+    }
+  }
+  if (lamps.length > 0) group.add(buildLamps(lamps, options.shadows));
+
+  // --- traffic ---------------------------------------------------------------
+  const traffic = buildTraffic(net, sampleGround, options.shadows);
+  group.add(traffic.group);
+
+  return { group, update: traffic.update, carCount: traffic.count, lampCount: lamps.length };
+}
+
+/** One merged lamp, instanced along the kerb. */
+function buildLamps(at: Array<{ x: number; z: number; y: number }>, shadows: boolean): THREE.InstancedMesh {
+  const parts: THREE.BufferGeometry[] = [];
+  const colours: number[] = [];
+  const push = (geometry: THREE.BufferGeometry, colour: number) => { parts.push(geometry); colours.push(colour); };
+
+  const base = new THREE.CylinderGeometry(0.22, 0.26, 0.3, 8); base.translate(0, 0.15, 0);
+  push(base, LAMP_POST);
+  const column = new THREE.CylinderGeometry(0.09, 0.11, 4.2, 8); column.translate(0, 2.4, 0);
+  push(column, LAMP_POST);
+  const arm = new THREE.BoxGeometry(0.7, 0.1, 0.1); arm.translate(0.3, 4.5, 0);
+  push(arm, LAMP_POST);
+  const head = new THREE.BoxGeometry(0.62, 0.16, 0.34); head.translate(0.55, 4.4, 0);
+  push(head, LAMP_HEAD);
+  const panel = new THREE.BoxGeometry(0.66, 0.05, 0.4); panel.translate(0.1, 4.66, 0);
+  push(panel, SOLAR);
+
+  const coloured = parts.map((geometry, i) => {
+    const count = geometry.attributes.position!.count;
+    const array = new Float32Array(count * 3);
+    const colour = new THREE.Color().setHex(colours[i]!, THREE.SRGBColorSpace);
+    for (let v = 0; v < count; v += 1) { array[v * 3] = colour.r; array[v * 3 + 1] = colour.g; array[v * 3 + 2] = colour.b; }
+    geometry.setAttribute("color", new THREE.BufferAttribute(array, 3));
+    geometry.deleteAttribute("uv");
+    return geometry;
+  });
+  const merged = mergeGeometries(coloured, false)!;
+  const mesh = new THREE.InstancedMesh(merged, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), at.length);
+  mesh.name = "MM_STREET_LAMPS";
+  mesh.castShadow = shadows;
+  const matrix = new THREE.Matrix4();
+  at.forEach((p, i) => {
+    matrix.makeRotationY(((i % 4) * Math.PI) / 2);
+    matrix.setPosition(p.x, p.y, p.z);
+    mesh.setMatrixAt(i, matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  return mesh;
+}
+
+interface Car { mesh: THREE.Object3D; road: number; along: number; direction: 1 | -1; speed: number; lane: number }
+
+/** Traffic that drives the network, keeping to its own side of the centre line. */
+function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean): { group: THREE.Group; update: (delta: number) => void; count: number } {
+  const group = new THREE.Group();
+  group.name = "MM_STREET_TRAFFIC";
+  const tile = net.tileSize;
+  const usable = net.carriageways.filter(([, , from, to]) => to - from >= 8);
+  const cars: Car[] = [];
+  const count = Math.min(26, usable.length);
+
+  for (let i = 0; i < count; i += 1) {
+    const mesh = buildCar(CAR_BODY[i % CAR_BODY.length]!);
+    mesh.castShadow = shadows;
+    group.add(mesh);
+    const roadIndex = Math.floor((i / count) * usable.length);
+    const [, , from, to] = usable[roadIndex]!;
+    cars.push({
+      mesh,
+      road: roadIndex,
+      along: from * tile + ((i * 13) % Math.max(1, (to - from) * tile)),
+      direction: i % 2 === 0 ? 1 : -1,
+      speed: 4.2 + (i % 5) * 0.9,
+      lane: i % 2 === 0 ? 1 : -1,
+    });
+  }
+
+  const update = (delta: number): void => {
+    for (const car of cars) {
+      const [axis, centre, from, to] = usable[car.road]!;
+      const horizontal = axis === 0;
+      const startM = from * tile;
+      const endM = to * tile;
+      car.along += car.speed * delta * car.direction;
+      if (car.along > endM || car.along < startM) {
+        // Turn round at the end of a run rather than vanishing; the network is not a
+        // closed circuit, and a car that pops out of existence reads worse than one
+        // that turns.
+        car.direction = (car.direction === 1 ? -1 : 1) as 1 | -1;
+        car.lane = -car.lane as 1 | -1;
+        car.along = Math.min(Math.max(car.along, startM), endM);
+      }
+      const offset = 1.05 * car.lane;
+      const x = horizontal ? car.along : centre * tile + offset;
+      const z = horizontal ? -centre * tile + offset : -car.along;
+      const ground = sampleGround(x, z);
+      car.mesh.position.set(x, (ground ?? car.mesh.position.y) + 0.14, z);
+      car.mesh.rotation.y = horizontal
+        ? (car.direction === 1 ? Math.PI / 2 : -Math.PI / 2)
+        : (car.direction === 1 ? Math.PI : 0);
+    }
+  };
+
+  return { group, update, count: cars.length };
+}
+
+/** A small solar runabout, in the same blocky language as everything else. */
+function buildCar(bodyColour: number): THREE.Group {
+  const car = new THREE.Group();
+  const add = (geometry: THREE.BufferGeometry, colour: number, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: colour, roughness: 0.65 }));
+    mesh.position.set(x, y, z);
+    car.add(mesh);
+  };
+  add(new THREE.BoxGeometry(1.5, 0.6, 2.9), bodyColour, 0, 0.42, 0);
+  add(new THREE.BoxGeometry(1.32, 0.55, 1.5), 0x8fc9cf, 0, 0.95, -0.15);
+  add(new THREE.BoxGeometry(1.36, 0.06, 1.2), SOLAR, 0, 1.25, -0.15);
+  for (const wx of [-0.72, 0.72]) for (const wz of [-0.95, 0.95]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x2a2320, roughness: 0.9 }));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, 0.3, wz);
+    car.add(wheel);
+  }
+  return car;
+}
+
+export async function loadRoadNet(url = "./world/roadnet.json"): Promise<RoadNet> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`roadnet ${response.status}`);
+  return (await response.json()) as RoadNet;
+}

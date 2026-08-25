@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { civicStructureFor, installProceduralLoader } from "./proceduralAssets";
+import { buildStreets, loadRoadNet, type BuiltStreets } from "./roadnet";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
@@ -126,6 +127,7 @@ export class World3D {
   private readonly plotDecor = new Map<string, THREE.Group>();
   private readonly walkableMeshes: THREE.Mesh[] = [];
   private readonly chunkRoots: Array<{ object: THREE.Object3D; cx: number; cy: number }> = [];
+  private streets: BuiltStreets | null = null;
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
   private readonly citizenTerrain = new Map<string, string>();
@@ -352,6 +354,25 @@ export class World3D {
     }
   }
 
+  /**
+   * Lay the streets over the carriageway tiles: asphalt, kerbs, a broken centre line,
+   * footways, lamps and traffic.
+   *
+   * The markings cannot live in the tile texture, because one tile serves roads running
+   * both ways and their junctions — a dash baked into it points the wrong way half the
+   * time. Here the road's axis is known, so the line runs along it.
+   */
+  private async buildStreetNetwork(): Promise<void> {
+    try {
+      const net = await loadRoadNet();
+      this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), { shadows: this.dynamicShadows });
+      this.scene.add(this.streets.group);
+    } catch (error) {
+      // Streets are dressing: the world is still playable without them.
+      console.warn("Streets could not be laid:", error instanceof Error ? error.message : error);
+    }
+  }
+
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
     // The authored grid border is 221 primitives of near-black edging laid over the
     // whole terrain — the mesh that made roads read as a net rather than a surface.
@@ -516,6 +537,7 @@ export class World3D {
     });
     this.scene.add(gltf.scene);
     this.replaceCivicLandmarks(gltf.scene);
+    await this.buildStreetNetwork();
     this.callbacks.onLoadProgress(0.84, "Planting the solarpunk garden city");
     try {
       const designs = await loadWorldDesigns(
@@ -1707,6 +1729,7 @@ export class World3D {
       const movementSpeed = this.updateMovement(delta, state);
       this.updateAvatarAnimations(delta, movementSpeed);
       this.updateCitizens(delta, this.clock.elapsedTime, state);
+      this.streets?.update(delta);
       this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, movementSpeed > 0.05);
       this.updateCamera(delta);

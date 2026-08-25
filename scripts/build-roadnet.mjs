@@ -1,0 +1,99 @@
+// Extracts the drivable road network and the footpaths from the authored tile grid.
+//
+// The terrain marks every cell as road, bridge or path, but a cell alone cannot say
+// which way a road runs — carriageways are two cells wide, so every cell has neighbours
+// on both axes and looks like a junction. Orientation only exists at the level of a
+// band, so bands are what this extracts: a run of two parallel cell rows. That gives a
+// centreline to paint the lane divider along, an edge to stand lamps on, and a path for
+// traffic to follow.
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = resolve(here, "..");
+const grid = JSON.parse(readFileSync(resolve(root, "game/public/assets/world/highlands-rivers-v1/terrain-grid.json"), "utf8"));
+const layout = JSON.parse(readFileSync(resolve(root, "game/public/assets/world/highlands-rivers-v1/layout.json"), "utf8"));
+const TILE = layout.coordinate_contract.tile_size_m;
+
+const road = new Set();
+const walk = new Set();
+const key = (x, y) => `${x},${y}`;
+for (const row of grid.rows) {
+  for (const run of row.runs) {
+    const target = run.surface === "road" || run.surface === "bridge" ? road
+      : run.surface === "path" ? walk : null;
+    if (!target) continue;
+    for (let x = run.x0; x <= run.x1; x += 1) target.add(key(x, row.y));
+  }
+}
+
+/** Maximal runs of two parallel cell rows — one carriageway. */
+function bands(cells, horizontal, minimumLength) {
+  const found = [];
+  const claimed = new Set();
+  const sorted = [...cells].map((k) => k.split(",").map(Number)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  for (const [x, y] of sorted) {
+    const fixed = horizontal ? y : x;
+    const start = horizontal ? x : y;
+    if (claimed.has(`${fixed}:${start}`)) continue;
+    const partner = horizontal ? key(x, y + 1) : key(x + 1, y);
+    if (!cells.has(partner)) continue;
+    let end = start;
+    for (;;) {
+      const next = end + 1;
+      const a = horizontal ? key(next, y) : key(x, next);
+      const b = horizontal ? key(next, y + 1) : key(x + 1, next);
+      if (!cells.has(a) || !cells.has(b)) break;
+      end = next;
+    }
+    for (let k = start; k <= end; k += 1) claimed.add(`${fixed}:${k}`);
+    if (end - start >= minimumLength) found.push({ fixed, start, end });
+  }
+  return found;
+}
+
+/** Single-cell runs, for footpaths. */
+function lines(cells, horizontal, minimumLength) {
+  const found = [];
+  const claimed = new Set();
+  const sorted = [...cells].map((k) => k.split(",").map(Number)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  for (const [x, y] of sorted) {
+    const fixed = horizontal ? y : x;
+    const start = horizontal ? x : y;
+    if (claimed.has(`${fixed}:${start}`)) continue;
+    let end = start;
+    for (;;) {
+      const next = end + 1;
+      if (!cells.has(horizontal ? key(next, y) : key(x, next))) break;
+      end = next;
+    }
+    for (let k = start; k <= end; k += 1) claimed.add(`${fixed}:${k}`);
+    if (end - start >= minimumLength) found.push({ fixed, start, end });
+  }
+  return found;
+}
+
+// A band's centreline sits on the shared edge of its two rows, half a cell in.
+const carriageways = [
+  ...bands(road, true, 3).map((b) => ({ axis: "ew", centre: b.fixed + 0.5, from: b.start, to: b.end })),
+  ...bands(road, false, 3).map((b) => ({ axis: "ns", centre: b.fixed + 0.5, from: b.start, to: b.end })),
+];
+const footways = [
+  ...lines(walk, true, 2).map((b) => ({ axis: "ew", centre: b.fixed, from: b.start, to: b.end })),
+  ...lines(walk, false, 2).map((b) => ({ axis: "ns", centre: b.fixed, from: b.start, to: b.end })),
+];
+
+const out = {
+  tileSize: TILE,
+  laneWidthCells: 2,
+  carriageways: carriageways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
+  footways: footways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
+};
+
+const dest = resolve(root, "game/public/world/roadnet.json");
+mkdirSync(dirname(dest), { recursive: true });
+writeFileSync(dest, JSON.stringify(out));
+const cells = carriageways.reduce((a, c) => a + (c.to - c.from), 0);
+console.log(`carriageways ${carriageways.length} (${cells} cells), footways ${footways.length}`);
+console.log(`wrote ${dest} (${(JSON.stringify(out).length / 1024).toFixed(1)} KB)`);
