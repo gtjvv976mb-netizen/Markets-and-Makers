@@ -360,6 +360,13 @@ export class World3D {
       const net = await loadRoadNet();
       this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), { shadows: this.dynamicShadows });
       this.scene.add(this.streets.group);
+      // Worth saying out loud: street furniture is placed against sampled ground, so a
+      // silent zero here means the ground sampler refused the verge, not that the
+      // layout was empty.
+      console.info(
+        `Streets: ${net.carriageways.length} carriageways, ${this.streets.carCount} cars, `
+        + `${this.streets.lampCount} lamps, ${this.streets.shrubCount} shrubs, ${this.streets.benchCount} benches`,
+      );
     } catch (error) {
       // Streets are dressing: the world is still playable without them.
       console.warn("Streets could not be laid:", error instanceof Error ? error.message : error);
