@@ -14,7 +14,7 @@ import * as THREE from "three";
 const SIZE = 128;
 
 /** How each terrain surface is dressed once its palette colour is laid down. */
-type Motif = "blades" | "speckle" | "flagstone" | "planks" | "road" | "plain";
+type Motif = "blades" | "speckle" | "flagstone" | "planks" | "road" | "plaza" | "plain";
 
 const MOTIF: Readonly<Record<string, Motif>> = {
   MAT_TERRAIN_GRASS_SAGE: "blades",
@@ -29,7 +29,7 @@ const MOTIF: Readonly<Record<string, Motif>> = {
   MAT_TERRAIN_TIMBER_DARK: "planks",
   MAT_TERRAIN_TERRACOTTA: "flagstone",
   MAT_MM_STONE: "road",
-  MAT_MM_CREAM: "plain",
+  MAT_MM_CREAM: "plaza",
 };
 
 const shade = (context: CanvasRenderingContext2D, base: THREE.Color, amount: number, alpha = 1): void => {
@@ -99,6 +99,28 @@ const drawFlagstone = (context: CanvasRenderingContext2D, base: THREE.Color): vo
  * road width is a mesh, while staggered joints read as paving from any direction, which
  * matters because the same tile serves roads running both ways and their junctions.
  */
+/**
+ * Civic paving: four large slabs to a tile with a soft joint between them. A plaza is
+ * the one surface a player stands still on and looks at, and flat colour reads as a
+ * blank white sheet at this scale — but the fine grid used on grass would turn a wide
+ * forecourt back into a net, so the slabs are deliberately large.
+ */
+const drawPlaza = (context: CanvasRenderingContext2D, base: THREE.Color): void => {
+  const half = SIZE / 2;
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 2; column += 1) {
+      shade(context, base, (row + column) % 2 === 0 ? 0.012 : -0.012);
+      context.fillRect(column * half + 1.5, row * half + 1.5, half - 3, half - 3);
+    }
+  }
+  // A joint, not a keyline: soft enough that a forecourt reads as paved, not ruled.
+  shade(context, base, -0.05, 0.75);
+  context.fillRect(half - 1, 0, 2, SIZE);
+  context.fillRect(0, half - 1, SIZE, 2);
+  shade(context, base, -0.02, 0.35);
+  for (let i = 0; i < 10; i += 1) context.fillRect(((i * 53) % 16) * 8 + 4, ((i * 29) % 16) * 8 + 4, 3, 3);
+};
+
 const drawRoad = (context: CanvasRenderingContext2D, base: THREE.Color): void => {
   const rows = 4;
   const blockH = SIZE / rows;
@@ -157,11 +179,12 @@ export function terrainTileTexture(materialName: string, colour: THREE.Color): T
   else if (motif === "flagstone") drawFlagstone(context, colour);
   else if (motif === "planks") drawPlanks(context, colour);
   else if (motif === "road") drawRoad(context, colour);
+  else if (motif === "plaza") drawPlaza(context, colour);
 
   // A keyline on every edge is what makes natural ground read as tiled — but across a
   // wide paved surface those same lines become a net, which is the whole point of the
   // running bond. Roads carry their joints in the motif instead.
-  if (motif !== "road") {
+  if (motif !== "road" && motif !== "plaza") {
     shade(context, colour, -0.07, 0.55);
     context.fillRect(0, 0, SIZE, 1);
     context.fillRect(0, SIZE - 1, SIZE, 1);

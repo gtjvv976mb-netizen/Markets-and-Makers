@@ -120,6 +120,53 @@ class Mesher {
     return this;
   }
 
+  /** Planter boxes along a face — the ground-level solarpunk tell. */
+  planters(count: number, spread: number, x: number, y: number, along: "x" | "z" = "z"): this {
+    for (let i = 0; i < count; i += 1) {
+      const t = count === 1 ? 0 : -spread / 2 + (spread / (count - 1)) * i;
+      const px = along === "z" ? x : t;
+      const pz = along === "z" ? t : x;
+      this.box(0.85, 0.42, 0.85, TIMBER, px, y, pz);
+      this.box(0.7, 0.12, 0.7, SOIL, px, y + 0.42, pz);
+      this.ball(0.36, i % 2 === 0 ? LEAF : LEAF_LIGHT, px, y + 0.68, pz, 0.85);
+    }
+    return this;
+  }
+
+  /** Greenery climbing a wall, in stepped tufts rather than a flat panel. */
+  vines(x: number, y: number, z: number, height: number, facing: "x" | "z" = "x"): this {
+    const steps = Math.max(2, Math.round(height / 0.8));
+    for (let i = 0; i < steps; i += 1) {
+      const t = y + (height / steps) * i;
+      const jitter = ((i * 37) % 5) * 0.12 - 0.24;
+      const vx = facing === "x" ? x : x + jitter;
+      const vz = facing === "x" ? z + jitter : z;
+      this.ball(0.3 - i * 0.02, i % 2 === 0 ? LEAF : LEAF_LIGHT, vx, t, vz, 0.7);
+    }
+    return this;
+  }
+
+  /** A timber pergola: slats on posts, shade without a wall. */
+  pergola(width: number, depth: number, y: number, height: number, x = 0, z = 0): this {
+    for (const px of [x - width / 2 + 0.2, x + width / 2 - 0.2]) {
+      for (const pz of [z - depth / 2 + 0.2, z + depth / 2 - 0.2]) this.cyl(0.11, height, TIMBER, px, y, pz);
+    }
+    const slats = Math.max(3, Math.round(depth / 0.6));
+    for (let i = 0; i < slats; i += 1) {
+      const pz = z - depth / 2 + (depth / (slats - 1)) * i;
+      this.box(width, 0.09, 0.16, TIMBER, x, y + height, pz);
+    }
+    return this;
+  }
+
+  /** A rainwater tank, the other half of the regenerative pair with the planting. */
+  waterTank(radius: number, height: number, x: number, y: number, z: number): this {
+    this.cyl(radius, height, GLASS, x, y, z, 0, 0, 0, 10);
+    this.cyl(radius * 1.08, 0.16, METAL, x, y + height, z, 0, 0, 0, 10);
+    this.cyl(radius * 1.08, 0.14, METAL, x, y, z, 0, 0, 0, 10);
+    return this;
+  }
+
   /** Glazing bands on the long faces. */
   glazing(w: number, d: number, y: number, h = 0.9): this {
     this.box(w * 0.94, h, 0.08, GLASS, 0, y, d / 2);
@@ -160,6 +207,8 @@ const ferryTerminal = (): THREE.Group => {
   m.box(tiles(3), 0.35, tiles(3), ROOF, 5, 3, 0);
   for (let i = -1; i <= 1; i += 1) m.cyl(0.22, 3.2, TIMBER, 7, -2.7, i * 2);
   m.box(tiles(3), 0.3, tiles(1.5), TIMBER, 7, 0.4, 0);
+  m.planters(3, 5.6, -6.4, 0.5);
+  m.solar(6.4, 5.2, 4.4, 3);
   return m.build("B01_FERRY_TERMINAL");
 };
 
@@ -184,6 +233,8 @@ const sungridUtility = (): THREE.Group => {
   m.cyl(1.5, 5.6, METAL, 4.5, 0.45, -1.5);
   m.cyl(1.62, 0.4, ACCENT, 4.5, 6.05, -1.5);
   m.box(tiles(1.5), 1.6, tiles(1.5), SOLAR, 4, 0.45, 2.5);
+  m.planters(3, 5.2, -5.6, 0.45);
+  m.vines(-5.6, 1.6, 3.0, 3.0, "x");
   return m.build("B03_SUNGRID_UTILITY");
 };
 
@@ -198,6 +249,8 @@ const aquaworks = (): THREE.Group => {
   m.cyl(2.34, 0.3, METAL, 4, 4.05, -1.5, 0, 0, 0, 14);
   m.cyl(1.5, 2.4, GLASS, 4, 0.45, 3, 0, 0, 0, 12);
   m.cyl(1.62, 0.26, METAL, 4, 2.85, 3, 0, 0, 0, 12);
+  m.planters(3, 5.4, -5.6, 0.45);
+  m.pergola(3.6, 2.2, 0.45, 2.4, 0.4, 4.4);
   return m.build("B04_AQUAWORKS");
 };
 
@@ -227,6 +280,9 @@ const makerWorkshop = (): THREE.Group => {
   for (let i = -1; i <= 1; i += 1) m.box(tiles(1), 0.9, tiles(3), GLASS, i * tiles(1.5), 4.35, 0);
   m.box(tiles(1.25), 2.4, 0.25, TIMBER, -2.5, 0.45, 3.5);
   m.cyl(0.9, 4.6, METAL, 5, 0.45, -2.5);
+  m.planters(3, 5.0, -5.6, 0.45);
+  m.solar(5.6, 4.4, 4.35, 3);
+  m.waterTank(0.6, 1.8, 5.2, 0.45, 3.2);
   return m.build("B06_MAKER_WORKSHOP");
 };
 
@@ -251,6 +307,8 @@ const harborGym = (): THREE.Group => {
   m.box(tiles(5.25), 0.42, tiles(4), ROOF, 0, 5.05, 0);
   m.solar(tiles(4.25), tiles(3.5), 5.47, 4);
   m.box(tiles(1.75), 2.6, 0.3, TERRACOTTA, -3, 0.45, 4);
+  m.planters(4, 7.2, -6.0, 0.45);
+  m.vines(6.2, 1.6, -3.4, 3.6, "x");
   return m.build("B08_HARBOR_GYM");
 };
 
@@ -307,6 +365,8 @@ const freightCrateMill = (): THREE.Group => {
     m.box(1.6, 0.1, 1.6, TIMBER, x, y + 1.1, z);
   }
   m.box(0.3, 1.9, tiles(1.6), ROOF, 2.2, 0.45, 0);
+  m.planters(3, 5.0, -5.6, 0.45);
+  m.vines(-5.6, 1.5, 3.2, 2.8, "x");
   return m.build("B11_FREIGHT_CRATE_MILL");
 };
 
@@ -324,6 +384,9 @@ const mercedonianFactory = (): THREE.Group => {
   m.box(tiles(5.8), 0.3, tiles(4.3), ROOF, 0, 4.55, 0);
   m.cyl(0.85, 6.4, PLASTER, -5.4, 0.45, -3.2);
   m.cyl(0.95, 0.4, TERRACOTTA, -5.4, 6.85, -3.2);
+  m.planters(4, 8.0, -6.4, 0.45);
+  m.garden(5.2, 4.0, 5.15);
+  m.waterTank(0.8, 2.2, 5.6, 0.45, 3.6);
   return m.build("B12_MERCEDONIAN_FACTORY");
 };
 
@@ -339,6 +402,8 @@ const civicConstruction = (): THREE.Group => {
   m.box(0.9, 0.8, 0.9, TERRACOTTA, 5.6, 5.4, -1.4);
   for (const [x, z] of [[1.4, 2.8], [3.4, 2.8], [2.4, 1.4]] as const) m.box(1.7, 0.55, 1.2, 0x8d9298, x, 0.45, z);
   m.box(tiles(2), 0.12, tiles(1.6), 0x6f5a3c, 2.4, 0.45, 2.2);
+  m.planters(3, 5.0, -6.4, 0.45);
+  m.solar(4.8, 4.8, 3.65, 3);
   return m.build("B13_CIVIC_CONSTRUCTION");
 };
 
@@ -372,6 +437,9 @@ const lanternCinema = (): THREE.Group => {
   for (let i = -2; i <= 2; i += 1) m.ball(0.2, ACCENT, 4.2, 2.3, i * 1.3);
   m.box(0.3, 2.3, tiles(1.2), TIMBER, 3.3, 0.4, 0);
   for (const z of [-3, 3]) m.cyl(0.14, 3.4, METAL, 4.4, 0.4, z);
+  m.planters(4, 6.8, -5.2, 0.4);
+  m.garden(6.4, 5.6, 6.02);
+  m.vines(-5.4, 1.6, 3.2, 3.6, "x");
   return m.build("B15_LANTERN_CINEMA");
 };
 
@@ -391,6 +459,8 @@ const reclamationHub = (): THREE.Group => {
   m.cyl(1.5, 2.2, METAL, 0.4, 3.2, 0, 0, 0, 0, 8);
   m.cone(1.5, 1.4, METAL, 0.4, 1.8, 0, Math.PI);
   for (const y of [0.45, 5.4]) m.cyl(0.14, y === 0.45 ? 2.75 : 0.3, METAL, 0.4, y, 0);
+  m.planters(3, 5.4, -6.4, 0.45);
+  m.pergola(3.4, 2.4, 0.45, 2.4, 3.2, -4.6);
   return m.build("B16_RECLAMATION_HUB");
 };
 
@@ -453,6 +523,11 @@ const cityHall = (): THREE.Group => {
   m.ball(1.75, GLASS, 0, 10.5, 0, 0.72);
   m.cyl(0.12, 1.1, ACCENT, 0, 11.1, 0);
   for (const z of [-3.4, 3.4]) m.box(1.2, 0.9, 1.2, ACCENT, 4.4, 1.57, z);
+  m.planters(4, 8.4, 6.4, 0.47);
+  m.solar(6.6, 4.6, 5.77, 3);
+  m.vines(-4.8, 2.0, 4.5, 3.2, "z");
+  m.vines(-4.8, 2.0, -4.5, 3.2, "z");
+  m.waterTank(0.85, 2.4, -5.2, 0.47, 0);
   return m.build("CV01_CITY_HALL");
 };
 
@@ -471,6 +546,9 @@ const treasury = (): THREE.Group => {
   m.cyl(2.1, 0.4, PLASTER, 0, 7.72, 0, 0, 0, 0, 8);
   m.ball(1.9, ACCENT, 0, 8.3, 0, 0.6);
   m.box(2.6, 3.1, 0.3, SOLAR, 0, 1.37, 4.05);
+  m.garden(6.4, 6.4, 6.22);
+  m.planters(3, 6.0, 5.2, 0.47);
+  m.waterTank(0.7, 2.0, -5.0, 0.47, 3.4);
   return m.build("CV02_TREASURY");
 };
 
@@ -483,6 +561,9 @@ const landRegistry = (): THREE.Group => {
   m.garden(7.6, 4.6, 4.27);
   m.box(2.4, 2.6, 0.28, TIMBER, -2.6, 0.47, 2.9);
   m.box(3.2, 0.16, 1.4, ACCENT, -2.6, 3.2, 3.5, 0.2);
+  m.pergola(4.6, 2.2, 0.47, 2.6, 2.4, 2.4);
+  m.planters(3, 4.4, 4.4, 0.47);
+  m.solar(6.4, 3.6, 4.27, 3);
   return m.build("CV03_LAND_REGISTRY");
 };
 
@@ -498,6 +579,9 @@ const transitHall = (): THREE.Group => {
   m.box(6.6, 0.14, 9.4, PLASTER, 4.2, 0.47, 0);
   m.box(2.2, 2.4, 2.2, TERRACOTTA, -6.2, 5.07, 0);
   m.ball(0.75, ACCENT, -6.2, 8.0, 0);
+  m.garden(6.2, 7.0, 5.49);
+  m.planters(4, 8.0, 7.6, 0.47);
+  m.vines(-7.2, 1.6, 0, 3.0, "x");
   return m.build("CV04_TRANSIT_HALL");
 };
 
@@ -512,6 +596,9 @@ const communityClinic = (): THREE.Group => {
   m.box(0.34, 2.0, 0.7, LEAF, 4.35, 1.5, 0);
   m.box(0.34, 0.7, 2.0, LEAF, 4.35, 2.15, 0);
   m.box(3.2, 0.16, 1.6, ACCENT, 0, 3.5, 4.6, 0.22);
+  m.pergola(5.0, 2.0, 0.47, 2.4, 0, 5.2);
+  m.planters(4, 7.4, -4.9, 0.47);
+  m.waterTank(0.75, 2.2, 4.8, 0.47, -3.6);
   return m.build("CV05_COMMUNITY_CLINIC");
 };
 
@@ -526,6 +613,9 @@ const rescueStation = (): THREE.Group => {
   m.box(3.2, 7.4, 3.2, PLASTER, 5.4, 0.47, -3.2);
   m.box(3.8, 0.4, 3.8, ROOF, 5.4, 7.87, -3.2);
   m.ball(0.6, ACCENT, 5.4, 8.7, -3.2);
+  m.planters(3, 5.6, 2.6, 0.47);
+  m.vines(-7.0, 1.6, 0, 3.4, "x");
+  m.waterTank(0.8, 2.4, -6.6, 0.47, 3.4);
   return m.build("CV06_RESCUE_STATION");
 };
 
@@ -541,6 +631,9 @@ const worksDepot = (): THREE.Group => {
   }
   m.cyl(0.8, 5.4, METAL, -6.2, 0.47, -3.2);
   m.cyl(0.9, 0.35, ACCENT, -6.2, 5.87, -3.2);
+  m.pergola(4.4, 3.2, 0.47, 2.4, 4.4, 0);
+  m.planters(3, 5.0, -6.4, 0.47);
+  m.solar(6.6, 6.6, 4.27, 4);
   return m.build("CV07_WORKS_DEPOT");
 };
 
@@ -558,6 +651,10 @@ const makerAcademy = (): THREE.Group => {
   m.box(3.4, 3.2, 3.4, TERRACOTTA, -4.2, 5.67, 0);
   m.gable(3.9, 3.9, 1.2, ROOF, 8.87);
   m.box(2.8, 2.6, 0.3, TIMBER, 0, 0.47, 5.3);
+  m.pergola(6.0, 2.4, 0.47, 2.7, 0, 6.4);
+  m.planters(4, 9.0, 6.8, 0.47);
+  m.solar(7.2, 5.2, 6.15, 3);
+  m.vines(6.4, 1.6, -4.4, 3.6, "x");
   return m.build("CV08_MAKER_ACADEMY");
 };
 
@@ -576,6 +673,10 @@ const gardenHomes = (): THREE.Group => {
   });
   m.cyl(0.24, 3.0, TIMBER, -4.6, 0.47, 0);
   m.ball(1.15, LEAF, -4.6, 4.1, 0, 0.9);
+  m.planters(5, 12.0, 4.8, 0.47);
+  m.vines(4.4, 1.4, -4.6, 3.4, "x");
+  m.vines(4.4, 1.4, 4.6, 3.4, "x");
+  m.waterTank(0.7, 2.0, -4.6, 0.47, -5.4);
   return m.build("CV09_GARDEN_HOMES");
 };
 
