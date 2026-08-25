@@ -16,6 +16,12 @@ function element<T extends HTMLElement>(selector: string): T {
 }
 
 const store = new GameStore();
+
+// A handle for probes only. `import.meta.env.DEV` is substituted with a literal at
+// build time, so the whole block is dropped from the shipped bundle.
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__mm = { store, world: () => world };
+}
 const loadingScreen = element<HTMLDivElement>("#loadingScreen");
 const loadingBar = element<HTMLSpanElement>("#loadingBar");
 const loadingLabel = element<HTMLElement>("#loadingLabel");

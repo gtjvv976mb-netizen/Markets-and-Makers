@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { Blocker } from "./collision";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { versionedWorldUrl } from "./tileTextures";
 
@@ -46,6 +47,10 @@ const CAR_BODY = [0xd9d3c4, 0x9fb4c4, 0xc98c5f, 0x8fa9a2, 0xb46e63, 0xe0c07a] as
 export interface BuiltStreets {
   group: THREE.Group;
   update: (delta: number) => void;
+  /** Static footprints — lamps, benches, planters — for the obstacle field. */
+  furniture: Blocker[];
+  /** Live footprints of the traffic, read fresh because the cars are moving. */
+  carBlockers: () => Blocker[];
   carCount: number;
   lampCount: number;
   shrubCount: number;
@@ -241,7 +246,29 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   const traffic = buildTraffic(net, sampleGround, options.shadows);
   group.add(traffic.group);
 
-  return { group, update: traffic.update, carCount: traffic.count, lampCount: lamps.length, shrubCount: shrubs.length, benchCount: benches.length };
+  // Footprints for the walk. Furniture is authored looking down +Z and turned to face
+  // the carriageway, so a quarter turn swaps the two half-extents; every angle here is
+  // a multiple of a right angle, which is why an axis-aligned box still fits.
+  const solids = (placed: Placed[], halfX: number, halfZ: number): Blocker[] => placed.map((spot) => {
+    const turned = Math.abs(Math.cos(spot.angle)) < 0.5;
+    return { x: spot.x, z: spot.z, halfX: turned ? halfZ : halfX, halfZ: turned ? halfX : halfZ };
+  });
+  const furnitureSolids: Blocker[] = [
+    ...solids(lamps, 0.26, 0.26),
+    ...solids(benches, 0.85, 0.3),
+    ...solids(shrubs, 0.58, 0.58),
+  ];
+
+  return {
+    group,
+    update: traffic.update,
+    furniture: furnitureSolids,
+    carBlockers: traffic.blockers,
+    carCount: traffic.count,
+    lampCount: lamps.length,
+    shrubCount: shrubs.length,
+    benchCount: benches.length,
+  };
 }
 
 /** A piece of street furniture, merged once and instanced along both kerbs. */
@@ -314,7 +341,7 @@ interface Crossing { at: number; road: number; otherAt: number }
  * rather than a set of corridors. A car reaching a junction may take it, and only
  * reverses when it runs out of road, which now happens at a genuine dead end.
  */
-function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean): { group: THREE.Group; update: (delta: number) => void; count: number } {
+function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean): { group: THREE.Group; update: (delta: number) => void; blockers: () => Blocker[]; count: number } {
   const group = new THREE.Group();
   group.name = "MM_STREET_TRAFFIC";
   const tile = net.tileSize;
@@ -403,7 +430,19 @@ function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean
     }
   };
 
-  return { group, update, count: cars.length };
+  // The body shell is 1.5 across and 2.9 long, authored nose-down +Z; a car on an
+  // east-west road is turned a quarter, so the extents swap with it.
+  const blockers = (): Blocker[] => cars.map((car) => {
+    const turned = Math.abs(Math.cos(car.mesh.rotation.y)) < 0.5;
+    return {
+      x: car.mesh.position.x,
+      z: car.mesh.position.z,
+      halfX: turned ? 1.45 : 0.75,
+      halfZ: turned ? 0.75 : 1.45,
+    };
+  });
+
+  return { group, update, blockers, count: cars.length };
 }
 
 /** A small solar runabout, in the same blocky language as everything else. */

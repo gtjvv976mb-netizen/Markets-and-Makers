@@ -1,0 +1,71 @@
+{
+  "product": "Markets & Makers",
+  "release": "1.0.0-vertical-slice",
+  "built_at": "2026-08-24T00:36:00+08:00",
+  "status": "PASS",
+  "scope": "Playable lite-browser vertical slice plus authority, database and deployment scaffold",
+  "contents": {
+    "completion_audit": "COMPLETION-AUDIT-v1.0.md",
+    "client_source": "game/src",
+    "client_build": "game/dist",
+    "client_assets": "game/public/assets",
+    "gameplay_tests": "game/tests",
+    "economy_docs": "game/docs",
+    "authority_source": "server/src",
+    "authority_schema": "server/sql",
+    "authority_tests": "server/tests",
+    "deployment": [
+      "render.yaml",
+      "game/wrangler.jsonc",
+      ".github/workflows/ci.yml",
+      ".github/workflows/deploy-cloudflare.yml",
+      "DEPLOYMENT.md",
+      "LAUNCH-RUNBOOK.md"
+    ]
+  },
+  "verification": {
+    "game_tests": "17/17 PASS",
+    "server_tests": "5/5 PASS",
+    "typescript_client": "PASS",
+    "typescript_server": "PASS",
+    "vite_production_build": "PASS",
+    "cloudflare_dry_run": "PASS — 18 assets",
+    "browser_desktop": "PASS",
+    "browser_mobile_390x844": "PASS",
+    "browser_console_errors": 0,
+    "server_health": "PASS",
+    "server_public_config": "PASS",
+    "server_websocket": "PASS — welcome and snapshot"
+  },
+  "economy": {
+    "businesses": 15,
+    "resources": 11,
+    "islands": 9,
+    "career_levels": 6,
+    "specializations": 3,
+    "opening_sunmark_supply": 50000000,
+    "fixed_mm_design_supply": 1000000000,
+    "opening_civic_mm_vault": 50000000,
+    "ordinary_play_requires_mm": false,
+    "real_token_transfer": false,
+    "cash_out": false,
+    "external_deployment_performed": false
+  },
+  "sha256": {
+    "client_lock": "56a60c3e45f2cd34e9272b8718db31e7b8a334d41a1fee70881264a831584fb1",
+    "server_lock": "9f2078b2d5e47a21297669103634386666ed67260331c10bb20223647f5e7d19",
+    "client_qa": "c1514cf073ff5bd45ee8eddf7c999fa0689b2de12680c4fe1eba9c6c58d3352b",
+    "production_qa": "315789d26eef7da3ea375f13c953beec45052427a76de03c86d93ecb9716e8cc",
+    "economy_document": "6742c3e2701635b7cb4ce72e8e32c0745d3761071857f06cfb3c34e840f60d80",
+    "progression_schema": "ba516da9becca2b5d5094fc6aeed822336b69c9ee42c862913aee5fc83f1bc6f",
+    "compiled_index": "c39e38a2b11c65590a37fbbc0da4b7fa4f63c60a9ca776053b829349a9f332c9",
+    "compiled_javascript": "b6558faf0c9ce8db1550261cf9d0447c3c382fd7104a2336247058cece2ed0d2",
+    "compiled_css": "5c7cd7411acff662198a5b031ea006e7f1024b1a12fe4e5f314c3464d0423757",
+    "world_glb": "11c4f7a63020d97d17a834db337bca469523b59c72e94da14f27837c8bd4ed76"
+  },
+  "notes": [
+    "The archive intentionally excludes node_modules, local credentials, secrets, database data and .git history.",
+    "The client is playable locally; the authority server remains a production scaffold until the HTTP/WebSocket economy commands are moved behind PostgreSQL transactions.",
+    "Real-value settlement must remain disabled until legal review, custody design, audits, anti-abuse controls and explicit owner approval."
+  ]
+}
