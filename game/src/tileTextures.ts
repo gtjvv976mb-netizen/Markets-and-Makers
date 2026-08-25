@@ -168,8 +168,14 @@ const REPLACED_SWATCHES = new Set([
   "39-09_terracotta.png",
 ]);
 
-// A 1x1 transparent PNG, so the glTF parser still gets a valid image to bind.
-const BLANK_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+// A served, properly encoded 2x2 transparent PNG.
+//
+// This was a hand-rolled minimal PNG inline as a data: URI, and GLTFLoader rejected it
+// with "Couldn't load texture". The bytes were malformed: `new Image()` decoded them
+// happily, but GLTFLoader loads through `createImageBitmap`, which is strict and threw
+// InvalidStateError. Checking the image with the lenient decoder is what hid it.
+// public/world/blank.png is emitted by zlib with real CRCs, and costs 68 bytes once.
+const BLANK_PNG = "/world/blank.png";
 
 /**
  * Redirects the swatches we replace to a blank pixel. The generated tile is applied in
