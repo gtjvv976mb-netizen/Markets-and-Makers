@@ -55,6 +55,9 @@ export function localPlayerId(): string {
  */
 const PRODUCTION_AUTHORITY = "https://markets-and-makers-authority.onrender.com";
 
+/** How long a connection may stay unfinished before it is abandoned and retried. */
+const HANDSHAKE_TIMEOUT_MS = 8000;
+
 export function serverBase(): string | null {
   const configured = (import.meta.env.VITE_GAME_SERVER_URL as string | undefined)?.replace(/\/$/, "");
   if (configured) return configured;
@@ -95,6 +98,7 @@ export class RealmConnection {
   private lastZ = Number.NaN;
   private attempts = 0;
   private retryTimer: number | null = null;
+  private handshakeTimer: number | null = null;
   private disposed = false;
   private correction: { x: number; z: number } | null = null;
 
@@ -122,6 +126,7 @@ export class RealmConnection {
     let socket: WebSocket;
     try { socket = new WebSocket(url); } catch { this.scheduleRetry(); return; }
     this.socket = socket;
+    this.armHandshakeDeadline(socket);
 
     socket.onopen = () => {
       this.attempts = 0;
@@ -135,6 +140,7 @@ export class RealmConnection {
       let message: { type?: string; players?: RemotePlayer[]; x?: number; z?: number };
       try { message = JSON.parse(String(event.data)); } catch { return; }
       if (message.type === "welcome") {
+        this.clearHandshakeDeadline();
         this.handlers.onStatus("live", "Render authority");
         return;
       }
@@ -147,8 +153,39 @@ export class RealmConnection {
       }
     };
 
-    socket.onclose = () => { this.socket = null; this.handlers.onPeers([]); this.scheduleRetry(); };
+    socket.onclose = () => { this.clearHandshakeDeadline(); this.socket = null; this.handlers.onPeers([]); this.scheduleRetry(); };
     socket.onerror = () => { try { socket.close(); } catch { /* closing is best-effort */ } };
+  }
+
+  /**
+   * Give the handshake a deadline of its own.
+   *
+   * Reconnection here is driven entirely by onclose and onerror, and a browser will
+   * sit in CONNECTING for minutes without firing either when a handshake stalls —
+   * measured at over ten seconds against the live authority with no event at all. A
+   * single stalled attempt therefore pinned the client on "Connecting…" indefinitely:
+   * still playable, but silently single player, with no retry ever scheduled.
+   *
+   * The deadline covers the welcome as well as the open, because a socket can connect
+   * and still never complete the exchange.
+   */
+  private armHandshakeDeadline(socket: WebSocket): void {
+    this.clearHandshakeDeadline();
+    this.handshakeTimer = window.setTimeout(() => {
+      this.handshakeTimer = null;
+      if (this.socket !== socket) return;
+      try { socket.close(); } catch { /* closing is best-effort */ }
+      // Closing a socket that never opened does not reliably raise onclose, so drive
+      // the retry directly; scheduleRetry is idempotent while a retry is pending.
+      this.socket = null;
+      this.handlers.onPeers([]);
+      this.scheduleRetry();
+    }, HANDSHAKE_TIMEOUT_MS);
+  }
+
+  private clearHandshakeDeadline(): void {
+    if (this.handshakeTimer !== null) window.clearTimeout(this.handshakeTimer);
+    this.handshakeTimer = null;
   }
 
   private scheduleRetry(): void {
@@ -196,6 +233,7 @@ export class RealmConnection {
     this.disposed = true;
     if (this.retryTimer !== null) window.clearTimeout(this.retryTimer);
     this.retryTimer = null;
+    this.clearHandshakeDeadline();
     try { this.socket?.close(); } catch { /* already gone */ }
     this.socket = null;
   }
