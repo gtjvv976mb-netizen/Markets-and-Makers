@@ -236,21 +236,11 @@ const REPLACED_SWATCHES = new Set([
 // public/world/blank.png is emitted by zlib with real CRCs, and costs 68 bytes once.
 const BLANK_PNG = "/world/blank.png";
 
-/**
- * Cache key for the world assets.
- *
- * The world files carry a seven-day cache header and their paths never change, so a
- * rebuilt world would go on being served from a returning player's disk cache for a
- * week — they would keep downloading the old 27 MB buffers long after the small ones
- * shipped. Stamping the version onto the URL changes the cache key, so a new world is
- * fetched once and immediately.
- *
- * This is the first eight characters of world-0.bin's sha256, taken from
- * browser-package.json. tests/worldVersion.test.ts asserts the two still agree, so
- * rebuilding the world without bumping this fails rather than silently serving stale
- * geometry.
- */
-export const WORLD_ASSET_VERSION = "a339b193";
+// The world cache key is generated from the world files themselves by
+// scripts/stamp-world-version.mjs, so it cannot drift from what is on disk.
+export { WORLD_ASSET_VERSION } from "./worldVersion";
+import { WORLD_ASSET_VERSION } from "./worldVersion";
+
 
 const VERSIONED = /\/(assets\/world|world)\//;
 

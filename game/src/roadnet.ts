@@ -91,32 +91,39 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   group.add(asphalt);
 
   // --- kerbs -----------------------------------------------------------------
-  const kerbBands: Array<{ x: number; z: number; length: number; horizontal: boolean; y: number }> = [];
+  // A kerb is the edge of a carriageway, so it cannot exist where the neighbouring
+  // cell is itself carriageway — that is a junction, and a kerb laid across one chops
+  // the intersection into pieces. Emitted per cell so the gap is exact.
+  const roadCells = new Set<string>();
+  for (const [row, x0, x1] of net.roadRuns) {
+    for (let x = x0; x <= x1; x += 1) roadCells.add(`${x},${row}`);
+  }
+  const kerbPieces: Array<{ x: number; z: number; horizontal: boolean; y: number }> = [];
   for (const [axis, centre, from, to] of net.carriageways) {
     const horizontal = axis === 0;
-    for (let start = from; start < to; start += STEP_CELLS) {
-      const end = Math.min(start + STEP_CELLS, to);
-      const midRun = (start + end) / 2;
-      const x = horizontal ? midRun * tile : centre * tile;
-      const z = horizontal ? -centre * tile : -midRun * tile;
-      const ground = sampleGround(x, z);
-      if (ground === null) continue;
-      kerbBands.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
+    for (let step = from; step <= to; step += 1) {
+      for (const side of [-1, 1]) {
+        // The cell the kerb would sit in, just outside the two-cell carriageway.
+        const edgeCell = centre + side * 1.5;
+        const cellX = horizontal ? step : Math.round(edgeCell);
+        const cellY = horizontal ? Math.round(edgeCell) : step;
+        if (roadCells.has(`${cellX},${cellY}`)) continue;
+        const x = horizontal ? step * tile : (centre + side * (net.laneWidthCells / 2 + 0.09)) * tile;
+        const z = horizontal ? -(centre + side * (net.laneWidthCells / 2 + 0.09)) * tile : -step * tile;
+        const ground = sampleGround(x, z);
+        if (ground === null) continue;
+        kerbPieces.push({ x, z, horizontal, y: ground });
+      }
     }
   }
-  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), kerbBands.length * 2);
+  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), kerbPieces.length);
   kerbs.name = "MM_STREET_KERBS";
   kerbs.receiveShadow = options.shadows;
-  let kerbIndex = 0;
-  for (const s of kerbBands) {
-    for (const side of [-1, 1]) {
-      const offset = (laneWidth / 2 + 0.18) * side;
-      matrix.makeScale(s.horizontal ? s.length : 0.36, 0.18, s.horizontal ? 0.36 : s.length);
-      matrix.setPosition(s.x + (s.horizontal ? 0 : offset), s.y + 0.09, s.z + (s.horizontal ? offset : 0));
-      kerbs.setMatrixAt(kerbIndex, matrix);
-      kerbIndex += 1;
-    }
-  }
+  kerbPieces.forEach((piece, i) => {
+    matrix.makeScale(piece.horizontal ? tile : 0.36, 0.18, piece.horizontal ? 0.36 : tile);
+    matrix.setPosition(piece.x, piece.y + 0.09, piece.z);
+    kerbs.setMatrixAt(i, matrix);
+  });
   kerbs.instanceMatrix.needsUpdate = true;
   group.add(kerbs);
 
@@ -231,44 +238,95 @@ function buildLamps(at: Array<{ x: number; z: number; y: number }>, shadows: boo
   return mesh;
 }
 
-interface Car { mesh: THREE.Object3D; road: number; along: number; direction: 1 | -1; speed: number; lane: number }
+interface Car { mesh: THREE.Object3D; road: number; along: number; direction: 1 | -1; speed: number; lane: 1 | -1 }
 
-/** Traffic that drives the network, keeping to its own side of the centre line. */
+/** Where two carriageways cross, expressed in each one's own along-metres. */
+interface Crossing { at: number; road: number; otherAt: number }
+
+/**
+ * Traffic that drives the network.
+ *
+ * Cars used to turn round at the end of a run, because a band is a straight line and
+ * nothing connected one to another — so a car could never leave the road it started on.
+ * Carriageways are axis-aligned, so a junction is simply an east-west band and a
+ * north-south band whose spans contain each other's centre; that gives a graph to drive
+ * rather than a set of corridors. A car reaching a junction may take it, and only
+ * reverses when it runs out of road, which now happens at a genuine dead end.
+ */
 function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean): { group: THREE.Group; update: (delta: number) => void; count: number } {
   const group = new THREE.Group();
   group.name = "MM_STREET_TRAFFIC";
   const tile = net.tileSize;
-  const usable = net.carriageways.filter(([, , from, to]) => to - from >= 8);
-  const cars: Car[] = [];
-  const count = Math.min(26, usable.length);
+  const usable = net.carriageways.filter(([, , from, to]) => to - from >= 6);
 
+  const crossings: Crossing[][] = usable.map(() => []);
+  usable.forEach(([axisA, centreA, fromA, toA], a) => {
+    if (axisA !== 0) return;
+    usable.forEach(([axisB, centreB, fromB, toB], b) => {
+      if (axisB !== 1) return;
+      const meets = centreB >= fromA && centreB <= toA && centreA >= fromB && centreA <= toB;
+      if (!meets) return;
+      // The east-west band meets it at the other's x; the north-south band at its y.
+      crossings[a]!.push({ at: centreB * tile, road: b, otherAt: centreA * tile });
+      crossings[b]!.push({ at: centreA * tile, road: a, otherAt: centreB * tile });
+    });
+  });
+  for (const list of crossings) list.sort((x, y) => x.at - y.at);
+
+  // Seven of the carriageways have no crossing at all, so a car placed there could only
+  // ever reverse. Start everyone on a road that connects to something.
+  const driveable = usable.map((_, index) => index).filter((index) => (crossings[index]?.length ?? 0) > 0);
+  const spawnable = driveable.length > 0 ? driveable : usable.map((_, index) => index);
+
+  const cars: Car[] = [];
+  const count = Math.min(30, spawnable.length);
   for (let i = 0; i < count; i += 1) {
     const mesh = buildCar(CAR_BODY[i % CAR_BODY.length]!);
     mesh.castShadow = shadows;
     group.add(mesh);
-    const roadIndex = Math.floor((i / count) * usable.length);
+    const roadIndex = spawnable[Math.floor((i / count) * spawnable.length)]!;
     const [, , from, to] = usable[roadIndex]!;
     cars.push({
       mesh,
       road: roadIndex,
-      along: from * tile + ((i * 13) % Math.max(1, (to - from) * tile)),
+      along: from * tile + ((i * 17) % Math.max(1, (to - from) * tile)),
       direction: i % 2 === 0 ? 1 : -1,
-      speed: 4.2 + (i % 5) * 0.9,
+      speed: 4.4 + (i % 5) * 0.8,
       lane: i % 2 === 0 ? 1 : -1,
     });
   }
 
+  // Often enough that the city feels driven, rarely enough that a car still follows a
+  // road for a while rather than jittering at every crossing.
+  const TURN_CHANCE = 0.4;
+
   const update = (delta: number): void => {
     for (const car of cars) {
+      const previous = car.along;
+      car.along += car.speed * delta * car.direction;
+
+      for (const crossing of crossings[car.road] ?? []) {
+        const passed = car.direction === 1
+          ? previous < crossing.at && car.along >= crossing.at
+          : previous > crossing.at && car.along <= crossing.at;
+        if (!passed || Math.random() > TURN_CHANCE) continue;
+        const [, , from, to] = usable[crossing.road]!;
+        const startM = from * tile;
+        const endM = to * tile;
+        // Head whichever way has more road left, so a turn does not immediately
+        // dead-end into a reverse.
+        car.direction = (crossing.otherAt - startM > endM - crossing.otherAt ? -1 : 1) as 1 | -1;
+        car.road = crossing.road;
+        car.along = crossing.otherAt;
+        break;
+      }
+
       const [axis, centre, from, to] = usable[car.road]!;
       const horizontal = axis === 0;
       const startM = from * tile;
       const endM = to * tile;
-      car.along += car.speed * delta * car.direction;
       if (car.along > endM || car.along < startM) {
-        // Turn round at the end of a run rather than vanishing; the network is not a
-        // closed circuit, and a car that pops out of existence reads worse than one
-        // that turns.
+        // A genuine dead end: no crossing took us off, so turn round.
         car.direction = (car.direction === 1 ? -1 : 1) as 1 | -1;
         car.lane = -car.lane as 1 | -1;
         car.along = Math.min(Math.max(car.along, startM), endM);

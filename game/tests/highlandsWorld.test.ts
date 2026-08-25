@@ -14,9 +14,12 @@ describe("Highlands & Rivers runtime contract", () => {
     expect(ISLANDS.find((district) => district.id === "lantern")).toMatchObject({ spawnX: -74, spawnZ: -30 });
   });
 
-  it("exposes all 42 empty player plots while retaining legacy holdings", () => {
-    expect(PLOTS).toHaveLength(42);
-    expect(new Set(PLOTS.map((plot) => plot.id)).size).toBe(42);
+  it("keeps every authored plot, and holds the expansion to the same rules", () => {
+    // The world shipped 42 plots; the city expansion adds frontage along the new
+    // street grid. The authored ones must all survive, ids must stay unique, and every
+    // plot — generated or not — has to satisfy the same geometry contract below.
+    expect(PLOTS.length).toBeGreaterThanOrEqual(42);
+    expect(new Set(PLOTS.map((plot) => plot.id)).size).toBe(PLOTS.length);
     for (const id of ["garden-row", "seabreeze", "north-canopy", "kitecrest-loft", "solar-terrace", "forge-lane"]) {
       expect(PLOTS.some((plot) => plot.id === id), id).toBe(true);
     }

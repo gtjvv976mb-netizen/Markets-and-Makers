@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { WORLD_ASSET_VERSION, versionedWorldUrl } from "../src/tileTextures";
-import packageManifest from "../public/assets/world/highlands-rivers-v1/browser-package.json";
 
-const manifest = packageManifest as { files: Array<{ file: string; sha256: string }> };
-const buffer = manifest.files.find((entry) => entry.file === "buffers/world-0.bin")!;
 
 describe("world asset version", () => {
-  // The world files carry a seven-day cache header on paths that never change, so a
-  // rebuilt world would keep being served from a returning player's disk cache for a
-  // week. Tying the version to the buffer's own hash means rebuilding the world without
-  // bumping it fails here rather than quietly shipping stale geometry to everyone who
-  // has visited recently.
-  it("matches the world buffer actually on disk", () => {
-    expect(WORLD_ASSET_VERSION).toBe(buffer.sha256.slice(0, 8));
+  // The world files carry a long cache header on paths that never change, so this key
+  // is what makes a rebuilt world reach a returning player. It is generated from those
+  // files rather than maintained by hand — the hand-maintained version broke the first
+  // time a world file changed that was not the one it was tied to.
+  it("is a real fingerprint, not a placeholder", () => {
+    expect(WORLD_ASSET_VERSION).toMatch(/^[0-9a-f]{12}$/);
   });
 
   it("stamps world assets, under either root", () => {

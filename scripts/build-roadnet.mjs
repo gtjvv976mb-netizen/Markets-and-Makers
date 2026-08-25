@@ -115,13 +115,34 @@ function runs(cells) {
   return out;
 }
 
+// The expansion grid is laid over land the authored world left without frontage. It is
+// drawn from here rather than baked into the terrain, so the asphalt covers the ground
+// while walkability still comes from the terrain underneath.
+let expansion = [];
+try {
+  expansion = JSON.parse(readFileSync(resolve(root, "scripts/.city-expansion-roads.json"), "utf8"));
+} catch {
+  // Not generated yet; the authored network stands on its own.
+}
+for (const street of expansion) {
+  const horizontal = street.axis === 0;
+  const fixed = Math.floor(street.centre);
+  for (let k = street.from; k <= street.to; k += 1) {
+    road.add(horizontal ? key(k, fixed) : key(fixed, k));
+    road.add(horizontal ? key(k, fixed + 1) : key(fixed + 1, k));
+  }
+}
+
 const out = {
   tileSize: TILE,
   laneWidthCells: 2,
   /** [row, x0, x1] — every carriageway cell, so junctions and stubs are never missing. */
   roadRuns: runs(road),
   pathRuns: runs(walk),
-  carriageways: carriageways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
+  carriageways: [
+    ...carriageways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
+    ...expansion.map((c) => [c.axis, c.centre, c.from, c.to]),
+  ],
   footways: footways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
 };
 
@@ -129,6 +150,6 @@ const dest = resolve(root, "game/public/world/roadnet.json");
 mkdirSync(dirname(dest), { recursive: true });
 writeFileSync(dest, JSON.stringify(out));
 const cells = carriageways.reduce((a, c) => a + (c.to - c.from), 0);
-console.log(`road cells ${road.size} in ${out.roadRuns.length} runs, path cells ${walk.size} in ${out.pathRuns.length} runs`);
+console.log(`road cells ${road.size} in ${out.roadRuns.length} runs (${expansion.length} expansion streets), path cells ${walk.size} in ${out.pathRuns.length} runs`);
 console.log(`carriageways ${carriageways.length} (${cells} cells of centreline), footways ${footways.length}`);
 console.log(`wrote ${dest} (${(JSON.stringify(out).length / 1024).toFixed(1)} KB)`);

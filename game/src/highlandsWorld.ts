@@ -1,3 +1,4 @@
+import { GENERATED_PLOT_CELLS } from "./generatedPlots";
 export const HIGHLANDS_WORLD_BASE = "./assets/world/highlands-rivers-v1";
 export const HIGHLANDS_WORLD_ENTRY = `${HIGHLANDS_WORLD_BASE}/world.gltf`;
 
@@ -22,7 +23,7 @@ export const HIGHLANDS_DISTRICTS = [
   { id: "pulse", name: "Pulsegrove Valley", district: "Wellness and residential valley", x: -32, z: -124, radius: 52, spawnX: -32, spawnZ: -112, color: "#67a98c", economy: "Gyms, clinics, housing and recreation" },
 ] as const;
 
-type PlotCells = readonly [id: string, island: string, minX: number, minY: number, maxX: number, maxY: number, price: number];
+export type PlotCells = readonly [id: string, island: string, minX: number, minY: number, maxX: number, maxY: number, price: number];
 export type PlotCustomerEdge = "N" | "E" | "S" | "W";
 
 const PLOT_CELLS: readonly PlotCells[] = [
@@ -96,7 +97,17 @@ const CUSTOMER_EDGE_BY_PLOT: Readonly<Record<string, PlotCustomerEdge>> = {
   EF06: "N",
 };
 
-export const HIGHLANDS_PLOTS = PLOT_CELLS.map(([id, island, minX, minY, maxX, maxY, price]) => ({
+/**
+ * The authored plots plus the expansion.
+ *
+ * The world shipped 42 plots against 41,034 buildable cells, with most of the island
+ * more than eight cells from a road. scripts/build-city-expansion.mjs lays a street grid
+ * over that land and puts frontage on it; every generated plot is flat, clear of the
+ * civic reservations and the authored plots, and adjacent to a carriageway.
+ */
+const ALL_PLOT_CELLS: readonly PlotCells[] = [...PLOT_CELLS, ...GENERATED_PLOT_CELLS];
+
+export const HIGHLANDS_PLOTS = ALL_PLOT_CELLS.map(([id, island, minX, minY, maxX, maxY, price]) => ({
   id,
   name: `${titleCaseId(id)} Plot`,
   island,
