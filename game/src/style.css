@@ -746,6 +746,12 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   background: rgba(255,255,255,.065);
   box-shadow: none;
 }
+/* The Merc Dollar's own mark, where a generic wallet glyph used to be. Sized to the
+   icon it replaces and given the same plinth, so the pill's proportions do not move.
+   The source is 1254px and 2.3 MB; the copy that ships is 256px and 132 KB, which is
+   still three times what this ever draws at. */
+.mm-coin { display: block; width: 28px; height: 28px; object-fit: contain; border-radius: 10px 10px 13px 10px; background: linear-gradient(145deg, #fff9df, #f1c25d); box-shadow: 0 3px 0 #80511f; }
+
 .economy-strip .mm-icon { width: 28px; height: 28px; padding: 5px; color: #08383d; border-radius: 10px 10px 13px 10px; background: linear-gradient(145deg, #fff9df, #f1c25d); box-shadow: 0 3px 0 #80511f; }
 .economy-strip small { color: rgba(255,255,255,.5); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .economy-strip strong { overflow: hidden; margin-top: 3px; color: #fff8df; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
