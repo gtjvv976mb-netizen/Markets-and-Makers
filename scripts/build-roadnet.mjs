@@ -343,14 +343,121 @@ for (let pass = 0; pass < 12; pass += 1) {
 }
 settle();
 
-// The asphalt is drawn from these cells, so anything the prune stranded goes with it.
-{
+// A lane the world drew by hand is not two cells wide, so no band claims it and the
+// carriageway prune cannot see it: two winding country lanes ran off into open grass
+// and survived every check, because every check was asking about bands. Erode the
+// surface as well. A road cell with one neighbour is the tip of a tail, and removing
+// tips can never separate anything — a cell with a single link is nothing's bridge.
+const erodeTails = () => {
+  let gone = 0;
+  for (;;) {
+    const tips = [];
+    for (const c of road) {
+      const [x, y] = c.split(",").map(Number);
+      let links = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (road.has(key(x + dx, y + dy))) links += 1;
+      if (links <= 1) tips.push(c);
+    }
+    if (tips.length === 0) return gone;
+    for (const c of tips) road.delete(c);
+    gone += tips.length;
+  }
+};
+
+// Where the roads exist to take you: every lot, every civic footprint, every marked
+// point of interest. A carriageway earns its place by connecting these; a lane that
+// reaches none of them and that nothing routes through is scenery pretending to be a
+// road, and two of them wandered off into open grass for want of this test.
+const destinations = new Set();
+const addRect = (x0, y0, x1, y1) => {
+  for (let x = x0 - 1; x <= x1 + 1; x += 1) for (let y = y0 - 1; y <= y1 + 1; y += 1) destinations.add(key(x, y));
+};
+for (const file of ["game/src/highlandsWorld.ts", "game/src/generatedPlots.ts"]) {
+  const text = readFileSync(resolve(root, file), "utf8");
+  for (const m of text.matchAll(/\["\w+","[^"]*",(-?\d+),(-?\d+),(-?\d+),(-?\d+)/g)) {
+    addRect(Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]));
+  }
+}
+for (const b of layout.buildings ?? []) {
+  const bounds = b.occupied_bounds_cells;
+  if (bounds) addRect(bounds.min[0], bounds.min[1], bounds.max[0], bounds.max[1]);
+}
+for (const poi of layout.points_of_interest ?? []) {
+  const cell = poi.portal_anchor_cell;
+  if (cell) addRect(cell[0], cell[1], cell[0], cell[1]);
+}
+
+/** Road that no carriageway claims, grouped into the shapes it actually forms. */
+const looseClusters = () => {
+  const claimed = new Set();
+  for (const b of surviving) for (const c of bandCells(b)) claimed.add(c);
+  const loose = new Set([...road].filter((c) => !claimed.has(c)));
+  const seen = new Set();
+  const clusters = [];
+  for (const c of loose) {
+    if (seen.has(c)) continue;
+    const stack = [c];
+    const group = [];
+    seen.add(c);
+    while (stack.length) {
+      const [x, y] = stack.pop().split(",").map(Number);
+      group.push(key(x, y));
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const k = key(x + dx, y + dy);
+        if (loose.has(k) && !seen.has(k)) { seen.add(k); stack.push(k); }
+      }
+    }
+    clusters.push(group);
+  }
+  return clusters;
+};
+
+const REACH = 3;
+const dropPointlessLanes = () => {
+  let gone = 0;
+  for (const group of looseClusters()) {
+    const serves = group.some((c) => {
+      const [x, y] = c.split(",").map(Number);
+      for (let dx = -REACH; dx <= REACH; dx += 1) {
+        for (let dy = -REACH; dy <= REACH; dy += 1) if (destinations.has(key(x + dx, y + dy))) return true;
+      }
+      return false;
+    });
+    if (serves) continue;
+    const without = new Set(road);
+    for (const c of group) without.delete(c);
+    if (without.size === 0) continue;
+    if (mainBody(without).size !== without.size) continue;   // something routes through it
+    for (const c of group) road.delete(c);
+    gone += group.length;
+  }
+  return gone;
+};
+
+const keepMainBody = () => {
   const body = mainBody(cellsOf(surviving));
-  const removed = road.size - body.size;
   road.clear();
   for (const c of body) road.add(c);
-  console.log(`carriageways ${allBands.length} -> ${surviving.length}; centreline ${originalLength} -> ${surviving.reduce((n, b) => n + (b.to - b.from), 0)} cells; ${removed} road cells removed`);
+};
+
+// Eroding a lane can leave the street that met it hanging, and trimming that street can
+// expose another lane, so the two settle together rather than one after the other.
+const startingCells = road.size;
+let eroded = 0;
+for (let round = 0; round < 6; round += 1) {
+  keepMainBody();
+  const gone = erodeTails() + dropPointlessLanes();
+  eroded += gone;
+  const cutBefore = surviving.length;
+  settle();
+  if (gone === 0 && surviving.length === cutBefore) break;
 }
+keepMainBody();
+eroded += erodeTails() + dropPointlessLanes();
+keepMainBody();
+
+console.log(`carriageways ${allBands.length} -> ${surviving.length}; centreline ${originalLength} -> ${surviving.reduce((n, b) => n + (b.to - b.from), 0)} cells`);
+console.log(`road cells ${startingCells} -> ${road.size} (${eroded} removed as tails and lanes that led nowhere)`);
 
 const out = {
   tileSize: TILE,
