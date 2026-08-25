@@ -1,0 +1,561 @@
+{
+  "schema": "markets-and-makers.business-buildings.v2",
+  "status": "mobile-lite-production-candidate",
+  "runtime_source": "game/src/proceduralAssets.ts",
+  "axes": {
+    "up": "+Y",
+    "customer_front": "+Z"
+  },
+  "units": "metres",
+  "pivot": "bottom-centre",
+  "tile_size_m": 2,
+  "material_profile": "one opaque PBR vertex-colour material per building",
+  "mobile_limits": {
+    "max_triangles_per_building": 8000,
+    "max_source_parts_per_building": 78,
+    "max_materials_per_building": 1,
+    "max_textures_per_building": 0
+  },
+  "businesses": [
+    {
+      "license_key": "aquaworks",
+      "name": "Tideglass AquaWorks",
+      "model_stem": "b04-aquaworks",
+      "asset_id": "mm_biz_aquaworks_v2",
+      "file": "models/b04-aquaworks-v2-lod0.glb",
+      "sha256": "ee46265f788ec40a543b845dab13f173260f9039dc3386ecdb4b8a868d0eaa30",
+      "bytes": 28204,
+      "triangles": 376,
+      "vertices": 668,
+      "source_parts": 19,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          3.83,
+          6
+        ],
+        "size": [
+          12,
+          3.83,
+          12
+        ]
+      },
+      "silhouette": "low living-filter hall beside stepped tanks",
+      "hero_prop": "two cyan treatment tanks",
+      "regenerative_system": "rain capture, planted filtration and visible water runnel"
+    },
+    {
+      "license_key": "sungrid",
+      "name": "Sunwell Microgrid",
+      "model_stem": "b03-sungrid-utility",
+      "asset_id": "mm_biz_sungrid_v2",
+      "file": "models/b03-sungrid-utility-v2-lod0.glb",
+      "sha256": "11ed86f49e81db7675f2d8286cb70e1f25666dda7475df71b40c6cb5954f8ed4",
+      "bytes": 37976,
+      "triangles": 608,
+      "vertices": 900,
+      "source_parts": 31,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          6.58,
+          6
+        ],
+        "size": [
+          12,
+          6.58,
+          12
+        ]
+      },
+      "silhouette": "fan-shaped photovoltaic roof and slim energy mast",
+      "hero_prop": "large battery cube",
+      "regenerative_system": "photovoltaics, battery storage and vertical-axis wind"
+    },
+    {
+      "license_key": "greenhouse",
+      "name": "Greenloom Greenhouse",
+      "model_stem": "b05-canopy-greenhouse",
+      "asset_id": "mm_biz_greenhouse_v2",
+      "file": "models/b05-canopy-greenhouse-v2-lod0.glb",
+      "sha256": "c39c74b9d9fce4b7d1d06b5638609f033c3671b66fb7a917adbead489173af99",
+      "bytes": 66172,
+      "triangles": 1700,
+      "vertices": 1501,
+      "source_parts": 31,
+      "footprint_tiles": [
+        6,
+        8
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -8
+        ],
+        "max": [
+          6,
+          4.7458,
+          8
+        ],
+        "size": [
+          12,
+          4.7458,
+          16
+        ]
+      },
+      "silhouette": "three linked barrel biomes with a raised centre",
+      "hero_prop": "visible crop beds",
+      "regenerative_system": "ridge vents, rain tank and irrigation header"
+    },
+    {
+      "license_key": "mine",
+      "name": "Stonewake Mine",
+      "model_stem": "b09-stonewake-mine",
+      "asset_id": "mm_biz_mine_v2",
+      "file": "models/b09-stonewake-mine-v2-lod0.glb",
+      "sha256": "da42260510c7cc270b1205f51d8dfb26187d7e2469640ad5a93e15e78e5d7884",
+      "bytes": 38124,
+      "triangles": 668,
+      "vertices": 894,
+      "source_parts": 27,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          6.09,
+          6
+        ],
+        "size": [
+          12,
+          6.09,
+          12
+        ]
+      },
+      "silhouette": "terraced rock wedge and angular headframe",
+      "hero_prop": "ore cart entering an arched portal",
+      "regenerative_system": "electric charging shelter and planted reclamation terraces"
+    },
+    {
+      "license_key": "timberworks",
+      "name": "Timbercoast Works",
+      "model_stem": "b10-timbercoast-works",
+      "asset_id": "mm_biz_timberworks_v2",
+      "file": "models/b10-timbercoast-works-v2-lod0.glb",
+      "sha256": "a3da0710c96c7a09c3606dc67525578274378a8069c7f77c1cf982a6ff93a71c",
+      "bytes": 49408,
+      "triangles": 784,
+      "vertices": 1188,
+      "source_parts": 30,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          5.68,
+          6
+        ],
+        "size": [
+          12,
+          5.68,
+          12
+        ]
+      },
+      "silhouette": "open timber-truss saw shed and dark solar kiln",
+      "hero_prop": "log deck feeding a saw carriage",
+      "regenerative_system": "solar kiln and sawdust biomass collector"
+    },
+    {
+      "license_key": "cratemill",
+      "name": "Freight Crate Mill",
+      "model_stem": "b11-freight-crate-mill",
+      "asset_id": "mm_biz_cratemill_v2",
+      "file": "models/b11-freight-crate-mill-v2-lod0.glb",
+      "sha256": "f6182cff8f303872839fcc7dfe0d870adf2569fb166acbbbb22ea2895424a3ab",
+      "bytes": 29680,
+      "triangles": 360,
+      "vertices": 711,
+      "source_parts": 28,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          4.619,
+          6
+        ],
+        "size": [
+          12,
+          4.619,
+          12
+        ]
+      },
+      "silhouette": "stepped crate-like roof",
+      "hero_prop": "giant half-built reusable crate",
+      "regenerative_system": "flat-pack reuse loop, scrap collector and rooftop solar"
+    },
+    {
+      "license_key": "workshop",
+      "name": "Maker Workshop",
+      "model_stem": "b06-maker-workshop",
+      "asset_id": "mm_biz_workshop_v2",
+      "file": "models/b06-maker-workshop-v2-lod0.glb",
+      "sha256": "6055295972d7f313fd12a08e7effe92e0865bf239b1b991df5a3ea9d76ac5d7e",
+      "bytes": 43000,
+      "triangles": 780,
+      "vertices": 1011,
+      "source_parts": 29,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          5.1867,
+          6
+        ],
+        "size": [
+          12,
+          5.1867,
+          12
+        ]
+      },
+      "silhouette": "asymmetric sawtooth shop and open fabrication bay",
+      "hero_prop": "large tool wheel",
+      "regenerative_system": "solar clerestory, rain barrel and reclaimed-material rack"
+    },
+    {
+      "license_key": "factory",
+      "name": "Mercedonian Factory",
+      "model_stem": "b12-mercedonian-factory",
+      "asset_id": "mm_biz_factory_v2",
+      "file": "models/b12-mercedonian-factory-v2-lod0.glb",
+      "sha256": "e6966a3457b1fd9574bf7850d74c0676fff467de92238ae73ef5dc4063db1975",
+      "bytes": 51404,
+      "triangles": 872,
+      "vertices": 1228,
+      "source_parts": 37,
+      "footprint_tiles": [
+        8,
+        8
+      ],
+      "bounds_m": {
+        "min": [
+          -8,
+          0,
+          -8
+        ],
+        "max": [
+          8,
+          5.6366,
+          8
+        ],
+        "size": [
+          16,
+          5.6366,
+          16
+        ]
+      },
+      "silhouette": "five-bay sawtooth manufacturing hall",
+      "hero_prop": "external production gantry and conveyor",
+      "regenerative_system": "closed-loop water tank, solar strips and planted roof"
+    },
+    {
+      "license_key": "construction",
+      "name": "Civic Construction Co.",
+      "model_stem": "b13-civic-construction",
+      "asset_id": "mm_biz_construction_v2",
+      "file": "models/b13-civic-construction-v2-lod0.glb",
+      "sha256": "691c3f34b5af455b81e5e362e2e7a31ab1630883b611d3b98cc70cbcb69ab896",
+      "bytes": 34120,
+      "triangles": 440,
+      "vertices": 820,
+      "source_parts": 28,
+      "footprint_tiles": [
+        8,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -8,
+          0,
+          -6
+        ],
+        "max": [
+          8,
+          7.66,
+          6
+        ],
+        "size": [
+          16,
+          7.66,
+          12
+        ]
+      },
+      "silhouette": "tall portal crane beside a low site office",
+      "hero_prop": "room pod and upright wall-panel rack",
+      "regenerative_system": "solar site office, rain capture and permeable planted edge"
+    },
+    {
+      "license_key": "freight",
+      "name": "Copper Quay Freight",
+      "model_stem": "b01-ferry-terminal",
+      "asset_id": "mm_biz_freight_v2",
+      "file": "models/b01-ferry-terminal-v2-lod0.glb",
+      "sha256": "10cd8a197d66174918dd1b27e8cac8758e991391886ca8383b4f4b824116ddce",
+      "bytes": 47920,
+      "triangles": 1104,
+      "vertices": 1094,
+      "source_parts": 29,
+      "footprint_tiles": [
+        8,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -8,
+          0,
+          -6
+        ],
+        "max": [
+          8,
+          6.55,
+          6
+        ],
+        "size": [
+          16,
+          6.55,
+          12
+        ]
+      },
+      "silhouette": "long solar quay canopy and electric gantry",
+      "hero_prop": "copper cargo container",
+      "regenerative_system": "solar loading canopy and shore-power pedestal"
+    },
+    {
+      "license_key": "shop",
+      "name": "Supply Shop & Café",
+      "model_stem": "b07-starter-shop-cafe",
+      "asset_id": "mm_biz_shop_v2",
+      "file": "models/b07-starter-shop-cafe-v2-lod0.glb",
+      "sha256": "92b970ef9bb660a54bb704dd9406f2f4a73f0bb1ea805c49dc8ffbfea2e25ed6",
+      "bytes": 41480,
+      "triangles": 836,
+      "vertices": 959,
+      "source_parts": 23,
+      "footprint_tiles": [
+        4,
+        4
+      ],
+      "bounds_m": {
+        "min": [
+          -4,
+          0,
+          -4
+        ],
+        "max": [
+          4,
+          4.07,
+          4
+        ],
+        "size": [
+          8,
+          4.07,
+          8
+        ]
+      },
+      "silhouette": "compact corner shop beneath a leaf-fan awning",
+      "hero_prop": "produce counter and cup-return station",
+      "regenerative_system": "herb roof, rain barrel and reusable-cup loop"
+    },
+    {
+      "license_key": "restaurant",
+      "name": "Sunset Market Kitchen",
+      "model_stem": "b14-market-kitchen",
+      "asset_id": "mm_biz_restaurant_v2",
+      "file": "models/b14-market-kitchen-v2-lod0.glb",
+      "sha256": "d64a9e2d69efdb31b0b39555ed98d49945ef01396cfe3e93822325803b5220ba",
+      "bytes": 45688,
+      "triangles": 884,
+      "vertices": 1068,
+      "source_parts": 24,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          3.87,
+          6
+        ],
+        "size": [
+          12,
+          3.87,
+          12
+        ]
+      },
+      "silhouette": "two inverted-umbrella dining roofs",
+      "hero_prop": "central solar oven and produce counter",
+      "regenerative_system": "herb beds, compost drum and rain canopies"
+    },
+    {
+      "license_key": "gym",
+      "name": "Harbor Gym",
+      "model_stem": "b08-harbor-gym",
+      "asset_id": "mm_biz_gym_v2",
+      "file": "models/b08-harbor-gym-v2-lod0.glb",
+      "sha256": "7ac84faab24f4a74a2a0fb554c2431234bd2444fb124e6f2fd35a3a4bebc8a6b",
+      "bytes": 51396,
+      "triangles": 1380,
+      "vertices": 1145,
+      "source_parts": 23,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          8.4,
+          6
+        ],
+        "size": [
+          12,
+          8.4,
+          12
+        ]
+      },
+      "silhouette": "open-sided lotus rib hall",
+      "hero_prop": "climbing wall and exercise wheel",
+      "regenerative_system": "passive ventilation, cooling pond and photovoltaic ridge"
+    },
+    {
+      "license_key": "cinema",
+      "name": "Lantern Cinema",
+      "model_stem": "b15-lantern-cinema",
+      "asset_id": "mm_biz_cinema_v2",
+      "file": "models/b15-lantern-cinema-v2-lod0.glb",
+      "sha256": "c00d6441714145550442958aea229666459bcae3aecea8449afe3edc88f5feae",
+      "bytes": 34364,
+      "triangles": 600,
+      "vertices": 802,
+      "source_parts": 22,
+      "footprint_tiles": [
+        8,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -8,
+          0,
+          -6
+        ],
+        "max": [
+          8,
+          9.5,
+          6
+        ],
+        "size": [
+          16,
+          9.5,
+          12
+        ]
+      },
+      "silhouette": "dark theater box with a glowing lantern crown",
+      "hero_prop": "giant projector aperture",
+      "regenerative_system": "solar-petal marquee and planted roof"
+    },
+    {
+      "license_key": "recycler",
+      "name": "Tideglass Reclamation Hub",
+      "model_stem": "b16-reclamation-hub",
+      "asset_id": "mm_biz_recycler_v2",
+      "file": "models/b16-reclamation-hub-v2-lod0.glb",
+      "sha256": "330cb70786e563f86fc3a4fa3d0d01f1d6dd41bbdc9a11d944c239f390fd9a98",
+      "bytes": 38704,
+      "triangles": 572,
+      "vertices": 926,
+      "source_parts": 33,
+      "footprint_tiles": [
+        6,
+        6
+      ],
+      "bounds_m": {
+        "min": [
+          -6,
+          0,
+          -6
+        ],
+        "max": [
+          6,
+          5.8,
+          6
+        ],
+        "size": [
+          12,
+          5.8,
+          12
+        ]
+      },
+      "silhouette": "exterior-braced hall and hopper tower",
+      "hero_prop": "conveyor feeding three sorting bays",
+      "regenerative_system": "rooftop solar, compact wind rotor and bioswale"
+    }
+  ]
+}

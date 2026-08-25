@@ -1,13 +1,42 @@
 import { describe, expect, it } from "vitest";
+import * as THREE from "three";
 import { BUSINESS } from "../src/data";
-import { proceduralSceneFor } from "../src/proceduralAssets";
+import { BUSINESS_PROCEDURAL_SPECS, proceduralSceneFor } from "../src/proceduralAssets";
 import { snapToTileCentre as designSnap, tileYaw } from "../src/worldDesigns";
 import worldDesignManifest from "../public/assets/world/highlands-rivers-v1/world-designs-v1/manifest.json";
+import officialArtManifest from "../../art/official-v1/manifest.json";
 // .gltf is not a JSON extension vite will parse, so read it as text.
 import worldGltfText from "../public/assets/world/highlands-rivers-v1/world.gltf?raw";
 import { civicStructureFor, CIVIC_NODE_NAMES } from "../src/proceduralAssets";
 
 const manifest = worldDesignManifest as { assets: Array<{ id: string; category: string; file: string }> };
+const officialBusinesses = (officialArtManifest as unknown as { businesses: Array<{ license_key: string; footprint_tiles: [number, number] }> }).businesses;
+const modelStem = (model: string): string => (model.split("/").pop() ?? "").replace(/\.glb$/i, "");
+
+const meshesIn = (scene: THREE.Object3D): THREE.Mesh[] => {
+  const meshes: THREE.Mesh[] = [];
+  scene.traverse((object) => {
+    if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
+  });
+  return meshes;
+};
+
+const geometrySignature = (geometry: THREE.BufferGeometry): string => {
+  let hash = 0x811c9dc5;
+  const add = (value: number): void => {
+    hash ^= value;
+    hash = Math.imul(hash, 0x01000193);
+  };
+  const position = geometry.getAttribute("position");
+  for (let i = 0; i < position.count; i += 1) {
+    add(Math.round(position.getX(i) * 1_000));
+    add(Math.round(position.getY(i) * 1_000));
+    add(Math.round(position.getZ(i) * 1_000));
+  }
+  const index = geometry.getIndex();
+  if (index) for (let i = 0; i < index.count; i += 1) add(index.getX(i));
+  return (hash >>> 0).toString(16).padStart(8, "0");
+};
 
 describe("procedural asset catalogue", () => {
   // The GLBs these URLs point at are no longer shipped, so a stem the catalogue does
@@ -55,6 +84,96 @@ describe("procedural asset catalogue", () => {
       checked = true;
     });
     expect(checked).toBe(true);
+  });
+});
+
+describe("redesigned procedural business buildings", () => {
+  const entries = Object.entries(BUSINESS);
+  const officialByLicense = new Map(officialBusinesses.map((entry) => [entry.license_key, entry]));
+
+  it("covers exactly fifteen official licences with fifteen distinct model stems", () => {
+    expect(entries).toHaveLength(15);
+    expect(entries.map(([license]) => license).sort()).toEqual(officialBusinesses.map((entry) => entry.license_key).sort());
+    const stems = entries.map(([, config]) => modelStem(config.model));
+    expect(new Set(stems).size).toBe(15);
+    expect(stems.sort()).toEqual(Object.keys(BUSINESS_PROCEDURAL_SPECS).sort());
+  });
+
+  it("uses fifteen geometrically unique silhouettes, not palette-swapped clones", () => {
+    const signatures = entries.map(([, config]) => {
+      const meshes = meshesIn(proceduralSceneFor(config.model)!);
+      expect(meshes).toHaveLength(1);
+      return geometrySignature(meshes[0]!.geometry);
+    });
+    expect(new Set(signatures).size).toBe(15);
+  });
+
+  it("keeps every building to one opaque vertex-colour draw call", () => {
+    for (const [license, config] of entries) {
+      const scene = proceduralSceneFor(config.model)!;
+      const meshes = meshesIn(scene);
+      expect(meshes, license).toHaveLength(1);
+      const mesh = meshes[0]!;
+      expect(Array.isArray(mesh.material), license).toBe(false);
+      expect(mesh.material, license).toBeInstanceOf(THREE.MeshStandardMaterial);
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      expect(material.vertexColors, license).toBe(true);
+      expect(material.transparent, license).toBe(false);
+      expect(material.map, license).toBeNull();
+      expect(mesh.geometry.getAttribute("position"), license).toBeDefined();
+      expect(mesh.geometry.getAttribute("color"), license).toBeDefined();
+      expect(mesh.geometry.getAttribute("uv"), license).toBeUndefined();
+    }
+  });
+
+  it("grounds every structure and holds it inside its official plot footprint", () => {
+    for (const [license, config] of entries) {
+      const scene = proceduralSceneFor(config.model)!;
+      scene.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(scene, true);
+      const size = bounds.getSize(new THREE.Vector3());
+      const official = officialByLicense.get(license)!;
+      expect(Math.abs(bounds.min.y), `${license}:minY`).toBeLessThan(0.001);
+      expect(size.x, `${license}:width`).toBeLessThanOrEqual(official.footprint_tiles[0] * 2 + 0.5);
+      expect(size.z, `${license}:depth`).toBeLessThanOrEqual(official.footprint_tiles[1] * 2 + 0.5);
+      expect(size.y, `${license}:height`).toBeGreaterThan(3);
+      expect(size.y, `${license}:height`).toBeLessThanOrEqual(10);
+      expect([size.x, size.y, size.z].every(Number.isFinite), license).toBe(true);
+    }
+  });
+
+  it("publishes identity, recognition cues and mobile budgets with each scene", () => {
+    let totalTriangles = 0;
+    for (const [license, config] of entries) {
+      const stem = modelStem(config.model);
+      const scene = proceduralSceneFor(config.model)!;
+      const spec = BUSINESS_PROCEDURAL_SPECS[stem]!;
+      const official = officialByLicense.get(license)!;
+      const mesh = meshesIn(scene)[0]!;
+      const triangles = (mesh.geometry.getIndex()?.count ?? mesh.geometry.getAttribute("position").count) / 3;
+      totalTriangles += triangles;
+      expect(scene.userData).toMatchObject({
+        schema: "markets-and-makers.procedural-business.v1",
+        businessLicense: license,
+        assetId: `mm_biz_${license}_v2`,
+        modelStem: stem,
+        footprintTiles: official.footprint_tiles,
+        tileSizeM: 2,
+        upAxis: "+Y",
+        customerFront: "+Z",
+        mobileProfile: "lite",
+      });
+      expect(scene.userData.silhouette.length, `${license}:silhouette`).toBeGreaterThan(12);
+      expect(scene.userData.heroProp.length, `${license}:heroProp`).toBeGreaterThan(8);
+      expect(scene.userData.regenerativeSystem.length, `${license}:regenerativeSystem`).toBeGreaterThan(12);
+      expect(scene.userData.sourceParts, `${license}:parts`).toBeLessThanOrEqual(spec.maxSourceParts);
+      expect(triangles, `${license}:triangles`).toBeGreaterThan(200);
+      expect(triangles, `${license}:triangles`).toBeLessThanOrEqual(spec.maxTriangles);
+      expect(scene.name).toMatch(/^MM_PROC_B\d{2}_[A-Z0-9_]+$/);
+      expect(mesh.name).toBe(scene.name.replace("MM_PROC_", "MESH_"));
+      expect((mesh.material as THREE.Material).name).toBe(scene.name.replace("MM_PROC_", "MAT_PROC_"));
+    }
+    expect(totalTriangles).toBeLessThanOrEqual(40_000);
   });
 });
 
