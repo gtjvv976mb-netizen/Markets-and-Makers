@@ -14,21 +14,21 @@ import * as THREE from "three";
 const SIZE = 128;
 
 /** How each terrain surface is dressed once its palette colour is laid down. */
-type Motif = "blades" | "speckle" | "flagstone" | "planks" | "plain";
+type Motif = "blades" | "speckle" | "flagstone" | "planks" | "road" | "plain";
 
 const MOTIF: Readonly<Record<string, Motif>> = {
   MAT_TERRAIN_GRASS_SAGE: "blades",
   MAT_TERRAIN_GRASS_DRY: "blades",
   MAT_TERRAIN_SAND: "speckle",
   MAT_TERRAIN_LIMESTONE: "flagstone",
-  MAT_TERRAIN_PATH: "speckle",
+  MAT_TERRAIN_PATH: "road",
   MAT_TERRAIN_GRAVEL: "speckle",
   MAT_TERRAIN_ROCK: "flagstone",
   MAT_TERRAIN_CLIFF: "flagstone",
   MAT_TERRAIN_TIMBER: "planks",
   MAT_TERRAIN_TIMBER_DARK: "planks",
   MAT_TERRAIN_TERRACOTTA: "flagstone",
-  MAT_MM_STONE: "flagstone",
+  MAT_MM_STONE: "road",
   MAT_MM_CREAM: "plain",
 };
 
@@ -93,6 +93,37 @@ const drawFlagstone = (context: CanvasRenderingContext2D, base: THREE.Color): vo
   }
 };
 
+/**
+ * A paved road: courses of setts laid in a running bond, each row offset half a block
+ * from the one above. The offset is what stops it reading as a net — a square grid at
+ * road width is a mesh, while staggered joints read as paving from any direction, which
+ * matters because the same tile serves roads running both ways and their junctions.
+ */
+const drawRoad = (context: CanvasRenderingContext2D, base: THREE.Color): void => {
+  const rows = 4;
+  const blockH = SIZE / rows;
+  const blockW = SIZE / 2;
+  // Mortar first, as a full-bleed darker ground the setts sit proud of.
+  shade(context, base, -0.055);
+  context.fillRect(0, 0, SIZE, SIZE);
+  for (let row = 0; row < rows; row += 1) {
+    const offset = (row % 2) * (blockW / 2);
+    // Three draws per row so the half-block offset wraps cleanly at the seam.
+    for (let i = -1; i < 3; i += 1) {
+      const x = offset + i * blockW;
+      shade(context, base, row % 2 === 0 ? 0.018 : 0.004);
+      context.fillRect(x + 1.5, row * blockH + 1.5, blockW - 3, blockH - 3);
+    }
+  }
+  // A little aggregate, on a fixed lattice so it stays symmetric under quarter turns.
+  shade(context, base, -0.03, 0.5);
+  for (let i = 0; i < 16; i += 1) {
+    const x = ((i * 37) % 16) * 8 + 3;
+    const y = ((i * 53) % 16) * 8 + 3;
+    context.fillRect(x, y, 2, 2);
+  }
+};
+
 const drawPlanks = (context: CanvasRenderingContext2D, base: THREE.Color): void => {
   const step = SIZE / 6;
   shade(context, base, -0.08, 0.85);
@@ -125,13 +156,18 @@ export function terrainTileTexture(materialName: string, colour: THREE.Color): T
   else if (motif === "speckle") drawSpeckle(context, colour);
   else if (motif === "flagstone") drawFlagstone(context, colour);
   else if (motif === "planks") drawPlanks(context, colour);
+  else if (motif === "road") drawRoad(context, colour);
 
-  // A consistent keyline on every tile is what makes a tiled world read as tiled.
-  shade(context, colour, -0.07, 0.55);
-  context.fillRect(0, 0, SIZE, 1);
-  context.fillRect(0, SIZE - 1, SIZE, 1);
-  context.fillRect(0, 0, 1, SIZE);
-  context.fillRect(SIZE - 1, 0, 1, SIZE);
+  // A keyline on every edge is what makes natural ground read as tiled — but across a
+  // wide paved surface those same lines become a net, which is the whole point of the
+  // running bond. Roads carry their joints in the motif instead.
+  if (motif !== "road") {
+    shade(context, colour, -0.07, 0.55);
+    context.fillRect(0, 0, SIZE, 1);
+    context.fillRect(0, SIZE - 1, SIZE, 1);
+    context.fillRect(0, 0, 1, SIZE);
+    context.fillRect(SIZE - 1, 0, 1, SIZE);
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.name = `TEX_TILE_${materialName}`;

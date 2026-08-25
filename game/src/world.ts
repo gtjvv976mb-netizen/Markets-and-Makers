@@ -312,6 +312,19 @@ export class World3D {
   }
 
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
+    // The authored grid border is 221 primitives of near-black edging laid over the
+    // whole terrain — the mesh that made roads read as a net rather than a surface.
+    // The generated tiles already carry their own joints (a keyline on natural ground,
+    // running-bond courses on paving), so this only needs to be a soft seam, not a line.
+    if (material.name === "MAT_TERRAIN_GRID_BORDER") {
+      material.color.set(0x6f7a5e);
+      material.transparent = true;
+      material.opacity = 0.22;
+      material.depthWrite = false;
+      material.roughness = 0.95;
+      material.needsUpdate = true;
+      return;
+    }
     const color = SOLARPUNK_MATERIALS[material.name];
     if (color) {
       // The authored painted swatches are mirror-tiled and heavily blotched, so across
