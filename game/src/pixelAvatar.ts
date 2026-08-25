@@ -31,10 +31,10 @@ const REST: Readonly<Record<Joint, [number, number, number]>> = {
   Head: [0, 1.47, 0],
   ShoulderL: [0, 1.36, 0.20],
   UpperArmL: [0, 1.32, 0.26],
-  LowerArmL: [0, 1.02, 0.26],
+  LowerArmL: [0, 1.11, 0.26],
   ShoulderR: [0, 1.36, -0.20],
   UpperArmR: [0, 1.32, -0.26],
-  LowerArmR: [0, 1.02, -0.26],
+  LowerArmR: [0, 1.11, -0.26],
   UpperLegL: [0, 0.84, 0.10],
   LowerLegL: [0, 0.44, 0.10],
   UpperLegR: [0, 0.84, -0.10],
@@ -196,15 +196,20 @@ function walkClip(): THREE.AnimationClip {
   const times = [0, 0.25, 0.5, 0.75, 1];
   const swing = 0.62;
   const arm = 0.48;
+  // The figure faces +X, so forward-and-back is rotation about Z. About X it would
+  // swing sideways, which is a jumping jack, not a walk. For a bone hanging down,
+  // a positive Z rotation carries its tip toward +X, so positive is a step forward
+  // and the knee and elbow, which fold backward, stay negative.
   const tracks = [
-    quaternionTrack("UpperLegL", times, [[swing, 0, 0], [0, 0, 0], [-swing, 0, 0], [0, 0, 0], [swing, 0, 0]]),
-    quaternionTrack("UpperLegR", times, [[-swing, 0, 0], [0, 0, 0], [swing, 0, 0], [0, 0, 0], [-swing, 0, 0]]),
-    quaternionTrack("LowerLegL", times, [[0, 0, 0], [-0.5, 0, 0], [0, 0, 0], [-0.12, 0, 0], [0, 0, 0]]),
-    quaternionTrack("LowerLegR", times, [[0, 0, 0], [-0.12, 0, 0], [0, 0, 0], [-0.5, 0, 0], [0, 0, 0]]),
-    quaternionTrack("UpperArmL", times, [[-arm, 0, 0], [0, 0, 0], [arm, 0, 0], [0, 0, 0], [-arm, 0, 0]]),
-    quaternionTrack("UpperArmR", times, [[arm, 0, 0], [0, 0, 0], [-arm, 0, 0], [0, 0, 0], [arm, 0, 0]]),
-    quaternionTrack("LowerArmL", times, [[-0.22, 0, 0], [-0.1, 0, 0], [-0.22, 0, 0], [-0.1, 0, 0], [-0.22, 0, 0]]),
-    quaternionTrack("LowerArmR", times, [[-0.22, 0, 0], [-0.1, 0, 0], [-0.22, 0, 0], [-0.1, 0, 0], [-0.22, 0, 0]]),
+    quaternionTrack("UpperLegL", times, [[0, 0, swing], [0, 0, 0], [0, 0, -swing], [0, 0, 0], [0, 0, swing]]),
+    quaternionTrack("UpperLegR", times, [[0, 0, -swing], [0, 0, 0], [0, 0, swing], [0, 0, 0], [0, 0, -swing]]),
+    // The knee folds as the trailing leg lifts, and stays almost straight on the plant.
+    quaternionTrack("LowerLegL", times, [[0, 0, -0.08], [0, 0, -0.75], [0, 0, -0.08], [0, 0, -0.18], [0, 0, -0.08]]),
+    quaternionTrack("LowerLegR", times, [[0, 0, -0.08], [0, 0, -0.18], [0, 0, -0.08], [0, 0, -0.75], [0, 0, -0.08]]),
+    quaternionTrack("UpperArmL", times, [[0, 0, -arm], [0, 0, 0], [0, 0, arm], [0, 0, 0], [0, 0, -arm]]),
+    quaternionTrack("UpperArmR", times, [[0, 0, arm], [0, 0, 0], [0, 0, -arm], [0, 0, 0], [0, 0, arm]]),
+    quaternionTrack("LowerArmL", times, [[0, 0, -0.30], [0, 0, -0.16], [0, 0, -0.30], [0, 0, -0.16], [0, 0, -0.30]]),
+    quaternionTrack("LowerArmR", times, [[0, 0, -0.16], [0, 0, -0.30], [0, 0, -0.16], [0, 0, -0.30], [0, 0, -0.16]]),
     quaternionTrack("Chest", times, [[0, 0.09, 0], [0, 0, 0], [0, -0.09, 0], [0, 0, 0], [0, 0.09, 0]]),
     // Two bobs per stride: one for each footfall.
     new THREE.VectorKeyframeTrack("Hips.position", times,
@@ -217,9 +222,10 @@ function idleClip(): THREE.AnimationClip {
   const times = [0, 1, 2];
   const tracks = [
     new THREE.VectorKeyframeTrack("Hips.position", times, [0, 0.86, 0, 0, 0.874, 0, 0, 0.86, 0]),
-    quaternionTrack("Chest", times, [[0, 0, 0], [0.035, 0, 0], [0, 0, 0]]),
-    quaternionTrack("UpperArmL", times, [[0, 0, 0.03], [0, 0, 0.07], [0, 0, 0.03]]),
-    quaternionTrack("UpperArmR", times, [[0, 0, -0.03], [0, 0, -0.07], [0, 0, -0.03]]),
+    // A breath rocks forward about Z; the arms drift outward about X, away from the ribs.
+    quaternionTrack("Chest", times, [[0, 0, 0], [0, 0, 0.035], [0, 0, 0]]),
+    quaternionTrack("UpperArmL", times, [[0.04, 0, 0], [0.09, 0, 0], [0.04, 0, 0]]),
+    quaternionTrack("UpperArmR", times, [[-0.04, 0, 0], [-0.09, 0, 0], [-0.04, 0, 0]]),
     quaternionTrack("Head", times, [[0, 0.05, 0], [0, -0.05, 0], [0, 0.05, 0]]),
   ];
   return new THREE.AnimationClip("Idle", 2, tracks);
