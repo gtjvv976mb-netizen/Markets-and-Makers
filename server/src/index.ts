@@ -125,7 +125,16 @@ const server = createServer(async (req, res) => {
       const owner = url.searchParams.get("owner") ?? "";
       if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(owner)) { json(res, 400, { error: "invalid-owner" }); return; }
       if (!config.heliusApiKey || !config.tokenMint) { json(res, 503, { error: "chain-not-configured" }); return; }
-      json(res, 200, await tokenBalance(owner));
+      try {
+        json(res, 200, await tokenBalance(owner));
+      } catch (error) {
+        // Distinguish "the chain read failed" from a bug in this service, so a bad or
+        // expired RPC key is diagnosable from the outside. The reason is logged rather
+        // than returned, because the upstream message can echo the request URL — which
+        // carries the API key.
+        console.error("chain-balance failed:", error instanceof Error ? error.message : error);
+        json(res, 502, { error: "chain-read-failed" });
+      }
       return;
     }
     if (url.pathname.startsWith("/api/auth/")) {
