@@ -3,7 +3,12 @@ import { BUSINESS, type LicenseKey, type UpgradeKey } from "../src/data";
 import {
   dampInteriorAvatarYaw,
   INTERIOR_EQUIPMENT_CATALOG,
+  INTERIOR_ROOMS,
   interiorAvatarYaw,
+  PROP_SLOTS,
+  ROOM_HALF_DEPTH,
+  ROOM_HALF_WIDTH,
+  STATIONS,
 } from "../src/interiorWorld";
 
 const upgradeKeys: UpgradeKey[] = ["yield", "capacity", "speed", "appeal"];
@@ -68,5 +73,91 @@ describe("business interior avatar heading", () => {
 
     expect(travelled).toBeGreaterThan(0);
     expect(travelled).toBeLessThan(0.1);
+  });
+});
+
+describe("business interiors", () => {
+  const licenses = Object.keys(BUSINESS) as LicenseKey[];
+
+  it("gives every business its own room", () => {
+    expect(Object.keys(INTERIOR_ROOMS).sort()).toEqual([...licenses].sort());
+  });
+
+  it("makes no two trades share a palette", () => {
+    // The whole point of the pass: a mine must not be the greenhouse in another
+    // colour, and two businesses must not be the same room twice.
+    const seen = new Map<string, LicenseKey>();
+    for (const license of licenses) {
+      const room = INTERIOR_ROOMS[license];
+      const signature = [room.floor, room.wall, room.trim, room.glass, room.sky].join("/");
+      const clash = seen.get(signature);
+      expect(clash, `${license} has the same palette as ${clash}`).toBeUndefined();
+      seen.set(signature, license);
+    }
+  });
+
+  it("gives every trade a distinct floor kit", () => {
+    const seen = new Map<string, LicenseKey>();
+    for (const license of licenses) {
+      const kit = INTERIOR_ROOMS[license].props;
+      expect(kit.length, `${license} has no floor kit`).toBeGreaterThan(0);
+      expect(kit.length).toBeLessThanOrEqual(PROP_SLOTS.length);
+      const clash = seen.get(kit.join(","));
+      expect(clash, `${license} has the same kit as ${clash}`).toBeUndefined();
+      seen.set(kit.join(","), license);
+    }
+  });
+
+  it("leads each trade's kit with the piece that names it", () => {
+    // The two slots flanking the door are the first thing seen on entering, so they
+    // carry the signature piece rather than the shared crates every trade owns.
+    const signature: Record<LicenseKey, string> = {
+      aquaworks: "tanks", sungrid: "solar", greenhouse: "beds", mine: "orecart",
+      timberworks: "logs", cratemill: "crates", workshop: "toolwall", factory: "conveyor",
+      construction: "scaffold", freight: "pallets", shop: "shelves", restaurant: "diner",
+      gym: "weights", cinema: "seats", recycler: "bins",
+    };
+    for (const license of licenses) {
+      expect(INTERIOR_ROOMS[license].props[0], `${license} does not lead with its own kit`)
+        .toBe(signature[license]);
+    }
+  });
+
+  it("never stands kit on a station, the door or the walkway", () => {
+    const DOOR = { x: 0, z: -5.73, clear: 1.6 };
+    const KIT_REACH = 1.2;      // the largest radius any piece reports
+    const STATION_REACH = 1.5;  // base plus its halo
+
+    for (const [x, z] of PROP_SLOTS) {
+      expect(Math.abs(x) + KIT_REACH, `kit at ${x},${z} reaches through the side wall`)
+        .toBeLessThanOrEqual(ROOM_HALF_WIDTH);
+      expect(Math.abs(z) + KIT_REACH / 2, `kit at ${x},${z} reaches through the end wall`)
+        .toBeLessThanOrEqual(ROOM_HALF_DEPTH);
+
+      for (const station of STATIONS) {
+        const [sx, sz] = station.position;
+        expect(
+          Math.hypot(x - sx, z - sz),
+          `kit at ${x},${z} fouls the ${station.key} station`,
+        ).toBeGreaterThan(KIT_REACH + STATION_REACH);
+      }
+
+      expect(Math.hypot(x - DOOR.x, z - DOOR.z), `kit at ${x},${z} blocks the door`)
+        .toBeGreaterThan(KIT_REACH + DOOR.clear);
+
+      // The walkway runs up the middle of the room, 2.35 wide.
+      const blocksWalkway = Math.abs(x) < 1.18 + KIT_REACH;
+      expect(blocksWalkway, `kit at ${x},${z} stands in the walkway`).toBe(false);
+    }
+  });
+
+  it("stands no two pieces of kit inside each other", () => {
+    for (let i = 0; i < PROP_SLOTS.length; i += 1) {
+      for (let j = i + 1; j < PROP_SLOTS.length; j += 1) {
+        const [ax, az] = PROP_SLOTS[i]!;
+        const [bx, bz] = PROP_SLOTS[j]!;
+        expect(Math.hypot(ax - bx, az - bz)).toBeGreaterThan(2.4);
+      }
+    }
   });
 });
