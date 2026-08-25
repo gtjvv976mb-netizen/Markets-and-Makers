@@ -121,11 +121,21 @@ export function buildStreets(
   for (const [row, x0, x1] of net.roadRuns) {
     for (let x = x0; x <= x1; x += 1) roadCells.add(`${x},${row}`);
   }
-  const kerbPieces: Array<{ x: number; z: number; horizontal: boolean; y: number }> = [];
+  // Emitted per cell so the junction gap is exact, then merged back into runs before
+  // instancing. A kerb is a straight line hundreds of metres long, and one instance per
+  // 2m cell made 4,742 of them — 56,904 triangles of perfectly straight edging, drawn
+  // every frame because an instanced mesh whose bounds span the map never culls. A run
+  // breaks only where it genuinely must: a junction, a change of ground height where
+  // the road steps down a terrace, or the end of the carriageway.
+  //
+  // The two sides are gathered separately. Interleaving them (the shape of the original
+  // loop) leaves no two consecutive pieces adjacent, and nothing merges at all.
+  interface KerbCell { x: number; z: number; horizontal: boolean; y: number; along: number; cross: number }
+  const kerbCells: KerbCell[] = [];
   for (const [axis, centre, from, to] of net.carriageways) {
     const horizontal = axis === 0;
-    for (let step = from; step <= to; step += 1) {
-      for (const side of [-1, 1]) {
+    for (const side of [-1, 1]) {
+      for (let step = from; step <= to; step += 1) {
         // The cell the kerb would sit in, just outside the two-cell carriageway.
         const edgeCell = centre + side * 1.5;
         const cellX = horizontal ? step : Math.round(edgeCell);
@@ -135,15 +145,48 @@ export function buildStreets(
         const z = horizontal ? -(centre + side * (net.laneWidthCells / 2 + 0.09)) * tile : -step * tile;
         const ground = sampleGround(x, z);
         if (ground === null) continue;
-        kerbPieces.push({ x, z, horizontal, y: ground });
+        kerbCells.push({ x, z, horizontal, y: ground, along: step * tile, cross: horizontal ? z : x });
       }
     }
   }
-  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), kerbPieces.length);
+
+  const kerbRuns: Array<{ x: number; z: number; horizontal: boolean; y: number; length: number }> = [];
+  let run: { cell: KerbCell; endAlong: number; length: number } | null = null;
+  const closeRun = (): void => {
+    if (!run) return;
+    const { cell, length } = run;
+    // Re-centre on the whole run rather than its first cell.
+    const midAlong = (cell.along + run.endAlong) / 2;
+    kerbRuns.push({
+      x: cell.horizontal ? midAlong : cell.x,
+      z: cell.horizontal ? cell.z : -midAlong,
+      horizontal: cell.horizontal,
+      y: cell.y,
+      length,
+    });
+    run = null;
+  };
+  for (const cell of kerbCells) {
+    const continues = run !== null
+      && run.cell.horizontal === cell.horizontal
+      && Math.abs(run.cell.cross - cell.cross) < 0.001
+      && Math.abs(run.cell.y - cell.y) < 0.001
+      && Math.abs(cell.along - run.endAlong - tile) < 0.001;
+    if (continues && run) {
+      run.endAlong = cell.along;
+      run.length += tile;
+    } else {
+      closeRun();
+      run = { cell, endAlong: cell.along, length: tile };
+    }
+  }
+  closeRun();
+
+  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), kerbRuns.length);
   kerbs.name = "MM_STREET_KERBS";
   kerbs.receiveShadow = options.shadows;
-  kerbPieces.forEach((piece, i) => {
-    matrix.makeScale(piece.horizontal ? tile : 0.36, 0.18, piece.horizontal ? 0.36 : tile);
+  kerbRuns.forEach((piece, i) => {
+    matrix.makeScale(piece.horizontal ? piece.length : 0.36, 0.18, piece.horizontal ? 0.36 : piece.length);
     matrix.setPosition(piece.x, piece.y + 0.09, piece.z);
     kerbs.setMatrixAt(i, matrix);
   });

@@ -206,7 +206,15 @@ export class World3D {
     this.renderer.shadowMap.enabled = this.dynamicShadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x0fa8bb, 1);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 780 ? 1.15 : 1.45));
+    // Keyed on the device, not the window. The old test was `innerWidth < 780`, and a
+    // phone in landscape is about 844 wide — so rotating, which the game asks the
+    // player to do, moved them from the 1.15 cap up to 1.45 and made the GPU shade 59%
+    // more pixels. Exactly backwards. A phone now renders at 1.0: on a screen this
+    // small it is indistinguishable, and it is the cheapest frame-rate win available.
+    this.renderer.setPixelRatio(Math.min(
+      window.devicePixelRatio,
+      this.liteScene ? 1.0 : (window.innerWidth < 780 ? 1.15 : 1.45),
+    ));
     this.camera = new THREE.OrthographicCamera(-30, 30, 20, -20, 0.1, 900);
     const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
     this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
