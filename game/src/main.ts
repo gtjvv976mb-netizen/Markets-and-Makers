@@ -382,21 +382,43 @@ const realm = new RealmConnection({
 /**
  * Ask the platform for landscape.
  *
- * Only Android honours an orientation lock, and only from fullscreen after a user
- * gesture — iOS Safari has no equivalent, which is why the rotate gate exists as the
- * fallback rather than as a nicety. Both are best-effort and neither blocks play.
+ * An orientation lock is only granted from fullscreen, and only by Android — iOS
+ * Safari has no equivalent at all. So this goes fullscreen first and then asks, and
+ * treats both as best-effort: whatever the platform grants, the game keeps playing in
+ * whatever orientation the player is actually holding. Nothing here blocks play,
+ * which is the point — the card this replaced covered the whole screen to deliver one
+ * sentence the player could already see for themselves.
  */
-function requestLandscape(): void {
+async function requestLandscape(): Promise<void> {
+  const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+  try {
+    if (!document.fullscreenElement) {
+      if (root.requestFullscreen) await root.requestFullscreen({ navigationUI: "hide" });
+      else if (root.webkitRequestFullscreen) await root.webkitRequestFullscreen();
+    }
+  } catch {
+    // Refused. The lock below will almost certainly be refused too; that is fine.
+  }
   const orientation = screen.orientation as (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
   if (!orientation?.lock) return;
-  void orientation.lock("landscape").catch(() => {
-    // Refused — iOS, a desktop, or not fullscreen. The gate covers it.
-  });
+  try {
+    await orientation.lock("landscape");
+  } catch {
+    // iOS, a desktop, or fullscreen was denied. The player turns the phone themselves.
+  }
 }
 
+// The button is the deliberate route: a tap is the user gesture the lock requires.
+element<HTMLButtonElement>("#rotateGate").addEventListener("click", () => {
+  void requestLandscape();
+});
+
+// And one silent attempt on the first touch, for the platforms that allow it without
+// fullscreen, so most players never need the button at all.
 window.addEventListener("pointerdown", () => {
   if (!window.matchMedia("(pointer: coarse)").matches) return;
-  requestLandscape();
+  const orientation = screen.orientation as (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
+  void orientation?.lock?.("landscape").catch(() => {});
 }, { once: true });
 
 void detectDeployment().then((status) => {

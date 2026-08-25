@@ -69,6 +69,13 @@ const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAx
 const CITIZEN_AVATAR_BASE = "./assets/avatars/mercedonians/runtime";
 const PLAYER_WALK_SPEED_MPS = 2;
 const VISIBLE_CITIZENS = 24;
+/**
+ * Mercedonians on a phone. Each one is a skinned mesh, and skinning is the most
+ * expensive thing per-body a phone GPU does here. Halving the crowd halves that cost;
+ * the street still looks inhabited because the walkers are spread over the district,
+ * not clustered.
+ */
+const VISIBLE_CITIZENS_LITE = 12;
 const CITIZEN_DECISION_INTERVAL_SECONDS = 8;
 const CITIZEN_TERRAIN_GRID = `${HIGHLANDS_WORLD_BASE}/terrain-grid.json`;
 
@@ -148,6 +155,16 @@ export class World3D {
   );
   private readonly waterMaterials = new Set<THREE.MeshStandardMaterial>();
   private readonly dynamicShadows = window.matchMedia("(min-width: 900px)").matches && (navigator.hardwareConcurrency ?? 4) >= 6;
+  /**
+   * Phone tier. A coarse pointer on a narrow screen is the honest test — a laptop with
+   * a touchscreen is not a phone, and a tablet in landscape can afford the full city.
+   */
+  private readonly liteScene = window.matchMedia("(pointer: coarse)").matches
+    && Math.min(window.screen.width, window.screen.height) < 820;
+
+  private get citizenBudget(): number {
+    return this.liteScene ? VISIBLE_CITIZENS_LITE : VISIBLE_CITIZENS;
+  }
   private sun: THREE.DirectionalLight | null = null;
   /** Everything solid in the district, and the legs of the walk that avoids it. */
   private readonly obstacles = new ObstacleField();
@@ -370,7 +387,10 @@ export class World3D {
   private async buildStreetNetwork(): Promise<void> {
     try {
       const net = await loadRoadNet();
-      this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), { shadows: this.dynamicShadows });
+      this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), {
+        shadows: this.dynamicShadows,
+        lite: this.liteScene,
+      });
       this.scene.add(this.streets.group);
       this.streetSolids = this.streets.furniture;
       this.rebuildObstacles();
@@ -844,7 +864,7 @@ export class World3D {
       yawCorrection: number;
     } => template !== null);
     if (templates.length === 0) return;
-    for (let index = 0; index < VISIBLE_CITIZENS; index += 1) {
+    for (let index = 0; index < this.citizenBudget; index += 1) {
       const group = new THREE.Group();
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(0.36, 12),
@@ -1226,7 +1246,7 @@ export class World3D {
       state.reputation,
       state.visitorsServed,
     );
-    const party = representedPartySize(population, VISIBLE_CITIZENS, 0);
+    const party = representedPartySize(population, this.citizenBudget, 0);
     for (const activity of activities) {
       if (queue.some((entry) => entry.activityId === activity.id)) continue;
       queue.push({
@@ -1732,7 +1752,7 @@ export class World3D {
       citizen.group.visible = true;
       citizen.group.userData.representedCitizens = representedPartySize(
         population,
-        VISIBLE_CITIZENS,
+        this.citizenBudget,
         citizen.index,
       );
       if (citizen.waitingUntil > 0) {

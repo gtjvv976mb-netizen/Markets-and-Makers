@@ -57,7 +57,15 @@ export interface BuiltStreets {
   benchCount: number;
 }
 
-export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: { shadows: boolean }): BuiltStreets {
+export function buildStreets(
+  net: RoadNet,
+  sampleGround: SampleGround,
+  options: { shadows: boolean; lite?: boolean },
+): BuiltStreets {
+  // On a phone the street is thinned rather than restyled: the same furniture, the
+  // same pattern, spaced twice as far apart, and a third of the traffic. The street
+  // still reads as a street; it just costs a fraction to draw.
+  const lite = options.lite === true;
   const group = new THREE.Group();
   group.name = "MM_STREETS";
   const tile = net.tileSize;
@@ -189,7 +197,7 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   // the run is measured outwards from the middle of the street so it reads the same
   // from either end. Lamps alternating sides every 18 m is what made the old streets
   // look scattered: no two stretches of road matched, and nothing lined up across it.
-  const PITCH = 7;
+  const PITCH = lite ? 14 : 7;
   const PATTERN = ["lamp", "shrub", "bench", "shrub"] as const;
   const CLEAR_OF_JUNCTION = 6;
   const VERGE = laneWidth / 2 + 1.15;
@@ -243,7 +251,7 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   if (benches.length > 0) group.add(furniture("MM_STREET_BENCHES", benchParts(), benches, options.shadows));
 
   // --- traffic ---------------------------------------------------------------
-  const traffic = buildTraffic(net, sampleGround, options.shadows);
+  const traffic = buildTraffic(net, sampleGround, options.shadows, lite ? 10 : 30);
   group.add(traffic.group);
 
   // Footprints for the walk. Furniture is authored looking down +Z and turned to face
@@ -299,8 +307,8 @@ function furniture(name: string, parts: Array<[THREE.BufferGeometry, number]>, a
 
 /** A solar lamp standard. Authored with its arm over +Z, like everything else here. */
 function lampParts(): Array<[THREE.BufferGeometry, number]> {
-  const base = new THREE.CylinderGeometry(0.22, 0.26, 0.3, 8); base.translate(0, 0.15, 0);
-  const column = new THREE.CylinderGeometry(0.09, 0.11, 4.2, 8); column.translate(0, 2.4, 0);
+  const base = new THREE.CylinderGeometry(0.22, 0.26, 0.3, 6); base.translate(0, 0.15, 0);
+  const column = new THREE.CylinderGeometry(0.09, 0.11, 4.2, 6); column.translate(0, 2.4, 0);
   const arm = new THREE.BoxGeometry(0.1, 0.1, 0.7); arm.translate(0, 4.5, 0.3);
   const head = new THREE.BoxGeometry(0.34, 0.16, 0.62); head.translate(0, 4.4, 0.55);
   const panel = new THREE.BoxGeometry(0.4, 0.05, 0.66); panel.translate(0, 4.66, 0.1);
@@ -309,10 +317,16 @@ function lampParts(): Array<[THREE.BufferGeometry, number]> {
 
 /** A clipped roadside shrub, mirror-symmetric so a row of them lines up. */
 function shrubParts(): Array<[THREE.BufferGeometry, number]> {
-  const soil = new THREE.CylinderGeometry(0.5, 0.58, 0.16, 10); soil.translate(0, 0.08, 0);
-  const crown = new THREE.SphereGeometry(0.52, 10, 8); crown.translate(0, 0.6, 0);
-  const left = new THREE.SphereGeometry(0.33, 9, 7); left.translate(-0.32, 0.84, 0);
-  const right = new THREE.SphereGeometry(0.33, 9, 7); right.translate(0.32, 0.84, 0);
+  // Segment counts matter more here than anywhere else in the city: there are 638 of
+  // these, they are instanced into one draw call whose bounding sphere spans the map,
+  // so every shrub is submitted every frame wherever the camera looks. At the old
+  // counts that was 396 triangles each and 252k a frame — over half the entire scene,
+  // spent on a knee-high bush that covers a few pixels. These counts read identically
+  // at the isometric camera's distance.
+  const soil = new THREE.CylinderGeometry(0.5, 0.58, 0.16, 6); soil.translate(0, 0.08, 0);
+  const crown = new THREE.SphereGeometry(0.52, 6, 4); crown.translate(0, 0.6, 0);
+  const left = new THREE.SphereGeometry(0.33, 5, 3); left.translate(-0.32, 0.84, 0);
+  const right = new THREE.SphereGeometry(0.33, 5, 3); right.translate(0.32, 0.84, 0);
   return [[soil, PLANTER], [crown, LEAF], [left, LEAF_LIGHT], [right, LEAF_LIGHT]];
 }
 
@@ -341,7 +355,12 @@ interface Crossing { at: number; road: number; otherAt: number }
  * rather than a set of corridors. A car reaching a junction may take it, and only
  * reverses when it runs out of road, which now happens at a genuine dead end.
  */
-function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean): { group: THREE.Group; update: (delta: number) => void; blockers: () => Blocker[]; count: number } {
+function buildTraffic(
+  net: RoadNet,
+  sampleGround: SampleGround,
+  shadows: boolean,
+  fleetSize: number,
+): { group: THREE.Group; update: (delta: number) => void; blockers: () => Blocker[]; count: number } {
   const group = new THREE.Group();
   group.name = "MM_STREET_TRAFFIC";
   const tile = net.tileSize;
@@ -367,7 +386,7 @@ function buildTraffic(net: RoadNet, sampleGround: SampleGround, shadows: boolean
   const spawnable = driveable.length > 0 ? driveable : usable.map((_, index) => index);
 
   const cars: Car[] = [];
-  const count = Math.min(30, spawnable.length);
+  const count = Math.min(fleetSize, spawnable.length);
   for (let i = 0; i < count; i += 1) {
     const mesh = buildCar(CAR_BODY[i % CAR_BODY.length]!);
     mesh.castShadow = shadows;
