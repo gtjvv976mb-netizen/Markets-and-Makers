@@ -150,16 +150,215 @@ for (const street of expansion) {
   }
 }
 
+// --- plan the network as a whole -----------------------------------------
+// A road that stops in a field reads as broken whether the world authored it or this
+// script laid it, so the prune covers both. Two rules govern it. A carriageway must
+// end where another road continues or turns away, and removing one must never split
+// the city in two. The second rule is what makes the first safe: pruning on dead ends
+// alone took out the link roads between districts and left five separate networks that
+// each looked correct in isolation.
+const allBands = [
+  ...carriageways.map((c) => ({ axis: c.axis === "ew" ? 0 : 1, centre: c.centre, from: c.from, to: c.to })),
+  ...expansion.map((c) => ({ axis: c.axis, centre: c.centre, from: c.from, to: c.to })),
+];
+
+const bandCells = (band) => {
+  const fixed = Math.floor(band.centre);
+  const out = [];
+  for (let k = band.from; k <= band.to; k += 1) {
+    for (const f of [fixed, fixed + 1]) out.push(band.axis === 0 ? key(k, f) : key(f, k));
+  }
+  return out;
+};
+
+// Wide authored ground — the plaza, forecourts, the blobs where several streets meet.
+// A carriageway arriving at one has arrived somewhere, so this counts as road surface
+// and is never treated as a stub.
+const wide = new Set();
+for (const c of road) {
+  const [x, y] = c.split(",").map(Number);
+  let solid = true;
+  for (let dx = -1; dx <= 1 && solid; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) if (!road.has(key(x + dx, y + dy))) { solid = false; break; }
+  }
+  if (!solid) continue;
+  for (let dx = -1; dx <= 1; dx += 1) for (let dy = -1; dy <= 1; dy += 1) wide.add(key(x + dx, y + dy));
+}
+
+// The surface the game draws is every road cell, not just the ones a band claims: the
+// authored grid also has junction blobs and odd corners that no two-wide run covers, and
+// those are exactly what joins one district to the next. Measuring connectivity on the
+// band cells alone reported 32 real streets as stranded and pruned the city to nothing.
+// So a cell that no band ever covered is permanent, and a cell that is carriageway
+// surface lives only while some carriageway still runs over it.
+const bandSurface = new Set();
+for (const b of allBands) for (const c of bandCells(b)) bandSurface.add(c);
+
+const cellsOf = (list) => {
+  const covered = new Set();
+  for (const b of list) for (const c of bandCells(b)) covered.add(c);
+  const set = new Set();
+  for (const c of road) if (!bandSurface.has(c) || wide.has(c) || covered.has(c)) set.add(c);
+  return set;
+};
+
+/** The largest connected body of a cell set. The seed is never guessed: flooding from
+ *  "the first band" landed on a stray blob and mis-stranded a third of the network. */
+const mainBody = (cells) => {
+  const unvisited = new Set(cells);
+  let best = new Set();
+  while (unvisited.size) {
+    const seed = unvisited.values().next().value;
+    const seen = new Set([seed]);
+    const stack = [seed];
+    unvisited.delete(seed);
+    while (stack.length) {
+      const [x, y] = stack.pop().split(",").map(Number);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = key(x + dx, y + dy);
+        if (cells.has(k) && !seen.has(k)) { seen.add(k); unvisited.delete(k); stack.push(k); }
+      }
+    }
+    if (seen.size > best.size) best = seen;
+  }
+  return best;
+};
+
+/** Flood from one seed and report whether every required cell was reached. */
+const allReachable = (cells, seed, required) => {
+  const seen = new Set([seed]);
+  const stack = [seed];
+  while (stack.length) {
+    const [x, y] = stack.pop().split(",").map(Number);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const k = key(x + dx, y + dy);
+      if (cells.has(k) && !seen.has(k)) { seen.add(k); stack.push(k); }
+    }
+  }
+  for (const r of required) if (!seen.has(r)) return false;
+  return true;
+};
+
+const connected = (list) => {
+  if (list.length === 0) return true;
+  const cells = cellsOf(list);
+  const required = [];
+  for (const b of list) for (const c of bandCells(b)) required.push(c);
+  return allReachable(cells, required[0], required);
+};
+
+/** Does each end meet road that carries on or turns away? The verifier asks this
+ *  same question of the finished file, so the builder and the check share one ruler. */
+const openEnds = (band, cells) => {
+  const fixed = Math.floor(band.centre);
+  const res = [];
+  for (const [end, step] of [[band.from, -1], [band.to, 1]]) {
+    const beyond = end + step;
+    const ahead = band.axis === 0
+      ? [key(beyond, fixed), key(beyond, fixed + 1)]
+      : [key(fixed, beyond), key(fixed + 1, beyond)];
+    const across = band.axis === 0
+      ? [key(end, fixed - 1), key(end, fixed + 2)]
+      : [key(fixed - 1, end), key(fixed + 2, end)];
+    res.push(ahead.some((c) => cells.has(c)) || across.some((c) => cells.has(c)));
+  }
+  return res;
+};
+
+// Start from the main body: a handful of stray cells sit off on their own in the
+// authored grid, and they are not worth protecting during the prune.
+let surviving = allBands.slice();
+{
+  const body = mainBody(cellsOf(surviving));
+  surviving = surviving.filter((b) => bandCells(b).some((c) => body.has(c)));
+}
+const before = surviving.length;
+const originalLength = surviving.reduce((n, b) => n + (b.to - b.from), 0);
+
+/** Where along a band another road meets it, in band coordinates. */
+const crossings = (band, cells) => {
+  const fixed = Math.floor(band.centre);
+  const found = [];
+  for (let k = band.from; k <= band.to; k += 1) {
+    const across = band.axis === 0
+      ? [key(k, fixed - 1), key(k, fixed + 2)]
+      : [key(fixed - 1, k), key(fixed + 2, k)];
+    if (across.some((c) => cells.has(c))) found.push(k);
+  }
+  return found;
+};
+
+// A street whose far end runs out into a field is not a street to delete — it is a
+// street that is too long. Cutting it back to its last junction keeps the frontage and
+// removes the stub, where deleting the whole band threw away 45% of the network and
+// stranded 111 lots that had perfectly good road outside them.
+const settle = () => {
+  for (let pass = 0; pass < 40; pass += 1) {
+    let changed = 0;
+    for (const band of [...surviving]) {
+      const cells = cellsOf(surviving);
+      const ends = openEnds(band, cells);
+      if (ends.every(Boolean)) continue;
+      const met = crossings(band, cells);
+      const from = ends[0] ? band.from : met[0];
+      const to = ends[1] ? band.to : met[met.length - 1];
+      const worthKeeping = met.length > 0 && to - from >= 4;
+      const rest = surviving.filter((b) => b !== band);
+      if (worthKeeping) {
+        const was = [band.from, band.to];
+        band.from = from;
+        band.to = to;
+        if (connected(surviving) && (band.from !== was[0] || band.to !== was[1])) { changed += 1; continue; }
+        [band.from, band.to] = was;
+      }
+      if (!connected(rest)) continue;          // the only link between two districts
+      surviving = rest;
+      changed += 1;
+    }
+    if (changed === 0) break;
+  }
+};
+settle();
+
+// Two streets a couple of gardens apart serve the same frontage twice. At a 2 m tile a
+// gap of six cells leaves 8 m between kerbs — near enough that the pair reads as one
+// wide road badly drawn. Drop the shorter of each such pair, connectivity permitting.
+const SIDE_BY_SIDE = 6;
+for (let pass = 0; pass < 12; pass += 1) {
+  let cut = 0;
+  outer: for (const a of surviving) {
+    for (const b of surviving) {
+      if (a === b || a.axis !== b.axis) continue;
+      if (Math.abs(a.centre - b.centre) > SIDE_BY_SIDE) continue;
+      if (Math.min(a.to, b.to) - Math.max(a.from, b.from) < 4) continue;
+      const drop = (a.to - a.from) <= (b.to - b.from) ? a : b;
+      const rest = surviving.filter((s) => s !== drop);
+      if (!connected(rest)) continue;
+      surviving = rest;
+      cut += 1;
+      break outer;
+    }
+  }
+  if (cut === 0) break;
+}
+settle();
+
+// The asphalt is drawn from these cells, so anything the prune stranded goes with it.
+{
+  const body = mainBody(cellsOf(surviving));
+  const removed = road.size - body.size;
+  road.clear();
+  for (const c of body) road.add(c);
+  console.log(`carriageways ${allBands.length} -> ${surviving.length}; centreline ${originalLength} -> ${surviving.reduce((n, b) => n + (b.to - b.from), 0)} cells; ${removed} road cells removed`);
+}
+
 const out = {
   tileSize: TILE,
   laneWidthCells: 2,
   /** [row, x0, x1] — every carriageway cell, so junctions and stubs are never missing. */
   roadRuns: runs(road),
   pathRuns: runs(walk),
-  carriageways: [
-    ...carriageways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
-    ...expansion.map((c) => [c.axis, c.centre, c.from, c.to]),
-  ],
+  carriageways: surviving.map((c) => [c.axis, c.centre, c.from, c.to]),
   footways: footways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
 };
 
@@ -167,6 +366,6 @@ const dest = resolve(root, "game/public/world/roadnet.json");
 mkdirSync(dirname(dest), { recursive: true });
 writeFileSync(dest, JSON.stringify(out));
 const cells = carriageways.reduce((a, c) => a + (c.to - c.from), 0);
-console.log(`road cells ${road.size} in ${out.roadRuns.length} runs (${expansion.length} expansion streets), path cells ${walk.size} in ${out.pathRuns.length} runs`);
+console.log(`road cells ${road.size} in ${out.roadRuns.length} runs, path cells ${walk.size} in ${out.pathRuns.length} runs`);
 console.log(`carriageways ${carriageways.length} (${cells} cells of centreline), footways ${footways.length}`);
 console.log(`wrote ${dest} (${(JSON.stringify(out).length / 1024).toFixed(1)} KB)`);
