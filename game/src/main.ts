@@ -215,7 +215,7 @@ function syncMarkers(): void {
   // and skipped automatically; the rest are the controls the minimal layout actually
   // shows — and in landscape they sit in the corners, which is exactly where pins
   // would otherwise pile up.
-  const reserved = [".world-label", ".selected-card", ".world-next", ".maker-nav", ".world-actions"]
+  const reserved = [".world-label", ".selected-card", ".world-next", ".maker-nav", ".world-actions", ".topbar"]
     .map((selector) => document.querySelector<HTMLElement>(selector))
     .filter((node): node is HTMLElement => Boolean(node && getComputedStyle(node).display !== "none"))
     .map((node) => {

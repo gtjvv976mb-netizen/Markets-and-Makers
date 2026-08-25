@@ -1249,7 +1249,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .maker-nav button strong { font-size: 12.5px; font-weight: 800; }
 
 /* --- the step card: what to do, in one line ------------------------------ */
-.world-next { right: 10px; bottom: 142px; left: 10px; width: auto; padding: 10px 12px 12px; }
+.world-next { right: 10px; bottom: 178px; left: 10px; width: auto; padding: 10px 12px 12px; }
 .world-next small { font-size: 10.5px; letter-spacing: .07em; }
 .world-next strong { font-size: 16px; }
 .world-next span { font-size: 12.5px; }
@@ -1413,4 +1413,34 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 
 @media (prefers-reduced-motion: reduce) {
   .rotate-mark { animation: none; transform: rotate(-90deg); }
+}
+
+/* --- no top bar ---------------------------------------------------------- */
+/* The top edge is clear. The wallet is the one thing on that bar a player needs
+   mid-play, so it moves down with the rest of the controls rather than being
+   dropped — the logo and the reset live on the loading screen and in the sheet.
+   The header element stays in the markup: main.ts reads #walletValue,
+   #careerValue and #networkValue through element(), which throws on a missing
+   node, and tests/dom.test.ts enforces that. */
+.topbar {
+  position: fixed;
+  top: auto;
+  right: 10px;
+  bottom: 138px;
+  left: 10px;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  pointer-events: none;
+}
+.brand, #resetButton { display: none; }
+
+.economy-strip { grid-column: auto; grid-row: auto; justify-self: auto; }
+.economy-strip > .money { pointer-events: auto; padding: 4px 12px; }
+.economy-strip > .money strong { font-size: 14.5px; }
+
+@media (max-height: 560px) {
+  /* Landscape: the middle of the bottom edge is free between the desks and the
+     action, which is exactly where a glanceable number belongs. */
+  .topbar { right: 0; bottom: 16px; left: 0; }
 }
