@@ -14,7 +14,7 @@ import {
   chooseCitizenDestination, citizenPopulation, citizenPurposeAtHour, createCitizenProfile, customerAppeal, navigationSurfaceCost,
   purposeForBusiness, representedPartySize, type CitizenDestination, type CitizenProfile, type CitizenPurpose,
 } from "./citizenSimulation";
-import { HIGHLANDS_WORLD_BASE, HIGHLANDS_WORLD_ENTRY, plotArrival, worldChunkAt } from "./highlandsWorld";
+import { CIVIC_SITES, HIGHLANDS_WORLD_BASE, HIGHLANDS_WORLD_ENTRY, plotArrival, worldChunkAt } from "./highlandsWorld";
 import { skipReplacedSwatches, terrainTileTexture } from "./tileTextures";
 import { loadWorldDesigns } from "./worldDesigns";
 import type { GameState } from "./state";
@@ -314,45 +314,38 @@ export class World3D {
   }
 
   /**
-   * Swap the baked civic landmarks for generated ones.
+   * Raise the nine civic landmarks.
    *
-   * The nine government buildings are ~32k triangles each inside world.gltf — 293k for
-   * buildings seen from across a plaza, and the only geometry the loader-level swap
-   * could not reach, because they are nodes in the terrain file rather than their own
-   * GLB URLs. The replacement is placed from the baked node's own world transform
-   * rather than recomputed from the layout, so it cannot drift from the site, and is
-   * scaled to the footprint the original occupied.
+   * Their geometry used to be baked into world.gltf, and this read each site off its
+   * node. Those meshes are gone now — 293k triangles the client generates instead — so
+   * the sites come from CIVIC_SITES, and a missing node is no longer a reason for a
+   * landmark not to appear. Each is scaled to the footprint its site reserves.
    */
-  private replaceCivicLandmarks(root: THREE.Object3D): void {
-    root.updateMatrixWorld(true);
-    const baked: THREE.Object3D[] = [];
-    root.traverse((object) => { if (civicStructureFor(object.name)) baked.push(object); });
+  private placeCivicLandmarks(): void {
+    for (const site of CIVIC_SITES) {
+      const building = civicStructureFor(site.node);
+      if (!building) continue;
+      const ground = this.sampleWalkHeight(site.x, site.z, true);
+      if (ground === null) continue;
 
-    for (const original of baked) {
-      const replacement = civicStructureFor(original.name);
-      if (!replacement) continue;
-      const bounds = new THREE.Box3().setFromObject(original);
-      if (bounds.isEmpty()) continue;
-      const footprint = bounds.getSize(new THREE.Vector3());
-      const centre = bounds.getCenter(new THREE.Vector3());
-      original.visible = false;
-
-      const built = new THREE.Box3().setFromObject(replacement);
+      const built = new THREE.Box3().setFromObject(building);
       const size = built.getSize(new THREE.Vector3());
-      // Fit the widest axis; a landmark that overhangs its plot reads worse than one
-      // slightly small, and the deck is authored to the reserved footprint already.
-      const scale = Math.min(footprint.x / Math.max(size.x, 0.001), footprint.z / Math.max(size.z, 0.001), 1.35);
-      replacement.scale.setScalar(scale);
-      replacement.position.set(centre.x, bounds.min.y, centre.z);
-      replacement.traverse((object) => {
+      const centre = built.getCenter(new THREE.Vector3());
+      // Fit the reserved footprint; a landmark overhanging its plot reads worse than one
+      // slightly small, and the deck is authored to that footprint already.
+      const scale = Math.min(site.width / Math.max(size.x, 0.001), site.depth / Math.max(size.z, 0.001), 1.35);
+      building.scale.setScalar(scale);
+      building.position.set(site.x - centre.x * scale, ground - built.min.y * scale, site.z - centre.z * scale);
+      building.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         object.castShadow = this.dynamicShadows;
         object.receiveShadow = this.dynamicShadows;
         object.frustumCulled = true;
       });
-      this.scene.add(replacement);
+      this.scene.add(building);
     }
   }
+
 
   /**
    * Lay the streets over the carriageway tiles: asphalt, kerbs, a broken centre line,
@@ -536,7 +529,7 @@ export class World3D {
       if (object.name === "MM_HRW_GOVERNMENT_FERRY") object.visible = false;
     });
     this.scene.add(gltf.scene);
-    this.replaceCivicLandmarks(gltf.scene);
+    this.placeCivicLandmarks();
     await this.buildStreetNetwork();
     this.callbacks.onLoadProgress(0.84, "Planting the solarpunk garden city");
     try {

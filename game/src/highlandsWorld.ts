@@ -127,3 +127,24 @@ export function worldChunkAt(x: number, z: number): readonly [number, number] | 
   if (cx < 0 || cy < 0 || cx >= HIGHLANDS_WORLD_BOUNDS.chunksPerAxis || cy >= HIGHLANDS_WORLD_BOUNDS.chunksPerAxis) return null;
   return [cx, cy];
 }
+
+/**
+ * The nine government sites, in world units.
+ *
+ * The landmark geometry used to be baked into world.gltf and these were read off those
+ * nodes. scripts/strip-civic-geometry.mjs removed it — the client generates the
+ * buildings now — so the sites have to be declared, exactly as HIGHLANDS_PLOTS is.
+ * Taken from layout.json: x is center_m[0] and z is -center_m[1], since the authored
+ * world is +Y north and the scene is -Z north.
+ */
+export const CIVIC_SITES = [
+  { node: "MM_CIVIC_CV01_CITY_HALL", x: -1, z: -25, width: 15.04, depth: 15.04 },
+  { node: "MM_CIVIC_CV02_TREASURY", x: -19, z: -23, width: 11.28, depth: 11.28 },
+  { node: "MM_CIVIC_CV03_LAND_REGISTRY", x: 17, z: -21, width: 11.28, depth: 7.52 },
+  { node: "MM_CIVIC_CV04_TRANSIT_HALL", x: 45, z: 47, width: 15.04, depth: 11.28 },
+  { node: "MM_CIVIC_CV05_COMMUNITY_CLINIC", x: 43, z: -25, width: 11.28, depth: 11.28 },
+  { node: "MM_CIVIC_CV06_RESCUE_STATION", x: 45, z: 7, width: 15.04, depth: 11.28 },
+  { node: "MM_CIVIC_CV07_PUBLIC_WORKS", x: -73, z: 7, width: 15.04, depth: 11.28 },
+  { node: "MM_CIVIC_CV08_MAKER_ACADEMY", x: -47, z: -27, width: 15.04, depth: 15.04 },
+  { node: "MM_CIVIC_CV09_GARDEN_HOMES", x: 73, z: -27, width: 11.28, depth: 15.04 },
+] as const;
