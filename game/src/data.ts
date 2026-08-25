@@ -71,19 +71,19 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "AquaWorks and SunGrid", process: "Controlled growing", downstream: "Shops, restaurants and Mercedonians" },
   },
   mine: {
-    name: "Stonewake Mine", sector: "Mineral extraction", stage: "Primary", islandAffinity: "Stonewake", icon: "◆", color: "#8d806d", model: "./assets/structures/b06-maker-workshop.glb",
+    name: "Stonewake Mine", sector: "Mineral extraction", stage: "Primary", islandAffinity: "Stonewake", icon: "◆", color: "#8d806d", model: "./assets/structures/b09-stonewake-mine.glb",
     copy: "Extracts mineral feedstock for workshops, equipment factories and civic construction.", duration: 20, licenseCost: 25, laborCost: 11,
     inputs: { part: 1, power: 2, water: 1 }, output: { ore: 14 }, wastePerCycle: 1, starter: { part: 1, power: 2, water: 1 },
     ecosystem: { upstream: "Parts, SunGrid and AquaWorks", process: "Low-impact extraction", downstream: "Workshops and factories" },
   },
   timberworks: {
-    name: "Timbercoast Works", sector: "Regenerative forestry", stage: "Primary", islandAffinity: "Greenloom", icon: "▤", color: "#9a754d", model: "./assets/structures/b05-canopy-greenhouse.glb",
+    name: "Timbercoast Works", sector: "Regenerative forestry", stage: "Primary", islandAffinity: "Greenloom", icon: "▤", color: "#9a754d", model: "./assets/structures/b10-timbercoast-works.glb",
     copy: "Produces traceable timber for packaging, construction modules and public works.", duration: 18, licenseCost: 22, laborCost: 10,
     inputs: { part: 1, power: 1, water: 1 }, output: { timber: 14 }, wastePerCycle: 1, starter: { part: 1, power: 1, water: 1 },
     ecosystem: { upstream: "Utilities and repair shops", process: "Regrowth and milling", downstream: "Crate mills and builders" },
   },
   cratemill: {
-    name: "Freight Crate Mill", sector: "Packaging", stage: "Manufacturing", islandAffinity: "Copper Quay", icon: "▣", color: "#c88a50", model: "./assets/structures/b06-maker-workshop.glb",
+    name: "Freight Crate Mill", sector: "Packaging", stage: "Manufacturing", islandAffinity: "Copper Quay", icon: "▣", color: "#c88a50", model: "./assets/structures/b11-freight-crate-mill.glb",
     copy: "Converts timber into standardized crates that make the island supply chain move.", duration: 14, licenseCost: 22, laborCost: 8,
     inputs: { timber: 2, power: 1 }, output: { crate: 4 }, wastePerCycle: 1, starter: { timber: 2, power: 1 },
     ecosystem: { upstream: "Timberworks and SunGrid", process: "Reusable packaging", downstream: "Workshops, shops and freight" },
@@ -95,13 +95,13 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "Mines, crate mills and SunGrid", process: "Precision assembly", downstream: "Utilities, factories and logistics" },
   },
   factory: {
-    name: "Mercedonian Factory", sector: "Capital equipment", stage: "Manufacturing", islandAffinity: "Kilnrise", icon: "F", color: "#cc7652", model: "./assets/structures/b03-sungrid-utility.glb",
+    name: "Mercedonian Factory", sector: "Capital equipment", stage: "Manufacturing", islandAffinity: "Kilnrise", icon: "F", color: "#cc7652", model: "./assets/structures/b12-mercedonian-factory.glb",
     copy: "Produces machinery that expands capacity across construction, utilities and public services.", duration: 24, licenseCost: 45, laborCost: 16,
     inputs: { ore: 3, part: 1, power: 2, water: 1 }, output: { equipment: 3 }, wastePerCycle: 2, starter: { ore: 3, part: 1, power: 2, water: 1 },
     ecosystem: { upstream: "Mining, workshops and utilities", process: "Equipment fabrication", downstream: "Builders and business upgrades" },
   },
   construction: {
-    name: "Civic Construction Co.", sector: "Building systems", stage: "Manufacturing", islandAffinity: "Hearthmarket", icon: "▦", color: "#b46f4f", model: "./assets/structures/b06-maker-workshop.glb",
+    name: "Civic Construction Co.", sector: "Building systems", stage: "Manufacturing", islandAffinity: "Hearthmarket", icon: "▦", color: "#b46f4f", model: "./assets/structures/b13-civic-construction.glb",
     copy: "Combines timber, parts and equipment into modular upgrades for plots and infrastructure.", duration: 26, licenseCost: 45, laborCost: 18,
     inputs: { timber: 2, part: 2, equipment: 1 }, output: { material: 8 }, wastePerCycle: 1, starter: { timber: 2, part: 2, equipment: 1 },
     ecosystem: { upstream: "Timber, workshops and factories", process: "Modular construction", downstream: "Utilities, plots and public works" },
@@ -119,7 +119,7 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "Greenhouses, workshops and logistics", process: "Packing and merchandising", downstream: "Mercedonians, gyms and cinemas" },
   },
   restaurant: {
-    name: "Sunset Market Kitchen", sector: "Hospitality service", stage: "Services", islandAffinity: "Lantern Row", icon: "R", color: "#d47d5b", model: "./assets/structures/b07-starter-shop-cafe.glb",
+    name: "Sunset Market Kitchen", sector: "Hospitality service", stage: "Services", islandAffinity: "Lantern Row", icon: "R", color: "#d47d5b", model: "./assets/structures/b14-market-kitchen.glb",
     copy: "Serves price-sensitive Mercedonian demand and turns local food into district footfall.", duration: 13, licenseCost: 28, laborCost: 12,
     inputs: { food: 2, supply: 1, water: 1, power: 1 }, output: {}, wastePerCycle: 1, servicePayout: 15, baseVisitors: 8, priceElasticity: 1.4, starter: { food: 2, supply: 1, water: 1, power: 1 },
     ecosystem: { upstream: "Greenhouses, shops and utilities", process: "Hospitality and dining", downstream: "Mercedonians and district demand" },
@@ -131,13 +131,13 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "Retail, water and power", process: "Training and recovery", downstream: "Healthy workers and local demand" },
   },
   cinema: {
-    name: "Lantern Cinema", sector: "Entertainment service", stage: "Services", islandAffinity: "Lantern Row", icon: "C", color: "#d39a45", model: "./assets/structures/b02-market-pavilion.glb",
+    name: "Lantern Cinema", sector: "Entertainment service", stage: "Services", islandAffinity: "Lantern Row", icon: "C", color: "#d39a45", model: "./assets/structures/b15-lantern-cinema.glb",
     copy: "Runs screenings and events; ticket price, quality and appeal determine audience demand.", duration: 18, licenseCost: 35, laborCost: 13,
     inputs: { supply: 2, power: 2 }, output: {}, servicePayout: 12, baseVisitors: 9, priceElasticity: 1.35, starter: { supply: 2, power: 2 },
     ecosystem: { upstream: "Retailers and SunGrid", process: "Screenings and concessions", downstream: "Watchers and nightlife" },
   },
   recycler: {
-    name: "Tideglass Reclamation Hub", sector: "Resource recovery", stage: "Circular", islandAffinity: "Tideglass", icon: "♻", color: "#718c62", model: "./assets/structures/b04-aquaworks.glb",
+    name: "Tideglass Reclamation Hub", sector: "Resource recovery", stage: "Circular", islandAffinity: "Tideglass", icon: "♻", color: "#718c62", model: "./assets/structures/b16-reclamation-hub.glb",
     copy: "Closes the material loop by recovering useful parts and building modules from business scrap.", duration: 20, licenseCost: 35, laborCost: 12,
     inputs: { waste: 3, power: 1 }, output: { material: 1, part: 1 }, starter: { waste: 3, power: 1 },
     ecosystem: { upstream: "Every producing business", process: "Sorting and remanufacture", downstream: "Construction, utilities and repairs" },

@@ -254,6 +254,146 @@ const harborGym = (): THREE.Group => {
   return m.build("B08_HARBOR_GYM");
 };
 
+// Eight trades shared a building with another because the catalogue only had eight
+// archetypes for fifteen licences — four different trades all raised a maker workshop.
+// These give the remaining trades their own silhouette, so a built-up district reads as
+// an economy rather than a row of clones.
+
+const stonewakeMine = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6), 0.45, tiles(4.5), CREAM);
+  // Cut face and adit portal.
+  m.box(tiles(2), 4.2, tiles(4.5), 0x7d7468, -4.5, 0.45, 0);
+  m.box(tiles(1.2), 2.4, tiles(1.2), ROOF, -3.4, 0.45, 0);
+  m.box(0.35, 2.6, tiles(1.4), TIMBER, -2.9, 0.45, 0);
+  // Headframe over the shaft.
+  for (const [x, z] of [[1, -1.4], [1, 1.4], [3.4, -1.4], [3.4, 1.4]] as const) m.cyl(0.16, 5.2, METAL, x, 0.45, z);
+  m.box(3.2, 0.28, 3.6, METAL, 2.2, 5.65, 0);
+  m.cyl(1.05, 0.3, ACCENT, 2.2, 5.93, 0, 0, 0, Math.PI / 2);
+  m.box(tiles(1.5), 1.8, tiles(1.5), PLASTER, 4.6, 0.45, 2.4);
+  // Ore carts on a short run of track.
+  for (const x of [-0.6, 1.6]) { m.box(1.1, 0.7, 0.9, TERRACOTTA, x, 0.45, -3.2); m.cyl(0.22, 0.12, ROOF, x, 0.45, -3.2, 0, 0, Math.PI / 2); }
+  m.box(tiles(3), 0.12, 0.16, METAL, 0.5, 0.45, -3.5);
+  return m.build("B09_STONEWAKE_MINE");
+};
+
+const timbercoastWorks = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6.5), 0.45, tiles(4.5), CREAM);
+  // Open saw shed: posts and a long roof, no walls on the yard side.
+  for (const x of [-5, -1.6, 1.8, 5.2]) for (const z of [-3.4, 3.4]) m.cyl(0.24, 3.6, TIMBER, x, 0.45, z);
+  m.gable(tiles(6.8), tiles(4), 1.5, ROOF, 4.05);
+  m.box(tiles(3), 2.6, tiles(3.5), PLASTER, -3.6, 0.45, 0);
+  m.glazing(tiles(3), tiles(3.5), 1.6, 0.8);
+  // Stacked logs, the tell.
+  for (let i = 0; i < 3; i += 1) for (let j = 0; j <= i; j += 1) {
+    m.cyl(0.42, tiles(2.2), TIMBER, 4.4, 0.45 + (2 - i) * 0.86, -1.6 + j * 0.9 + i * 0.45, 0, 0, Math.PI / 2);
+  }
+  m.box(2.2, 0.16, 1.2, ACCENT, 0.4, 1.2, 0);
+  return m.build("B10_TIMBERCOAST_WORKS");
+};
+
+const freightCrateMill = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6), 0.45, tiles(4.5), CREAM);
+  m.box(tiles(4.25), 3.8, tiles(3.5), PLASTER, -1, 0.45, 0);
+  m.glazing(tiles(4.25), tiles(3.5), 2.3, 0.8);
+  m.box(tiles(4.75), 0.42, tiles(4), ROOF, -1, 4.25, 0);
+  m.solar(tiles(3.5), tiles(3), 4.67, 3);
+  // Loading dock and a stack of finished crates.
+  m.box(tiles(2), 0.9, tiles(3), TIMBER, 4.4, 0.45, 0);
+  for (const [x, z, y] of [[3.8, -1.6, 1.35], [3.8, 0.6, 1.35], [3.8, -0.5, 2.15]] as const) {
+    m.box(1.5, 1.1, 1.5, TERRACOTTA, x, y, z);
+    m.box(1.6, 0.1, 1.6, TIMBER, x, y + 1.1, z);
+  }
+  m.box(0.3, 1.9, tiles(1.6), ROOF, 2.2, 0.45, 0);
+  return m.build("B11_FREIGHT_CRATE_MILL");
+};
+
+const mercedonianFactory = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6.5), 0.45, tiles(5), CREAM);
+  m.box(tiles(5.5), 4.4, tiles(4), PLASTER, 0, 0.45, 0);
+  m.glazing(tiles(5.5), tiles(4), 2.4, 1.0);
+  // Sawtooth roof: the factory silhouette.
+  for (let i = -2; i <= 2; i += 1) {
+    const x = i * tiles(1.05);
+    m.box(tiles(0.55), 1.1, tiles(4), ROOF, x - 0.5, 4.85, 0);
+    m.box(tiles(0.5), 1.0, tiles(4), GLASS, x + 0.6, 4.85, 0, 0, 0, -0.5);
+  }
+  m.box(tiles(5.8), 0.3, tiles(4.3), ROOF, 0, 4.55, 0);
+  m.cyl(0.85, 6.4, PLASTER, -5.4, 0.45, -3.2);
+  m.cyl(0.95, 0.4, TERRACOTTA, -5.4, 6.85, -3.2);
+  return m.build("B12_MERCEDONIAN_FACTORY");
+};
+
+const civicConstruction = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6), 0.45, tiles(4.5), CREAM);
+  m.box(tiles(3), 3.2, tiles(3), PLASTER, -3.6, 0.45, 0);
+  m.box(tiles(3.4), 0.38, tiles(3.4), ROOF, -3.6, 3.65, 0);
+  // A crane mast over an open yard, and stacked material.
+  m.box(0.7, 8.4, 0.7, ACCENT, 3.2, 0.45, -1.4);
+  m.box(tiles(3.2), 0.5, 0.5, ACCENT, 1.6, 8.4, -1.4);
+  m.cyl(0.08, 2.2, METAL, 5.6, 6.2, -1.4);
+  m.box(0.9, 0.8, 0.9, TERRACOTTA, 5.6, 5.4, -1.4);
+  for (const [x, z] of [[1.4, 2.8], [3.4, 2.8], [2.4, 1.4]] as const) m.box(1.7, 0.55, 1.2, 0x8d9298, x, 0.45, z);
+  m.box(tiles(2), 0.12, tiles(1.6), 0x6f5a3c, 2.4, 0.45, 2.2);
+  return m.build("B13_CIVIC_CONSTRUCTION");
+};
+
+const marketKitchen = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(5.5), 0.4, tiles(4.5), CREAM);
+  m.box(tiles(3.5), 3.2, tiles(2.75), TERRACOTTA, -1.4, 0.4, 0);
+  m.box(tiles(3.75), 0.36, tiles(3), ROOF, -1.4, 3.6, 0);
+  m.garden(tiles(2.75), tiles(2.25), 3.96);
+  m.cyl(0.42, 1.9, PLASTER, -3.6, 3.96, -1.6);
+  // A canopy of outdoor tables, which is what a market kitchen is.
+  for (const z of [-2.4, 0, 2.4]) m.cyl(0.18, 2.9, TIMBER, 4.6, 0.4, z);
+  m.box(tiles(2.5), 0.16, tiles(4.2), ACCENT, 3.4, 3.3, 0, 0, 0, 0.08);
+  for (const [x, z] of [[3.2, -1.8], [4.4, 0.4], [3.0, 2.2]] as const) {
+    m.cyl(0.62, 0.1, PLASTER, x, 0.85, z); m.cyl(0.12, 0.85, METAL, x, 0.4, z);
+  }
+  m.box(tiles(2.75), 1.3, 0.12, GLASS, -1.4, 1.2, 2.75);
+  return m.build("B14_MARKET_KITCHEN");
+};
+
+const lanternCinema = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(5.5), 0.4, tiles(4.5), CREAM);
+  // A cinema is a blank box with a lit front, so the mass is deliberately plain.
+  m.box(tiles(4), 5.2, tiles(3.5), PLASTER, -0.6, 0.4, 0);
+  m.box(tiles(4.4), 0.42, tiles(3.9), ROOF, -0.6, 5.6, 0);
+  m.box(tiles(2), 1.1, tiles(2), TERRACOTTA, -0.6, 6.02, 0);
+  // Marquee and lantern lights along the frontage.
+  m.box(0.35, 2.4, tiles(3), ACCENT, 3.5, 2.6, 0);
+  m.box(1.4, 0.2, tiles(3.4), TERRACOTTA, 3.6, 2.4, 0);
+  for (let i = -2; i <= 2; i += 1) m.ball(0.2, ACCENT, 4.2, 2.3, i * 1.3);
+  m.box(0.3, 2.3, tiles(1.2), TIMBER, 3.3, 0.4, 0);
+  for (const z of [-3, 3]) m.cyl(0.14, 3.4, METAL, 4.4, 0.4, z);
+  return m.build("B15_LANTERN_CINEMA");
+};
+
+const reclamationHub = (): THREE.Group => {
+  const m = new Mesher();
+  m.box(tiles(6), 0.45, tiles(5), CREAM);
+  m.box(tiles(3), 3.4, tiles(3.5), PLASTER, -3.2, 0.45, 0);
+  m.box(tiles(3.4), 0.4, tiles(3.9), ROOF, -3.2, 3.85, 0);
+  m.solar(tiles(2.6), tiles(3), 4.25, 3);
+  // Sorting bays in three colours, and a hopper feeding them.
+  const bays = [LEAF, ACCENT, 0x8d9298];
+  bays.forEach((colour, i) => {
+    const z = -2.6 + i * 2.6;
+    m.box(tiles(1.4), 1.3, tiles(1.1), colour, 3.2, 0.45, z);
+    m.box(tiles(1.5), 0.12, tiles(1.2), ROOF, 3.2, 1.75, z);
+  });
+  m.cyl(1.5, 2.2, METAL, 0.4, 3.2, 0, 0, 0, 0, 8);
+  m.cone(1.5, 1.4, METAL, 0.4, 1.8, 0, Math.PI);
+  for (const y of [0.45, 5.4]) m.cyl(0.14, y === 0.45 ? 2.75 : 0.3, METAL, 0.4, y, 0);
+  return m.build("B16_RECLAMATION_HUB");
+};
+
 const STRUCTURES: Record<string, () => THREE.Group> = {
   "b01-ferry-terminal": ferryTerminal,
   "b02-market-pavilion": marketPavilion,
@@ -263,6 +403,14 @@ const STRUCTURES: Record<string, () => THREE.Group> = {
   "b06-maker-workshop": makerWorkshop,
   "b07-starter-shop-cafe": starterShopCafe,
   "b08-harbor-gym": harborGym,
+  "b09-stonewake-mine": stonewakeMine,
+  "b10-timbercoast-works": timbercoastWorks,
+  "b11-freight-crate-mill": freightCrateMill,
+  "b12-mercedonian-factory": mercedonianFactory,
+  "b13-civic-construction": civicConstruction,
+  "b14-market-kitchen": marketKitchen,
+  "b15-lantern-cinema": lanternCinema,
+  "b16-reclamation-hub": reclamationHub,
 };
 
 // ---------------------------------------------------------------- civic landmarks
