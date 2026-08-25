@@ -10,7 +10,9 @@ import {
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
+  FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
+import { BUSINESS_TIER, PRODUCTS_BY_ID, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
@@ -44,6 +46,8 @@ export interface ProcurementLedger { date: string; used: Record<ResourceKey, num
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
 export interface GameState {
+  productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
+  franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
   wallet: number; governmentTreasury: number; citizenPool: number; taxPaid: number; laborPaid: number; reputation: number;
   mmHoldings: number; mmReserve: number; mmExchangeVolume: number;
@@ -64,6 +68,11 @@ export interface GameState {
   householdSpend: number; citizenActivitySequence: number; citizenActivity: CitizenEconomyActivity[];
   tutorial: Record<(typeof TUTORIAL)[number][0], boolean>;
   feed: Array<{ text: string; tone: "normal" | "success" | "warning"; at: number }>;
+}
+
+export interface FranchiseRound {
+  license: LicenseKey; round: number; rivalBid: number; leading: number;
+  myBid: number; minimum: number; closesAt: number; winning: boolean;
 }
 
 export interface ActionResult { ok: boolean; message: string; }
@@ -90,6 +99,8 @@ export function createFreshState(): GameState {
   const tutorial = Object.fromEntries(TUTORIAL.map(([key]) => [key, false])) as GameState["tutorial"];
   const today = utcDay();
   return {
+    franchiseBids: {},
+    productStock: {}, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
     governmentTreasury: INITIAL_MERC_DOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
@@ -319,6 +330,26 @@ export function loadState(): GameState {
       citizenActivitySequence,
       citizenActivity,
       tutorial: { ...fresh.tutorial, ...(saved.tutorial ?? {}) },
+      productStock: (() => {
+        const kept: Record<string, number> = {};
+        for (const [id, qty] of Object.entries(saved.productStock ?? {})) {
+          if (PRODUCTS_BY_ID.has(id)) kept[id] = Math.floor(finite(qty, 0, 0, 99_999));
+        }
+        return kept;
+      })(),
+      todayRevenue: finite(saved.todayRevenue, 0),
+      todayExpenses: finite(saved.todayExpenses, 0),
+      franchiseBids: (() => {
+        const kept: Partial<Record<LicenseKey, { round: number; amount: number }>> = {};
+        for (const [key, entry] of Object.entries(saved.franchiseBids ?? {})) {
+          if (!(key in BUSINESS) || !entry) continue;
+          kept[key as LicenseKey] = {
+            round: Math.floor(finite((entry as { round?: number }).round, 0, 0)),
+            amount: finite((entry as { amount?: number }).amount, 0, 0),
+          };
+        }
+        return kept;
+      })(),
       feed: Array.isArray(saved.feed)
         ? saved.feed.slice(0, 18).flatMap((entry) => {
           if (!entry || typeof entry !== "object") return [];
@@ -344,7 +375,11 @@ export class GameStore {
   private rollCalendar(now = Date.now()): void {
     const today = utcDay(now);
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
-    if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
+    if (this.state.procurement.date !== today) {
+      this.state.procurement = { date: today, used: blankProcurement() };
+      this.state.todayRevenue = 0;
+      this.state.todayExpenses = 0;
+    }
     this.settleCivicPayroll(now);
     const epoch = epochId(now);
     if (this.state.epoch.id !== epoch) { this.state.epoch = { id: epoch, contribution: 0, claimed: false }; this.state.epochIssued = 0; }
@@ -470,7 +505,71 @@ export class GameStore {
     return this.result(true, "Plot leased.");
   }
 
+  // ---------------------------------------------------------------------
+  // Government tenders for Enterprise trades
+  // ---------------------------------------------------------------------
+
+  private static franchiseHash(seed: string): number {
+    let value = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      value ^= seed.charCodeAt(i);
+      value = Math.imul(value, 16777619) >>> 0;
+    }
+    return value >>> 0;
+  }
+
+  /**
+   * What it takes to win the tender for one Enterprise licence right now.
+   * Rivals bid too, and their appetite grows with the city, so a franchise that goes
+   * cheap early becomes genuinely contested later.
+   */
+  franchiseRound(license: LicenseKey, now = Date.now()): FranchiseRound | null {
+    if (BUSINESS_TIER[license] < 3) return null;
+    const round = Math.floor(now / (FRANCHISE_ROUND_DAYS * 86_400_000));
+    const heat = 1 + this.careerLevel().level * FRANCHISE_RIVAL_STEP;
+    const drift = (GameStore.franchiseHash(`${round}:${license}`) % 45) / 100;
+    const rivalBid = Math.round(FRANCHISE_BASE_BID * heat * (1 + drift));
+    const mine = this.state.franchiseBids[license];
+    const myBid = mine?.round === round ? mine.amount : 0;
+    const leading = Math.max(rivalBid, myBid);
+    return {
+      license, round, rivalBid, leading, myBid,
+      minimum: leading + Math.max(25, Math.round(leading * 0.05)),
+      closesAt: (round + 1) * FRANCHISE_ROUND_DAYS * 86_400_000,
+      winning: myBid > rivalBid,
+    };
+  }
+
+  franchiseRounds(now = Date.now()): FranchiseRound[] {
+    return (Object.keys(BUSINESS) as LicenseKey[])
+      .filter((license) => BUSINESS_TIER[license] === 3)
+      .map((license) => this.franchiseRound(license, now))
+      .filter((entry): entry is FranchiseRound => entry !== null);
+  }
+
+  holdsFranchise(license: LicenseKey, now = Date.now()): boolean {
+    if (BUSINESS_TIER[license] < 3) return true;
+    return this.franchiseRound(license, now)?.winning ?? false;
+  }
+
+  placeFranchiseBid(license: LicenseKey, amount: number, now = Date.now()): ActionResult {
+    const round = this.franchiseRound(license, now);
+    if (!round) return this.result(false, "That trade is not put out to tender.");
+    const bid = Math.floor(amount);
+    if (bid < round.minimum) return this.result(false, `The leading bid is ${round.leading} ${CURRENCY_CODE}. You must offer at least ${round.minimum}.`);
+    const owed = bid - round.myBid;
+    if (this.state.wallet < owed) return this.result(false, `You need ${owed} ${CURRENCY_CODE} to raise your offer.`);
+    this.state.wallet -= owed;
+    this.state.governmentTreasury += owed;
+    this.state.franchiseBids[license] = { round: round.round, amount: bid };
+    this.commit(`You bid ${bid} ${CURRENCY_CODE} for the ${BUSINESS[license].name} franchise.`, "success");
+    return this.result(true, "Bid placed.");
+  }
+
   chooseLicense(key: LicenseKey): ActionResult {
+    if (!this.holdsFranchise(key)) {
+      return this.result(false, `${BUSINESS[key].name} is an Enterprise trade. Win the city's tender for it first.`);
+    }
     if (!this.state.ownedPlotId) return this.result(false, "Lease a plot before selecting a business.");
     if (this.state.buildingPlaced) return this.result(false, "The built business license is locked for this prototype.");
     if (this.state.license) return this.result(false, `${BUSINESS[this.state.license].name} is already licensed to this plot.`);
@@ -617,6 +716,106 @@ export class GameStore {
     this.recordEconomy();
     this.commit(`${config.name} settled output, wages, depreciation${config.wastePerCycle ? " and recoverable scrap" : ""}.`, "success");
     return this.result(true, "Job collected.");
+  }
+
+  // ---------------------------------------------------------------------
+  // The five things your trade makes
+  // ---------------------------------------------------------------------
+
+  productsMade(): Product[] {
+    return this.state.license ? productsOf(this.state.license) : [];
+  }
+
+  stockOf(productId: string): number { return this.state.productStock[productId] ?? 0; }
+
+  /** What one unit still needs, after what is already on the shelf. */
+  missingInputs(product: Product): Array<{ product: Product; short: number }> {
+    return Object.entries(product.inputs)
+      .map(([id, qty]) => ({ product: PRODUCTS_BY_ID.get(id)!, short: qty - this.stockOf(id) }))
+      .filter((entry) => entry.product && entry.short > 0);
+  }
+
+  canMake(product: Product): boolean {
+    return this.missingInputs(product).length === 0 && this.state.wallet >= product.labour;
+  }
+
+  /**
+   * Turn inputs into one unit of your own product. The inputs are consumed and the
+   * labour is paid to the Mercedonians who did the work — the same money that comes
+   * back through the door as customers.
+   */
+  makeProduct(productId: string): ActionResult {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such product.");
+    if (product.business !== this.state.license) return this.result(false, "Another trade makes that.");
+
+    const missing = this.missingInputs(product);
+    if (missing.length) {
+      const first = missing[0]!;
+      return this.result(false, `You still need ${first.short} ${first.product.name} — buy it from whoever makes it.`);
+    }
+    if (this.state.wallet < product.labour) return this.result(false, `Labour on this costs ${product.labour} ${CURRENCY_CODE}.`);
+
+    for (const [id, qty] of Object.entries(product.inputs)) this.state.productStock[id] = this.stockOf(id) - qty;
+    this.state.wallet -= product.labour;
+    this.state.citizenPool += product.labour;
+    this.state.todayExpenses += product.labour;
+    this.state.productStock[productId] = this.stockOf(productId) + 1;
+    this.addExperience(4 + product.complexity * 3);
+    this.commit(`Made one ${product.name}.`, "success");
+    return this.result(true, "Made.");
+  }
+
+  /** Sell finished goods to whoever wants them — Mercedonians, or another trade. */
+  sellProduct(productId: string, quantity = 1): ActionResult {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such product.");
+    const amount = Math.max(1, Math.floor(quantity));
+    if (this.stockOf(productId) < amount) return this.result(false, `You only hold ${this.stockOf(productId)}.`);
+
+    const gross = product.price * amount;
+    const tax = Math.floor(gross * TAX_RATE);
+    const fromCitizens = product.buyer === "citizens";
+    const pool = fromCitizens ? this.state.citizenPool : this.state.governmentTreasury;
+    if (pool < gross) {
+      return this.result(false, fromCitizens
+        ? "The Mercedonians cannot afford that today. Wait for payday, or sell something cheaper."
+        : "Civic buyers have spent their budget today.");
+    }
+
+    this.state.productStock[productId] = this.stockOf(productId) - amount;
+    if (fromCitizens) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
+    this.state.wallet += gross - tax;
+    this.state.governmentTreasury += tax;
+    this.state.lifetimeRevenue += gross;
+    this.state.todayRevenue += gross - tax;
+    this.addExperience(3 + product.complexity * 2);
+    this.commit(`Sold ${amount} ${product.name} for ${gross} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold.");
+  }
+
+  /** Today's takings against today's outgoings. */
+  todayProfit(): number { return this.state.todayRevenue - this.state.todayExpenses; }
+
+  /**
+   * Record a trade the SERVER already settled. The district set the price and the ledger
+   * moved the value; the client mirrors it rather than deciding it.
+   */
+  applyServerSale(key: ResourceKey, quantity: number, net: number, gross: number): ActionResult {
+    this.state.inventory[key] = Math.max(0, this.state.inventory[key] - quantity);
+    this.state.wallet += net;
+    this.state.lifetimeRevenue += gross;
+    this.state.todayRevenue += net;
+    this.commit(`The district bought ${quantity} ${RESOURCES[key].short} for ${gross} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold into the shared market.");
+  }
+
+  applyServerPurchase(key: ResourceKey, quantity: number, cost: number): ActionResult {
+    this.state.wallet -= cost;
+    this.state.inventory[key] += quantity;
+    this.state.todayExpenses += cost;
+    this.commit(`Bought ${quantity} ${RESOURCES[key].short} from the city for ${cost} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Bought from the shared market.");
   }
 
   sellResource(key: ResourceKey, quantity = 1): ActionResult {

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { civicStructureFor, installProceduralLoader } from "./proceduralAssets";
 import { buildStreets, loadRoadNet, type BuiltStreets } from "./roadnet";
+import { ObstacleField, route, type Blocker } from "./collision";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
@@ -68,6 +69,13 @@ const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAx
 const CITIZEN_AVATAR_BASE = "./assets/avatars/mercedonians/runtime";
 const PLAYER_WALK_SPEED_MPS = 2;
 const VISIBLE_CITIZENS = 24;
+/**
+ * Mercedonians on a phone. Each one is a skinned mesh, and skinning is the most
+ * expensive thing per-body a phone GPU does here. Halving the crowd halves that cost;
+ * the street still looks inhabited because the walkers are spread over the district,
+ * not clustered.
+ */
+const VISIBLE_CITIZENS_LITE = 12;
 const CITIZEN_DECISION_INTERVAL_SECONDS = 8;
 const CITIZEN_TERRAIN_GRID = `${HIGHLANDS_WORLD_BASE}/terrain-grid.json`;
 
@@ -147,8 +155,26 @@ export class World3D {
   );
   private readonly waterMaterials = new Set<THREE.MeshStandardMaterial>();
   private readonly dynamicShadows = window.matchMedia("(min-width: 900px)").matches && (navigator.hardwareConcurrency ?? 4) >= 6;
+  /**
+   * Phone tier. A coarse pointer on a narrow screen is the honest test — a laptop with
+   * a touchscreen is not a phone, and a tablet in landscape can afford the full city.
+   */
+  private readonly liteScene = window.matchMedia("(pointer: coarse)").matches
+    && Math.min(window.screen.width, window.screen.height) < 820;
+
+  private get citizenBudget(): number {
+    return this.liteScene ? VISIBLE_CITIZENS_LITE : VISIBLE_CITIZENS;
+  }
   private sun: THREE.DirectionalLight | null = null;
-  private clickTarget: THREE.Vector3 | null = null;
+  /** Everything solid in the district, and the legs of the walk that avoids it. */
+  private readonly obstacles = new ObstacleField();
+  private civicSolids: Blocker[] = [];
+  private streetSolids: Blocker[] = [];
+  private readonly buildingSolids = new Map<string, Blocker>();
+  private walkPath: Array<{ x: number; z: number }> = [];
+  private walkGoal: { x: number; z: number } | null = null;
+  private stalledFor = 0;
+  private replanned = 0;
   private inputEnabled = true;
   private readonly buildings = new Map<string, THREE.Group>();
   private readonly buildingBannerHeights = new Map<string, number>();
@@ -180,7 +206,15 @@ export class World3D {
     this.renderer.shadowMap.enabled = this.dynamicShadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x0fa8bb, 1);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 780 ? 1.15 : 1.45));
+    // Keyed on the device, not the window. The old test was `innerWidth < 780`, and a
+    // phone in landscape is about 844 wide — so rotating, which the game asks the
+    // player to do, moved them from the 1.15 cap up to 1.45 and made the GPU shade 59%
+    // more pixels. Exactly backwards. A phone now renders at 1.0: on a screen this
+    // small it is indistinguishable, and it is the cheapest frame-rate win available.
+    this.renderer.setPixelRatio(Math.min(
+      window.devicePixelRatio,
+      this.liteScene ? 1.0 : (window.innerWidth < 780 ? 1.15 : 1.45),
+    ));
     this.camera = new THREE.OrthographicCamera(-30, 30, 20, -20, 0.1, 900);
     const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
     this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
@@ -322,6 +356,7 @@ export class World3D {
    * landmark not to appear. Each is scaled to the footprint its site reserves.
    */
   private placeCivicLandmarks(): void {
+    this.civicSolids = [];
     for (const site of CIVIC_SITES) {
       const building = civicStructureFor(site.node);
       if (!building) continue;
@@ -343,7 +378,9 @@ export class World3D {
         object.frustumCulled = true;
       });
       this.scene.add(building);
+      this.civicSolids.push(this.footprintOf(building));
     }
+    this.rebuildObstacles();
   }
 
 
@@ -358,8 +395,13 @@ export class World3D {
   private async buildStreetNetwork(): Promise<void> {
     try {
       const net = await loadRoadNet();
-      this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), { shadows: this.dynamicShadows });
+      this.streets = buildStreets(net, (x, z) => this.sampleWalkHeight(x, z, true), {
+        shadows: this.dynamicShadows,
+        lite: this.liteScene,
+      });
       this.scene.add(this.streets.group);
+      this.streetSolids = this.streets.furniture;
+      this.rebuildObstacles();
       // Worth saying out loud: street furniture is placed against sampled ground, so a
       // silent zero here means the ground sampler refused the verge, not that the
       // layout was empty.
@@ -468,11 +510,7 @@ export class World3D {
     const hit = this.firstWalkableHit(
       this.raycaster.intersectObjects(this.walkableMeshes, false).filter((entry) => this.isEffectivelyVisible(entry.object)),
     );
-    if (hit) {
-      this.clickTarget = hit.point.clone();
-      this.walkMarker.position.set(hit.point.x, hit.point.y + 0.12, hit.point.z);
-      this.walkMarker.visible = true;
-    }
+    if (hit) this.beginWalk(hit.point.x, hit.point.z, hit.point.y);
   }
 
   async load(): Promise<void> {
@@ -597,6 +635,39 @@ export class World3D {
     const hits = this.raycaster.intersectObjects(this.walkableMeshes, false)
       .filter((hit) => allowHidden || this.isEffectivelyVisible(hit.object));
     return this.firstWalkableHit(hits)?.point.y ?? null;
+  }
+
+  /**
+   * Rebuild the solid world from the three things that own footprints: the civic
+   * landmarks, the street furniture, and whatever the player has had built.
+   *
+   * Rebuilt wholesale rather than patched, because a building is removed as often as it
+   * is added (a licence change swaps the model) and a field that can only grow would
+   * leave the old shell standing invisibly in the middle of the plot.
+   */
+  private rebuildObstacles(): void {
+    this.obstacles.clear();
+    for (const solid of this.civicSolids) this.obstacles.add(solid);
+    for (const solid of this.streetSolids) this.obstacles.add(solid);
+    for (const solid of this.buildingSolids.values()) this.obstacles.add(solid);
+    const streets = this.streets;
+    if (streets) this.obstacles.setMovers(streets.carBlockers);
+  }
+
+  /** The XZ footprint a placed model actually occupies, inset off its own walls. */
+  private footprintOf(model: THREE.Object3D): Blocker {
+    const bounds = new THREE.Box3().setFromObject(model);
+    const size = bounds.getSize(new THREE.Vector3());
+    const centre = bounds.getCenter(new THREE.Vector3());
+    // A roof overhangs its walls, and the bounding box takes the roof. Half a metre
+    // back means the eaves are not a wall you bump into on the pavement.
+    const inset = 0.5;
+    return {
+      x: centre.x,
+      z: centre.z,
+      halfX: Math.max(0.4, size.x / 2 - inset),
+      halfZ: Math.max(0.4, size.z / 2 - inset),
+    };
   }
 
   private sampleWalkHeight(x: number, z: number, allowHidden = false): number | null {
@@ -801,7 +872,7 @@ export class World3D {
       yawCorrection: number;
     } => template !== null);
     if (templates.length === 0) return;
-    for (let index = 0; index < VISIBLE_CITIZENS; index += 1) {
+    for (let index = 0; index < this.citizenBudget; index += 1) {
       const group = new THREE.Group();
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(0.36, 12),
@@ -865,6 +936,8 @@ export class World3D {
   }
 
   private citizenPointBlocked(x: number, z: number): boolean {
+    // Mercedonians are narrower than the player and should still clear a lamp post.
+    if (this.obstacles.blocked(x, z, 0.3, false)) return true;
     for (const plot of PLOTS) {
       if (plot.island !== this.currentIsland) continue;
       if (Math.abs(x - plot.x) < plot.width / 2 + .7 && Math.abs(z - plot.z) < plot.depth / 2 + .7) return true;
@@ -1181,7 +1254,7 @@ export class World3D {
       state.reputation,
       state.visitorsServed,
     );
-    const party = representedPartySize(population, VISIBLE_CITIZENS, 0);
+    const party = representedPartySize(population, this.citizenBudget, 0);
     for (const activity of activities) {
       if (queue.some((entry) => entry.activityId === activity.id)) continue;
       queue.push({
@@ -1395,18 +1468,63 @@ export class World3D {
     this.inputEnabled = enabled;
     if (enabled) return;
     this.keys.clear();
-    this.clickTarget = null;
-    this.walkMarker.visible = false;
+    this.clearWalk();
   }
 
   walkTo(x: number, z: number): void {
     if (!this.inputEnabled) return;
     const groundY = this.sampleWalkHeight(x, z, true);
     if (groundY === null) return;
-    const target = new THREE.Vector3(x, groundY, z);
-    this.clickTarget = target;
-    this.walkMarker.position.set(target.x, groundY + 0.12, target.z);
+    this.beginWalk(x, z, groundY);
+  }
+
+  /**
+   * Plan a walk to (x, z) and start following it.
+   *
+   * The marker goes where they asked, even when the route stops at a wall short of it:
+   * moving the flag would read as the click having missed.
+   */
+  private beginWalk(x: number, z: number, groundY: number): void {
+    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, x, z);
+    if (!legs) {
+      this.clearWalk();
+      return;
+    }
+    this.walkPath = legs;
+    this.walkGoal = { x, z };
+    this.stalledFor = 0;
+    this.replanned = 0;
+    this.walkMarker.position.set(x, groundY + 0.12, z);
     this.walkMarker.visible = true;
+  }
+
+  private clearWalk(): void {
+    this.walkPath = [];
+    this.walkGoal = null;
+    this.stalledFor = 0;
+    this.walkMarker.visible = false;
+  }
+
+  /**
+   * Re-plan mid-walk, for the two things a route cannot know in advance: traffic that
+   * has since parked itself in the way, and terrain, which the planner deliberately
+   * does not sample. Bounded, because a goal behind a cliff would otherwise re-plan
+   * every stall for as long as the player watched.
+   */
+  private replanWalk(): void {
+    const goal = this.walkGoal;
+    if (!goal || this.replanned >= 3) {
+      this.clearWalk();
+      return;
+    }
+    this.replanned += 1;
+    this.stalledFor = 0;
+    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, goal.x, goal.z);
+    if (!legs) {
+      this.clearWalk();
+      return;
+    }
+    this.walkPath = legs;
   }
 
   setSelectedPlot(plotId: string | null, ownedPlotId: string | null): void {
@@ -1445,6 +1563,8 @@ export class World3D {
       this.scene.remove(model);
       this.buildings.delete(plotId);
       this.buildingBannerHeights.delete(plotId);
+      this.buildingSolids.delete(plotId);
+      this.rebuildObstacles();
     }
 
     await Promise.all(desired.map(async (record) => {
@@ -1479,6 +1599,8 @@ export class World3D {
       const worldBounds = new THREE.Box3().setFromObject(model);
       this.buildingBannerHeights.set(plot.id, worldBounds.max.y + 1.15);
       this.buildings.set(plot.id, model);
+      this.buildingSolids.set(plot.id, this.footprintOf(model));
+      this.rebuildObstacles();
     }));
   }
 
@@ -1508,7 +1630,7 @@ export class World3D {
     }
     this.avatarGroundY = groundY ?? 1.02;
     this.avatar.position.y = this.avatarGroundY;
-    this.clickTarget = null;
+    this.clearWalk();
     this.cameraTarget.set(state.player.x, this.avatarGroundY + 0.18, state.player.z);
   }
 
@@ -1535,6 +1657,7 @@ export class World3D {
   }
 
   private tryMoveTo(x: number, z: number): boolean {
+    if (this.obstacles.blocked(x, z)) return false;
     const groundY = this.sampleWalkHeight(x, z);
     if (groundY === null || Math.abs(groundY - this.avatarGroundY) > MAX_WALK_STEP) return false;
     this.avatar.position.x = x;
@@ -1544,37 +1667,68 @@ export class World3D {
     return true;
   }
 
+  /**
+   * Shove the avatar out of anything that has closed around them.
+   *
+   * Movement alone cannot walk into a solid, but the world moves too: a car drives over
+   * the pavement, and a building is raised on the plot the player is standing in the
+   * middle of. Without this they would be sealed inside it — the exact "stuck" the
+   * sliding logic cannot fix, because every direction out starts inside.
+   */
+  private unstick(state: GameState): boolean {
+    const escape = this.obstacles.push(this.avatar.position.x, this.avatar.position.z);
+    if (!escape.moved) return false;
+    const groundY = this.sampleWalkHeight(escape.x, escape.z, true);
+    if (groundY === null) return false;
+    this.avatar.position.x = escape.x;
+    this.avatar.position.z = escape.z;
+    this.avatarGroundY = groundY;
+    state.player.x = escape.x;
+    state.player.z = escape.z;
+    this.updateChunkVisibility();
+    return true;
+  }
+
   private updateMovement(delta: number, state: GameState): number {
     if (!this.inputEnabled) return 0;
     const previousX = this.avatar.position.x;
     const previousZ = this.avatar.position.z;
     const direction = this.movementVector();
-    let moved = false;
+    let moved = this.unstick(state);
     if (direction.lengthSq() > 0) {
-      this.clickTarget = null;
+      this.clearWalk();
       const distance = delta * PLAYER_WALK_SPEED_MPS;
       const nextX = this.avatar.position.x + direction.x * distance;
       const nextZ = this.avatar.position.z + direction.z * distance;
+      // Walking a wall at an angle should slide along it, so a refused diagonal is
+      // retried one axis at a time rather than stopping the player dead.
       moved = this.tryMoveTo(nextX, nextZ)
         || this.tryMoveTo(nextX, this.avatar.position.z)
-        || this.tryMoveTo(this.avatar.position.x, nextZ);
-    } else if (this.clickTarget) {
-      const deltaTarget = this.clickTarget.clone().sub(this.avatar.position);
-      deltaTarget.y = 0;
-      if (deltaTarget.length() < 0.25) {
-        this.clickTarget = null;
-        this.walkMarker.visible = false;
-      }
-      else {
-        deltaTarget.normalize();
-        const distance = Math.min(delta * PLAYER_WALK_SPEED_MPS, this.avatar.position.distanceTo(this.clickTarget));
-        moved = this.tryMoveTo(
-          this.avatar.position.x + deltaTarget.x * distance,
-          this.avatar.position.z + deltaTarget.z * distance,
-        );
-        if (!moved) {
-          this.clickTarget = null;
-          this.walkMarker.visible = false;
+        || this.tryMoveTo(this.avatar.position.x, nextZ)
+        || moved;
+    } else if (this.walkPath.length > 0) {
+      const leg = this.walkPath[0]!;
+      const toLegX = leg.x - this.avatar.position.x;
+      const toLegZ = leg.z - this.avatar.position.z;
+      const remaining = Math.hypot(toLegX, toLegZ);
+      if (remaining < 0.25) {
+        this.walkPath.shift();
+        if (this.walkPath.length === 0) this.clearWalk();
+      } else {
+        const distance = Math.min(delta * PLAYER_WALK_SPEED_MPS, remaining);
+        const nextX = this.avatar.position.x + (toLegX / remaining) * distance;
+        const nextZ = this.avatar.position.z + (toLegZ / remaining) * distance;
+        const stepped = this.tryMoveTo(nextX, nextZ)
+          || this.tryMoveTo(nextX, this.avatar.position.z)
+          || this.tryMoveTo(this.avatar.position.x, nextZ);
+        moved = stepped || moved;
+        if (stepped) this.stalledFor = 0;
+        else {
+          // Held up by something the plan did not carry: a car in the road, or ground
+          // the planner never sampled. Wait a beat — traffic clears itself — and only
+          // then pay for a new route.
+          this.stalledFor += delta;
+          if (this.stalledFor > 0.5) this.replanWalk();
         }
       }
     }
@@ -1606,7 +1760,7 @@ export class World3D {
       citizen.group.visible = true;
       citizen.group.userData.representedCitizens = representedPartySize(
         population,
-        VISIBLE_CITIZENS,
+        this.citizenBudget,
         citizen.index,
       );
       if (citizen.waitingUntil > 0) {

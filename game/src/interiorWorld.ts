@@ -158,10 +158,87 @@ export const INTERIOR_EQUIPMENT_CATALOG: Record<LicenseKey, Record<UpgradeKey, I
   }, { yield: "#83ad68", capacity: "#b6965f", speed: "#56ada6", appeal: "#d09a72" }),
 };
 
+
+// ---------------------------------------------------------------- the rooms
+//
+// Every business used to stand in the same room. Same cream floor, same stone sills,
+// same timber rafters, same four glass bays — only the accent colour and one machine
+// module told a mine from a cinema. This is the part that makes each trade somewhere,
+// not just something: its own palette, and its own floor kit standing around the walls.
+//
+// The kit is placed, never scattered. Six authored slots sit clear of the four upgrade
+// stations, the exit door at the back, and the centre walkway, so nothing a business
+// owns can ever block the way to a station it owns.
+
+/** Where floor kit may stand: [x, z, facing]. Clear of stations, door and walkway. */
+export const PROP_SLOTS: ReadonlyArray<readonly [number, number, number]> = [
+  // The two either side of the door, seen first on entering, carry the signature kit.
+  [-2.95, -5.15, 0],
+  [2.95, -5.15, 0],
+  // Then the front wall. The side walls look like the obvious place for the rest and
+  // are not: at x=+-7.2 a piece both fouls the speed station (2.45m apart, and the
+  // station's halo alone reaches 1.5m) and pushes its own 1.2m through the wall.
+  [-3.4, 4.8, Math.PI],
+  [3.4, 4.8, Math.PI],
+  [-6.6, 4.85, Math.PI],
+  [6.6, 4.85, Math.PI],
+];
+
+export type PropKind =
+  | "tanks" | "solar" | "beds" | "orecart" | "logs" | "crates" | "toolwall"
+  | "conveyor" | "scaffold" | "pallets" | "shelves" | "diner" | "weights"
+  | "seats" | "bins";
+
+export interface RoomDesign {
+  /** Floor, the walkway strip over it, the low walls, and the roof timbers. */
+  floor: number;
+  path: number;
+  wall: number;
+  trim: number;
+  /** Glazing tint and the sky behind it — a mine reads cold, a kitchen warm. */
+  glass: number;
+  sky: number;
+  /** Floor kit, taken in order into PROP_SLOTS. Fewer than six leaves slots empty. */
+  props: readonly PropKind[];
+}
+
+export const INTERIOR_ROOMS: Record<LicenseKey, RoomDesign> = {
+  aquaworks: { floor: 0xbfd3d6, path: 0xa9c4c9, wall: 0x7f9aa1, trim: 0x5d7f88, glass: 0x9cdfe0, sky: 0x123e42,
+    props: ["tanks", "tanks", "conveyor", "bins", "crates", "shelves"] },
+  sungrid: { floor: 0xd9cfa6, path: 0xcabf90, wall: 0x9a9673, trim: 0x8a6f3c, glass: 0xd8e9a8, sky: 0x2c4a3a,
+    props: ["solar", "solar", "toolwall", "crates", "shelves", "conveyor"] },
+  greenhouse: { floor: 0xc6bd8c, path: 0xb3ac7c, wall: 0x7f9668, trim: 0x6f5a34, glass: 0xb9e7b0, sky: 0x1d4630,
+    props: ["beds", "beds", "shelves", "crates", "bins", "tanks"] },
+  mine: { floor: 0x9b9188, path: 0x8b8078, wall: 0x6f6862, trim: 0x4f4a45, glass: 0x9fb2b8, sky: 0x241f1c,
+    props: ["orecart", "orecart", "conveyor", "crates", "toolwall", "bins"] },
+  timberworks: { floor: 0xc7a273, path: 0xb69065, wall: 0x8d6c46, trim: 0x6c4f2f, glass: 0xcfe0a8, sky: 0x2a3a24,
+    props: ["logs", "logs", "toolwall", "crates", "conveyor", "shelves"] },
+  cratemill: { floor: 0xcbb187, path: 0xbaa077, wall: 0x8f7550, trim: 0x6f5537, glass: 0xd8dfae, sky: 0x2f3b2a,
+    props: ["crates", "crates", "conveyor", "pallets", "toolwall", "shelves"] },
+  workshop: { floor: 0xc4b596, path: 0xb2a385, wall: 0x84836c, trim: 0x6d5738, glass: 0xc9e3d0, sky: 0x243d3a,
+    props: ["toolwall", "toolwall", "crates", "shelves", "conveyor", "pallets"] },
+  factory: { floor: 0xa9a9a2, path: 0x999992, wall: 0x767a7c, trim: 0x565b5e, glass: 0xa9cfd6, sky: 0x1e2e33,
+    props: ["conveyor", "conveyor", "toolwall", "pallets", "crates", "bins"] },
+  construction: { floor: 0xb8ada0, path: 0xa79c90, wall: 0x827a70, trim: 0x64594d, glass: 0xc4d8c0, sky: 0x2b3630,
+    props: ["scaffold", "scaffold", "pallets", "crates", "toolwall", "conveyor"] },
+  freight: { floor: 0xb0a894, path: 0x9f9784, wall: 0x7c7566, trim: 0x5c5648, glass: 0xb6d2d6, sky: 0x223034,
+    props: ["pallets", "pallets", "crates", "shelves", "conveyor", "bins"] },
+  shop: { floor: 0xdcc9a8, path: 0xcbb897, wall: 0x9a8367, trim: 0x7a5f42, glass: 0xf0d5b8, sky: 0x3a3026,
+    props: ["shelves", "shelves", "crates", "diner", "bins", "toolwall"] },
+  restaurant: { floor: 0xd8b58c, path: 0xc7a37b, wall: 0x96694a, trim: 0x74492f, glass: 0xf5cf9a, sky: 0x3d2a1e,
+    props: ["diner", "diner", "shelves", "crates", "bins", "tanks"] },
+  gym: { floor: 0xa8bfae, path: 0x97ae9d, wall: 0x6f8b7c, trim: 0x50695c, glass: 0xb9e2d4, sky: 0x1c3a33,
+    props: ["weights", "weights", "shelves", "bins", "tanks", "toolwall"] },
+  cinema: { floor: 0x6d6070, path: 0x5f5363, wall: 0x4b4152, trim: 0x352d3b, glass: 0x9a86b4, sky: 0x1a1522,
+    props: ["seats", "seats", "shelves", "diner", "bins", "crates"] },
+  recycler: { floor: 0xa9b394, path: 0x98a284, wall: 0x74805f, trim: 0x555f43, glass: 0xc0dba8, sky: 0x252f22,
+    props: ["bins", "bins", "conveyor", "crates", "pallets", "shelves"] },
+};
+
 type TargetId = UpgradeKey | "exit";
 
-const ROOM_HALF_WIDTH = 8;
-const ROOM_HALF_DEPTH = 6;
+export const ROOM_HALF_WIDTH = 8;
+export const ROOM_HALF_DEPTH = 6;
 const PLAYER_RADIUS = 0.38;
 const WALK_SPEED = 4.25;
 
@@ -182,7 +259,7 @@ export function dampInteriorAvatarYaw(current: number, target: number, delta: nu
 const STATION_RANGE = 2.05;
 const EXIT_RANGE = 1.65;
 
-const STATIONS: readonly StationDefinition[] = [
+export const STATIONS: readonly StationDefinition[] = [
   {
     key: "yield",
     label: "Production Quality",
@@ -253,6 +330,8 @@ export class InteriorWorld {
   private readonly player = new THREE.Group();
   private readonly cameraLookAt = new THREE.Vector3(0, 0.85, -0.5);
   private readonly obstacles: Array<{ x: number; z: number; radius: number }> = [];
+  /** Flat colours shared across the floor kit, so a room is a handful of materials. */
+  private readonly propMaterials = new Map<string, THREE.MeshStandardMaterial>();
 
   private content = new THREE.Group();
   private floor: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null = null;
@@ -635,17 +714,23 @@ export class InteriorWorld {
     this.stations.clear();
     this.interactiveObjects.length = 0;
     this.obstacles.length = 0;
+    for (const material of this.propMaterials.values()) material.dispose();
+    this.propMaterials.clear();
     this.floor = null;
     this.exitHalo = null;
 
     const accent = new THREE.Color(this.business.color);
+    // The room itself, not just the machine in it, belongs to the trade: a mine is
+    // cold grey rock under a dark sky, a kitchen is warm timber under a low sun.
+    const design = INTERIOR_ROOMS[this.license];
+    this.scene.background = new THREE.Color(design.sky);
     const cream = new THREE.MeshStandardMaterial({ color: 0xe9d9b4, roughness: 0.9 });
-    const stone = new THREE.MeshStandardMaterial({ color: 0x8e9c82, roughness: 0.88 });
-    const timber = new THREE.MeshStandardMaterial({ color: 0x8e603d, roughness: 0.82 });
+    const stone = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.88 });
+    const timber = new THREE.MeshStandardMaterial({ color: design.trim, roughness: 0.82 });
     const teal = new THREE.MeshStandardMaterial({ color: 0x1c6667, roughness: 0.72 });
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xc8b88f, roughness: 0.94 });
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: design.floor, roughness: 0.94 });
     const glass = new THREE.MeshPhysicalMaterial({
-      color: 0x9cdfe0,
+      color: design.glass,
       transmission: 0.35,
       transparent: true,
       opacity: 0.56,
@@ -688,7 +773,7 @@ export class InteriorWorld {
 
     const path = new THREE.Mesh(
       new THREE.PlaneGeometry(2.35, 10.5),
-      new THREE.MeshStandardMaterial({ color: 0xd9c892, roughness: 0.92 }),
+      new THREE.MeshStandardMaterial({ color: design.path, roughness: 0.92 }),
     );
     path.rotation.x = -Math.PI / 2;
     path.position.set(0, 0.018, 0.35);
@@ -698,9 +783,12 @@ export class InteriorWorld {
     this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
     for (const definition of STATIONS) this.createStation(definition, cream, teal, timber);
+    this.dressRoom(design);
 
+    // Only the two by the side walls: the front pair stood where the outer floor kit
+    // now goes, and every room brings its own greenery if the trade calls for it.
     for (const [x, z, scale] of [
-      [-7.15, -1.0, 0.85], [7.1, -1.0, 0.85], [-7.05, 4.65, 0.72], [7.05, 4.65, 0.72],
+      [-7.15, -1.0, 0.85], [7.1, -1.0, 0.85],
     ] as Array<[number, number, number]>) {
       this.createPlant(x, z, scale, accent);
     }
@@ -1231,6 +1319,230 @@ export class InteriorWorld {
       lantern.scale.y = 1.35;
       lantern.position.set(side * 0.9, 1.68, 0);
       root.add(lantern);
+    }
+  }
+
+
+  /**
+   * Stand this trade's floor kit around the walls.
+   *
+   * Each piece is a handful of boxes in the room's own palette — enough to say
+   * "this is a mine" from the door without competing with the four upgrade stations,
+   * which are what the player is actually here to read. Every piece is registered as
+   * an obstacle, so the kit is as solid indoors as the buildings are outdoors.
+   */
+  private dressRoom(design: RoomDesign): void {
+    design.props.forEach((kind, index) => {
+      const slot = PROP_SLOTS[index];
+      if (!slot) return;
+      const [x, z, facing] = slot;
+      const root = new THREE.Group();
+      root.name = `interior-prop-${kind}-${index}`;
+      root.position.set(x, 0, z);
+      root.rotation.y = facing;
+      this.content.add(root);
+      const radius = this.buildProp(root, kind, design);
+      this.obstacles.push({ x, z, radius });
+    });
+  }
+
+  /** A flat colour, shared between every piece of kit that asks for the same one. */
+  private propMaterial(colour: number, rough = 0.82, metal = 0): THREE.MeshStandardMaterial {
+    const key = `${colour}:${rough}:${metal}`;
+    const existing = this.propMaterials.get(key);
+    if (existing) return existing;
+    const material = new THREE.MeshStandardMaterial({ color: colour, roughness: rough, metalness: metal });
+    this.propMaterials.set(key, material);
+    return material;
+  }
+
+  /** Build one piece of floor kit into `root`, and report the radius it occupies. */
+  private buildProp(root: THREE.Group, kind: PropKind, design: RoomDesign): number {
+    const box = (
+      size: readonly [number, number, number],
+      at: readonly [number, number, number],
+      colour: number,
+      rough = 0.82,
+      metal = 0,
+    ): THREE.Mesh => this.addBox(root, size, at, this.propMaterial(colour, rough, metal));
+    const cyl = (r: number, h: number, at: readonly [number, number, number], colour: number, seg = 8): THREE.Mesh => {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), this.propMaterial(colour));
+      mesh.position.set(at[0], at[1], at[2]);
+      mesh.castShadow = this.renderer.shadowMap.enabled;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+      return mesh;
+    };
+    const TIMBER = 0x8a6540;
+    const STEEL = 0x76858a;
+    const DARK = 0x3c4a4d;
+
+    switch (kind) {
+      case "tanks": {
+        for (const [dx, r, h] of [[-0.5, 0.34, 1.5], [0.45, 0.26, 1.1]] as Array<[number, number, number]>) {
+          cyl(r, h, [dx, h / 2, 0], design.glass, 10);
+          cyl(r * 1.1, 0.09, [dx, h, 0], STEEL, 10);
+          cyl(r * 1.1, 0.09, [dx, 0.05, 0], STEEL, 10);
+        }
+        box([1.5, 0.09, 0.09], [0, 1.18, 0.2], STEEL, 0.5, 0.4);
+        return 1.0;
+      }
+      case "solar": {
+        for (const dx of [-0.42, 0.42]) {
+          box([0.09, 0.86, 0.09], [dx, 0.43, 0], STEEL, 0.5, 0.4);
+        }
+        const panel = box([1.42, 0.07, 0.82], [0, 0.94, 0.06], 0x27506b, 0.34, 0.25);
+        panel.rotation.x = -0.42;
+        box([1.46, 0.06, 0.1], [0, 0.68, 0.36], STEEL, 0.5, 0.4);
+        return 0.95;
+      }
+      case "beds": {
+        box([1.7, 0.36, 0.78], [0, 0.18, 0], TIMBER);
+        box([1.58, 0.1, 0.66], [0, 0.4, 0], 0x5a4630);
+        for (const dx of [-0.55, 0, 0.55]) {
+          cyl(0.05, 0.42, [dx, 0.62, 0], 0x4f7a3c, 6);
+          const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 4), this.propMaterial(0x6ea34c));
+          leaf.position.set(dx, 0.88, 0);
+          root.add(leaf);
+        }
+        return 1.0;
+      }
+      case "orecart": {
+        box([1.12, 0.56, 0.72], [0, 0.44, 0], DARK, 0.7, 0.3);
+        box([1.0, 0.12, 0.6], [0, 0.76, 0], 0x6b5a4a);
+        for (const dx of [-0.38, 0.38]) for (const dz of [-0.3, 0.3]) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 8), this.propMaterial(0x2b3336));
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(dx, 0.16, dz);
+          root.add(wheel);
+        }
+        for (const [dx, r] of [[-0.24, 0.17], [0.16, 0.2], [0.4, 0.13]] as Array<[number, number]>) {
+          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), this.propMaterial(0x8b8078));
+          rock.position.set(dx, 0.86, 0);
+          root.add(rock);
+        }
+        return 0.95;
+      }
+      case "logs": {
+        for (const [row, count, y] of [[0, 4, 0.22], [1, 3, 0.6]] as Array<[number, number, number]>) {
+          for (let i = 0; i < count; i += 1) {
+            const log = cyl(0.19, 1.5, [(i - (count - 1) / 2) * 0.4 + row * 0.2, y, 0], TIMBER, 8);
+            log.rotation.z = Math.PI / 2;
+          }
+        }
+        box([0.1, 0.94, 0.1], [-0.92, 0.47, 0], STEEL, 0.5, 0.4);
+        box([0.1, 0.94, 0.1], [0.92, 0.47, 0], STEEL, 0.5, 0.4);
+        return 1.05;
+      }
+      case "crates": {
+        const shades = [0xb9915f, 0xa8814f, 0xc7a370];
+        let i = 0;
+        for (const [dx, dy, dz, sz] of [
+          [-0.4, 0.3, 0, 0.58], [0.35, 0.32, 0.05, 0.62], [-0.1, 0.86, 0, 0.5],
+        ] as Array<[number, number, number, number]>) {
+          const shade = shades[i % shades.length]!;
+          box([sz, sz, sz], [dx, dy, dz], shade);
+          box([sz * 1.02, 0.05, sz * 0.24], [dx, dy, dz], 0x6f5537);
+          i += 1;
+        }
+        return 0.9;
+      }
+      case "toolwall": {
+        box([1.7, 1.16, 0.11], [0, 1.15, -0.3], TIMBER);            // pegboard
+        box([1.7, 0.1, 0.62], [0, 0.86, 0], 0x9a8a70, 0.8);          // bench top
+        for (const dx of [-0.76, 0.76]) box([0.1, 0.86, 0.5], [dx, 0.43, 0], 0x6f5537);
+        for (const [dx, w, h] of [[-0.55, 0.1, 0.42], [-0.2, 0.26, 0.1], [0.2, 0.09, 0.5], [0.6, 0.2, 0.2]] as Array<[number, number, number]>) {
+          box([w, h, 0.06], [dx, 1.42, -0.22], 0x51636a, 0.5, 0.45);  // tools hung up
+        }
+        return 0.95;
+      }
+      case "conveyor": {
+        box([1.9, 0.1, 0.66], [0, 0.72, 0], DARK, 0.62, 0.2);
+        for (const dx of [-0.78, 0, 0.78]) box([0.11, 0.72, 0.11], [dx, 0.36, 0], STEEL, 0.5, 0.4);
+        for (let i = -3; i <= 3; i += 1) {
+          const roller = cyl(0.07, 0.6, [i * 0.26, 0.81, 0], STEEL, 6);
+          roller.rotation.x = Math.PI / 2;
+        }
+        return 1.05;
+      }
+      case "scaffold": {
+        for (const dx of [-0.7, 0.7]) for (const dz of [-0.3, 0.3]) box([0.09, 1.7, 0.09], [dx, 0.85, dz], STEEL, 0.5, 0.4);
+        for (const y of [0.6, 1.16, 1.7]) box([1.5, 0.08, 0.08], [0, y, -0.3], STEEL, 0.5, 0.4);
+        box([1.44, 0.08, 0.62], [0, 1.2, 0], TIMBER);
+        box([1.2, 0.5, 0.1], [0, 0.32, 0.28], 0xc4b48a);
+        return 0.95;
+      }
+      case "pallets": {
+        for (const [dy, count] of [[0.08, 1], [0.24, 1], [0.4, 1]] as Array<[number, number]>) {
+          void count;
+          box([1.5, 0.09, 0.86], [0, dy, 0], TIMBER);
+        }
+        box([1.1, 0.62, 0.72], [0, 0.79, 0], 0xb08a58);
+        box([1.12, 0.05, 0.2], [0, 0.79, 0], 0x6f5537);
+        return 0.95;
+      }
+      case "shelves": {
+        box([1.8, 0.09, 0.5], [0, 0.42, -0.16], TIMBER);
+        box([1.8, 0.09, 0.5], [0, 0.94, -0.16], TIMBER);
+        box([1.8, 0.09, 0.5], [0, 1.46, -0.16], TIMBER);
+        for (const dx of [-0.86, 0.86]) box([0.1, 1.6, 0.5], [dx, 0.8, -0.16], 0x6f5537);
+        const goods = [0xd9a441, 0x7fae5c, 0xc9663f, 0x69a9b0];
+        let g = 0;
+        for (const y of [0.58, 1.1, 1.62]) for (const dx of [-0.5, 0, 0.5]) {
+          box([0.26, 0.24, 0.26], [dx, y, -0.16], goods[g % goods.length]!);
+          g += 1;
+        }
+        return 1.0;
+      }
+      case "diner": {
+        cyl(0.42, 0.06, [0, 0.74, 0], TIMBER, 10);
+        cyl(0.09, 0.74, [0, 0.37, 0], STEEL, 8);
+        cyl(0.3, 0.05, [0, 0.03, 0], STEEL, 10);
+        for (const [dx, dz] of [[-0.66, 0], [0.66, 0]] as Array<[number, number]>) {
+          box([0.36, 0.07, 0.36], [dx, 0.44, dz], 0x9a6a44);
+          box([0.36, 0.44, 0.07], [dx + (dx < 0 ? -0.14 : 0.14), 0.66, dz], 0x9a6a44);
+          for (const lx of [-0.13, 0.13]) for (const lz of [-0.13, 0.13]) {
+            box([0.05, 0.44, 0.05], [dx + lx, 0.22, dz + lz], 0x6f4a2e);
+          }
+        }
+        return 1.0;
+      }
+      case "weights": {
+        box([1.8, 0.12, 0.5], [0, 0.28, 0], DARK, 0.6, 0.3);
+        box([1.8, 0.12, 0.5], [0, 0.74, 0], DARK, 0.6, 0.3);
+        for (const dx of [-0.86, 0.86]) box([0.11, 0.92, 0.5], [dx, 0.46, 0], STEEL, 0.5, 0.4);
+        for (const [dx, r] of [[-0.5, 0.17], [-0.1, 0.15], [0.3, 0.13], [0.62, 0.11]] as Array<[number, number]>) {
+          const plate = cyl(r, 0.1, [dx, 0.92, 0], 0x2f3a3d, 10);
+          plate.rotation.z = Math.PI / 2;
+        }
+        for (const [dx, r] of [[-0.45, 0.19], [0.05, 0.16], [0.45, 0.14]] as Array<[number, number]>) {
+          const plate = cyl(r, 0.1, [dx, 0.46, 0], 0x44525a, 10);
+          plate.rotation.z = Math.PI / 2;
+        }
+        return 1.0;
+      }
+      case "seats": {
+        for (const row of [0, 1]) {
+          const dz = row * 0.62;
+          for (const dx of [-0.62, 0, 0.62]) {
+            box([0.5, 0.1, 0.44], [dx, 0.44, dz], 0x6d3f4a);
+            box([0.5, 0.52, 0.09], [dx, 0.7, dz - 0.2], 0x7c4855);
+            box([0.09, 0.44, 0.44], [dx - 0.28, 0.22, dz], 0x4a2c34);
+            box([0.09, 0.44, 0.44], [dx + 0.28, 0.22, dz], 0x4a2c34);
+          }
+        }
+        return 1.15;
+      }
+      case "bins": {
+        const colours = [0x4f8b5c, 0x3f7794, 0xb5883c];
+        colours.forEach((colour, i) => {
+          const dx = (i - 1) * 0.62;
+          box([0.54, 0.86, 0.54], [dx, 0.43, 0], colour);
+          box([0.6, 0.08, 0.6], [dx, 0.9, 0], 0x3a4a3f);
+          box([0.3, 0.04, 0.3], [dx, 0.95, 0], 0x2c3a30);
+        });
+        return 1.0;
+      }
     }
   }
 

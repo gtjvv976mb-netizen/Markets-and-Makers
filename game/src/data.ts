@@ -436,6 +436,15 @@ export const STAFF_DAILY_WAGE = 14;
 export const STAFF_APPEAL = 0.08;
 
 export const CURRENCY_NAME = "Merc Dollars";
+/**
+ * Tier 3 trades are not simply bought. The city puts each Enterprise licence out to
+ * tender and operators bid against one another for the right to run it, so the most
+ * valuable rungs of the ladder are contested rather than first-come.
+ */
+export const FRANCHISE_ROUND_DAYS = 2;
+export const FRANCHISE_BASE_BID = 900;
+export const FRANCHISE_RIVAL_STEP = 0.22;
+
 export const CURRENCY_CODE = "MERCS";
 export const INITIAL_MERC_DOLLAR_SUPPLY = 50_000_000;
 export const INITIAL_CITIZEN_POOL = 5_000_000;
