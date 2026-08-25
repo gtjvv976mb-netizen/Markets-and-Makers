@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { config, heliusRpcUrl } from "./config.js";
+import { parseTokenBalance } from "./chain.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
@@ -85,15 +86,7 @@ async function tokenBalance(owner: string): Promise<{ rawAmount: string; decimal
     signal: AbortSignal.timeout(8000)
   });
   if (!response.ok) throw new Error(`helius-${response.status}`);
-  const payload = await response.json() as { result?: { value?: Array<{ account?: { data?: { parsed?: { info?: { tokenAmount?: { amount?: string; decimals?: number } } } } } }> } };
-  let raw = 0n;
-  let decimals = 0;
-  for (const entry of payload.result?.value ?? []) {
-    const amount = entry.account?.data?.parsed?.info?.tokenAmount;
-    if (amount?.amount) raw += BigInt(amount.amount);
-    if (typeof amount?.decimals === "number") decimals = amount.decimals;
-  }
-  return { rawAmount: raw.toString(), decimals, uiAmount: Number(raw) / 10 ** decimals };
+  return parseTokenBalance(await response.json());
 }
 
 const server = createServer(async (req, res) => {

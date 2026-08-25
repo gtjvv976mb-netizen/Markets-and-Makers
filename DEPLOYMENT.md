@@ -34,9 +34,10 @@ Set these secret values in the Render dashboard:
 - `HELIUS_API_KEY`: a server-side Helius key
 - `MM_TOKEN_MINT`: `3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump` — the live mainnet mint. Verified on 2026-08-25: Token-2022,
   6 decimals, 1,000,000,000 supply, mint and freeze authorities both renounced.
-- `SOLANA_NETWORK`: `mainnet`. This must be set alongside the mint — the default is
-  `devnet`, and a mainnet mint queried against devnet returns an empty balance rather
-  than an error, so the chain silently reads as zero.
+- `SOLANA_NETWORK`: `mainnet`. This must be set alongside the mint. The default is
+  `devnet`, and devnet answers a mainnet mint with `-32602 Invalid param: could not
+  find mint` — a JSON-RPC error carried over HTTP 200. `/api/chain/balance` now surfaces
+  that as a failure instead of reporting a zero balance, so a wrong network is loud.
 
 Render generates `HELIUS_WEBHOOK_SECRET`. Copy its value when configuring the Helius webhook authorization header. Never commit it.
 
