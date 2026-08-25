@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { versionedWorldUrl } from "./tileTextures";
 
 // Streets: asphalt, lane markings, kerbs, lamps and moving traffic, all raised from the
 // extracted carriageway bands.
@@ -307,7 +308,7 @@ function buildCar(bodyColour: number): THREE.Group {
 }
 
 export async function loadRoadNet(url = "./world/roadnet.json"): Promise<RoadNet> {
-  const response = await fetch(url);
+  const response = await fetch(versionedWorldUrl(url));
   if (!response.ok) throw new Error(`roadnet ${response.status}`);
   return (await response.json()) as RoadNet;
 }

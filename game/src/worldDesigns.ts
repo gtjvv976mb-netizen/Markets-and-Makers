@@ -3,6 +3,7 @@ import type { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { characterHeightScale, STANDARD_CHARACTER_HEIGHT_M, yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
 import { HIGHLANDS_WORLD_BASE, worldChunkAt } from "./highlandsWorld";
+import { versionedWorldUrl } from "./tileTextures";
 
 export const WORLD_DESIGNS_BASE = `${HIGHLANDS_WORLD_BASE}/world-designs-v1`;
 export const WORLD_DESIGNS_MANIFEST = `${WORLD_DESIGNS_BASE}/manifest.json`;
@@ -330,7 +331,7 @@ export async function loadWorldDesigns(
   dynamicShadows: boolean,
   onProgress?: (completed: number, total: number, label: string) => void,
 ): Promise<WorldDesignLoadResult> {
-  const response = await fetch(WORLD_DESIGNS_MANIFEST);
+  const response = await fetch(versionedWorldUrl(WORLD_DESIGNS_MANIFEST));
   if (!response.ok) throw new Error(`Unable to load world designs manifest (${response.status})`);
   const manifest = await response.json() as WorldDesignManifest;
   if (manifest.schema !== "markets-and-makers.world-designs-runtime.v1") {

@@ -214,15 +214,43 @@ const REPLACED_SWATCHES = new Set([
 const BLANK_PNG = "/world/blank.png";
 
 /**
- * Redirects the swatches we replace to a blank pixel. The generated tile is applied in
- * styleMaterial regardless, so nothing on screen changes — only the download.
+ * Cache key for the world assets.
+ *
+ * The world files carry a seven-day cache header and their paths never change, so a
+ * rebuilt world would go on being served from a returning player's disk cache for a
+ * week — they would keep downloading the old 27 MB buffers long after the small ones
+ * shipped. Stamping the version onto the URL changes the cache key, so a new world is
+ * fetched once and immediately.
+ *
+ * This is the first eight characters of world-0.bin's sha256, taken from
+ * browser-package.json. tests/worldVersion.test.ts asserts the two still agree, so
+ * rebuilding the world without bumping this fails rather than silently serving stale
+ * geometry.
+ */
+export const WORLD_ASSET_VERSION = "a339b193";
+
+const VERSIONED = /\/(assets\/world|world)\//;
+
+/**
+ * Redirects the swatches we replace to a blank pixel, and stamps the world version onto
+ * every world asset. The generated tile is applied in styleMaterial regardless, so
+ * nothing on screen changes — only the download.
  */
 export function skipReplacedSwatches(manager: THREE.LoadingManager): THREE.LoadingManager {
   manager.setURLModifier((url) => {
     const file = url.split("?")[0]!.split("/").pop() ?? "";
-    return REPLACED_SWATCHES.has(file) ? BLANK_PNG : url;
+    // The blank placeholder is returned unstamped on purpose: it is 68 bytes of
+    // constant, so a long-lived cache entry for it is exactly what we want.
+    if (REPLACED_SWATCHES.has(file)) return BLANK_PNG;
+    return versionedWorldUrl(url);
   });
   return manager;
+}
+
+/** Adds the world version to a world asset URL, leaving everything else alone. */
+export function versionedWorldUrl(url: string): string {
+  if (!VERSIONED.test(url) || url.startsWith("data:")) return url;
+  return url.includes("?") ? `${url}&v=${WORLD_ASSET_VERSION}` : `${url}?v=${WORLD_ASSET_VERSION}`;
 }
 
 export const REPLACED_SWATCH_FILES = [...REPLACED_SWATCHES];
