@@ -32,7 +32,11 @@ Set these secret values in the Render dashboard:
 
 - `CLIENT_ORIGINS`: the final Cloudflare URL, for example `https://markets-and-makers-game.<account>.workers.dev`
 - `HELIUS_API_KEY`: a server-side Helius key
-- `MM_TOKEN_MINT`: leave empty until the actual mint is final and independently reviewed
+- `MM_TOKEN_MINT`: `3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump` — the live mainnet mint. Verified on 2026-08-25: Token-2022,
+  6 decimals, 1,000,000,000 supply, mint and freeze authorities both renounced.
+- `SOLANA_NETWORK`: `mainnet`. This must be set alongside the mint — the default is
+  `devnet`, and a mainnet mint queried against devnet returns an empty balance rather
+  than an error, so the chain silently reads as zero.
 
 Render generates `HELIUS_WEBHOOK_SECRET`. Copy its value when configuring the Helius webhook authorization header. Never commit it.
 

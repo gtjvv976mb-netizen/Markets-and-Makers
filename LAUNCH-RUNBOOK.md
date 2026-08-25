@@ -47,7 +47,7 @@ Store secret values in a password manager, not in this document.
 | Cloudflare Account ID | Sensitive metadata | GitHub secret `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard |
 | Cloudflare API token | Yes | GitHub secret `CLOUDFLARE_API_TOKEN` | Cloudflare API Tokens |
 | Helius API key | Yes | Render `HELIUS_API_KEY` only | Helius devnet project |
-| Devnet test mint | No | Render `MM_TOKEN_MINT` | Devnet mint selection |
+| Token mint (public) | No | Render `MM_TOKEN_MINT` | Live mainnet mint, or a devnet mint when rehearsing |
 | Helius webhook secret | Yes | Render-generated; copied to Helius Authorization header | Blueprint creation |
 | Monitored public addresses | No | Helius webhook settings | Devnet wallet design |
 
@@ -168,7 +168,7 @@ Render prompts for the `sync: false` values in `render.yaml`:
 
 - `CLIENT_ORIGINS`: enter an exact temporary/expected Cloudflare origin if known. Replace it after Step 10. Never use `*`.
 - `HELIUS_API_KEY`: leave empty until Section 12 if the form permits it.
-- `MM_TOKEN_MINT`: leave empty until a devnet test mint exists.
+- `MM_TOKEN_MINT`: `3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump` (live mainnet mint). Leave empty only if you are rehearsing on devnet.
 
 If Render refuses an empty Helius value, complete Section 12.1 first and return. Do not use fake placeholders; the service would incorrectly report the chain as configured.
 
@@ -312,11 +312,13 @@ The key belongs only in Render—never Cloudflare, GitHub variables, browser cod
 
 Use a separate devnet test mint. Do not point this environment to a real pump.fun/mainnet token.
 
-1. Create/select the reviewed devnet test mint.
-2. Copy its public mint address.
-3. Set Render `MM_TOKEN_MINT` to it.
+1. For production the mint already exists: `3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump`.
+   For a devnet rehearsal, create/select a reviewed devnet test mint instead.
+2. Copy the public mint address.
+3. Set Render `MM_TOKEN_MINT` to it, and `SOLANA_NETWORK` to `mainnet` for the live mint.
 4. Save and redeploy.
 5. `/health` should now say `chain: "read-only-ready"`.
+6. Confirm `/api/public-config` echoes the mint and `chainNetwork: "mainnet"`.
 6. `/api/public-config` must still say `devnet` and `read-only`.
 
 Test a public devnet wallet:

@@ -440,6 +440,19 @@ export const CURRENCY_CODE = "MERCS";
 export const INITIAL_MERC_DOLLAR_SUPPLY = 50_000_000;
 export const INITIAL_CITIZEN_POOL = 5_000_000;
 export const MM_TOTAL_SUPPLY = 1_000_000_000;
+
+// --- the live $MM token -----------------------------------------------------
+// Verified against Solana mainnet on 2026-08-25: the mint is owned by the
+// Token-2022 program, NOT the legacy SPL Token program, and both its mint and
+// freeze authorities are already renounced — no more $MM can ever be created and
+// no holder can be frozen. On-chain supply is exactly MM_TOTAL_SUPPLY.
+// Anything that later derives an associated token account or builds a transfer
+// must use MM_TOKEN_PROGRAM; deriving with the legacy program yields the wrong
+// address and the transfer silently goes nowhere.
+export const MM_TOKEN_MINT = "3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump";
+export const MM_TOKEN_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+export const MM_TOKEN_DECIMALS = 6;
+export const MM_TOKEN_NETWORK = "mainnet";
 export const INITIAL_MM_RESERVE = 50_000_000;
 export const MM_REFERENCE_RATE = 1;
 export const MM_EXCHANGE_BUNDLE = 100;
