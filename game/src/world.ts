@@ -14,6 +14,7 @@ import {
   purposeForBusiness, representedPartySize, type CitizenDestination, type CitizenProfile, type CitizenPurpose,
 } from "./citizenSimulation";
 import { HIGHLANDS_WORLD_BASE, HIGHLANDS_WORLD_ENTRY, plotArrival, worldChunkAt } from "./highlandsWorld";
+import { skipReplacedSwatches, terrainTileTexture } from "./tileTextures";
 import { loadWorldDesigns } from "./worldDesigns";
 import type { GameState } from "./state";
 import type { RemotePlayer } from "./network";
@@ -112,7 +113,9 @@ export class World3D {
   readonly camera: THREE.OrthographicCamera;
 
   // Buildings and decorations are generated; terrain and rigged avatars still load.
-  private readonly loader = installProceduralLoader(new GLTFLoader());
+  private readonly loader = installProceduralLoader(
+    new GLTFLoader(skipReplacedSwatches(new THREE.LoadingManager())),
+  );
   private readonly callbacks: WorldCallbacks;
   private readonly canvas: HTMLCanvasElement;
   private readonly clock = new THREE.Clock();
@@ -311,9 +314,23 @@ export class World3D {
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
     const color = SOLARPUNK_MATERIALS[material.name];
     if (color) {
-      // A base-color swatch should be white-tinted in Three.js; applying the
-      // palette again multiplies the authored texture and crushes it to black.
-      material.color.set(material.map ? 0xffffff : color);
+      // The authored painted swatches are mirror-tiled and heavily blotched, so across
+      // a 512 m map they read as random patches rather than as ground. Swap terrain
+      // surfaces onto a generated tile that repeats cleanly and is symmetric under the
+      // quarter-turns the world is built on; everything else keeps its own art.
+      const tile = terrainTileTexture(material.name, new THREE.Color(color));
+      if (tile) {
+        material.map = tile;
+        material.normalMap = null;
+        material.roughnessMap = null;
+        material.metalnessMap = null;
+        material.aoMap = null;
+        material.color.set(0xffffff);
+      } else {
+        // A base-color swatch should be white-tinted in Three.js; applying the
+        // palette again multiplies the authored texture and crushes it to black.
+        material.color.set(material.map ? 0xffffff : color);
+      }
     }
     // The authored terrain package intentionally reuses its painted swatch in the
     // normal slot for Blender previews. Three.js interprets that RGB art as a
