@@ -224,7 +224,7 @@ for (const index of links.keys()) {
   if (members.length <= 2 && !touchesCity) for (const m of members) componentOf.set(m, -1);
   componentId += 1;
 }
-const newRoads = joined.filter((_, index) => componentOf.get(index) !== -1);
+let newRoads = joined.filter((_, index) => componentOf.get(index) !== -1);
 const roadCells = new Set();
 for (const street of newRoads) for (const c of cellsOf(street)) roadCells.add(c);
 
@@ -265,6 +265,122 @@ for (let y = min[1]; y + PLOT <= max[1]; y += 1) {
     newPlots.push({ x, y });
   }
 }
+
+// --- prune: no road that serves nothing, no tail that reaches nothing -----
+// A grid laid before the plots exist cannot know which of its streets earn their
+// place. With the plots down, two things become answerable: a street either carries
+// frontage or carries traffic between two other streets, and anything past its last
+// junction or last plot is a tail hanging into a field. Both passes repeat, because
+// dropping a street turns its neighbour's junction into a dead end.
+/**
+ * Where a street is actually crossed.
+ *
+ * The first version asked whether the cell beside the carriageway belonged to any road,
+ * which is true along the entire length of a street running parallel to one — so every
+ * street looked fully junctioned and the prune removed a single road out of seventy-six.
+ * A junction is a road running ACROSS this one: perpendicular, and spanning it.
+ */
+const junctionsOn = (street, others) => {
+  const fixed = Math.floor(street.centre);
+  const found = [];
+  const crosses = (otherFixed, otherFrom, otherTo) =>
+    otherFixed >= street.from - 1 && otherFixed <= street.to + 1
+    && otherFrom <= fixed + 1 && otherTo >= fixed;
+
+  for (const other of others) {
+    if (other === street || other.axis === street.axis) continue;
+    const otherFixed = Math.floor(other.centre);
+    if (crosses(otherFixed, other.from, other.to)) found.push(otherFixed);
+  }
+  // Authored carriageways count too: find a perpendicular run of road that spans us.
+  for (let k = street.from; k <= street.to; k += 1) {
+    const ahead = street.axis === 0 ? [key(k, fixed - 1), key(k, fixed + 2)] : [key(fixed - 1, k), key(fixed + 2, k)];
+    const beyond = street.axis === 0 ? [key(k, fixed - 2), key(k, fixed + 3)] : [key(fixed - 2, k), key(fixed + 3, k)];
+    // Road on both sides of us at this point means a road crosses, not runs alongside.
+    const spans = ahead.every((c) => authoredRoad.has(c)) || beyond.every((c) => authoredRoad.has(c));
+    if (spans) found.push(k);
+  }
+  return [...new Set(found)].sort((a, b) => a - b);
+};
+
+const frontageOn = (street) => {
+  const fixed = Math.floor(street.centre);
+  const found = [];
+  for (const plot of newPlots) {
+    for (let k = street.from; k <= street.to; k += 1) {
+      const touches = street.axis === 0
+        ? (k >= plot.x - 1 && k <= plot.x + PLOT && (fixed + 2 === plot.y || fixed - 1 === plot.y + PLOT - 1))
+        : (k >= plot.y - 1 && k <= plot.y + PLOT && (fixed + 2 === plot.x || fixed - 1 === plot.x + PLOT - 1));
+      if (touches) { found.push(k); break; }
+    }
+  }
+  return found;
+};
+
+for (let pass = 0; pass < 3; pass += 1) {
+  const before = newRoads.length;
+  newRoads = newRoads.filter((street) => {
+    const junctions = junctionsOn(street, newRoads);
+    const frontage = frontageOn(street);
+    // Earns its place by carrying traffic between two roads, or by carrying frontage.
+    return junctions.length >= 2 || frontage.length > 0;
+  });
+  newRoads = newRoads.map((street) => {
+    const useful = [...junctionsOn(street, newRoads), ...frontageOn(street)].sort((a, b) => a - b);
+    if (useful.length === 0) return street;
+    // Two cells past the last useful point: enough to turn into, not a stub.
+    const from = Math.max(street.from, useful[0] - 2);
+    const to = Math.min(street.to, useful[useful.length - 1] + 2);
+    return to - from >= MIN_RUN ? { ...street, from, to } : street;
+  });
+  if (newRoads.length === before) break;
+}
+
+// Finally, keep only what the city can actually reach. Anything else is a road nobody
+// can drive to, however well formed it looks on its own.
+const reachable = new Set();
+const cellOwner = new Map();
+newRoads.forEach((street, index) => { for (const c of cellsOf(street)) cellOwner.set(c, index); });
+const frontier = [];
+newRoads.forEach((street, index) => {
+  for (const c of cellsOf(street)) {
+    const [x, y] = c.split(",").map(Number);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (authoredRoad.has(key(x + dx, y + dy))) { reachable.add(index); frontier.push(index); return; }
+    }
+  }
+});
+while (frontier.length > 0) {
+  const index = frontier.pop();
+  for (const c of cellsOf(newRoads[index])) {
+    const [x, y] = c.split(",").map(Number);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const other = cellOwner.get(key(x + dx, y + dy));
+      if (other === undefined || reachable.has(other)) continue;
+      reachable.add(other);
+      frontier.push(other);
+    }
+  }
+}
+newRoads = newRoads.filter((_, index) => reachable.has(index));
+
+// The plot pass ran against the pre-prune roads, so rebuild the cell set from what
+// actually survived — and drop any plot whose street did not. A lot with no frontage
+// is a lot nobody can reach, which is worse than one that was never offered.
+roadCells.clear();
+for (const street of newRoads) for (const c of cellsOf(street)) roadCells.add(c);
+
+const withFrontage = newPlots.filter((plot) => {
+  for (let x = plot.x - 1; x <= plot.x + PLOT; x += 1) {
+    for (let y = plot.y - 1; y <= plot.y + PLOT; y += 1) {
+      if (roadCells.has(key(x, y)) || authoredRoad.has(key(x, y))) return true;
+    }
+  }
+  return false;
+});
+const strandedPlots = newPlots.length - withFrontage.length;
+newPlots.length = 0;
+newPlots.push(...withFrontage);
 
 // --- district and price --------------------------------------------------
 const DISTRICTS = [
@@ -334,3 +450,4 @@ writeFileSync(resolve(root, "scripts/.city-expansion-roads.json"), JSON.stringif
 console.log(`new carriageways ${newRoads.length}, covering ${[...roadCells].length} cells`);
 console.log(`new plots ${plotRecords.length} (was 42), districts used ${new Set(plotRecords.map((p) => p[1])).size}`);
 console.log(`every street and plot cell verified on the plain (level ${GROUND_LEVEL})`);
+console.log(`dropped ${strandedPlots} plots left without frontage by the prune`);

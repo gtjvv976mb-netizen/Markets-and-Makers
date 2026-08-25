@@ -4,4 +4,4 @@
 // that never change, so this is what makes a rebuilt world reach a returning player
 // instead of waiting out their cache. It covers world.gltf, both buffers and
 // roadnet.json, so changing any of them changes the key.
-export const WORLD_ASSET_VERSION = "129491283901";
+export const WORLD_ASSET_VERSION = "05c2fd0f0a32";
