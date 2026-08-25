@@ -53,10 +53,7 @@ class StalledSocket {
 let clock: Clock;
 const statuses: Array<{ status: string; detail: string }> = [];
 
-const load = async () => {
-  const module = await import("../src/network.ts?network-test");
-  return module;
-};
+const load = async () => import("../src/network");
 
 beforeEach(() => {
   clock = new Clock();

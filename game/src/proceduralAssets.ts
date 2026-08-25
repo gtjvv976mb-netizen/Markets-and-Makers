@@ -265,6 +265,193 @@ const STRUCTURES: Record<string, () => THREE.Group> = {
   "b08-harbor-gym": harborGym,
 };
 
+// ---------------------------------------------------------------- civic landmarks
+// The nine government buildings are baked into world.gltf as ~32k triangles each —
+// 293k in total for buildings a player only ever sees from across a plaza. These are
+// generated stand-ins in the same low-poly language as the authored turntables: a tiled
+// deck, chunky massing, timber and cream, a teal cupola where a landmark wants one.
+// Each is authored to the footprint and height the layout reserves for its site.
+
+/** A tiled civic deck with a kerb, the base every landmark in the reference sits on. */
+const civicDeck = (m: Mesher, w: number, d: number): void => {
+  m.box(w, 0.35, d, CREAM);
+  m.box(w - 0.7, 0.12, d - 0.7, PLASTER, 0, 0.35, 0);
+  m.box(w, 0.14, 0.5, TERRACOTTA, 0, 0.35, d / 2 - 0.25);
+  m.box(w, 0.14, 0.5, TERRACOTTA, 0, 0.35, -d / 2 + 0.25);
+};
+
+/** A row of columns along the front, the civic tell in every reference sheet. */
+const colonnade = (m: Mesher, count: number, spread: number, x: number, height: number): void => {
+  for (let i = 0; i < count; i += 1) {
+    const z = -spread / 2 + (spread / (count - 1)) * i;
+    m.cyl(0.32, height, PLASTER, x, 0.47, z);
+    m.box(0.86, 0.18, 0.86, CREAM, x, 0.47 + height, z);
+  }
+};
+
+const cityHall = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 15, 15);
+  m.box(11, 1.1, 11, PLASTER, 0, 0.47, 0);
+  m.box(9.5, 4.2, 9, CREAM, 0, 1.57, 0);
+  m.glazing(9.5, 9, 3.6, 1.6);
+  colonnade(m, 6, 9.4, 5.1, 5.3);
+  m.box(11.6, 0.5, 11, ROOF, 0, 5.77, 0);
+  // Pediment and clock tower with the teal cupola the landmarks carry.
+  m.gable(6.4, 2.2, 1.1, TERRACOTTA, 6.27);
+  m.box(4.2, 2.6, 4.2, CREAM, 0, 6.27, 0);
+  m.box(4.8, 0.35, 4.8, ROOF, 0, 8.87, 0);
+  m.cyl(1.9, 0.9, PLASTER, 0, 9.22, 0, 0, 0, 0, 8);
+  m.ball(1.75, GLASS, 0, 10.5, 0, 0.72);
+  m.cyl(0.12, 1.1, ACCENT, 0, 11.1, 0);
+  for (const z of [-3.4, 3.4]) m.box(1.2, 0.9, 1.2, ACCENT, 4.4, 1.57, z);
+  return m.build("CV01_CITY_HALL");
+};
+
+const treasury = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 11.3, 11.3);
+  m.box(9.4, 0.9, 9.4, PLASTER, 0, 0.47, 0);
+  m.box(8, 4.4, 8, CREAM, 0, 1.37, 0);
+  // Pilasters rather than open columns: a vault reads as closed.
+  for (let i = -2; i <= 2; i += 1) {
+    m.box(0.5, 4.4, 0.5, PLASTER, 4.05, 1.37, i * 1.8);
+    m.box(0.5, 4.4, 0.5, PLASTER, -4.05, 1.37, i * 1.8);
+  }
+  m.box(8.8, 0.45, 8.8, ROOF, 0, 5.77, 0);
+  m.box(4.4, 1.5, 4.4, CREAM, 0, 6.22, 0);
+  m.cyl(2.1, 0.4, PLASTER, 0, 7.72, 0, 0, 0, 0, 8);
+  m.ball(1.9, ACCENT, 0, 8.3, 0, 0.6);
+  m.box(2.6, 3.1, 0.3, SOLAR, 0, 1.37, 4.05);
+  return m.build("CV02_TREASURY");
+};
+
+const landRegistry = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 11.3, 7.5);
+  m.box(9.2, 3.4, 5.8, PLASTER, 0, 0.47, 0);
+  m.glazing(9.2, 5.8, 2.2, 1.3);
+  m.box(9.8, 0.4, 6.4, ROOF, 0, 3.87, 0);
+  m.garden(7.6, 4.6, 4.27);
+  m.box(2.4, 2.6, 0.28, TIMBER, -2.6, 0.47, 2.9);
+  m.box(3.2, 0.16, 1.4, ACCENT, -2.6, 3.2, 3.5, 0.2);
+  return m.build("CV03_LAND_REGISTRY");
+};
+
+const transitHall = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 15, 11.3);
+  m.box(7.4, 4.6, 8.6, CREAM, -3.4, 0.47, 0);
+  m.glazing(7.4, 8.6, 2.6, 1.8);
+  m.box(8, 0.42, 9.2, ROOF, -3.4, 5.07, 0);
+  // A platform canopy on slim posts, the transit signature.
+  for (const z of [-3.4, 0, 3.4]) m.cyl(0.22, 3.9, METAL, 4.2, 0.47, z);
+  m.vault(2.6, 9.4, GLASS, 4.2, 4.5);
+  m.box(6.6, 0.14, 9.4, PLASTER, 4.2, 0.47, 0);
+  m.box(2.2, 2.4, 2.2, TERRACOTTA, -6.2, 5.07, 0);
+  m.ball(0.75, ACCENT, -6.2, 8.0, 0);
+  return m.build("CV04_TRANSIT_HALL");
+};
+
+const communityClinic = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 11.3, 11.3);
+  m.box(8.6, 3.6, 8.6, PLASTER, 0, 0.47, 0);
+  m.glazing(8.6, 8.6, 2.3, 1.4);
+  m.box(9.2, 0.42, 9.2, ROOF, 0, 4.07, 0);
+  m.garden(7.4, 7.4, 4.49);
+  // A green cross, readable from the plaza without a texture.
+  m.box(0.34, 2.0, 0.7, LEAF, 4.35, 1.5, 0);
+  m.box(0.34, 0.7, 2.0, LEAF, 4.35, 2.15, 0);
+  m.box(3.2, 0.16, 1.6, ACCENT, 0, 3.5, 4.6, 0.22);
+  return m.build("CV05_COMMUNITY_CLINIC");
+};
+
+const rescueStation = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 15, 11.3);
+  m.box(10.4, 4.2, 8.6, TERRACOTTA, -1.6, 0.47, 0);
+  // Appliance bays, the shape that says rescue station at a glance.
+  for (const z of [-2.6, 0.2, 3.0]) m.box(0.3, 3.1, 2.3, CREAM, 3.65, 0.47, z);
+  m.box(11, 0.45, 9.2, ROOF, -1.6, 4.67, 0);
+  m.solar(8.4, 7.4, 5.12, 4);
+  m.box(3.2, 7.4, 3.2, PLASTER, 5.4, 0.47, -3.2);
+  m.box(3.8, 0.4, 3.8, ROOF, 5.4, 7.87, -3.2);
+  m.ball(0.6, ACCENT, 5.4, 8.7, -3.2);
+  return m.build("CV06_RESCUE_STATION");
+};
+
+const worksDepot = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 15, 11.3);
+  m.box(8.4, 3.8, 8.4, PLASTER, -3, 0.47, 0);
+  m.gable(9, 9, 1.5, ROOF, 4.27);
+  // An open yard with stacked stock, the depot tell.
+  for (const [x, z, h] of [[4.2, -2.6, 1.2], [5.6, 0.6, 0.8], [3.4, 2.8, 1.6]] as const) {
+    m.box(1.8, h, 1.8, TIMBER, x, 0.47, z);
+    m.box(1.9, 0.16, 1.9, TERRACOTTA, x, 0.47 + h, z);
+  }
+  m.cyl(0.8, 5.4, METAL, -6.2, 0.47, -3.2);
+  m.cyl(0.9, 0.35, ACCENT, -6.2, 5.87, -3.2);
+  return m.build("CV07_WORKS_DEPOT");
+};
+
+const makerAcademy = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 15, 15);
+  m.box(12, 5.2, 10.6, CREAM, 0, 0.47, 0);
+  // Tall bays: a library reads through its windows.
+  for (let i = -2; i <= 2; i += 1) {
+    m.box(0.3, 3.6, 1.7, GLASS, 6.05, 1.3, i * 2.0);
+    m.box(0.3, 3.6, 1.7, GLASS, -6.05, 1.3, i * 2.0);
+  }
+  m.box(12.6, 0.48, 11.2, ROOF, 0, 5.67, 0);
+  m.garden(9.6, 8.4, 6.15);
+  m.box(3.4, 3.2, 3.4, TERRACOTTA, -4.2, 5.67, 0);
+  m.gable(3.9, 3.9, 1.2, ROOF, 8.87);
+  m.box(2.8, 2.6, 0.3, TIMBER, 0, 0.47, 5.3);
+  return m.build("CV08_MAKER_ACADEMY");
+};
+
+const gardenHomes = (): THREE.Group => {
+  const m = new Mesher();
+  civicDeck(m, 11.3, 15);
+  // Three terraced blocks, stepped, each with a planted roof.
+  const heights = [4.4, 5.6, 4.0];
+  heights.forEach((h, i) => {
+    const z = -4.6 + i * 4.6;
+    m.box(8.4, h, 4.0, i === 1 ? PLASTER : CREAM, 0, 0.47, z);
+    m.box(9.0, 0.4, 4.4, ROOF, 0, 0.47 + h, z);
+    m.box(7.4, 0.18, 3.4, LEAF, 0, 0.87 + h, z);
+    m.box(8.2, 0.9, 0.12, GLASS, 0, 1.6, z + 2.0);
+    m.box(3.0, 0.12, 1.2, ACCENT, 2.4, 0.47 + h * 0.62, z + 2.1, 0.2);
+  });
+  m.cyl(0.24, 3.0, TIMBER, -4.6, 0.47, 0);
+  m.ball(1.15, LEAF, -4.6, 4.1, 0, 0.9);
+  return m.build("CV09_GARDEN_HOMES");
+};
+
+/** Keyed by the node names world.gltf uses for its baked landmarks. */
+const CIVIC: Record<string, () => THREE.Group> = {
+  MM_CIVIC_CV01_CITY_HALL: cityHall,
+  MM_CIVIC_CV02_TREASURY: treasury,
+  MM_CIVIC_CV03_LAND_REGISTRY: landRegistry,
+  MM_CIVIC_CV04_TRANSIT_HALL: transitHall,
+  MM_CIVIC_CV05_COMMUNITY_CLINIC: communityClinic,
+  MM_CIVIC_CV06_RESCUE_STATION: rescueStation,
+  MM_CIVIC_CV07_PUBLIC_WORKS: worksDepot,
+  MM_CIVIC_CV08_MAKER_ACADEMY: makerAcademy,
+  MM_CIVIC_CV09_GARDEN_HOMES: gardenHomes,
+};
+
+/** A generated landmark for a baked civic node name, or null if it is not one. */
+export function civicStructureFor(nodeName: string): THREE.Group | null {
+  const build = CIVIC[nodeName];
+  return build ? build() : null;
+}
+
+export const CIVIC_NODE_NAMES = Object.keys(CIVIC);
+
 // ---------------------------------------------------------------- decorations
 // Each is normalised to its authored targetM by the world-designs loader, so these
 // only need honest proportions and a footprint that matches the authored grounding.

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { installProceduralLoader } from "./proceduralAssets";
+import { civicStructureFor, installProceduralLoader } from "./proceduralAssets";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
@@ -311,6 +311,47 @@ export class World3D {
     this.avatarMixer.update(delta);
   }
 
+  /**
+   * Swap the baked civic landmarks for generated ones.
+   *
+   * The nine government buildings are ~32k triangles each inside world.gltf — 293k for
+   * buildings seen from across a plaza, and the only geometry the loader-level swap
+   * could not reach, because they are nodes in the terrain file rather than their own
+   * GLB URLs. The replacement is placed from the baked node's own world transform
+   * rather than recomputed from the layout, so it cannot drift from the site, and is
+   * scaled to the footprint the original occupied.
+   */
+  private replaceCivicLandmarks(root: THREE.Object3D): void {
+    root.updateMatrixWorld(true);
+    const baked: THREE.Object3D[] = [];
+    root.traverse((object) => { if (civicStructureFor(object.name)) baked.push(object); });
+
+    for (const original of baked) {
+      const replacement = civicStructureFor(original.name);
+      if (!replacement) continue;
+      const bounds = new THREE.Box3().setFromObject(original);
+      if (bounds.isEmpty()) continue;
+      const footprint = bounds.getSize(new THREE.Vector3());
+      const centre = bounds.getCenter(new THREE.Vector3());
+      original.visible = false;
+
+      const built = new THREE.Box3().setFromObject(replacement);
+      const size = built.getSize(new THREE.Vector3());
+      // Fit the widest axis; a landmark that overhangs its plot reads worse than one
+      // slightly small, and the deck is authored to the reserved footprint already.
+      const scale = Math.min(footprint.x / Math.max(size.x, 0.001), footprint.z / Math.max(size.z, 0.001), 1.35);
+      replacement.scale.setScalar(scale);
+      replacement.position.set(centre.x, bounds.min.y, centre.z);
+      replacement.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.castShadow = this.dynamicShadows;
+        object.receiveShadow = this.dynamicShadows;
+        object.frustumCulled = true;
+      });
+      this.scene.add(replacement);
+    }
+  }
+
   private styleMaterial(material: THREE.MeshStandardMaterial): void {
     // The authored grid border is 221 primitives of near-black edging laid over the
     // whole terrain — the mesh that made roads read as a net rather than a surface.
@@ -474,6 +515,7 @@ export class World3D {
       if (object.name === "MM_HRW_GOVERNMENT_FERRY") object.visible = false;
     });
     this.scene.add(gltf.scene);
+    this.replaceCivicLandmarks(gltf.scene);
     this.callbacks.onLoadProgress(0.84, "Planting the solarpunk garden city");
     try {
       const designs = await loadWorldDesigns(
