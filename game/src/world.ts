@@ -87,6 +87,23 @@ const VISIBLE_CITIZENS = 24;
  */
 const VISIBLE_CITIZENS_LITE = 12;
 const CITIZEN_DECISION_INTERVAL_SECONDS = 8;
+/**
+ * Beyond this, and out of shot, a Mercedonian is recycled to near the player.
+ *
+ * What actually guarantees no visible pop is the frustum test, not this number — so
+ * this only needs to sit outside the ~30m the crowd naturally spreads to, and keeping
+ * it tight is what stops citizens stranding in the band just past the camera edge.
+ */
+const CITIZEN_RECYCLE_DISTANCE = 45;
+/**
+ * How far the player may wander from the district spawn before the generic errands
+ * follow them. Deliberately well under the recycle distance: set equal, a player
+ * standing 55m out sat in a dead band where the errands still pointed at the plaza
+ * but the citizens gathered there were too close to be recycled, so the street
+ * emptied again a minute after filling. 35m is about the camera's half-width at the
+ * default zoom, so the switch happens once the plaza is genuinely out of view.
+ */
+const CITIZEN_ERRAND_ANCHOR_DISTANCE = 35;
 const CITIZEN_TERRAIN_GRID = `${HIGHLANDS_WORLD_BASE}/terrain-grid.json`;
 
 const CAMERA_ELEVATION_TANGENT = Math.tan(THREE.MathUtils.degToRad(OFFICIAL_PRESENTATION_CAMERA.elevationDegrees));
@@ -191,6 +208,9 @@ export class World3D {
   private buildingSignature = "";
   private buildingLoadToken = 0;
   private cameraYaw = Math.PI / 4;
+  /** Reused so the recycle test allocates nothing per citizen per decision. */
+  private readonly citizenFrustum = new THREE.Frustum();
+  private readonly cameraViewProjection = new THREE.Matrix4();
   private cameraDistance = 34;
   private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
@@ -1094,10 +1114,21 @@ export class World3D {
     const district = ISLANDS.find((entry) => entry.id === this.currentIsland) ?? ISLANDS[0];
     const destinations: CitizenDestination[] = [];
     const fallbackPurposes: CitizenPurpose[] = ["home", "work", "essential", "meal", "wellness", "leisure", "civic"];
+    // Civic buildings and player businesses are real places and stay put. These seven
+    // are not places at all — they are generic errands, and they were pinned within 4m
+    // of the district's spawn point, which is what dragged every recycled citizen
+    // straight back to the plaza. Anchored to the player once they are well away from
+    // the spawn, so the errands are wherever the player is, spread widely enough to
+    // read as a populated district rather than a crowd following them about.
+    const home = this.avatar.position;
+    const farFromSpawn = Math.hypot(home.x - district.spawnX, home.z - district.spawnZ) > CITIZEN_ERRAND_ANCHOR_DISTANCE;
+    const anchorX = farFromSpawn ? home.x : district.spawnX;
+    const anchorZ = farFromSpawn ? home.z : district.spawnZ;
+    const spread = farFromSpawn ? 14 : 4;
     for (let index = 0; index < fallbackPurposes.length; index += 1) {
       const purpose = fallbackPurposes[index]!;
-      const fallbackX = district.spawnX + ((index % 3) - 1) * 4;
-      const fallbackZ = district.spawnZ + (Math.floor(index / 3) - 1) * 4;
+      const fallbackX = anchorX + ((index % 3) - 1) * spread;
+      const fallbackZ = anchorZ + (Math.floor(index / 3) - 1) * spread;
       const fallbackCell = this.nearestCitizenCell(fallbackX, fallbackZ);
       destinations.push({
         id: `district-${district.id}-${purpose}`,
@@ -1212,6 +1243,46 @@ export class World3D {
       citizen.nextDecisionAt = elapsed + 3;
       this.setCitizenWalking(citizen, false);
     }
+  }
+
+  /**
+   * Move a citizen who is far away and out of shot to somewhere near the player.
+   *
+   * Mercedonians are spawned in a ring around the DISTRICT's spawn point and then
+   * orbit the civic buildings and whatever the player has built. Nothing anchors them
+   * to the player, so walking out to a leased plot on the edge of the map left the
+   * streets empty — and at 10 m/s that happens five times faster than the population
+   * was tuned for. Rather than add bodies, which costs skinning on exactly the devices
+   * that can least afford it, the same crowd is recycled to wherever the player is.
+   *
+   * Only ever off-camera, tested against the real frustum rather than a distance
+   * guess, because the view widens to about 92m at full zoom-out and anything closer
+   * would pop a citizen into existence in plain sight.
+   */
+  private recycleCitizenNearPlayer(citizen: Citizen, elapsed: number): boolean {
+    const home = this.avatar.position;
+    if (Math.hypot(citizen.group.position.x - home.x, citizen.group.position.z - home.z) < CITIZEN_RECYCLE_DISTANCE) {
+      return false;
+    }
+    if (this.citizenFrustum.containsPoint(citizen.group.position)) return false;
+
+    // A ring that lands inside the default view without crowding the avatar.
+    const angle = (citizen.index * 2.399963 + elapsed * 0.37) % (Math.PI * 2);
+    const radius = 15 + (citizen.index % 5) * 4;
+    const cell = this.nearestCitizenCell(home.x + Math.cos(angle) * radius, home.z + Math.sin(angle) * radius);
+    if (!cell) return false;
+    const ground = this.citizenGroundAtCell(cell.cellX, cell.cellY);
+    if (ground === null) return false;
+
+    citizen.group.position.set(cell.cellX * 2, ground, -cell.cellY * 2);
+    citizen.groundY = ground;
+    citizen.path = [];
+    citizen.pathIndex = 0;
+    citizen.destination = null;
+    citizen.activityId = null;
+    citizen.waitingUntil = 0;
+    citizen.transactionIndicator.visible = false;
+    return true;
   }
 
   private resetCitizenDistrict(state: GameState, elapsed: number): void {
@@ -1774,6 +1845,10 @@ export class World3D {
   private updateCitizens(delta: number, elapsed: number, state: GameState): void {
     if (this.citizenDistrict !== state.island) this.resetCitizenDistrict(state, elapsed);
     this.syncCitizenActivity(state, elapsed);
+    // One frustum for the whole pass; the recycle test below reads it per citizen.
+    this.citizenFrustum.setFromProjectionMatrix(
+      this.cameraViewProjection.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse),
+    );
     const population = citizenPopulation(
       Object.values(state.portfolio).filter((record) => record.buildingPlaced).length,
       state.reputation,
@@ -1781,6 +1856,11 @@ export class World3D {
     );
     for (const citizen of this.citizens) {
       citizen.group.visible = true;
+      // A Mercedonian stranded on the far side of the map is no use to anyone. If they
+      // are also out of shot, move them to the player and give them a fresh errand.
+      if (this.recycleCitizenNearPlayer(citizen, elapsed)) {
+        this.planCitizenRoutine(citizen, state, elapsed);
+      }
       citizen.group.userData.representedCitizens = representedPartySize(
         population,
         this.citizenBudget,
