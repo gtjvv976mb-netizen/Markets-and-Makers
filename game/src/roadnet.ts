@@ -12,6 +12,9 @@ export interface RoadNet {
   tileSize: number;
   laneWidthCells: number;
   /** [axis (0 = east-west, 1 = north-south), centre cell, from cell, to cell] */
+  /** [row, x0, x1] — every carriageway cell, junctions included. */
+  roadRuns: Array<[number, number, number]>;
+  pathRuns: Array<[number, number, number]>;
   carriageways: Array<[number, number, number, number]>;
   footways: Array<[number, number, number, number]>;
 }
@@ -47,19 +50,26 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   // Roads are cut into terraces, so a long run can change level. Sampling every few
   // cells keeps the surface on the ground without paying for per-cell geometry.
   const STEP_CELLS = 4;
-  const segments: Segment[] = [];
-  for (const [axis, centre, from, to] of net.carriageways) {
-    const horizontal = axis === 0;
-    for (let start = from; start < to; start += STEP_CELLS) {
-      const end = Math.min(start + STEP_CELLS, to);
-      const midRun = (start + end) / 2;
-      const x = horizontal ? midRun * tile : centre * tile;
-      const z = horizontal ? -centre * tile : -midRun * tile;
-      const ground = sampleGround(x, z);
-      if (ground === null) continue;
-      segments.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
+
+  /** Slabs covering a set of cell runs, split so each piece can sit at its own height. */
+  const surfaceFrom = (cellRuns: Array<[number, number, number]>, inset: number): Segment[] => {
+    const pieces: Segment[] = [];
+    for (const [row, x0, x1] of cellRuns) {
+      for (let start = x0; start <= x1; start += STEP_CELLS) {
+        const end = Math.min(start + STEP_CELLS - 1, x1);
+        const width = (end - start + 1) * tile;
+        const x = ((start + end) / 2) * tile;
+        const z = -row * tile;
+        const ground = sampleGround(x, z);
+        if (ground === null) continue;
+        pieces.push({ x, z, length: width - inset, horizontal: true, y: ground });
+      }
     }
-  }
+    return pieces;
+  };
+
+  // Every cell, so a junction is never a hole and a stub is never missing.
+  const segments = surfaceFrom(net.roadRuns, 0);
 
   const box = new THREE.BoxGeometry(1, 1, 1);
   const matrix = new THREE.Matrix4();
@@ -72,7 +82,7 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   asphalt.receiveShadow = options.shadows;
   asphalt.castShadow = false;
   segments.forEach((s, i) => {
-    matrix.makeScale(s.horizontal ? s.length : laneWidth, 0.09, s.horizontal ? laneWidth : s.length);
+    matrix.makeScale(s.length, 0.09, tile);
     matrix.setPosition(s.x, s.y + 0.045, s.z);
     asphalt.setMatrixAt(i, matrix);
   });
@@ -80,11 +90,24 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   group.add(asphalt);
 
   // --- kerbs -----------------------------------------------------------------
-  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), segments.length * 2);
+  const kerbBands: Array<{ x: number; z: number; length: number; horizontal: boolean; y: number }> = [];
+  for (const [axis, centre, from, to] of net.carriageways) {
+    const horizontal = axis === 0;
+    for (let start = from; start < to; start += STEP_CELLS) {
+      const end = Math.min(start + STEP_CELLS, to);
+      const midRun = (start + end) / 2;
+      const x = horizontal ? midRun * tile : centre * tile;
+      const z = horizontal ? -centre * tile : -midRun * tile;
+      const ground = sampleGround(x, z);
+      if (ground === null) continue;
+      kerbBands.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
+    }
+  }
+  const kerbs = new THREE.InstancedMesh(box, material(KERB, 0.9), kerbBands.length * 2);
   kerbs.name = "MM_STREET_KERBS";
   kerbs.receiveShadow = options.shadows;
   let kerbIndex = 0;
-  for (const s of segments) {
+  for (const s of kerbBands) {
     for (const side of [-1, 1]) {
       const offset = (laneWidth / 2 + 0.18) * side;
       matrix.makeScale(s.horizontal ? s.length : 0.36, 0.18, s.horizontal ? 0.36 : s.length);
@@ -125,24 +148,13 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   group.add(markings);
 
   // --- footways --------------------------------------------------------------
-  const footSegments: Segment[] = [];
-  for (const [axis, centre, from, to] of net.footways) {
-    const horizontal = axis === 0;
-    for (let start = from; start < to; start += STEP_CELLS) {
-      const end = Math.min(start + STEP_CELLS, to);
-      const midRun = (start + end) / 2;
-      const x = horizontal ? midRun * tile : centre * tile;
-      const z = horizontal ? -centre * tile : -midRun * tile;
-      const ground = sampleGround(x, z);
-      if (ground === null) continue;
-      footSegments.push({ x, z, length: (end - start) * tile, horizontal, y: ground });
-    }
-  }
+  const footSegments = surfaceFrom(net.pathRuns, 0.25);
+
   const footway = new THREE.InstancedMesh(box, material(FOOTWAY, 0.94), footSegments.length);
   footway.name = "MM_STREET_FOOTWAYS";
   footway.receiveShadow = options.shadows;
   footSegments.forEach((s, i) => {
-    matrix.makeScale(s.horizontal ? s.length : tile * 0.85, 0.07, s.horizontal ? tile * 0.85 : s.length);
+    matrix.makeScale(s.length, 0.07, tile * 0.9);
     matrix.setPosition(s.x, s.y + 0.035, s.z);
     footway.setMatrixAt(i, matrix);
   });

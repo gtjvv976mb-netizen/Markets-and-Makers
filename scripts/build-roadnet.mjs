@@ -84,9 +84,43 @@ const footways = [
   ...lines(walk, false, 2).map((b) => ({ axis: "ns", centre: b.fixed, from: b.start, to: b.end })),
 ];
 
+// Bands describe direction, but they cannot describe a junction — a crossing belongs to
+// two bands at once and to neither's centreline. Surfacing from bands alone therefore
+// left 207 road cells and 52 path cells undrawn: exactly the junctions, the short
+// connecting stubs, and the odd-shaped corners. So the surface is rasterised from every
+// cell instead, and bands are kept only for what genuinely needs an axis — the centre
+// line, the lamp spacing and the traffic. Lane markings stopping at a junction is also
+// what real road marking does.
+function runs(cells) {
+  const byRow = new Map();
+  for (const k of cells) {
+    const [x, y] = k.split(",").map(Number);
+    const row = byRow.get(y) ?? [];
+    row.push(x);
+    byRow.set(y, row);
+  }
+  const out = [];
+  for (const [y, xs] of [...byRow].sort((a, b) => a[0] - b[0])) {
+    xs.sort((a, b) => a - b);
+    let start = xs[0];
+    let previous = xs[0];
+    for (let i = 1; i <= xs.length; i += 1) {
+      const x = xs[i];
+      if (x === previous + 1) { previous = x; continue; }
+      out.push([y, start, previous]);
+      start = x;
+      previous = x;
+    }
+  }
+  return out;
+}
+
 const out = {
   tileSize: TILE,
   laneWidthCells: 2,
+  /** [row, x0, x1] — every carriageway cell, so junctions and stubs are never missing. */
+  roadRuns: runs(road),
+  pathRuns: runs(walk),
   carriageways: carriageways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
   footways: footways.map((c) => [c.axis === "ew" ? 0 : 1, c.centre, c.from, c.to]),
 };
@@ -95,5 +129,6 @@ const dest = resolve(root, "game/public/world/roadnet.json");
 mkdirSync(dirname(dest), { recursive: true });
 writeFileSync(dest, JSON.stringify(out));
 const cells = carriageways.reduce((a, c) => a + (c.to - c.from), 0);
-console.log(`carriageways ${carriageways.length} (${cells} cells), footways ${footways.length}`);
+console.log(`road cells ${road.size} in ${out.roadRuns.length} runs, path cells ${walk.size} in ${out.pathRuns.length} runs`);
+console.log(`carriageways ${carriageways.length} (${cells} cells of centreline), footways ${footways.length}`);
 console.log(`wrote ${dest} (${(JSON.stringify(out).length / 1024).toFixed(1)} KB)`);

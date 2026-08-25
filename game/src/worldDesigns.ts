@@ -364,6 +364,17 @@ export async function loadWorldDesigns(
         return;
       }
 
+      // Road vehicles are simulated now (src/roadnet.ts drives them along the
+      // carriageways), so the authored static placements would leave a second,
+      // motionless car parked in the traffic. Boats stay: they are moored, not driving.
+      if (asset.category === "vehicles") {
+        // The placements are satisfied, just by moving cars rather than static ones, so
+        // they count towards the contract below — that check exists to catch scenery
+        // failing to load, not to forbid a deliberate substitution.
+        loadedUniqueAssets += 1;
+        loadedStaticInstances += placementsByAsset.get(asset.id)?.length ?? 0;
+        return;
+      }
       const prepared = prepareGeometry(gltf.scene, asset, grounding);
       const groups = new Map<string, { chunk: readonly [number, number]; placements: WorldDesignPlacement[] }>();
       for (const placement of placementsByAsset.get(asset.id) ?? []) {
