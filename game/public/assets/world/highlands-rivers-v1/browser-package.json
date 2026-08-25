@@ -39,8 +39,8 @@
     },
     {
       "file": "buffers/world-1.bin",
-      "bytes": 459116,
-      "sha256": "d7632bee50bdc9ebb6a40473942ca9dcf5a351bafb2d6a6f8927f7f982806aa3"
+      "bytes": 502076,
+      "sha256": "dd38f8a4847cfd227a45e0a7e1af75a6b2aeda632b78cf0e6e7dcc6180bc13fb"
     },
     {
       "file": "hydrology.json",
@@ -264,8 +264,8 @@
     },
     {
       "file": "world.gltf",
-      "bytes": 1017799,
-      "sha256": "06862d28c2c6c458d2971e4e52bcf3f924ff317824af65eb74f6185c046d859c"
+      "bytes": 1041781,
+      "sha256": "55c4b74447618486192fa51d770365e573e3f0cb70b778acf75be60b62287379"
     }
   ]
 }

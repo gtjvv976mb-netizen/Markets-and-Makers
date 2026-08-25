@@ -26,12 +26,20 @@ const KERB = 0xc9c2a8;
 const FOOTWAY = 0xd8cfb0;
 const LAMP_POST = 0x8d9298;
 const LAMP_HEAD = 0xffd980;
+const LEAF = 0x5f9e4a;
+const LEAF_LIGHT = 0x76b657;
+const PLANTER = 0x6b5138;
+const TIMBER = 0xa9764a;
+const BENCH_FRAME = 0x7d8a80;
 const SOLAR = 0x2b3f63;
 
 /** Ground height under a point, so streets follow the terrain they are cut into. */
 export type SampleGround = (x: number, z: number) => number | null;
 
 interface Segment { x: number; z: number; length: number; horizontal: boolean; y: number }
+
+/** A piece of street furniture on the kerb, turned to face the carriageway. */
+interface Placed { x: number; z: number; y: number; angle: number }
 
 const CAR_BODY = [0xd9d3c4, 0x9fb4c4, 0xc98c5f, 0x8fa9a2, 0xb46e63, 0xe0c07a] as const;
 
@@ -40,6 +48,8 @@ export interface BuiltStreets {
   update: (delta: number) => void;
   carCount: number;
   lampCount: number;
+  shrubCount: number;
+  benchCount: number;
 }
 
 export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: { shadows: boolean }): BuiltStreets {
@@ -169,56 +179,77 @@ export function buildStreets(net: RoadNet, sampleGround: SampleGround, options: 
   footway.instanceMatrix.needsUpdate = true;
   group.add(footway);
 
-  // --- lamps -----------------------------------------------------------------
-  // Standing on the kerb, alternating sides, at an even spacing so a street reads as
-  // laid out rather than scattered.
-  const SPACING = 18;
-  const lamps: Array<{ x: number; z: number; y: number }> = [];
+  // --- street furniture ------------------------------------------------------
+  // Both kerbs carry the same run of furniture, mirrored across the carriageway, and
+  // the run is measured outwards from the middle of the street so it reads the same
+  // from either end. Lamps alternating sides every 18 m is what made the old streets
+  // look scattered: no two stretches of road matched, and nothing lined up across it.
+  const PITCH = 7;
+  const PATTERN = ["lamp", "shrub", "bench", "shrub"] as const;
+  const CLEAR_OF_JUNCTION = 6;
+  const VERGE = laneWidth / 2 + 1.15;
+
+  const lamps: Placed[] = [];
+  const shrubs: Placed[] = [];
+  const benches: Placed[] = [];
+
   for (const [axis, centre, from, to] of net.carriageways) {
     const horizontal = axis === 0;
     const startM = from * tile;
     const endM = to * tile;
-    let side = 1;
-    for (let at = startM + SPACING / 2; at < endM; at += SPACING) {
-      const offset = (laneWidth / 2 + 0.55) * side;
-      const x = horizontal ? at : centre * tile + offset;
-      const z = horizontal ? -centre * tile + offset : -at;
-      const ground = sampleGround(x, z);
-      side *= -1;
-      if (ground === null) continue;
-      lamps.push({ x, z, y: ground });
+    const middle = (startM + endM) / 2;
+
+    // Where another street crosses, so nothing is set down in an intersection.
+    const crossings: number[] = [];
+    for (const [otherAxis, otherCentre, otherFrom, otherTo] of net.carriageways) {
+      if (otherAxis === axis) continue;
+      if (otherFrom > centre + 1 || otherTo < centre) continue;
+      const at = otherCentre * tile;
+      if (at > startM && at < endM) crossings.push(at);
+    }
+
+    // Stepping out from the middle in both directions is what makes the street
+    // symmetric end to end: slot k and slot -k are the same piece of furniture.
+    const steps = Math.floor((endM - startM) / 2 / PITCH);
+    for (let k = -steps; k <= steps; k += 1) {
+      const at = middle + k * PITCH;
+      if (at < startM + 3 || at > endM - 3) continue;
+      if (crossings.some((c) => Math.abs(c - at) < CLEAR_OF_JUNCTION)) continue;
+      const kind = PATTERN[Math.abs(k) % PATTERN.length]!;
+      for (const side of [1, -1]) {
+        const offset = VERGE * side;
+        const x = horizontal ? at : centre * tile + offset;
+        const z = horizontal ? -centre * tile + offset : -at;
+        const ground = sampleGround(x, z);
+        if (ground === null) continue;
+        // Turn to face the carriageway. Every piece is authored looking down +Z.
+        const angle = horizontal
+          ? (side > 0 ? Math.PI : 0)
+          : (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+        const spot = { x, z, y: ground, angle };
+        if (kind === "lamp") lamps.push(spot);
+        else if (kind === "bench") benches.push(spot);
+        else shrubs.push(spot);
+      }
     }
   }
-  if (lamps.length > 0) group.add(buildLamps(lamps, options.shadows));
+  if (lamps.length > 0) group.add(furniture("MM_STREET_LAMPS", lampParts(), lamps, options.shadows));
+  if (shrubs.length > 0) group.add(furniture("MM_STREET_SHRUBS", shrubParts(), shrubs, options.shadows));
+  if (benches.length > 0) group.add(furniture("MM_STREET_BENCHES", benchParts(), benches, options.shadows));
 
   // --- traffic ---------------------------------------------------------------
   const traffic = buildTraffic(net, sampleGround, options.shadows);
   group.add(traffic.group);
 
-  return { group, update: traffic.update, carCount: traffic.count, lampCount: lamps.length };
+  return { group, update: traffic.update, carCount: traffic.count, lampCount: lamps.length, shrubCount: shrubs.length, benchCount: benches.length };
 }
 
-/** One merged lamp, instanced along the kerb. */
-function buildLamps(at: Array<{ x: number; z: number; y: number }>, shadows: boolean): THREE.InstancedMesh {
-  const parts: THREE.BufferGeometry[] = [];
-  const colours: number[] = [];
-  const push = (geometry: THREE.BufferGeometry, colour: number) => { parts.push(geometry); colours.push(colour); };
-
-  const base = new THREE.CylinderGeometry(0.22, 0.26, 0.3, 8); base.translate(0, 0.15, 0);
-  push(base, LAMP_POST);
-  const column = new THREE.CylinderGeometry(0.09, 0.11, 4.2, 8); column.translate(0, 2.4, 0);
-  push(column, LAMP_POST);
-  const arm = new THREE.BoxGeometry(0.7, 0.1, 0.1); arm.translate(0.3, 4.5, 0);
-  push(arm, LAMP_POST);
-  const head = new THREE.BoxGeometry(0.62, 0.16, 0.34); head.translate(0.55, 4.4, 0);
-  push(head, LAMP_HEAD);
-  const panel = new THREE.BoxGeometry(0.66, 0.05, 0.4); panel.translate(0.1, 4.66, 0);
-  push(panel, SOLAR);
-
-  const coloured = parts.map((geometry, i) => {
+/** A piece of street furniture, merged once and instanced along both kerbs. */
+function furniture(name: string, parts: Array<[THREE.BufferGeometry, number]>, at: Placed[], shadows: boolean): THREE.InstancedMesh {
+  const coloured = parts.map(([geometry, hex]) => {
     const count = geometry.attributes.position!.count;
     const array = new Float32Array(count * 3);
-    const colour = new THREE.Color().setHex(colours[i]!, THREE.SRGBColorSpace);
+    const colour = new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
     for (let v = 0; v < count; v += 1) { array[v * 3] = colour.r; array[v * 3 + 1] = colour.g; array[v * 3 + 2] = colour.b; }
     geometry.setAttribute("color", new THREE.BufferAttribute(array, 3));
     geometry.deleteAttribute("uv");
@@ -226,16 +257,46 @@ function buildLamps(at: Array<{ x: number; z: number; y: number }>, shadows: boo
   });
   const merged = mergeGeometries(coloured, false)!;
   const mesh = new THREE.InstancedMesh(merged, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), at.length);
-  mesh.name = "MM_STREET_LAMPS";
+  mesh.name = name;
   mesh.castShadow = shadows;
   const matrix = new THREE.Matrix4();
   at.forEach((p, i) => {
-    matrix.makeRotationY(((i % 4) * Math.PI) / 2);
+    matrix.makeRotationY(p.angle);
     matrix.setPosition(p.x, p.y, p.z);
     mesh.setMatrixAt(i, matrix);
   });
   mesh.instanceMatrix.needsUpdate = true;
+  mesh.frustumCulled = false;
   return mesh;
+}
+
+/** A solar lamp standard. Authored with its arm over +Z, like everything else here. */
+function lampParts(): Array<[THREE.BufferGeometry, number]> {
+  const base = new THREE.CylinderGeometry(0.22, 0.26, 0.3, 8); base.translate(0, 0.15, 0);
+  const column = new THREE.CylinderGeometry(0.09, 0.11, 4.2, 8); column.translate(0, 2.4, 0);
+  const arm = new THREE.BoxGeometry(0.1, 0.1, 0.7); arm.translate(0, 4.5, 0.3);
+  const head = new THREE.BoxGeometry(0.34, 0.16, 0.62); head.translate(0, 4.4, 0.55);
+  const panel = new THREE.BoxGeometry(0.4, 0.05, 0.66); panel.translate(0, 4.66, 0.1);
+  return [[base, LAMP_POST], [column, LAMP_POST], [arm, LAMP_POST], [head, LAMP_HEAD], [panel, SOLAR]];
+}
+
+/** A clipped roadside shrub, mirror-symmetric so a row of them lines up. */
+function shrubParts(): Array<[THREE.BufferGeometry, number]> {
+  const soil = new THREE.CylinderGeometry(0.5, 0.58, 0.16, 10); soil.translate(0, 0.08, 0);
+  const crown = new THREE.SphereGeometry(0.52, 10, 8); crown.translate(0, 0.6, 0);
+  const left = new THREE.SphereGeometry(0.33, 9, 7); left.translate(-0.32, 0.84, 0);
+  const right = new THREE.SphereGeometry(0.33, 9, 7); right.translate(0.32, 0.84, 0);
+  return [[soil, PLANTER], [crown, LEAF], [left, LEAF_LIGHT], [right, LEAF_LIGHT]];
+}
+
+/** A timber bench, back to the verge, facing the street. */
+function benchParts(): Array<[THREE.BufferGeometry, number]> {
+  const seat = new THREE.BoxGeometry(1.7, 0.1, 0.5); seat.translate(0, 0.46, 0.04);
+  const back = new THREE.BoxGeometry(1.7, 0.42, 0.09); back.translate(0, 0.72, -0.2);
+  const rail = new THREE.BoxGeometry(1.7, 0.09, 0.09); rail.translate(0, 0.5, -0.2);
+  const left = new THREE.BoxGeometry(0.11, 0.46, 0.46); left.translate(-0.72, 0.23, 0);
+  const right = new THREE.BoxGeometry(0.11, 0.46, 0.46); right.translate(0.72, 0.23, 0);
+  return [[seat, TIMBER], [back, TIMBER], [rail, BENCH_FRAME], [left, BENCH_FRAME], [right, BENCH_FRAME]];
 }
 
 interface Car { mesh: THREE.Object3D; road: number; along: number; direction: 1 | -1; speed: number; lane: 1 | -1 }
