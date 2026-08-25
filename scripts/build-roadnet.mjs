@@ -47,7 +47,14 @@ function bands(cells, horizontal, minimumLength) {
       if (!cells.has(a) || !cells.has(b)) break;
       end = next;
     }
-    for (let k = start; k <= end; k += 1) claimed.add(`${fixed}:${k}`);
+    // Claim BOTH rows of the band. Claiming only the first let the next row start a
+    // second band one cell down, overlapping this one along its whole length — which
+    // is where all 47 overlapping cells came from, and it doubles the lane markings
+    // and the lamps on the same ground.
+    for (let k = start; k <= end; k += 1) {
+      claimed.add(`${fixed}:${k}`);
+      claimed.add(`${fixed + 1}:${k}`);
+    }
     if (end - start >= minimumLength) found.push({ fixed, start, end });
   }
   return found;

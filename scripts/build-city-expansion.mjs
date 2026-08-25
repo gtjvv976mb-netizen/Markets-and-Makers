@@ -32,7 +32,11 @@ for (const row of grid.rows) {
 }
 
 const { min, max } = grid.bounds_cells;
-const isLand = (x, y) => level.has(key(x, y));
+// The city plain. 89% of the authored road network sits at level 0 and the terraces
+// above it are highlands — the mountain, the overlook, the falls. Streets and lots stay
+// off them: a grid climbing a mountainside is not a city, and the world already says so.
+const GROUND_LEVEL = 0;
+const isPlain = (x, y) => level.get(key(x, y)) === GROUND_LEVEL;
 const isFree = (x, y) => {
   const s = surface.get(key(x, y));
   return s !== undefined && /^land_l\d$/.test(s);
@@ -57,46 +61,169 @@ for (const plot of [...(layout.plots.existing ?? []), ...(layout.plots.added ?? 
 }
 for (const [k, s] of surface) if (s === "road" || s === "bridge" || s === "path" || s === "empty_plot") reserved.add(k);
 
-// --- the grid ------------------------------------------------------------
-const SPACING = 16;      // centre to centre, so a 14-cell block between carriageways
-const MIN_RUN = 8;       // shorter than this is a stub, not a street
-const newRoads = [];
-const roadCells = new Set();
+// --- the plan ------------------------------------------------------------
+// Three attempts taught the shape of this. A grid dropped over the whole map gives
+// fragments — 47 overlapping cells, 30 disconnected components, 68% of ends reaching
+// nothing. Filtering that afterwards deletes most of it. Growing only from the ends of
+// authored roads is connected but tiny, because the open land does not touch them.
+//
+// The land is in large contiguous pieces: 25,407 free cells on the plain in regions of
+// 5,229, 4,439, 4,403 and so on, separated by the existing roads, paths and water. So
+// each region gets its own grid, laid inside its own boundary. A region already abuts
+// the roads that divide it from its neighbours, so a street laid up to that edge joins
+// the city without a connector. Every street must still meet something at one end.
 
-/** Maximal runs along one grid line where both carriageway rows are free and level. */
-function layLine(fixed, horizontal) {
-  const from = horizontal ? min[0] : min[1];
-  const to = horizontal ? max[0] : max[1];
-  let start = null;
-  let runLevel = null;
-  const flush = (end) => {
-    if (start === null || end - start < MIN_RUN) { start = null; runLevel = null; return; }
-    newRoads.push({ axis: horizontal ? 0 : 1, centre: fixed + 0.5, from: start, to: end });
-    for (let k = start; k <= end; k += 1) {
-      roadCells.add(horizontal ? key(k, fixed) : key(fixed, k));
-      roadCells.add(horizontal ? key(k, fixed + 1) : key(fixed + 1, k));
-    }
-    start = null;
-    runLevel = null;
-  };
-  for (let k = from; k <= to; k += 1) {
-    const a = horizontal ? [k, fixed] : [fixed, k];
-    const b = horizontal ? [k, fixed + 1] : [fixed + 1, k];
-    const ok = isFree(...a) && isFree(...b)
-      && !reserved.has(key(...a)) && !reserved.has(key(...b))
-      && level.get(key(...a)) === level.get(key(...b));
-    const thisLevel = ok ? level.get(key(...a)) : null;
-    // A street may not climb a terrace mid-run; break and start again above it.
-    if (!ok || (runLevel !== null && thisLevel !== runLevel)) { flush(k - 1); }
-    if (ok) {
-      if (start === null) { start = k; runLevel = thisLevel; }
-    }
-  }
-  flush(to);
+const STREET_SPACING = 14;
+const MIN_RUN = 8;
+const MIN_REGION = 700;
+
+const authoredRoad = new Set();
+for (const [k, surfaceName] of surface) {
+  if (surfaceName === "road" || surfaceName === "bridge") authoredRoad.add(k);
 }
 
-for (let y = min[1]; y <= max[1]; y += SPACING) layLine(y, true);
-for (let x = min[0]; x <= max[0]; x += SPACING) layLine(x, false);
+// Free ground: on the plain, not reserved, not already built on.
+const free = new Set();
+for (const [k] of level) {
+  if (level.get(k) !== GROUND_LEVEL) continue;
+  if (reserved.has(k)) continue;
+  free.add(k);
+}
+
+// Contiguous regions of it. The roads and paths that separate them become the edges a
+// new grid meets, which is what connects each neighbourhood to the city.
+const regions = [];
+const visited = new Set();
+for (const start of free) {
+  if (visited.has(start)) continue;
+  const region = new Set();
+  const stack = [start];
+  while (stack.length > 0) {
+    const cell = stack.pop();
+    if (visited.has(cell) || !free.has(cell)) continue;
+    visited.add(cell);
+    region.add(cell);
+    const [x, y] = cell.split(",").map(Number);
+    stack.push(key(x + 1, y), key(x - 1, y), key(x, y + 1), key(x, y - 1));
+  }
+  if (region.size >= MIN_REGION) regions.push(region);
+}
+regions.sort((a, b) => b.size - a.size);
+
+const claimed = new Set();
+const cellsOf = (street) => {
+  const fixed = Math.floor(street.centre);
+  const out = [];
+  for (let k = street.from; k <= street.to; k += 1) {
+    for (const f of [fixed, fixed + 1]) out.push(street.axis === 0 ? key(k, f) : key(f, k));
+  }
+  return out;
+};
+
+const candidates = [];
+for (const region of regions) {
+  const xs = [...region].map((c) => Number(c.split(",")[0]));
+  const ys = [...region].map((c) => Number(c.split(",")[1]));
+  const bounds = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  // Offset each region's grid by its own origin, so neighbourhoods do not all share
+  // one continent-wide alignment — the city reads as districts, not as graph paper.
+  const phase = (Math.abs(bounds.x0 * 7 + bounds.y0 * 13)) % STREET_SPACING;
+
+  const layable = (axis, fixed, k) => {
+    const a = axis === 0 ? key(k, fixed) : key(fixed, k);
+    const b = axis === 0 ? key(k, fixed + 1) : key(fixed + 1, k);
+    return region.has(a) && region.has(b) && !claimed.has(a) && !claimed.has(b);
+  };
+
+  for (const axis of [0, 1]) {
+    const lo = axis === 0 ? bounds.y0 : bounds.x0;
+    const hi = axis === 0 ? bounds.y1 : bounds.x1;
+    for (let fixed = lo + phase; fixed <= hi; fixed += STREET_SPACING) {
+      const from = axis === 0 ? bounds.x0 : bounds.y0;
+      const to = axis === 0 ? bounds.x1 : bounds.y1;
+      let start = null;
+      const flush = (end) => {
+        if (start !== null && end - start >= MIN_RUN) {
+          const street = { axis, centre: fixed + 0.5, from: start, to: end };
+          candidates.push(street);
+          for (const c of cellsOf(street)) claimed.add(c);
+        }
+        start = null;
+      };
+      for (let k = from; k <= to; k += 1) {
+        if (!layable(axis, fixed, k)) { flush(k - 1); continue; }
+        if (start === null) start = k;
+      }
+      flush(to);
+    }
+  }
+}
+
+// --- keep only what joins something --------------------------------------
+const candidateCells = new Map();
+candidates.forEach((street, index) => {
+  for (const c of cellsOf(street)) candidateCells.set(c, index);
+});
+const meetsSomething = (street, index) => {
+  const fixed = Math.floor(street.centre);
+  for (let k = street.from; k <= street.to; k += 1) {
+    const probes = street.axis === 0
+      ? [key(k, fixed - 1), key(k, fixed + 2)]
+      : [key(fixed - 1, k), key(fixed + 2, k)];
+    for (const probe of probes) {
+      if (authoredRoad.has(probe)) return true;
+      const owner = candidateCells.get(probe);
+      if (owner !== undefined && owner !== index) return true;
+    }
+  }
+  // The ends too: a street running up to a road joins it end-on.
+  for (const end of [street.from - 1, street.to + 1]) {
+    const probes = street.axis === 0
+      ? [key(end, fixed), key(end, fixed + 1)]
+      : [key(fixed, end), key(fixed + 1, end)];
+    if (probes.some((c) => authoredRoad.has(c) || candidateCells.has(c))) return true;
+  }
+  return false;
+};
+
+const joined = candidates.filter((street, index) => meetsSomething(street, index));
+
+// A street that survived the join test can still be alone with one partner in a corner
+// of the map. Flood the kept set and drop anything in a component of one or two.
+const keptCells = new Map();
+joined.forEach((street, index) => { for (const c of cellsOf(street)) keptCells.set(c, index); });
+const links = new Map();
+joined.forEach((_, index) => links.set(index, new Set()));
+joined.forEach((street, index) => {
+  for (const c of cellsOf(street)) {
+    const [x, y] = c.split(",").map(Number);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const other = keptCells.get(key(x + dx, y + dy));
+      if (other !== undefined && other !== index) { links.get(index).add(other); links.get(other).add(index); }
+      if (authoredRoad.has(key(x + dx, y + dy))) links.get(index).add(-1);
+    }
+  }
+});
+const componentOf = new Map();
+let componentId = 0;
+for (const index of links.keys()) {
+  if (componentOf.has(index)) continue;
+  const stack = [index];
+  const members = [];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (componentOf.has(node)) continue;
+    componentOf.set(node, componentId);
+    members.push(node);
+    for (const next of links.get(node) ?? []) if (next !== -1 && !componentOf.has(next)) stack.push(next);
+  }
+  const touchesCity = members.some((m) => links.get(m)?.has(-1));
+  if (members.length <= 2 && !touchesCity) for (const m of members) componentOf.set(m, -1);
+  componentId += 1;
+}
+const newRoads = joined.filter((_, index) => componentOf.get(index) !== -1);
+const roadCells = new Set();
+for (const street of newRoads) for (const c of cellsOf(street)) roadCells.add(c);
 
 // --- plots along the new frontage ---------------------------------------
 const PLOT = 6;
@@ -114,25 +241,25 @@ const adjacentToRoad = (cx, cy) => {
 };
 
 const flatAndFree = (cx, cy) => {
-  const base = level.get(key(cx, cy));
-  if (base === undefined) return false;
   for (let x = cx; x < cx + PLOT; x += 1) {
     for (let y = cy; y < cy + PLOT; y += 1) {
       const k = key(x, y);
-      if (!isFree(x, y) || reserved.has(k) || roadCells.has(k) || taken.has(k)) return false;
-      if (level.get(k) !== base) return false;
+      if (!isFree(x, y) || !isPlain(x, y)) return false;
+      if (reserved.has(k) || roadCells.has(k) || taken.has(k)) return false;
     }
   }
   return true;
 };
 
-for (let y = min[1]; y + PLOT <= max[1]; y += 2) {
-  for (let x = min[0]; x + PLOT <= max[0]; x += 2) {
+for (let y = min[1]; y + PLOT <= max[1]; y += 1) {
+  for (let x = min[0]; x + PLOT <= max[0]; x += 1) {
     if (!flatAndFree(x, y) || !adjacentToRoad(x, y)) continue;
-    for (let px = x - 1; px < x + PLOT + 1; px += 1) {
-      for (let py = y - 1; py < y + PLOT + 1; py += 1) taken.add(key(px, py));
+    // Neighbouring plots share a boundary, as they do on a real street; only the road
+    // side needs clearance and the grid already provides it.
+    for (let px = x; px < x + PLOT; px += 1) {
+      for (let py = y; py < y + PLOT; py += 1) taken.add(key(px, py));
     }
-    newPlots.push({ x, y, level: level.get(key(x, y)) });
+    newPlots.push({ x, y });
   }
 }
 
@@ -157,9 +284,37 @@ const nearestDistrict = (cx, cy) => {
 const plotRecords = newPlots.map((plot, index) => {
   const district = nearestDistrict(plot.x + PLOT / 2, plot.y + PLOT / 2);
   // Higher ground costs more, as it does everywhere.
-  const price = 120 + plot.level * 24;
+  // All frontage is on the plain, so height cannot set the price. Distance from the
+  // civic centre can: the closer to City Hall, the dearer the ground.
+  const centreDistance = Math.hypot((plot.x + PLOT / 2) * TILE - 0, -(plot.y + PLOT / 2) * TILE - -16);
+  const price = Math.round(260 - Math.min(150, centreDistance * 0.6));
   return [`GX${String(index + 1).padStart(3, "0")}`, district, plot.x, plot.y, plot.x + PLOT - 1, plot.y + PLOT - 1, price];
 });
+
+// Check the output rather than trust the loop that made it. Note the floor: a street
+// centre sits on a half cell, and truncating toward zero reads the wrong row for every
+// negative coordinate — which is exactly how a first pass at this check reported
+// nineteen phantom failures.
+const offPlain = [];
+for (const street of newRoads) {
+  const fixed = Math.floor(street.centre);
+  for (let k = street.from; k <= street.to; k += 1) {
+    for (const f of [fixed, fixed + 1]) {
+      const cell = street.axis === 0 ? [k, f] : [f, k];
+      if (!isPlain(...cell)) offPlain.push(`street ${cell}`);
+    }
+  }
+}
+for (const plot of newPlots) {
+  for (let x = plot.x; x < plot.x + PLOT; x += 1) {
+    for (let y = plot.y; y < plot.y + PLOT; y += 1) {
+      if (!isPlain(x, y)) offPlain.push(`plot ${x},${y}`);
+    }
+  }
+}
+if (offPlain.length > 0) {
+  throw new Error(`${offPlain.length} cells are off the plain, first: ${offPlain.slice(0, 3).join(", ")}`);
+}
 
 writeFileSync(resolve(root, "game/src/generatedPlots.ts"),
 `// Generated by scripts/build-city-expansion.mjs — do not edit by hand.
@@ -175,3 +330,4 @@ export const GENERATED_PLOT_CELLS: readonly PlotCells[] = ${JSON.stringify(plotR
 writeFileSync(resolve(root, "scripts/.city-expansion-roads.json"), JSON.stringify(newRoads));
 console.log(`new carriageways ${newRoads.length}, covering ${[...roadCells].length} cells`);
 console.log(`new plots ${plotRecords.length} (was 42), districts used ${new Set(plotRecords.map((p) => p[1])).size}`);
+console.log(`every street and plot cell verified on the plain (level ${GROUND_LEVEL})`);
