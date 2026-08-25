@@ -1260,6 +1260,11 @@ export class World3D {
    * would pop a citizen into existence in plain sight.
    */
   private recycleCitizenNearPlayer(citizen: Citizen, elapsed: number): boolean {
+    // A citizen carrying an activity is walking to a business to portray a purchase
+    // that has already settled in the ledger, and the trip's actor count was decremented
+    // when they were assigned. Moving them loses that portrayal for good — the cohort
+    // will not re-dispatch — so a shopper in progress is never recycled, wherever they are.
+    if (citizen.activityId !== null) return false;
     const home = this.avatar.position;
     if (Math.hypot(citizen.group.position.x - home.x, citizen.group.position.z - home.z) < CITIZEN_RECYCLE_DISTANCE) {
       return false;
