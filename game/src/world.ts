@@ -25,6 +25,12 @@ interface WorldCallbacks {
   onPlotSelected: (plotId: string) => void;
   onMoved: () => void;
   onLoadProgress: (progress: number, label: string) => void;
+  /**
+   * A Mercedonian reached one of the player's businesses under their own steam.
+   * Returns true when the shop actually had something to sell them, which is what
+   * decides whether the currency badge appears over their head.
+   */
+  onCitizenVisit: (plotId: string) => boolean;
 }
 
 interface Citizen {
@@ -1886,9 +1892,15 @@ export class World3D {
       if (citizen.pathIndex >= citizen.path.length) {
         if (citizen.destination) {
           const businessVisit = citizen.destination.kind === "business";
-          // Routine browsing is not a payment. Only a settled activity cohort
-          // receives the currency badge, so the world never invents a purchase.
-          citizen.transactionIndicator.visible = citizen.activityId !== null;
+          // A citizen carrying an activityId is miming a sale the ledger already
+          // settled, so it is shown and not charged again. One who walked here of
+          // their own accord is a real customer: the store decides whether the shop
+          // had anything to sell them, and only a settled sale earns the badge.
+          let bought = citizen.activityId !== null;
+          if (businessVisit && citizen.activityId === null && citizen.destination.plotId) {
+            bought = this.callbacks.onCitizenVisit(citizen.destination.plotId);
+          }
+          citizen.transactionIndicator.visible = bought;
           citizen.waitingUntil = elapsed + (businessVisit ? 4.5 + (citizen.index % 4) : 2.5 + (citizen.index % 3));
           citizen.path = [];
           citizen.pathIndex = 0;

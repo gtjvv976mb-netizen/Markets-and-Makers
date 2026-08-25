@@ -37,6 +37,8 @@ export interface BusinessRecord {
   condition: number; brokenDown: boolean; jobsCompleted: number;
 }
 type CitizenBusinessSource = Pick<BusinessRecord, "plotId" | "license" | "buildingPlaced">;
+/** What a Mercedonian actually bought when they walked through the door. */
+export interface CitizenVisitSale { kind: "retail" | "service"; resource: ResourceKey | null; gross: number }
 export type HaltReason = "running" | "storage" | "demand" | "inputs" | "funds" | "breakdown" | "idle";
 export interface ShiftReport {
   hours: number; jobs: number; produced: number; sold: number;
@@ -422,6 +424,77 @@ export class GameStore {
       });
     const source = candidates[0];
     return source ? { plotId: source.plotId, license: source.license, buildingPlaced: true } : null;
+  }
+
+  /**
+   * A Mercedonian has walked into one of the player's businesses. This is the sale.
+   *
+   * Until now the causation ran the other way: the ledger settled household demand and
+   * `recordCitizenActivity` queued a citizen to walk over and mime it, so footfall was
+   * scenery — a business on a dead street earned exactly as much as one on a busy
+   * corner. This makes arriving the event that moves the money.
+   *
+   * Every existing safeguard is kept, because this is the path where a mistake mints
+   * currency. The money comes out of `citizenPool`, which is finite and refilled only by
+   * wages; the price runs through the same tranche decay as any other household sale, so
+   * saturating a market still costs margin; the goods come out of the same shared
+   * inventory, so a unit sold at the door is a unit the auto-seller no longer has. Nothing
+   * here creates value — it changes who captures it, and how much it is worth.
+   *
+   * It deliberately does NOT call recordCitizenActivity. That appends to the queue world.ts
+   * reads to dispatch walkers, and a sale caused by a walker dispatching another walker is
+   * a feedback loop that would print money for as long as the player stood still.
+   *
+   * The reward for being there is the contribution weight: a visit counts as "household"
+   * (0.3) against the auto-seller's "auto" (0.05), so trading in front of the customer is
+   * worth six times as much toward $MM as leaving the shop to run itself.
+   */
+  settleCitizenVisit(plotId: string, now = Date.now()): CitizenVisitSale | null {
+    this.rollCalendar(now);
+    const record = this.state.portfolio[plotId];
+    if (!record || !record.license || !record.buildingPlaced || record.brokenDown) return null;
+    const config = BUSINESS[record.license];
+
+    const settle = (gross: number): number => {
+      const tax = Math.floor(gross * TAX_RATE);
+      this.state.citizenPool -= gross;
+      this.state.wallet += gross - tax;
+      this.state.governmentTreasury += tax;
+      this.state.taxPaid += tax;
+      this.state.lifetimeRevenue += gross;
+      this.state.householdSpend += gross;
+      this.state.todayRevenue += gross;
+      this.addContribution(gross, "household");
+      return gross;
+    };
+
+    if (config.servicePayout) {
+      const audience = Math.max(1, this.dailyAudience());
+      const tranche = Math.floor(this.state.daily.visits / audience);
+      const unit = config.servicePayout * this.state.servicePriceIndex;
+      const gross = Math.max(1, Math.round(unit * Math.max(DEMAND_PRICE_FLOOR, Math.pow(DEMAND_TRANCHE_DECAY, tranche))));
+      if (this.state.citizenPool < gross) return null;
+      settle(gross);
+      this.state.visitorsServed += 1;
+      this.state.daily.visits += 1;
+      return { kind: "service", resource: null, gross };
+    }
+
+    // Households buy finished goods, not ore. A mine gets no counter trade, which is
+    // exactly why the supply chain has retail at the end of it.
+    const key = (Object.keys(config.output) as ResourceKey[]).find((candidate) => (
+      (config.output[candidate] ?? 0) > 0
+      && RESOURCES[candidate].buyer === "citizens"
+      && this.state.inventory[candidate] > 0
+    ));
+    if (!key) return null;
+    const gross = this.demandSaleGross(key, 1).gross;
+    if (this.state.citizenPool < gross) return null;
+    this.state.inventory[key] -= 1;
+    this.state.procurement.used[key] += 1;
+    settle(gross);
+    this.moveMarket(key, -1, 1);
+    return { kind: "retail", resource: key, gross };
   }
 
   private recordCitizenActivity(

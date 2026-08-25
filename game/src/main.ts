@@ -42,6 +42,8 @@ let interiorSelection: InteriorSelection | null = null;
 let interiorPrompt: InteriorPrompt | null = null;
 let interiorConsoleSignature = "";
 let movedOnce = false;
+/** Counter-trade settled since the last HUD refresh, so the redraw can be batched. */
+let citizenTradeSinceRender = 0;
 let activeBusinessStage: "Recommended" | BusinessStage = "Recommended";
 let marketFilter: "all" | "needed" | "owned" = "needed";
 
@@ -57,6 +59,14 @@ const world = new World3D(canvas, {
     if (movedOnce) return;
     movedOnce = true;
     store.markTutorial("moved");
+  },
+  // Footfall is the sale. The HUD is refreshed on a timer rather than per customer:
+  // a busy shop settles several visits a second, and re-rendering on each one would
+  // spend more time in the DOM than in the game.
+  onCitizenVisit: (plotId) => {
+    const sale = store.settleCitizenVisit(plotId);
+    if (sale) citizenTradeSinceRender += 1;
+    return sale !== null;
   },
   onLoadProgress: (progress, label) => {
     loadingBar.style.width = `${Math.round(progress * 100)}%`;
@@ -331,6 +341,15 @@ document.addEventListener("visibilitychange", () => {
   renderAll();
 });
 window.setInterval(() => { if (store.catchUp().jobs > 0) renderAll(); }, 60_000);
+
+// Counter trade lands whenever a Mercedonian reaches the door, which on a busy street
+// is several times a second. The takings are already banked by then; this only decides
+// how often the number on screen catches up.
+window.setInterval(() => {
+  if (citizenTradeSinceRender === 0) return;
+  citizenTradeSinceRender = 0;
+  renderHeader();
+}, 1_500);
 
 let peerCount = 0;
 let districtBoard: DistrictQuote[] | null = null;
