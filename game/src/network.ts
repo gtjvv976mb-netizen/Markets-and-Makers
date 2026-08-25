@@ -46,9 +46,22 @@ export function localPlayerId(): string {
   return id;
 }
 
+/**
+ * The deployed authority. Kept in source rather than only in VITE_GAME_SERVER_URL
+ * because releases are cut with a local `wrangler deploy`, which does not carry the
+ * CI environment — and with no base the client silently runs as "Local authority",
+ * with no multiplayer, settlement or chain reads. The value is a public URL, so
+ * committing it costs nothing.
+ */
+const PRODUCTION_AUTHORITY = "https://markets-and-makers-authority.onrender.com";
+
 export function serverBase(): string | null {
-  const base = (import.meta.env.VITE_GAME_SERVER_URL as string | undefined)?.replace(/\/$/, "");
-  return base || null;
+  const configured = (import.meta.env.VITE_GAME_SERVER_URL as string | undefined)?.replace(/\/$/, "");
+  if (configured) return configured;
+  // A developer running the dev server should stay offline unless they opt in.
+  if (typeof location === "undefined") return null;
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  return local ? null : PRODUCTION_AUTHORITY;
 }
 
 export async function detectDeployment(): Promise<DeploymentStatus> {

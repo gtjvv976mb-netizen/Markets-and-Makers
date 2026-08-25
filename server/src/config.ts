@@ -21,10 +21,17 @@ const configuredClientOrigins = env.CLIENT_ORIGINS
   .map((value) => value.trim())
   .filter(Boolean);
 
-// Keep the official production client reachable even if an existing Render
-// service still has the pre-launch CLIENT_ORIGINS value from its blueprint.
+// Keep the official production clients reachable even if an existing Render service
+// still carries the pre-launch CLIENT_ORIGINS value from its blueprint. The custom
+// domain is what players actually load; the workers.dev origin is the deploy fallback.
+// Both are listed because a missing origin fails as an opaque CORS error in the
+// browser rather than as anything the server can report.
 const productionClientOrigins = env.NODE_ENV === "production"
-  ? ["https://markets-and-makers-game.bwz8s8gmyw.workers.dev"]
+  ? [
+      "https://www.markets-makers.com",
+      "https://markets-makers.com",
+      "https://markets-and-makers-game.gtjvv976mb.workers.dev",
+    ]
   : [];
 
 export const config = {

@@ -15,19 +15,22 @@ services:
       - key: NODE_ENV
         value: production
       - key: CLIENT_ORIGINS
-        value: https://markets-and-makers-game.bwz8s8gmyw.workers.dev
+        value: https://www.markets-makers.com,https://markets-makers.com,https://markets-and-makers-game.gtjvv976mb.workers.dev
       - key: DATABASE_URL
         fromDatabase:
           name: markets-and-makers-db
           property: connectionString
+      # The live $MM mint is on mainnet. Pairing it with devnet now fails loudly
+      # rather than reading as a zero balance, so the two must move together.
       - key: SOLANA_NETWORK
-        value: devnet
+        value: mainnet
       - key: HELIUS_API_KEY
         sync: false
       - key: HELIUS_WEBHOOK_SECRET
         generateValue: true
+      # Public mint address, safe in the blueprint; the Helius key is not.
       - key: MM_TOKEN_MINT
-        sync: false
+        value: 3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump
 
 databases:
   - name: markets-and-makers-db
