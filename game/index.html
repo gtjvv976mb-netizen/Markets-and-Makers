@@ -6,6 +6,10 @@
     <meta name="theme-color" content="#064d58" />
     <meta name="description" content="Markets & Makers — a player-built open-world business economy." />
     <title>Markets &amp; Makers — Solarpunk Business MMO</title>
+    <link rel="manifest" href="./app.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -57,6 +61,19 @@
         <h1>Opening Mercedonia</h1>
         <div class="loading-bar"><span id="loadingBar"></span></div>
         <small id="loadingLabel">Preparing the Highlands &amp; Rivers world</small>
+      </div>
+    </div>
+
+    <div class="rotate-gate" id="rotateGate" aria-hidden="true">
+      <div class="rotate-card">
+        <svg class="rotate-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="18" y="6" width="28" height="46" rx="4"/>
+          <path d="M8 44a24 24 0 0 0 12 10"/>
+          <path d="M4 38v8h8"/>
+          <circle cx="32" cy="46" r="1.6"/>
+        </svg>
+        <strong>Turn your phone sideways</strong>
+        <span>Mercedonia is built for landscape.</span>
       </div>
     </div>
 

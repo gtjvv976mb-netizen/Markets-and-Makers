@@ -1,0 +1,13 @@
+{
+  "name": "Markets & Makers",
+  "short_name": "Mercedonia",
+  "description": "A solarpunk economy sandbox.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0e3b3f",
+  "theme_color": "#123f43",
+  "icons": [
+    { "src": "./assets/brand/mm-maker-crest.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -211,7 +211,11 @@ function syncMarkers(): void {
   const topbarBottom = document.querySelector<HTMLElement>(".topbar")?.getBoundingClientRect().bottom ?? 96;
   const safeTop = Math.ceil(topbarBottom + 12);
   const markerBounds = markerLayer.getBoundingClientRect();
-  const reserved = [".world-label", ".selected-card"]
+  // The regions a pin must not sit under. The first two are legacy cards, now hidden
+  // and skipped automatically; the rest are the controls the minimal layout actually
+  // shows — and in landscape they sit in the corners, which is exactly where pins
+  // would otherwise pile up.
+  const reserved = [".world-label", ".selected-card", ".world-next", ".maker-nav", ".world-actions"]
     .map((selector) => document.querySelector<HTMLElement>(selector))
     .filter((node): node is HTMLElement => Boolean(node && getComputedStyle(node).display !== "none"))
     .map((node) => {
@@ -366,6 +370,26 @@ const realm = new RealmConnection({
     }
   },
 }, store.state.island);
+
+/**
+ * Ask the platform for landscape.
+ *
+ * Only Android honours an orientation lock, and only from fullscreen after a user
+ * gesture — iOS Safari has no equivalent, which is why the rotate gate exists as the
+ * fallback rather than as a nicety. Both are best-effort and neither blocks play.
+ */
+function requestLandscape(): void {
+  const orientation = screen.orientation as (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
+  if (!orientation?.lock) return;
+  void orientation.lock("landscape").catch(() => {
+    // Refused — iOS, a desktop, or not fullscreen. The gate covers it.
+  });
+}
+
+window.addEventListener("pointerdown", () => {
+  if (!window.matchMedia("(pointer: coarse)").matches) return;
+  requestLandscape();
+}, { once: true });
 
 void detectDeployment().then((status) => {
   paintNetwork(status.label, status.mode !== "unavailable");
