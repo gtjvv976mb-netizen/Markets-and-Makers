@@ -18,6 +18,15 @@ beforeEach(() => {
 });
 
 describe("Markets & Makers economy", () => {
+  /** Enterprise trades are tendered, so a test must outbid the city's rivals first. */
+  function winFranchise(store: GameStore, licence: LicenseKey): void {
+    const round = store.franchiseRound(licence);
+    if (!round) return;
+    if (store.state.wallet < round.minimum) store.state.wallet = round.minimum + 500;
+    const placed = store.placeFranchiseBid(licence, round.minimum);
+    expect(placed.ok, `could not win the ${licence} franchise: ${placed.message}`).toBe(true);
+  }
+
   it("opens with a fully covered Merc Dollar monetary base and conserved $MM vault allocation", () => {
     const store = new GameStore(createFreshState());
     expect(store.totalMoneySupply()).toBe(INITIAL_MERC_DOLLAR_SUPPLY);
@@ -170,6 +179,7 @@ describe("Markets & Makers economy", () => {
     const store = new GameStore(createFreshState());
     store.state.selectedPlotId = "seabreeze";
     store.leaseSelectedPlot();
+    winFranchise(store, "gym");
     store.chooseLicense("gym");
     store.placeBuilding();
     const moneyBefore = store.totalMoneySupply();
@@ -1034,6 +1044,7 @@ describe("Markets & Makers economy", () => {
     const store = new GameStore(createFreshState());
     store.state.selectedPlotId = "seabreeze";
     store.leaseSelectedPlot();
+    winFranchise(store, "restaurant");
     store.chooseLicense("restaurant");
     store.placeBuilding();
     const baseVisitors = store.unitEconomics()!.visitors;

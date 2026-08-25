@@ -10,7 +10,9 @@ import {
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
+  FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
+import { BUSINESS_TIER } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
@@ -44,6 +46,7 @@ export interface ProcurementLedger { date: string; used: Record<ResourceKey, num
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
 export interface GameState {
+  franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
   wallet: number; governmentTreasury: number; citizenPool: number; taxPaid: number; laborPaid: number; reputation: number;
   mmHoldings: number; mmReserve: number; mmExchangeVolume: number;
@@ -64,6 +67,11 @@ export interface GameState {
   householdSpend: number; citizenActivitySequence: number; citizenActivity: CitizenEconomyActivity[];
   tutorial: Record<(typeof TUTORIAL)[number][0], boolean>;
   feed: Array<{ text: string; tone: "normal" | "success" | "warning"; at: number }>;
+}
+
+export interface FranchiseRound {
+  license: LicenseKey; round: number; rivalBid: number; leading: number;
+  myBid: number; minimum: number; closesAt: number; winning: boolean;
 }
 
 export interface ActionResult { ok: boolean; message: string; }
@@ -90,6 +98,7 @@ export function createFreshState(): GameState {
   const tutorial = Object.fromEntries(TUTORIAL.map(([key]) => [key, false])) as GameState["tutorial"];
   const today = utcDay();
   return {
+    franchiseBids: {},
     version: 4,
     wallet: 750,
     governmentTreasury: INITIAL_MERC_DOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
@@ -319,6 +328,17 @@ export function loadState(): GameState {
       citizenActivitySequence,
       citizenActivity,
       tutorial: { ...fresh.tutorial, ...(saved.tutorial ?? {}) },
+      franchiseBids: (() => {
+        const kept: Partial<Record<LicenseKey, { round: number; amount: number }>> = {};
+        for (const [key, entry] of Object.entries(saved.franchiseBids ?? {})) {
+          if (!(key in BUSINESS) || !entry) continue;
+          kept[key as LicenseKey] = {
+            round: Math.floor(finite((entry as { round?: number }).round, 0, 0)),
+            amount: finite((entry as { amount?: number }).amount, 0, 0),
+          };
+        }
+        return kept;
+      })(),
       feed: Array.isArray(saved.feed)
         ? saved.feed.slice(0, 18).flatMap((entry) => {
           if (!entry || typeof entry !== "object") return [];
@@ -470,7 +490,71 @@ export class GameStore {
     return this.result(true, "Plot leased.");
   }
 
+  // ---------------------------------------------------------------------
+  // Government tenders for Enterprise trades
+  // ---------------------------------------------------------------------
+
+  private static franchiseHash(seed: string): number {
+    let value = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      value ^= seed.charCodeAt(i);
+      value = Math.imul(value, 16777619) >>> 0;
+    }
+    return value >>> 0;
+  }
+
+  /**
+   * What it takes to win the tender for one Enterprise licence right now.
+   * Rivals bid too, and their appetite grows with the city, so a franchise that goes
+   * cheap early becomes genuinely contested later.
+   */
+  franchiseRound(license: LicenseKey, now = Date.now()): FranchiseRound | null {
+    if (BUSINESS_TIER[license] < 3) return null;
+    const round = Math.floor(now / (FRANCHISE_ROUND_DAYS * 86_400_000));
+    const heat = 1 + this.careerLevel().level * FRANCHISE_RIVAL_STEP;
+    const drift = (GameStore.franchiseHash(`${round}:${license}`) % 45) / 100;
+    const rivalBid = Math.round(FRANCHISE_BASE_BID * heat * (1 + drift));
+    const mine = this.state.franchiseBids[license];
+    const myBid = mine?.round === round ? mine.amount : 0;
+    const leading = Math.max(rivalBid, myBid);
+    return {
+      license, round, rivalBid, leading, myBid,
+      minimum: leading + Math.max(25, Math.round(leading * 0.05)),
+      closesAt: (round + 1) * FRANCHISE_ROUND_DAYS * 86_400_000,
+      winning: myBid > rivalBid,
+    };
+  }
+
+  franchiseRounds(now = Date.now()): FranchiseRound[] {
+    return (Object.keys(BUSINESS) as LicenseKey[])
+      .filter((license) => BUSINESS_TIER[license] === 3)
+      .map((license) => this.franchiseRound(license, now))
+      .filter((entry): entry is FranchiseRound => entry !== null);
+  }
+
+  holdsFranchise(license: LicenseKey, now = Date.now()): boolean {
+    if (BUSINESS_TIER[license] < 3) return true;
+    return this.franchiseRound(license, now)?.winning ?? false;
+  }
+
+  placeFranchiseBid(license: LicenseKey, amount: number, now = Date.now()): ActionResult {
+    const round = this.franchiseRound(license, now);
+    if (!round) return this.result(false, "That trade is not put out to tender.");
+    const bid = Math.floor(amount);
+    if (bid < round.minimum) return this.result(false, `The leading bid is ${round.leading} ${CURRENCY_CODE}. You must offer at least ${round.minimum}.`);
+    const owed = bid - round.myBid;
+    if (this.state.wallet < owed) return this.result(false, `You need ${owed} ${CURRENCY_CODE} to raise your offer.`);
+    this.state.wallet -= owed;
+    this.state.governmentTreasury += owed;
+    this.state.franchiseBids[license] = { round: round.round, amount: bid };
+    this.commit(`You bid ${bid} ${CURRENCY_CODE} for the ${BUSINESS[license].name} franchise.`, "success");
+    return this.result(true, "Bid placed.");
+  }
+
   chooseLicense(key: LicenseKey): ActionResult {
+    if (!this.holdsFranchise(key)) {
+      return this.result(false, `${BUSINESS[key].name} is an Enterprise trade. Win the city's tender for it first.`);
+    }
     if (!this.state.ownedPlotId) return this.result(false, "Lease a plot before selecting a business.");
     if (this.state.buildingPlaced) return this.result(false, "The built business license is locked for this prototype.");
     if (this.state.license) return this.result(false, `${BUSINESS[this.state.license].name} is already licensed to this plot.`);
