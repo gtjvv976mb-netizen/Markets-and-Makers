@@ -1,4 +1,6 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CURRENCY_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
+import { buyFromCivic, isSynced, sellToDistrict } from "./realm";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
@@ -688,6 +690,47 @@ function shiftReportMarkup(): string {
   </article>`;
 }
 
+/** Your trade, what it makes, what it costs to run, and what is left over. */
+function productionMarkup(): string {
+  const licence = store.state.license;
+  if (!licence) return "";
+  const tier = BUSINESS_TIER[licence];
+  const profit = store.todayProfit();
+  return `
+    <div class="ledger">
+      <div><small>Today's takings</small><strong>${formatNumber(store.state.todayRevenue)}</strong></div>
+      <div><small>Today's costs</small><strong>${formatNumber(store.state.todayExpenses)}</strong></div>
+      <div class="${profit >= 0 ? "positive" : "negative"}"><small>Profit</small><strong>${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></div>
+      <div><small>Standing charges</small><strong>${store.dailyOverhead()}/day</strong></div>
+    </div>
+    <div class="section-title">What you make <span class="tier-chip tier-${tier}">${TIER_NAMES[tier]}</span></div>
+    <div class="product-list">
+      ${store.productsMade().map((product) => {
+        const stock = store.stockOf(product.id);
+        const missing = store.missingInputs(product);
+        const needs = Object.entries(product.inputs);
+        return `<article class="product ${store.canMake(product) ? "ready" : ""}">
+          <div class="product-head">
+            <div><strong>${product.name}</strong><small>${"\u25CF".repeat(product.complexity)} · sells for ${product.price} ${CURRENCY_CODE}</small></div>
+            <span class="product-stock">${stock}</span>
+          </div>
+          ${needs.length
+            ? `<div class="product-needs">${needs.map(([id, qty]) => {
+                const input = PRODUCTS_BY_ID.get(id)!;
+                const held = store.stockOf(id);
+                return `<span class="${held >= qty ? "have" : "short"}">${held}/${qty} ${input.name}</span>`;
+              }).join("")}</div>`
+            : `<div class="product-needs"><span class="have">Raw production</span></div>`}
+          <div class="product-actions">
+            <button data-action="make-product" data-product="${product.id}" ${store.canMake(product) ? "" : "disabled"}>Make · ${product.labour} ${CURRENCY_CODE}</button>
+            <button class="secondary" data-action="sell-product" data-product="${product.id}" ${stock > 0 ? "" : "disabled"}>Sell · ${product.price}</button>
+          </div>
+          ${missing.length ? `<small class="product-hint">Buy ${missing.map((m) => `${m.short} ${m.product.name}`).join(", ")} from ${[...new Set(missing.map((m) => BUSINESS[m.product.business].name))].join(" or ")}.</small>` : ""}
+        </article>`;
+      }).join("")}
+    </div>`;
+}
+
 function renderBusiness(): void {
   const state = store.state;
   if (!state.buildingPlaced || !state.license) { element("#businessPanel").innerHTML = ""; return; }
@@ -717,6 +760,7 @@ function renderBusiness(): void {
     ${state.suppliesCut ? `<article class="crisis-card"><i>!</i><div><strong>Water and power cut off</strong><p>The city stopped supply over unpaid standing charges.</p></div><button data-action="restore-supply">Settle ${store.dailyOverhead()} ${CURRENCY_CODE}</button></article>` : ""}
     ${state.brokenDown ? `<article class="crisis-card"><i>!</i><div><strong>The line is down</strong><p>Repair needs ${BREAKDOWN_REPAIR_COST} ${CURRENCY_CODE} and ${BREAKDOWN_REPAIR_PARTS} Utility Parts.</p></div><button data-action="repair">Send repair crew</button></article>` : ""}
     ${shiftReportMarkup()}
+    ${productionMarkup()}
 
     <article class="job-card">
       <div class="job-flow">
@@ -1273,6 +1317,30 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+/**
+ * Trade in the shared world when signed in, and locally when not. The server decides the
+ * price; a refusal is surfaced as-is rather than quietly falling back, because a refusal
+ * IS the shared market talking.
+ */
+async function tradeThroughRealm(kind: "buy" | "sell", key: ResourceKey, quantity: number): Promise<boolean> {
+  if (!isSynced()) return false;
+  const island = store.state.island;
+  const outcome = kind === "sell"
+    ? await sellToDistrict(island, key, quantity)
+    : await buyFromCivic(island, key, quantity);
+
+  if (outcome.status === "ok") {
+    const value = outcome.value as unknown as Record<string, number>;
+    report(kind === "sell"
+      ? store.applyServerSale(key, quantity, value.net ?? 0, value.gross ?? 0)
+      : store.applyServerPurchase(key, quantity, value.cost ?? 0));
+    renderAll();
+    return true;
+  }
+  if (outcome.status === "refused") { toast(outcome.message); return true; }
+  return false;    // offline: fall through to the local simulation
+}
+
 document.body.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-action]");
   if (!button || button.disabled) return;
@@ -1298,8 +1366,16 @@ document.body.addEventListener("click", (event) => {
   else if (action === "collect-job") report(store.collectJob());
   else if (action === "maintain") report(store.maintainBusiness());
   else if (action === "quick-buy") report(store.buyResource(button.dataset.resource as ResourceKey, Number(button.dataset.quantity ?? 1)));
-  else if (action === "buy") report(store.buyResource(button.dataset.resource as ResourceKey));
-  else if (action === "sell") report(store.sellResource(button.dataset.resource as ResourceKey));
+  else if (action === "buy") {
+    const key = button.dataset.resource as ResourceKey;
+    void tradeThroughRealm("buy", key, 1).then((handled) => { if (!handled) report(store.buyResource(key)); });
+  }
+  else if (action === "sell") {
+    const key = button.dataset.resource as ResourceKey;
+    void tradeThroughRealm("sell", key, 1).then((handled) => { if (!handled) report(store.sellResource(key)); });
+  }
+  else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
+  else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
   else if (action === "claim-epoch") report(store.claimEpochRewards());
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());

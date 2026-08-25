@@ -12,7 +12,7 @@ import {
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
-import { BUSINESS_TIER } from "./products";
+import { BUSINESS_TIER, PRODUCTS_BY_ID, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
@@ -46,6 +46,7 @@ export interface ProcurementLedger { date: string; used: Record<ResourceKey, num
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
 export interface GameState {
+  productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
   wallet: number; governmentTreasury: number; citizenPool: number; taxPaid: number; laborPaid: number; reputation: number;
@@ -99,6 +100,7 @@ export function createFreshState(): GameState {
   const today = utcDay();
   return {
     franchiseBids: {},
+    productStock: {}, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
     governmentTreasury: INITIAL_MERC_DOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
@@ -328,6 +330,15 @@ export function loadState(): GameState {
       citizenActivitySequence,
       citizenActivity,
       tutorial: { ...fresh.tutorial, ...(saved.tutorial ?? {}) },
+      productStock: (() => {
+        const kept: Record<string, number> = {};
+        for (const [id, qty] of Object.entries(saved.productStock ?? {})) {
+          if (PRODUCTS_BY_ID.has(id)) kept[id] = Math.floor(finite(qty, 0, 0, 99_999));
+        }
+        return kept;
+      })(),
+      todayRevenue: finite(saved.todayRevenue, 0),
+      todayExpenses: finite(saved.todayExpenses, 0),
       franchiseBids: (() => {
         const kept: Partial<Record<LicenseKey, { round: number; amount: number }>> = {};
         for (const [key, entry] of Object.entries(saved.franchiseBids ?? {})) {
@@ -364,7 +375,11 @@ export class GameStore {
   private rollCalendar(now = Date.now()): void {
     const today = utcDay(now);
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
-    if (this.state.procurement.date !== today) this.state.procurement = { date: today, used: blankProcurement() };
+    if (this.state.procurement.date !== today) {
+      this.state.procurement = { date: today, used: blankProcurement() };
+      this.state.todayRevenue = 0;
+      this.state.todayExpenses = 0;
+    }
     this.settleCivicPayroll(now);
     const epoch = epochId(now);
     if (this.state.epoch.id !== epoch) { this.state.epoch = { id: epoch, contribution: 0, claimed: false }; this.state.epochIssued = 0; }
@@ -701,6 +716,106 @@ export class GameStore {
     this.recordEconomy();
     this.commit(`${config.name} settled output, wages, depreciation${config.wastePerCycle ? " and recoverable scrap" : ""}.`, "success");
     return this.result(true, "Job collected.");
+  }
+
+  // ---------------------------------------------------------------------
+  // The five things your trade makes
+  // ---------------------------------------------------------------------
+
+  productsMade(): Product[] {
+    return this.state.license ? productsOf(this.state.license) : [];
+  }
+
+  stockOf(productId: string): number { return this.state.productStock[productId] ?? 0; }
+
+  /** What one unit still needs, after what is already on the shelf. */
+  missingInputs(product: Product): Array<{ product: Product; short: number }> {
+    return Object.entries(product.inputs)
+      .map(([id, qty]) => ({ product: PRODUCTS_BY_ID.get(id)!, short: qty - this.stockOf(id) }))
+      .filter((entry) => entry.product && entry.short > 0);
+  }
+
+  canMake(product: Product): boolean {
+    return this.missingInputs(product).length === 0 && this.state.wallet >= product.labour;
+  }
+
+  /**
+   * Turn inputs into one unit of your own product. The inputs are consumed and the
+   * labour is paid to the Mercedonians who did the work — the same money that comes
+   * back through the door as customers.
+   */
+  makeProduct(productId: string): ActionResult {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such product.");
+    if (product.business !== this.state.license) return this.result(false, "Another trade makes that.");
+
+    const missing = this.missingInputs(product);
+    if (missing.length) {
+      const first = missing[0]!;
+      return this.result(false, `You still need ${first.short} ${first.product.name} — buy it from whoever makes it.`);
+    }
+    if (this.state.wallet < product.labour) return this.result(false, `Labour on this costs ${product.labour} ${CURRENCY_CODE}.`);
+
+    for (const [id, qty] of Object.entries(product.inputs)) this.state.productStock[id] = this.stockOf(id) - qty;
+    this.state.wallet -= product.labour;
+    this.state.citizenPool += product.labour;
+    this.state.todayExpenses += product.labour;
+    this.state.productStock[productId] = this.stockOf(productId) + 1;
+    this.addExperience(4 + product.complexity * 3);
+    this.commit(`Made one ${product.name}.`, "success");
+    return this.result(true, "Made.");
+  }
+
+  /** Sell finished goods to whoever wants them — Mercedonians, or another trade. */
+  sellProduct(productId: string, quantity = 1): ActionResult {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such product.");
+    const amount = Math.max(1, Math.floor(quantity));
+    if (this.stockOf(productId) < amount) return this.result(false, `You only hold ${this.stockOf(productId)}.`);
+
+    const gross = product.price * amount;
+    const tax = Math.floor(gross * TAX_RATE);
+    const fromCitizens = product.buyer === "citizens";
+    const pool = fromCitizens ? this.state.citizenPool : this.state.governmentTreasury;
+    if (pool < gross) {
+      return this.result(false, fromCitizens
+        ? "The Mercedonians cannot afford that today. Wait for payday, or sell something cheaper."
+        : "Civic buyers have spent their budget today.");
+    }
+
+    this.state.productStock[productId] = this.stockOf(productId) - amount;
+    if (fromCitizens) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
+    this.state.wallet += gross - tax;
+    this.state.governmentTreasury += tax;
+    this.state.lifetimeRevenue += gross;
+    this.state.todayRevenue += gross - tax;
+    this.addExperience(3 + product.complexity * 2);
+    this.commit(`Sold ${amount} ${product.name} for ${gross} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold.");
+  }
+
+  /** Today's takings against today's outgoings. */
+  todayProfit(): number { return this.state.todayRevenue - this.state.todayExpenses; }
+
+  /**
+   * Record a trade the SERVER already settled. The district set the price and the ledger
+   * moved the value; the client mirrors it rather than deciding it.
+   */
+  applyServerSale(key: ResourceKey, quantity: number, net: number, gross: number): ActionResult {
+    this.state.inventory[key] = Math.max(0, this.state.inventory[key] - quantity);
+    this.state.wallet += net;
+    this.state.lifetimeRevenue += gross;
+    this.state.todayRevenue += net;
+    this.commit(`The district bought ${quantity} ${RESOURCES[key].short} for ${gross} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold into the shared market.");
+  }
+
+  applyServerPurchase(key: ResourceKey, quantity: number, cost: number): ActionResult {
+    this.state.wallet -= cost;
+    this.state.inventory[key] += quantity;
+    this.state.todayExpenses += cost;
+    this.commit(`Bought ${quantity} ${RESOURCES[key].short} from the city for ${cost} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Bought from the shared market.");
   }
 
   sellResource(key: ResourceKey, quantity = 1): ActionResult {

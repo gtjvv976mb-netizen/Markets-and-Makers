@@ -1444,3 +1444,29 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
      action, which is exactly where a glanceable number belongs. */
   .topbar { right: 0; bottom: 16px; left: 0; }
 }
+
+/* ---- what your trade makes ---- */
+.ledger { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin: 10px 0; }
+.ledger > div { padding: 9px 7px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); text-align: center; }
+.ledger small { display: block; color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.ledger strong { display: block; margin-top: 3px; font-size: 15px; }
+.ledger .positive strong { color: #2f6b45; }
+.ledger .negative strong { color: #9e2b27; }
+.tier-chip { margin-left: 8px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.tier-1 { background: #dff0e2; color: #2f6b45; }
+.tier-2 { background: #e6ecf7; color: #3c5a86; }
+.tier-3 { background: #f7e7cf; color: #8a5f1c; }
+.product-list { display: grid; gap: 8px; }
+.product { padding: 11px 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); }
+.product.ready { border-color: #7fae63; }
+.product-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.product-head strong { display: block; font-size: 15px; }
+.product-head small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.product-stock { min-width: 34px; padding: 4px 9px; border-radius: 999px; background: var(--paper-2); font-size: 14px; font-weight: 900; text-align: center; }
+.product-needs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.product-needs span { padding: 3px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.product-needs .have { background: #e4f1e4; color: #2f6b45; }
+.product-needs .short { background: #f8e6e2; color: #9e2b27; }
+.product-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+.product-actions button { min-height: 40px; border-radius: 10px; font-size: 13px; font-weight: 800; }
+.product-hint { display: block; margin-top: 7px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
