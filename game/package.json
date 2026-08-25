@@ -7,10 +7,12 @@
     "dev": "vite --host 127.0.0.1",
     "validate:art": "node ../scripts/validate-official-art.mjs",
     "validate:world": "node ../scripts/validate-highlands-browser-assets.mjs",
-    "build": "npm run validate:art && npm run validate:world && node ../scripts/stamp-world-version.mjs && tsc --noEmit && vite build",
-    "deploy:cloudflare": "npm run build && wrangler deploy",
+    "build": "npm run validate:art && npm run validate:world && npm run validate:assets && node ../scripts/stamp-world-version.mjs && tsc --noEmit && vite build",
+    "deploy:cloudflare": "npm run build && wrangler deploy && npm run deploy:verify",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate:assets": "node ../scripts/validate-runtime-assets.mjs",
+    "deploy:verify": "node ../scripts/verify-live-deploy.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
