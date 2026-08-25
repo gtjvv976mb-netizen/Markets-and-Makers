@@ -465,6 +465,19 @@ for (const avatar of citizenManifest.avatars ?? []) {
   const path = inside(citizenRoot, avatar.file);
   check(Boolean(path), `unsafe citizen path ${avatar.file}`);
   if (!path) continue;
+  // Citizens are generated in the browser by src/pixelAvatar.ts, so there is no GLB to
+  // weigh, hash or skin-check. The contract the client actually depends on — the
+  // fifteen-joint MercedonianHumanoid, the front axis and its yaw correction, and the
+  // Idle and Walk clips — is asserted here and in tests/pixelAvatar.test.ts.
+  check(avatar.rig?.schema === "markets-and-makers.humanoid-rig.v2", `${avatar.file} lost its humanoid rig contract`);
+  check(avatar.rig?.joints === 15, `${avatar.file} rig must declare fifteen joints`);
+  check(["+X", "+Z"].includes(avatar.frontAxis), `${avatar.file} has no supported authored forward axis`);
+  check(avatar.yawCorrectionDegrees === (avatar.frontAxis === "+X" ? -90 : 0),
+    `${avatar.file} has the wrong game-facing yaw correction`);
+  const clips = new Set(avatar.runtime?.animations ?? []);
+  check(clips.has("Idle") && clips.has("Walk"), `${avatar.file} lost its Idle or Walk animation`);
+  continue;
+  // eslint-disable-next-line no-unreachable
   try {
     const bytes = await readFile(path);
     const parts = glbParts(bytes);
@@ -529,11 +542,17 @@ for (const asset of worldDesignManifest.assets ?? []) {
   const path = inside(worldDesignRoot, asset.file);
   check(Boolean(path), `unsafe world design path ${asset.file}`);
   if (!path) continue;
-  // Scenery is generated in the browser from src/proceduralAssets.ts, so there is no
-  // GLB to weigh or hash. Its grounding, placement and count rules are still checked
-  // above and below; tests/proceduralAssets.test.ts proves the client can build every
-  // non-avatar asset this manifest declares. Rigged avatars still ship as GLB.
-  if (asset.category !== "avatar") continue;
+  // Scenery and citizens are both generated in the browser — scenery by
+  // src/proceduralAssets.ts, the civic player by src/pixelAvatar.ts — so there is no
+  // GLB to weigh or hash. Grounding, placement and count rules are still checked above
+  // and below, and the avatar's own contract is asserted here; the two asset tests
+  // prove the client can build everything this manifest declares.
+  if (asset.category === "avatar") {
+    check(asset.frontAxis === "+X" && asset.yawCorrectionDegrees === -90,
+      `${asset.file} must declare its +X authoring axis and -90 degree visual correction`);
+    check(grounding?.forwardAxis === "x", `${asset.file} grounding must preserve its authored X-forward axis`);
+  }
+  continue;
   try {
     const bytes = await readFile(path);
     const parts = glbParts(bytes);
@@ -960,8 +979,10 @@ for (const [assetId, expected] of Object.entries(worldDesignManifest.counts?.byA
 for (const assetId of placementCounts.keys()) {
   check(Object.hasOwn(worldDesignManifest.counts?.byAsset ?? {}, assetId), `${assetId} is missing from manifest counts.byAsset`);
 }
-check(cpuValidatedAvatarCount === 10,
-  `CPU skinning guard validated ${cpuValidatedAvatarCount} avatars instead of all nine citizens plus the civic player`);
+// Every avatar is generated now, so nothing reaches the GLB skinning guard. Kept as a
+// tripwire: if a rigged avatar is ever reintroduced it must still pass that check.
+check(cpuValidatedAvatarCount === 0,
+  `CPU skinning guard ran on ${cpuValidatedAvatarCount} avatars, but all avatars are generated`);
 
 if (problems.length) {
   console.error(`Highlands browser validation failed (${problems.length}):`);

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { buildPixelAvatar, isPixelAvatarStem } from "./pixelAvatar";
 
 // Procedural stand-ins for the building and decoration GLBs.
 //
@@ -414,8 +415,10 @@ const DECORATIONS: Record<string, () => THREE.Group> = {
  * A procedural scene for a model URL, or null when the asset should still come from a
  * GLB. Rigged avatars are excluded on purpose — they carry animation clips.
  */
+const stemOf = (url: string): string => (url.split("/").pop() ?? "").split("?")[0]!.replace(/\.glb$/i, "");
+
 export function proceduralSceneFor(url: string): THREE.Group | null {
-  const stem = (url.split("/").pop() ?? "").replace(/\.glb$/i, "");
+  const stem = stemOf(url);
   const build = STRUCTURES[stem] ?? DECORATIONS[stem];
   return build ? build() : null;
 }
@@ -429,16 +432,27 @@ export const PROCEDURAL_ASSET_IDS = [...Object.keys(STRUCTURES), ...Object.keys(
 export function installProceduralLoader(loader: GLTFLoader): GLTFLoader {
   const original = loader.loadAsync.bind(loader);
   loader.loadAsync = async (url: string, onProgress?: (event: ProgressEvent) => void): Promise<GLTF> => {
+    const stem = stemOf(url);
+    // Citizens are skinned pixel figures with their own Idle and Walk clips; scenery
+    // and buildings are static merged meshes. Anything else is a real download.
+    if (isPixelAvatarStem(stem)) {
+      const { scene, animations } = buildPixelAvatar(stem);
+      return asGLTF(scene, animations);
+    }
     const scene = proceduralSceneFor(url);
     if (!scene) return original(url, onProgress);
-    return {
-      scene,
-      scenes: [scene],
-      animations: [],
-      cameras: [],
-      asset: { generator: "markets-and-makers procedural" },
-      userData: {},
-    } as unknown as GLTF;
+    return asGLTF(scene, []);
   };
   return loader;
+}
+
+function asGLTF(scene: THREE.Group, animations: THREE.AnimationClip[]): GLTF {
+  return {
+    scene,
+    scenes: [scene],
+    animations,
+    cameras: [],
+    asset: { generator: "markets-and-makers procedural" },
+    userData: {},
+  } as unknown as GLTF;
 }
