@@ -132,10 +132,22 @@ for (const region of regions) {
   // one continent-wide alignment — the city reads as districts, not as graph paper.
   const phase = (Math.abs(bounds.x0 * 7 + bounds.y0 * 13)) % STREET_SPACING;
 
+  // A new street may not run flush against an existing one. Forbidding only the road
+  // cells themselves let a street hug an authored carriageway, and the two then read as
+  // one doubled road with two centre lines down it — three of those, one running
+  // alongside for 74 metres. Two cells of verge either side keeps them separate roads.
+  const VERGE = 2;
   const layable = (axis, fixed, k) => {
     const a = axis === 0 ? key(k, fixed) : key(fixed, k);
     const b = axis === 0 ? key(k, fixed + 1) : key(fixed + 1, k);
-    return region.has(a) && region.has(b) && !claimed.has(a) && !claimed.has(b);
+    if (!region.has(a) || !region.has(b) || claimed.has(a) || claimed.has(b)) return false;
+    for (let offset = 1; offset <= VERGE; offset += 1) {
+      for (const across of [fixed - offset, fixed + 1 + offset]) {
+        const neighbour = axis === 0 ? key(k, across) : key(across, k);
+        if (authoredRoad.has(neighbour) || claimed.has(neighbour)) return false;
+      }
+    }
+    return true;
   };
 
   for (const axis of [0, 1]) {

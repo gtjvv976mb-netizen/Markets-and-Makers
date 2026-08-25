@@ -33,29 +33,39 @@ function bands(cells, horizontal, minimumLength) {
   const found = [];
   const claimed = new Set();
   const sorted = [...cells].map((k) => k.split(",").map(Number)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  const at = (along, across) => (horizontal ? key(along, across) : key(across, along));
+
   for (const [x, y] of sorted) {
     const fixed = horizontal ? y : x;
     const start = horizontal ? x : y;
     if (claimed.has(`${fixed}:${start}`)) continue;
-    const partner = horizontal ? key(x, y + 1) : key(x + 1, y);
-    if (!cells.has(partner)) continue;
+    if (!cells.has(at(start, fixed + 1))) continue;
+
+    // How wide is this road here? A carriageway is two cells, but the world also has
+    // four- and eight-cell expanses — boulevards and forecourts. Taking two rows at a
+    // time split those into parallel bands sitting flush against each other, which is
+    // what put two centre lines down one road and made them look doubled.
+    let width = 1;
+    while (cells.has(at(start, fixed + width))) width += 1;
+
     let end = start;
     for (;;) {
       const next = end + 1;
-      const a = horizontal ? key(next, y) : key(x, next);
-      const b = horizontal ? key(next, y + 1) : key(x + 1, next);
-      if (!cells.has(a) || !cells.has(b)) break;
+      let ok = true;
+      for (let w = 0; w < width; w += 1) if (!cells.has(at(next, fixed + w))) { ok = false; break; }
+      if (!ok) break;
       end = next;
     }
-    // Claim BOTH rows of the band. Claiming only the first let the next row start a
-    // second band one cell down, overlapping this one along its whole length — which
-    // is where all 47 overlapping cells came from, and it doubles the lane markings
-    // and the lamps on the same ground.
+
     for (let k = start; k <= end; k += 1) {
-      claimed.add(`${fixed}:${k}`);
-      claimed.add(`${fixed + 1}:${k}`);
+      for (let w = 0; w < width; w += 1) claimed.add(`${fixed + w}:${k}`);
     }
-    if (end - start >= minimumLength) found.push({ fixed, start, end });
+    // Only a true carriageway gets a centre line down it. Anything wider is a
+    // boulevard or a forecourt: it keeps its asphalt, drawn from the cell runs, but a
+    // dashed line through the middle of a plaza would be nonsense.
+    if (end - start >= minimumLength && width <= 3) {
+      found.push({ fixed, start, end, width });
+    }
   }
   return found;
 }
