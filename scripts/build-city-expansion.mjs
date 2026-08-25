@@ -73,7 +73,7 @@ for (const [k, s] of surface) if (s === "road" || s === "bridge" || s === "path"
 // the roads that divide it from its neighbours, so a street laid up to that edge joins
 // the city without a connector. Every street must still meet something at one end.
 
-const STREET_SPACING = 20;   // block depth. Swept against 14, 24 and 30: at 20 the
+const STREET_SPACING = 14;   // block depth. Swept against 14, 24 and 30: at 20 the
                              // network is 43% smaller than at 14 and yields MORE
                              // frontage, because a deeper block fits more plots along
                              // each side than a tight grid fits between its roads.
@@ -113,7 +113,12 @@ for (const start of free) {
 }
 regions.sort((a, b) => b.size - a.size);
 
-const claimed = new Set();
+// Which direction claimed each cell. A crossing shares its cells with the road it
+// crosses — that is what a junction is — so only a road running the SAME way may not
+// take ground already spoken for. Treating every claimed cell as blocked stopped every
+// street at its first crossing, leaving a network with no junctions at all.
+const claimedAxis = new Map();
+const claimed = { has: (c) => claimedAxis.has(c), add: (c, axis) => claimedAxis.set(c, axis) };
 const cellsOf = (street) => {
   const fixed = Math.floor(street.centre);
   const out = [];
@@ -140,11 +145,20 @@ for (const region of regions) {
   const layable = (axis, fixed, k) => {
     const a = axis === 0 ? key(k, fixed) : key(fixed, k);
     const b = axis === 0 ? key(k, fixed + 1) : key(fixed + 1, k);
-    if (!region.has(a) || !region.has(b) || claimed.has(a) || claimed.has(b)) return false;
+    if (!region.has(a) || !region.has(b)) return false;
+    if (claimedAxis.get(a) === axis || claimedAxis.get(b) === axis) return false;
     for (let offset = 1; offset <= VERGE; offset += 1) {
       for (const across of [fixed - offset, fixed + 1 + offset]) {
         const neighbour = axis === 0 ? key(k, across) : key(across, k);
-        if (authoredRoad.has(neighbour) || claimed.has(neighbour)) return false;
+        if (!authoredRoad.has(neighbour) && !claimed.has(neighbour)) continue;
+        // A road beside us is only a problem if it runs the same way. A crossing road
+        // also occupies these cells, and rejecting those stopped streets from ever
+        // meeting — which left the network with no junctions at all.
+        const ahead = axis === 0 ? key(k + 1, across) : key(across, k + 1);
+        const behind = axis === 0 ? key(k - 1, across) : key(across, k - 1);
+        const runsParallel = (authoredRoad.has(ahead) || claimed.has(ahead))
+          && (authoredRoad.has(behind) || claimed.has(behind));
+        if (runsParallel) return false;
       }
     }
     return true;
@@ -161,7 +175,7 @@ for (const region of regions) {
         if (start !== null && end - start >= MIN_RUN) {
           const street = { axis, centre: fixed + 0.5, from: start, to: end };
           candidates.push(street);
-          for (const c of cellsOf(street)) claimed.add(c);
+          for (const c of cellsOf(street)) claimed.add(c, axis);
         }
         start = null;
       };
@@ -304,13 +318,26 @@ const junctionsOn = (street, others) => {
     const otherFixed = Math.floor(other.centre);
     if (crosses(otherFixed, other.from, other.to)) found.push(otherFixed);
   }
-  // Authored carriageways count too: find a perpendicular run of road that spans us.
+  // Meeting the authored network counts, and it happens at the ENDS. A run stops when
+  // it reaches an authored road, because those cells are not free ground — so the two
+  // meet as a T, never as a crossing. Requiring road on both sides could therefore
+  // never be true, which hid every junction with the existing city and left the 2-core
+  // deleting streets that were properly connected to it.
+  for (const [end, step] of [[street.from, -1], [street.to, 1]]) {
+    for (let reach = 1; reach <= 3; reach += 1) {
+      const at = end + step * reach;
+      const probes = street.axis === 0
+        ? [key(at, fixed), key(at, fixed + 1)]
+        : [key(fixed, at), key(fixed + 1, at)];
+      if (probes.some((c) => authoredRoad.has(c))) { found.push(end); break; }
+    }
+  }
+  // And along its length, where an authored road crosses it.
   for (let k = street.from; k <= street.to; k += 1) {
-    const ahead = street.axis === 0 ? [key(k, fixed - 1), key(k, fixed + 2)] : [key(fixed - 1, k), key(fixed + 2, k)];
-    const beyond = street.axis === 0 ? [key(k, fixed - 2), key(k, fixed + 3)] : [key(fixed - 2, k), key(fixed + 3, k)];
-    // Road on both sides of us at this point means a road crosses, not runs alongside.
-    const spans = ahead.every((c) => authoredRoad.has(c)) || beyond.every((c) => authoredRoad.has(c));
-    if (spans) found.push(k);
+    const sides = street.axis === 0
+      ? [key(k, fixed - 1), key(k, fixed + 2), key(k, fixed - 2), key(k, fixed + 3)]
+      : [key(fixed - 1, k), key(fixed + 2, k), key(fixed - 2, k), key(fixed + 3, k)];
+    if (sides.filter((c) => authoredRoad.has(c)).length >= 2) found.push(k);
   }
   return [...new Set(found)].sort((a, b) => a - b);
 };
@@ -329,24 +356,33 @@ const frontageOn = (street) => {
   return found;
 };
 
-for (let pass = 0; pass < 3; pass += 1) {
+// Trim to the 2-core: every street must run from one junction to another, with nothing
+// dangling off either end. This is the graph version of "no broken roads" — repeatedly
+// shorten each street to its outermost crossings and drop any street left with fewer
+// than two, because removing one street turns its neighbour's junction into a dead end
+// and the process has to settle.
+{
+  const sample = newRoads.slice(0, 3).map((st) => `${st.axis === 0 ? "EW" : "NS"}@${st.centre} ${st.from}..${st.to} junctions=${junctionsOn(st, newRoads).length}`);
+}
+// The 2-core: drop any street with fewer than two junctions, and repeat, because
+// removing one turns its neighbour's junction into a dead end. Only dropping here —
+// trimming inside the loop shrinks a street until it loses the very junctions that
+// justified it, and the whole network spirals to nothing in a dozen passes.
+for (let pass = 0; pass < 20; pass += 1) {
   const before = newRoads.length;
-  newRoads = newRoads.filter((street) => {
-    const junctions = junctionsOn(street, newRoads);
-    const frontage = frontageOn(street);
-    // Earns its place by carrying traffic between two roads, or by carrying frontage.
-    return junctions.length >= 2 || frontage.length > 0;
-  });
-  newRoads = newRoads.map((street) => {
-    const useful = [...junctionsOn(street, newRoads), ...frontageOn(street)].sort((a, b) => a - b);
-    if (useful.length === 0) return street;
-    // Two cells past the last useful point: enough to turn into, not a stub.
-    const from = Math.max(street.from, useful[0] - 2);
-    const to = Math.min(street.to, useful[useful.length - 1] + 2);
-    return to - from >= MIN_RUN ? { ...street, from, to } : street;
-  });
+  newRoads = newRoads.filter((street) => junctionsOn(street, newRoads).length >= 2);
   if (newRoads.length === before) break;
 }
+
+// Now trim once, to the outermost crossing at each end. What is left runs junction to
+// junction with nothing dangling.
+newRoads = newRoads
+  .map((street) => {
+    const meets = junctionsOn(street, newRoads);
+    if (meets.length < 2) return null;
+    return { ...street, from: Math.max(street.from, meets[0]), to: Math.min(street.to, meets[meets.length - 1]) };
+  })
+  .filter((street) => street !== null && street.to - street.from >= 4);
 
 // Finally, keep only what the city can actually reach. Anything else is a road nobody
 // can drive to, however well formed it looks on its own.
