@@ -24,23 +24,23 @@
     "maximum_buffer_bytes": 18874368
   },
   "counts": {
-    "nodes": 327,
-    "meshes": 276,
-    "materials": 31,
-    "images": 40,
+    "nodes": 309,
+    "meshes": 267,
+    "materials": 22,
+    "images": 13,
     "buffers": 2,
-    "bufferViews": 5093
+    "bufferViews": 5057
   },
   "files": [
     {
       "file": "buffers/world-0.bin",
-      "bytes": 18870396,
-      "sha256": "2a0e7aa8b3dd968f8aa7139322e4dff8c72546d54650b244349445608ccf3dec"
+      "bytes": 16480836,
+      "sha256": "a339b1936630c1f28d151ebfd3cb45cd5d8f98e88490d945a671a6a8355bdd19"
     },
     {
       "file": "buffers/world-1.bin",
-      "bytes": 8540704,
-      "sha256": "5b655aead1ab2ecf95d353caba5ad6b61d0e7d2e97bc254e908311830b1a6f0d"
+      "bytes": 459116,
+      "sha256": "d7632bee50bdc9ebb6a40473942ca9dcf5a351bafb2d6a6f8927f7f982806aa3"
     },
     {
       "file": "hydrology.json",
@@ -264,8 +264,8 @@
     },
     {
       "file": "world.gltf",
-      "bytes": 1035521,
-      "sha256": "9e3e083569e785d766df582e814191d154e4fc8b6a468e7acc58e0c8e7c3780e"
+      "bytes": 1017799,
+      "sha256": "06862d28c2c6c458d2971e4e52bcf3f924ff317824af65eb74f6185c046d859c"
     }
   ]
 }

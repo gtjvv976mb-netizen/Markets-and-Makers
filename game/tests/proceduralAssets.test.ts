@@ -3,6 +3,9 @@ import { BUSINESS } from "../src/data";
 import { proceduralSceneFor } from "../src/proceduralAssets";
 import { snapToTileCentre as designSnap, tileYaw } from "../src/worldDesigns";
 import worldDesignManifest from "../public/assets/world/highlands-rivers-v1/world-designs-v1/manifest.json";
+// .gltf is not a JSON extension vite will parse, so read it as text.
+import worldGltfText from "../public/assets/world/highlands-rivers-v1/world.gltf?raw";
+import { civicStructureFor, CIVIC_NODE_NAMES } from "../src/proceduralAssets";
 
 const manifest = worldDesignManifest as { assets: Array<{ id: string; category: string; file: string }> };
 
@@ -82,5 +85,44 @@ describe("the tile rule", () => {
   it("rounds a half-tile offset up to the next centre", () => {
     expect(designSnap(3)).toBe(4);
     expect(designSnap(1)).toBe(2);
+  });
+});
+
+describe("civic landmarks", () => {
+  const world = JSON.parse(worldGltfText) as { nodes: Array<{ name?: string }>; materials: unknown[]; images: unknown[] };
+
+  it("builds all nine the world reserves sites for", () => {
+    expect(CIVIC_NODE_NAMES).toHaveLength(9);
+    for (const name of CIVIC_NODE_NAMES) expect(civicStructureFor(name)).not.toBeNull();
+  });
+
+  it("builds each as one merged mesh with real geometry", () => {
+    for (const name of CIVIC_NODE_NAMES) {
+      const scene = civicStructureFor(name)!;
+      let meshes = 0;
+      let vertices = 0;
+      scene.traverse((object) => {
+        const mesh = object as { isMesh?: boolean; geometry?: { attributes: Record<string, { count: number }> } };
+        if (!mesh.isMesh || !mesh.geometry) return;
+        meshes += 1;
+        vertices += mesh.geometry.attributes.position!.count;
+      });
+      expect(`${name}:${meshes}`).toBe(`${name}:1`);
+      expect(vertices).toBeGreaterThan(200);
+    }
+  });
+
+  // The 293k triangles of baked landmarks were stripped from world.gltf because the
+  // client generates them. If the world is ever re-baked with them, this fails rather
+  // than quietly shipping both — one drawn over the other, and the download back.
+  it("no longer carries the baked landmark geometry", () => {
+    const baked = world.nodes.filter((node) => (node.name ?? "").startsWith("MM_CIVIC_"));
+    expect(baked.map((node) => node.name)).toEqual([]);
+  });
+
+  it("dropped the materials and textures that only dressed them", () => {
+    // 40 images minus the nine colour/normal/orm sets the landmarks used.
+    expect(world.images).toHaveLength(13);
+    expect(world.materials).toHaveLength(22);
   });
 });

@@ -32,10 +32,16 @@ const inside = (base, relativePath) => {
 const packageManifest = JSON.parse(await readFile(join(root, "browser-package.json"), "utf8"));
 check(packageManifest.schema === "markets-and-makers.highlands-rivers-world.browser-package.v1", "unexpected browser package schema");
 check(packageManifest.source?.sha256 === "a351cc398ac3b6987ab5177e60bba3b42d623843046a0a003d0b8ea77c14a05e", "source Highlands preview hash drifted");
-check(packageManifest.counts?.nodes === 327, "expected 327 world nodes including the restored NV05 terrain patch");
-check(packageManifest.counts?.meshes === 276, "expected 276 world meshes including the restored NV05 terrain patch");
-check(packageManifest.counts?.materials === 31, "expected 31 authored materials");
-check(packageManifest.counts?.images === 40, "expected 40 shared textures");
+// These pinned the authored world's shape while the nine civic landmarks were baked
+// into it. scripts/strip-civic-geometry.mjs removed that geometry — 293k triangles the
+// client now generates instead — along with the meshes, materials and textures that
+// became unreachable, so the expected shape is the world without them. The landmarks
+// themselves are still checked: layout keeps its nine government buildings, and
+// tests/proceduralAssets.test.ts proves the client can build every one.
+check(packageManifest.counts?.nodes === 309, "expected 309 world nodes after the civic landmarks were unbaked");
+check(packageManifest.counts?.meshes === 267, "expected 267 world meshes after the civic landmarks were unbaked");
+check(packageManifest.counts?.materials === 22, "expected 22 authored materials once the civic sets were dropped");
+check(packageManifest.counts?.images === 13, "expected 13 shared textures once the civic sets were dropped");
 check(packageManifest.counts?.buffers === 2, "expected two browser-safe geometry buffers");
 check(packageManifest.runtimePatches?.[0]?.id === "NV05" && packageManifest.runtimePatches[0]?.vertices === 100,
   "safe NV05 plot relocation is not declared");
