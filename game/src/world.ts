@@ -67,7 +67,17 @@ const CITIZEN_AVATARS: ReadonlyArray<{ file: string; frontAxis: CharacterFrontAx
 ];
 
 const CITIZEN_AVATAR_BASE = "./assets/avatars/mercedonians/runtime";
-const PLAYER_WALK_SPEED_MPS = 2;
+const PLAYER_WALK_SPEED_MPS = 10;
+/**
+ * The furthest the avatar may be moved by a single collision test.
+ *
+ * tryMoveTo samples one point, so a step longer than an obstacle's blocked band jumps
+ * straight over it. The narrowest band in the world is a bench across its thin axis —
+ * half-depth 0.15 plus the body's 0.42 either side, so 1.14m — which a 10 m/s avatar
+ * clears in a single frame below about 9fps. Substepping removes the frame-rate
+ * dependency entirely: the test costs 0.0007ms, so a few more of them is nothing.
+ */
+const MAX_COLLISION_STEP = 0.4;
 const VISIBLE_CITIZENS = 24;
 /**
  * Mercedonians on a phone. Each one is a skinned mesh, and skinning is the most
@@ -1689,6 +1699,31 @@ export class World3D {
     return true;
   }
 
+  /**
+   * Move along a heading, in steps small enough that nothing can be jumped over.
+   *
+   * A refused step is retried one axis at a time, which is what turns walking into a
+   * wall into sliding along it. The substep loop stops at the first fully blocked
+   * increment rather than continuing past it, so a wall still stops the avatar dead
+   * on the axis facing it.
+   */
+  private stepAlong(dirX: number, dirZ: number, distance: number): boolean {
+    if (distance <= 0) return false;
+    const steps = Math.max(1, Math.ceil(distance / MAX_COLLISION_STEP));
+    const stride = distance / steps;
+    let moved = false;
+    for (let i = 0; i < steps; i += 1) {
+      const nextX = this.avatar.position.x + dirX * stride;
+      const nextZ = this.avatar.position.z + dirZ * stride;
+      const stepped = this.tryMoveTo(nextX, nextZ)
+        || this.tryMoveTo(nextX, this.avatar.position.z)
+        || this.tryMoveTo(this.avatar.position.x, nextZ);
+      if (!stepped) break;
+      moved = true;
+    }
+    return moved;
+  }
+
   private updateMovement(delta: number, state: GameState): number {
     if (!this.inputEnabled) return 0;
     const previousX = this.avatar.position.x;
@@ -1697,15 +1732,7 @@ export class World3D {
     let moved = this.unstick(state);
     if (direction.lengthSq() > 0) {
       this.clearWalk();
-      const distance = delta * PLAYER_WALK_SPEED_MPS;
-      const nextX = this.avatar.position.x + direction.x * distance;
-      const nextZ = this.avatar.position.z + direction.z * distance;
-      // Walking a wall at an angle should slide along it, so a refused diagonal is
-      // retried one axis at a time rather than stopping the player dead.
-      moved = this.tryMoveTo(nextX, nextZ)
-        || this.tryMoveTo(nextX, this.avatar.position.z)
-        || this.tryMoveTo(this.avatar.position.x, nextZ)
-        || moved;
+      moved = this.stepAlong(direction.x, direction.z, delta * PLAYER_WALK_SPEED_MPS) || moved;
     } else if (this.walkPath.length > 0) {
       const leg = this.walkPath[0]!;
       const toLegX = leg.x - this.avatar.position.x;
@@ -1716,11 +1743,7 @@ export class World3D {
         if (this.walkPath.length === 0) this.clearWalk();
       } else {
         const distance = Math.min(delta * PLAYER_WALK_SPEED_MPS, remaining);
-        const nextX = this.avatar.position.x + (toLegX / remaining) * distance;
-        const nextZ = this.avatar.position.z + (toLegZ / remaining) * distance;
-        const stepped = this.tryMoveTo(nextX, nextZ)
-          || this.tryMoveTo(nextX, this.avatar.position.z)
-          || this.tryMoveTo(this.avatar.position.x, nextZ);
+        const stepped = this.stepAlong(toLegX / remaining, toLegZ / remaining, distance);
         moved = stepped || moved;
         if (stepped) this.stalledFor = 0;
         else {

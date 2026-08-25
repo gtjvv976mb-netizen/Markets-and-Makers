@@ -31,7 +31,15 @@ export interface PositionSample {
   sequence: number;
 }
 
-export function validateMove(previous: PositionSample, next: PositionSample, maxSpeed = 8): boolean {
+/**
+ * The ceiling must sit above the client's own walk speed or every honest move is read
+ * as a teleport — and because a rejected move never advances the stored position, the
+ * player is then pinned for the rest of the session, measured forever from where they
+ * last succeeded. PLAYER_WALK_SPEED_MPS in game/src/world.ts is 10; 15 leaves half
+ * again for latency bursts and for the 0.05s floor on `elapsed` below, while still
+ * refusing anything that looks like a jump across the district.
+ */
+export function validateMove(previous: PositionSample, next: PositionSample, maxSpeed = 15): boolean {
   if (next.sequence <= previous.sequence || next.at < previous.at) return false;
   const elapsed = Math.max(0.05, Math.min(1.5, (next.at - previous.at) / 1000));
   const distance = Math.hypot(next.x - previous.x, next.z - previous.z);
