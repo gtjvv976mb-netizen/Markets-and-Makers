@@ -260,6 +260,67 @@ export const DEMAND_TIER_WEIGHT: Record<ResourceConfig["tier"], number> = {
   civic: 1, raw: 1.15, intermediate: 1.7, capital: 2.6, consumer: 1.05, recovered: .6,
 };
 
+/**
+ * Derived demand: what the district's own businesses buy as INPUTS.
+ *
+ * Households and the civic buyer are not the only customers. A shop burns two food a
+ * cycle, a cratemill two timber, a workshop two ore — every trade in the chain is a
+ * standing customer for the trade above it. Until this existed the market could not see
+ * any of that: a greenhouse's only buyer was a civic budget that saturated in a morning,
+ * and the supply chain lived in the recipes without ever reaching the price of anything.
+ *
+ * Summed from BUSINESS itself rather than typed out, so it cannot drift from the recipes.
+ */
+export const CHAIN_DRAW: Record<ResourceKey, number> = (() => {
+  const keys = Object.keys(RESOURCES) as ResourceKey[];
+  const draw = {} as Record<ResourceKey, number>;
+  for (const key of keys) draw[key] = 0;
+  for (const config of Object.values(BUSINESS)) {
+    for (const key of keys) draw[key] += config.inputs[key] ?? 0;
+  }
+  return draw;
+})();
+
+/**
+ * Cycles a day the district's trades are assumed to run when nobody is watching them.
+ * Deliberately modest: this is the floor of demand a lone maker can count on, not a
+ * bustling city. Real neighbours are counted on top, which is what makes arriving in a
+ * district with a working chain worth more than arriving in an empty one.
+ */
+export const CHAIN_CYCLES_PER_DAY = 26;
+
+/** How many of each trade the district runs before any real player turns up. */
+export const DISTRICT_BASE_TRADES = 1;
+
+/** What one more real business in the district adds, as a share of a base trade. */
+export const DISTRICT_NEIGHBOUR_WEIGHT = 0.5;
+
+/**
+ * How hard one trade moves a price, as a share of the good's volatility.
+ *
+ * Price impact used to be an absolute sqrt(amount) step, which was tuned for selling a
+ * few units by hand and was ruinous under auto-production: eight food moved food the full
+ * 28% to the clamp, so an ordinary day floored the price of the maker's own goods and the
+ * profitability gate then correctly refused to produce anything ever again. Impact is now
+ * measured against the depth of the market, which is also what makes cooperation pay —
+ * every business that consumes a good deepens its market and lifts the price everyone gets.
+ */
+export const DEPTH_PRICE_IMPACT = 1.2;
+
+/**
+ * The most a hungry chain will pay over the reference price.
+ *
+ * A district whose businesses want a good pays more for it than one where only the civic
+ * buyer does. This is the collaboration dividend, and it is the whole reason to WANT
+ * neighbours rather than merely tolerate them: without it, extra demand only helps a maker
+ * who is short of customers, and a maker who is short of hours — which is most of them —
+ * felt nothing at all when the district filled up. Measured at 0.4% before this existed.
+ */
+export const CHAIN_PREMIUM_MAX = 0.35;
+
+/** Most of a day's price shock has washed out by the next morning. */
+export const MARKET_REVERSION_CAP = 0.6;
+
 // --- Play-to-earn: $MM is EARNED from a budgeted per-epoch pool, never purchased.
 //     Your payout is your share of the epoch budget, so a bigger grind dilutes rather
 //     than extracts. See game/docs/ECONOMY_V2.md.

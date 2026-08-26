@@ -1226,6 +1226,8 @@ function renderInterior(): void {
     <div class="equipment-title"><i>${upgrade.icon}</i><div><h3>${escapeMarkup(design.name)}</h3><small>${level === 0 ? "Blueprint ready · not installed" : `Physical equipment · level ${level} of ${ceiling}`}</small></div></div>
     <p class="equipment-copy">${escapeMarkup(design.description)}</p>
     <div class="equipment-benefit"><small>Business improvement</small><strong>${escapeMarkup(upgrade.effect)}</strong></div>
+    ${(() => { const outlook = store.upgradeOutlook(selectedKey);
+      return outlook ? `<p class="equipment-outlook">${escapeMarkup(outlook)}</p>` : ""; })()}
     <div class="equipment-meter" aria-label="${level} of ${ceiling} equipment levels installed">${Array.from({ length: MAX_UPGRADE_LEVEL }, (_, index) => `<i class="${index < level ? "on" : index >= ceiling ? "locked" : ""}"></i>`).join("")}</div>
     ${atMaximum
       ? `<div class="equipment-cost"><small>${needsCharter ? "Next step" : "Installation complete"}</small><strong>${needsCharter ? `Earn a master charter to unlock level ${MAX_UPGRADE_LEVEL}.` : "This machine is fully developed."}</strong></div>`

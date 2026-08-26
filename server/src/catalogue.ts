@@ -35,7 +35,27 @@ export const RESOURCES: Record<string, ResourceSpec> = {
 export const PRESSURE_MIN = 0.72;
 export const PRESSURE_MAX = 1.55;
 export const MEAN_REVERSION_PER_MINUTE = 0.012;
-export const MEAN_REVERSION_CAP = 0.35;
+// Most of a day's price shock has washed out by the next morning. At the old 0.35 a market
+// pushed to its floor by one day's trading was still depressed the next, so depression
+// compounded and every producer converged on the clamp. Mirrors the client's value.
+export const MEAN_REVERSION_CAP = 0.6;
+
+/**
+ * How hard one trade moves a price, as a share of the good's volatility.
+ *
+ * Impact used to be an absolute sqrt(quantity) step, which was tuned for hand-sized trades
+ * and ruinous under the world tick: one ordinary day of production floored the price of the
+ * maker's own goods, and the profitability gate then correctly refused to produce anything
+ * ever again. Measured on the client model, which had the identical bug: a greenhouse's
+ * food went 12 -> 9 on day one and never recovered, turning +390/day into -20/day.
+ */
+export const DEPTH_PRICE_IMPACT = 1.2;
+
+/** Cycles a day the district's trades are assumed to run. Mirrors the client. */
+export const CHAIN_CYCLES_PER_DAY = 26;
+
+/** The most a chain hungry for a good will pay over the reference price. */
+export const CHAIN_PREMIUM_MAX = 0.35;
 
 export const DEMAND_TRANCHE_DECAY = 0.72;
 export const DEMAND_PRICE_FLOOR = 0.34;

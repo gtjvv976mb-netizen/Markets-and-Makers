@@ -528,6 +528,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .equipment-copy { margin: 11px 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .equipment-benefit { padding: 10px 11px; border-left: 4px solid var(--equipment-color, var(--mint)); border-radius: 0 11px 11px 0; background: rgba(255,255,255,.66); }
 .equipment-benefit small, .equipment-benefit strong { display: block; }
+/* Said plainly when a machine cannot help this business yet — advice, not an alarm. */
+.equipment-outlook { margin: 9px 0 0; padding: 9px 11px; border-radius: 11px; background: rgba(240,176,74,.14);
+  border: 1px solid rgba(240,176,74,.4); color: var(--ink, #2c2a26); font-size: .82rem; line-height: 1.4; }
 .equipment-benefit small { color: var(--muted); font-size: 10px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
 .equipment-benefit strong { margin-top: 2px; font-size: 13.5px; }
 .equipment-meter { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin: 13px 0; }

@@ -10,6 +10,7 @@ import {
   MAX_MARKET_SHARE, MIN_MARKET_SHARE,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
+  CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
@@ -66,6 +67,10 @@ export interface GameState {
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
   inventory: Record<ResourceKey, number>; marketPressure: Record<ResourceKey, number>; marketLastUpdated: number; servicePriceIndex: number;
+  /** Other makers trading in this district. Deepens every market they buy into. */
+  districtBusinesses: number;
+  /** Fractional output banked between cycles, so a yield bonus is never rounded away. */
+  yieldCarry: Record<ResourceKey, number>;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
   condition: number; jobsCompleted: number; visitorsServed: number; lifetimeRevenue: number;
@@ -137,6 +142,8 @@ export function createFreshState(): GameState {
     marketPressure: balancedMarket(),
     marketLastUpdated: Date.now(),
     servicePriceIndex: 1,
+    districtBusinesses: 0,
+    yieldCarry: blankProcurement(),
     island: "hearth",
     player: { x: 0, z: -16 },
     selectedPlotId: "garden-row",
@@ -320,6 +327,12 @@ export function loadState(): GameState {
       })) : [],
       reputation: Math.floor(finite(saved.reputation, 0)), inventory, marketPressure,
       marketLastUpdated: finite(saved.marketLastUpdated, Date.now()), servicePriceIndex: finite(saved.servicePriceIndex, 1, .85, 1.3),
+      districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
+      yieldCarry: (() => {
+        const carry = blankProcurement();
+        for (const key of resourceKeys) carry[key] = finite(saved.yieldCarry?.[key], 0, 0, 1);
+        return carry;
+      })(),
       island,
       player: { x: finite(saved.player?.x, islandConfig.spawnX, -500, 500), z: finite(saved.player?.z, islandConfig.spawnZ, -500, 500) },
       selectedPlotId: PLOTS.some((plot) => plot.id === saved.selectedPlotId) ? saved.selectedPlotId! : fresh.selectedPlotId,
@@ -593,13 +606,24 @@ export class GameStore {
 
   private rebalanceMarket(now = Date.now()): void {
     const minutes = Math.max(0, (now - this.state.marketLastUpdated) / 60_000);
-    const meanReversion = Math.min(.35, minutes * .012);
+    // A district's prices largely normalise overnight. The old 35% ceiling meant a market
+    // pushed to its floor by one day's trading was still depressed the next morning, so
+    // depression compounded and every producer converged on the clamp.
+    const meanReversion = Math.min(MARKET_REVERSION_CAP, minutes * .012);
     for (const key of resourceKeys) this.state.marketPressure[key] += (1 - this.state.marketPressure[key]) * meanReversion;
     this.state.marketLastUpdated = now;
   }
 
   private moveMarket(key: ResourceKey, direction: 1 | -1, amount: number): void {
-    const change = RESOURCES[key].volatility * Math.sqrt(amount) * .09 * direction;
+    // Impact is the size of the trade RELATIVE to the depth of the market, not an absolute
+    // step. The absolute version was tuned for selling a handful of units by hand and was
+    // ruinous under auto-production: a single day of ordinary output drove the price of the
+    // maker's own goods to the clamp, the profitability gate then correctly refused to run,
+    // and the business sat halted paying standing charges until it died. Measured, not
+    // argued: greenhouse food went 12 -> 9 on day one and never recovered.
+    const depth = Math.max(1, this.districtDemand(key));
+    const impact = Math.sqrt(Math.min(1, amount / depth));
+    const change = RESOURCES[key].volatility * impact * DEPTH_PRICE_IMPACT * direction;
     this.state.marketPressure[key] = clamp(this.state.marketPressure[key] + change, .72, 1.55);
   }
 
@@ -712,12 +736,36 @@ export class GameStore {
     return this.result(true, "Business built.");
   }
 
+  /**
+   * What a good is worth here because the district's own businesses want it.
+   *
+   * This lifts what a maker is PAID for goods; it deliberately does not touch the civic
+   * supplier's counter price. The civic supplier is a regulated utility — water and power
+   * at a set rate is the whole point of it — and charging a scarcity premium there did
+   * something perverse when measured: power and water are the most-demanded goods in the
+   * chain, so a greenhouse's inputs inflated faster than its output and a district filling
+   * up made primary producers POORER. Utilities hold the line; the market pays the premium.
+   */
+  chainPremium(key: ResourceKey): number {
+    const total = Math.max(1, this.districtDemand(key));
+    const share = Math.min(1, this.derivedDemand(key) / total);
+    return 1 + share * CHAIN_PREMIUM_MAX;
+  }
+
   marketBuyPrice(key: ResourceKey): number { return Math.max(1, Math.round(RESOURCES[key].governmentPrice * this.state.marketPressure[key] * this.eventMultiplier(key))); }
   marketSellPrice(key: ResourceKey): number {
     const appeal = 1 + this.state.upgrades.appeal * .05;
     const stabilizer = RESOURCES[key].buyer === "government" ? this.stabilizerMultiplier() : 1;
     const quality = this.state.specialization === "premium" ? 1.08 : 1;
-    return Math.max(1, Math.round(RESOURCES[key].procurementPrice * this.state.marketPressure[key] * appeal * stabilizer * quality * this.eventMultiplier(key)));
+    const asked = Math.round(RESOURCES[key].procurementPrice * this.state.marketPressure[key]
+      * appeal * stabilizer * quality * this.chainPremium(key) * this.eventMultiplier(key));
+    // The spread is not decoration: the civic supplier must never sell a good for less than
+    // the district pays for it, or buying from the counter and selling it straight back is
+    // free money. The chain premium is real but it stops at the counter price — caught by
+    // the round-trip test the moment the premium went in, on `part`, which the chain wants
+    // badly enough to have lifted it clean over its own supplier's asking price.
+    const ceiling = Math.max(1, this.marketBuyPrice(key) - 1);
+    return Math.max(1, Math.min(ceiling, asked));
   }
 
   buyResource(key: ResourceKey, quantity = 1): ActionResult {
@@ -826,7 +874,7 @@ export class GameStore {
       for (const key of resourceKeys) {
         const base = (config.output[key] ?? 0) * job.cycles;
         const quality = this.state.specialization === "premium" ? .1 : 0;
-        if (base > 0) this.state.inventory[key] += Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12 + quality)));
+        if (base > 0) this.state.inventory[key] += this.yieldOf(key, base, quality);
       }
     }
     if (config.wastePerCycle) this.state.inventory.waste += config.wastePerCycle * job.cycles;
@@ -949,10 +997,10 @@ export class GameStore {
     const citizenDemand = RESOURCES[key].buyer === "citizens";
     const sale = this.demandSaleGross(key, amount);
     const gross = sale.gross; const tax = Math.floor(gross * TAX_RATE);
-    const buyerPool = citizenDemand ? this.state.citizenPool : this.state.governmentTreasury;
-    if (buyerPool < gross) return this.result(false, `${citizenDemand ? "Mercedonian demand" : "Government procurement"} is temporarily exhausted.`);
+    if (!this.takeFromBuyers(key, gross)) {
+      return this.result(false, `${citizenDemand ? "Mercedonian demand" : "Government procurement"} is temporarily exhausted.`);
+    }
     this.state.inventory[key] -= amount;
-    if (citizenDemand) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
     this.state.wallet += gross - tax; this.state.governmentTreasury += tax; this.state.taxPaid += tax; this.state.lifetimeRevenue += gross;
     this.state.procurement.used[key] += amount;
     if (citizenDemand) this.recordCitizenActivity("retail", amount, gross, key, Date.now(), this.citizenBusinessForResource(key));
@@ -1451,6 +1499,72 @@ export class GameStore {
     return this.result(true, "Business switched.");
   }
 
+  /**
+   * Units produced from a batch, with the fractional part banked rather than thrown away.
+   *
+   * Rounding each cycle on its own quietly voided the yield upgrade for every business
+   * with a small batch: a greenhouse makes four food a cycle, and 4 x 1.12 is 4.48, which
+   * rounds to four. The player paid for the upgrade, watched the number not move, and was
+   * right. Carrying the remainder means a 12% bonus delivers 12% however small the batch.
+   */
+  private yieldOf(key: ResourceKey, base: number, quality = 0): number {
+    if (base <= 0) return 0;
+    const exact = base * (1 + this.state.upgrades.yield * .12 + quality);
+    const carried = exact + (this.state.yieldCarry[key] ?? 0);
+    const made = Math.floor(carried);
+    this.state.yieldCarry[key] = carried - made;
+    return Math.max(base, made);
+  }
+
+  /**
+   * An honest word about whether this upgrade will do anything for you RIGHT NOW.
+   *
+   * Speed buys cycles you only want if you ran out of hours; capacity buys shelf you only
+   * want if the shelf filled up. A business that stops because it has sold everything the
+   * district will take today gets nothing at all from either, and measurement bore that
+   * out exactly: both upgrades came back at precisely minus their purchase price over
+   * sixty days on a demand-limited trade. Selling someone a machine that cannot help them
+   * without saying so is a trap, so the shop says so.
+   */
+  upgradeOutlook(key: UpgradeKey): string | null {
+    const limit = this.state.lastShift?.halted;
+    if (!limit || !this.state.license) return null;
+    if (limit === "demand") {
+      if (key === "speed") return "Your line already outruns local demand — more speed will sit idle. Appeal wins you a bigger share of it.";
+      if (key === "capacity") return "Your shelf is not what is holding you back; the district's appetite is. Appeal wins you a bigger share of it.";
+    }
+    if (limit === "storage" && key !== "capacity") return "Your shelf fills before the day ends — storage is what is holding you back.";
+    if (limit === "running" && key === "capacity") return "You run out of hours before you run out of shelf — speed is worth more to you.";
+    return null;
+  }
+
+  /**
+   * Who actually pays for a sale.
+   *
+   * Households pay for the appetite that is theirs; the businesses down the chain pay for
+   * theirs. Routing the whole price of a good to whichever single pool matched the
+   * resource's nominal buyer meant a shop buying food came out of the household purse —
+   * so the busier the district got, the faster households ran dry, and sales began failing
+   * outright. Measured: a greenhouse with twelve neighbours earned LESS than one with four,
+   * which is the opposite of what a supply chain is supposed to do.
+   *
+   * Returns false when the buyers genuinely cannot afford it, which the caller reports as
+   * exhausted demand rather than treating as an error.
+   */
+  private takeFromBuyers(key: ResourceKey, gross: number): boolean {
+    if (gross <= 0) return true;
+    const total = Math.max(1, this.districtDemand(key));
+    const businesses = Math.min(total, this.derivedDemand(key));
+    const householdShare = RESOURCES[key].buyer === "citizens" ? Math.max(0, total - businesses) / total : 0;
+    const fromHouseholds = Math.round(gross * householdShare);
+    const fromBusinesses = gross - fromHouseholds;
+    if (this.state.citizenPool < fromHouseholds) return false;
+    if (this.state.governmentTreasury < fromBusinesses) return false;
+    this.state.citizenPool -= fromHouseholds;
+    this.state.governmentTreasury -= fromBusinesses;
+    return true;
+  }
+
   storageCapacity(): number {
     return STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
   }
@@ -1502,6 +1616,19 @@ export class GameStore {
   /** Sell unattended through a broker, who keeps a cut. Selling by hand always pays more. */
   private brokerSell(key: ResourceKey, amount: number, at = Date.now()): { sold: number; revenue: number } {
     if (amount <= 0) return { sold: 0, revenue: 0 };
+
+    // Never sell what a named buyer is already waiting for. An accepted order is a promise,
+    // and auto-sell used to break it the instant the goods came off the line: stock could
+    // never accumulate, so a contract could not be filled by anyone running the business
+    // unattended. Contracts carry the highest contribution weight in the game, so that
+    // quietly put the most valuable thing a player can do out of reach — and made turning
+    // up worth exactly nothing for a fully automated trade.
+    const promised = this.state.activeContract?.resource === key ? this.state.activeContract.quantity : 0;
+    if (promised > 0) {
+      amount = Math.min(amount, Math.max(0, this.state.inventory[key] - promised));
+      if (amount <= 0) return { sold: 0, revenue: 0 };
+    }
+
     // Only sell the units that still clear above the floor; hold the rest.
     let sellable = 0;
     const floor = RESOURCES[key].procurementPrice * BROKER_PRICE_FLOOR;
@@ -1511,11 +1638,9 @@ export class GameStore {
     const sale = this.demandSaleGross(key, amount);
     const gross = Math.max(0, Math.round(sale.gross * (1 - AUTO_SELL_BROKER_FEE)));
     const citizenDemand = RESOURCES[key].buyer === "citizens";
-    const pool = citizenDemand ? this.state.citizenPool : this.state.governmentTreasury;
-    if (pool < gross || gross <= 0) return { sold: 0, revenue: 0 };
+    if (gross <= 0 || !this.takeFromBuyers(key, gross)) return { sold: 0, revenue: 0 };
     const tax = Math.floor(gross * TAX_RATE);
     this.state.inventory[key] -= amount;
-    if (citizenDemand) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
     this.state.wallet += gross - tax;
     this.state.governmentTreasury += tax;
     this.state.taxPaid += tax;
@@ -1580,6 +1705,13 @@ export class GameStore {
     let clock = this.state.lastTickAt;
     const until = clock + budget;
     report.hours = budget / 3_600_000;
+
+    // Price recovery inside this window is measured in SIMULATED time. Without seeding the
+    // market clock to the start of the window, a 24-hour absence and a week-long one (both
+    // credited the same capped hours) took different price paths purely because their
+    // lastTickAt sat at different distances from marketLastUpdated — same credited work,
+    // different money.
+    this.state.marketLastUpdated = clock;
 
     // Finish whatever was already on the floor.
     if (this.state.job && this.state.job.completeAt <= until) {
@@ -1669,8 +1801,22 @@ export class GameStore {
         for (const key of resourceKeys) {
           const base = (config.output[key] ?? 0) * cycles;
           if (base <= 0) continue;
-          const made = Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12)));
-          revenueEstimate += this.demandSaleGross(key, made).gross * (1 - AUTO_SELL_BROKER_FEE);
+          // Estimating must not SPEND the yield carry — this is a question, not a shift.
+          const made = Math.max(base, Math.floor(base * (1 + this.state.upgrades.yield * .12) + (this.state.yieldCarry[key] ?? 0)));
+          // Count only the units the broker would actually take.
+          //
+          // The gate and the seller used to disagree: the gate priced the whole batch, and
+          // brokerSell then refused everything below its floor. The difference piled up on
+          // the shelf as goods bought with real money and sold for none — so the bigger the
+          // shelf, the deeper the hole, which is why BUYING the capacity upgrade made a
+          // shop measurably poorer. An upgrade that charges the player to be worse off.
+          let clearable = made;
+          if (this.state.operations.autoSell) {
+            const floor = RESOURCES[key].procurementPrice * BROKER_PRICE_FLOOR;
+            clearable = 0;
+            while (clearable < made && this.demandSaleGross(key, clearable + 1).lastUnit >= floor) clearable += 1;
+          }
+          revenueEstimate += this.demandSaleGross(key, clearable).gross * (1 - AUTO_SELL_BROKER_FEE);
         }
       }
       if (revenueEstimate * (1 - TAX_RATE) <= inputEstimate + laborEstimate) {
@@ -1707,6 +1853,10 @@ export class GameStore {
       report.wages += laborCost;
 
       clock += duration;
+      // Prices recover with time, and catch-up is time. Without this the market only ever
+      // ratcheted DOWN across an absence: every sale pushed the price and nothing pushed
+      // back until the player next opened a trade screen by hand.
+      this.rebalanceMarket(clock);
 
       if (config.servicePayout) {
         const gross = this.serviceGross(config, cycles);
@@ -1729,7 +1879,7 @@ export class GameStore {
         for (const key of resourceKeys) {
           const base = (config.output[key] ?? 0) * cycles;
           if (base <= 0) continue;
-          const made = Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12)));
+          const made = this.yieldOf(key, base);
           this.state.inventory[key] += made;
           report.produced += made;
           if (this.state.operations.autoSell) {
@@ -1868,7 +2018,34 @@ export class GameStore {
     const resource = RESOURCES[key];
     const budget = (resource.buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET) * DEMAND_TIER_WEIGHT[resource.tier];
     const maturity = 1 + (this.careerLevel().level - 1) * .18;
-    return Math.max(8, Math.round((budget * maturity * (1 + this.rivalStrength(key) * .3)) / resource.procurementPrice));
+    const households = (budget * maturity * (1 + this.rivalStrength(key) * .3)) / resource.procurementPrice;
+    return Math.max(8, Math.round(households + this.derivedDemand(key)));
+  }
+
+  /**
+   * Units of a good the district's own BUSINESSES want each day, as inputs.
+   *
+   * This is the cooperative half of demand. Households buy food and retail supply and
+   * nothing else; every other good in the game is wanted only by the trade below it in the
+   * chain. Before this existed a greenhouse sold into a civic budget that saturated in a
+   * morning and then produced nothing for the rest of the month, because the two trades
+   * that burn four food a cycle between them were invisible to the market.
+   *
+   * It grows with real neighbours, so a district with a working chain is worth more to
+   * everyone in it than the same district with one lonely maker — including the maker.
+   */
+  derivedDemand(key: ResourceKey): number {
+    const draw = CHAIN_DRAW[key];
+    if (draw <= 0) return 0;
+    const trades = DISTRICT_BASE_TRADES + this.districtNeighbours() * DISTRICT_NEIGHBOUR_WEIGHT;
+    const maturity = 1 + (this.careerLevel().level - 1) * .12;
+    return draw * CHAIN_CYCLES_PER_DAY * trades * maturity;
+  }
+
+  /** Businesses in the district besides the one being priced. Your own count too. */
+  districtNeighbours(): number {
+    const mine = Object.values(this.state.portfolio).filter((entry) => entry.buildingPlaced).length;
+    return Math.max(0, mine - 1) + this.state.districtBusinesses;
   }
 
   /**
@@ -1930,7 +2107,19 @@ export class GameStore {
     for (let index = 0; index < 3; index += 1) {
       const position = (this.state.contractSequence * 2 + index) % candidates.length;
       const resource = candidates[position];
-      const quantity = Math.min(10, 2 + ((this.state.contractSequence + index) % 3) + Math.floor(level / 2));
+      // Orders have to be worth crossing the room for. A flat ten-unit cap made a contract
+      // noise to anyone with a real line: an aquaworks turns out 36 water a cycle, so a
+      // ten-water order was under 2% of a day's output for a 15% premium, and taking it
+      // measurably LOST money against simply letting auto-sell run. Sizing the batch to
+      // what the business actually makes is what turns contracts back into the reason to
+      // turn up — which matters doubly, because contracts carry the top contribution
+      // weight and auto-sold goods carry the bottom one.
+      const perCycle = this.state.license ? (BUSINESS[this.state.license].output[resource] ?? 0) : 0;
+      const batch = perCycle > 0 ? perCycle
+        : Math.max(1, Math.round(24 / Math.max(1, RESOURCES[resource].procurementPrice)));
+      const steps = 2 + ((this.state.contractSequence + index) % 3) + Math.floor(level / 2);
+      // Never ask for more than the shelf can hold, or the order cannot be filled at all.
+      const quantity = Math.max(2, Math.min(this.storageCapacity(), batch * steps));
       const bonusPercent = 10 + Math.min(15, level * 2 + index * 2);
       const unit = this.marketSellPrice(resource);
       const grossReward = Math.max(quantity, Math.ceil(quantity * unit * (1 + bonusPercent / 100)));
@@ -1953,13 +2142,31 @@ export class GameStore {
   bestOffer(): ContractOffer | null {
     const offers = this.contractOffers();
     if (!offers.length) return null;
+    const license = this.state.license;
+    // Score an order by what it actually LEAVES you, not by what it pays.
+    //
+    // Ranking on gross per unit sent every business after whichever good was dearest,
+    // regardless of whether it could make it. An aquaworks makes water and was reliably
+    // steered into a four-part order worth 195 that costs about 200 to fill — a losing
+    // trade, and worse than losing: only one contract runs at a time, so it sat in the
+    // slot and blocked every order the business COULD serve until the player worked out
+    // they had to release it. Contracts carry the highest contribution weight in the game.
     const score = (offer: ContractOffer): number => {
       const missing = Math.max(0, offer.quantity - this.state.inventory[offer.resource]);
-      const perUnit = offer.grossReward / Math.max(1, offer.quantity);
-      // Prefer good money, and prefer orders you can nearly fill already.
-      return perUnit * (1 + (offer.quantity - missing) / Math.max(1, offer.quantity));
+      // Units you make cost you the sale you give up; units you do not make cost the civic
+      // supplier's asking price. The spread between those is exactly why an order for your
+      // own product is usually the better deal.
+      const makesIt = license !== null && (BUSINESS[license].output[offer.resource] ?? 0) > 0;
+      const unitCost = makesIt ? this.marketSellPrice(offer.resource) : this.marketBuyPrice(offer.resource);
+      return offer.grossReward - missing * unitCost;
     };
-    return offers.reduce((best, offer) => (score(offer) > score(best) ? offer : best), offers[0]!);
+    const best = offers.reduce((winner, offer) => (score(offer) > score(winner) ? offer : winner), offers[0]!);
+    // No order is better than a bad one. The slot holds a single contract, so taking an
+    // order that costs more to fill than it pays does not just lose that money — it locks
+    // out every order that would have paid, for as long as the player leaves it there.
+    // The board stays open in the trade tab; this is the recommendation, and today's
+    // honest recommendation is sometimes "none of these".
+    return score(best) > 0 ? best : null;
   }
 
   /** What this district is paying well for today, and how much it will still absorb. */
@@ -2119,7 +2326,7 @@ export class GameStore {
       for (const key of resourceKeys) {
         const base = (config.output[key] ?? 0) * cycles;
         const quality = this.state.specialization === "premium" ? .1 : 0;
-        if (base) expectedRevenue += Math.max(base, Math.round(base * (1 + this.state.upgrades.yield * .12 + quality))) * this.marketSellPrice(key);
+        if (base) expectedRevenue += Math.max(base, base * (1 + this.state.upgrades.yield * .12 + quality)) * this.marketSellPrice(key);
       }
       if (config.wastePerCycle) expectedRevenue += config.wastePerCycle * cycles * this.marketSellPrice("waste");
     }

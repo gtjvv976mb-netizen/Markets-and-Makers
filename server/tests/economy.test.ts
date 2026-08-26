@@ -3,7 +3,8 @@ import { pool, closeDatabase } from "../src/database.js";
 import {
   districtQuota, epochBudget, epochStanding, fundReserve, islandBoard, quote, recordPurchase, recordSale,
 } from "../src/economy.js";
-import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
+import { CHAIN_PREMIUM_MAX, CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, PRESSURE_MAX, PRESSURE_MIN, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
+import { chainPremium, derivedDemand, unitPriceAt } from "../src/economy.js";
 
 const live = Boolean(process.env.DATABASE_URL);
 const suite = live ? describe : describe.skip;
@@ -127,6 +128,39 @@ suite("shared district economy", () => {
       expect(row.currencyCode).toBe(CURRENCY_CODE);
       // The civic spread must hold on the server exactly as it does on the client.
       expect(row.sell).toBeLessThan(row.buy);
+    }
+  });
+});
+
+describe("the chain, priced", () => {
+  it("never lets a good be bought at the counter and sold back for more", () => {
+    // The arbitrage guard. The chain premium lifts what the district pays a maker, and it
+    // has to stop below the civic supplier's asking price or buying from the counter and
+    // selling it straight back is free money. Checked across the whole pressure range,
+    // because the two prices scale together and only their ROUNDING can cross.
+    for (const key of Object.keys(RESOURCES)) {
+      for (const pressure of [PRESSURE_MIN, 0.85, 1, 1.2, PRESSURE_MAX]) {
+        const buy = Math.max(1, Math.round(RESOURCES[key]!.governmentPrice * pressure));
+        const sell = unitPriceAt(key, pressure, 0);
+        expect(sell, `${key} at pressure ${pressure} sells for ${sell} but costs ${buy}`).toBeLessThan(buy);
+      }
+    }
+  });
+
+  it("gives every good in the chain a business customer", () => {
+    // Derived demand is summed from the generated recipes. A good nobody consumes has only
+    // the civic budget for a buyer, which is the exact condition that made every primary
+    // producer unprofitable.
+    const orphans = Object.keys(RESOURCES).filter((key) => derivedDemand(key) <= 0);
+    expect(orphans, `goods no trade buys as an input: ${orphans.join(", ")}`).toEqual([]);
+  });
+
+  it("counts the chain's appetite as part of the district's allowance", () => {
+    for (const key of Object.keys(RESOURCES)) {
+      expect(districtQuota(key), `${key} quota must cover its chain draw`)
+        .toBeGreaterThanOrEqual(Math.round(derivedDemand(key)));
+      expect(chainPremium(key)).toBeGreaterThan(1);
+      expect(chainPremium(key)).toBeLessThanOrEqual(1 + CHAIN_PREMIUM_MAX);
     }
   });
 });
