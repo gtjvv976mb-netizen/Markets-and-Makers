@@ -129,6 +129,13 @@
                grows. Pixel offsets between two separately-positioned boxes drift apart the
                moment either one's content changes — they had already overlapped by 14px. -->
           <div class="hud-right">
+            <!-- Sign-in, top-right, where accounts live in every application on the web.
+                 It was previously reachable only from the BOTTOM of the Exchange panel,
+                 under the orders board, the maker market, the bank and the contribution
+                 board: the first thing a new player must do was the hardest thing in the
+                 game to find. The top bar is not an option — it is collapsed to zero
+                 width on the play screen. -->
+            <div class="wallet-slot" id="walletSlot"></div>
             <div class="biz-strip" id="bizStrip" hidden aria-live="polite"></div>
             <div class="alert-stack" id="alertStack" role="status" hidden></div>
           </div>

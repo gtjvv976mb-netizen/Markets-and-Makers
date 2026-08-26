@@ -1728,3 +1728,30 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .chain-good { grid-template-columns: 1fr; gap: 3px; }
   .chain-row { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
 }
+
+/* --- Sign-in, in the top bar ---------------------------------------------------------
+   The one action a new player must take before anything else works. It used to be at the
+   bottom of the Exchange panel, below five other sections. */
+.wallet-slot { display: flex; justify-content: flex-end; }
+.wallet-slot:empty { display: none; }
+.wallet-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+  padding: 0 14px; border: 0; border-radius: 999px; background: #17484c; color: #f2f8ef;
+  font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+  box-shadow: 0 6px 16px -10px rgba(15,50,45,.8); }
+.wallet-pill:hover { background: #1f5e54; }
+.wallet-pill small { display: block; color: rgba(242,248,239,.66); font-size: 10.5px;
+  font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wallet-pill strong { display: block; font-size: 13.5px; line-height: 1.2; }
+.wallet-pill.linked { background: rgba(23,72,76,.1); color: #17484c; box-shadow: none;
+  border: 1px solid rgba(23,72,76,.18); }
+.wallet-pill.linked small { color: var(--muted); }
+.wallet-pill.linked .wallet-dot { width: 8px; height: 8px; border-radius: 50%; background: #2f9e6f;
+  box-shadow: 0 0 0 3px rgba(47,158,111,.2); }
+.wallet-pill.needs { background: #f0b04a; color: #3a2a06; }
+.wallet-pill.needs small { color: rgba(58,42,6,.7); }
+
+@media (max-width: 720px) {
+  .wallet-pill { min-height: 34px; padding: 0 11px; }
+  .wallet-pill small { display: none; }
+  .wallet-pill strong { font-size: 12.5px; }
+}

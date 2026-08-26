@@ -1776,8 +1776,41 @@ function renderAlerts(): void {
     </div>`).join("");
 }
 
+
+/**
+ * Sign-in, in the top bar.
+ *
+ * A wallet-gated game has exactly one thing a new player must do first, and it was hidden
+ * at the bottom of the Exchange panel underneath five other sections. This is the same
+ * action in the place every application on the web puts it.
+ *
+ * The no-wallet case says what to do rather than greying out: on a phone the provider is
+ * only injected inside the wallet's own browser, so "No wallet detected" is a dead end for
+ * a player who has Phantom installed and simply opened the site in Safari.
+ */
+function renderWalletSlot(): void {
+  const node = document.querySelector<HTMLElement>("#walletSlot");
+  if (!node) return;
+
+  if (principal) {
+    const short = `${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}`;
+    node.innerHTML = `<button class="wallet-pill linked" data-action="wallet-disconnect" title="Signed in as ${escapeMarkup(principal.walletAddress)} — click to sign out">
+      <span class="wallet-dot" aria-hidden="true"></span><span><small>Signed in</small><strong>${escapeMarkup(short)}</strong></span></button>`;
+    return;
+  }
+  if (!walletAvailable()) {
+    node.innerHTML = `<a class="wallet-pill needs" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener"
+      title="No Solana wallet was found in this browser">
+      <span><small>To play</small><strong>Get a wallet</strong></span></a>`;
+    return;
+  }
+  node.innerHTML = `<button class="wallet-pill" data-action="wallet-connect">
+    <span><small>Play for real</small><strong>Connect wallet</strong></span></button>`;
+}
+
 function renderAll(): void {
   renderHeader();
+  renderWalletSlot();
   renderTutorial();
   renderSelectedPlot();
   renderBuild();
