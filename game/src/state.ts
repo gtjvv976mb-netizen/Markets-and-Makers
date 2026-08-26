@@ -3,6 +3,7 @@ import {
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
   BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
+  OFFLINE_VISITS_PER_HOUR, OFFLINE_VISIT_CAP, plotFootfall,
   BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MERCEDONIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
   CHARTER_COST_MM, DEED_COST_MM, POWER_STANDING_CHARGE, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY, WATER_STANDING_CHARGE, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MERC_DOLLARS_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
@@ -449,6 +450,46 @@ export class GameStore {
    * (0.3) against the auto-seller's "auto" (0.05), so trading in front of the customer is
    * worth six times as much toward $MM as leaving the shop to run itself.
    */
+  /** The corner's busyness. See plotFootfall in data.ts — pure, and shared with world.ts. */
+  plotFootfall(plotId: string): number { return plotFootfall(plotId); }
+
+  /**
+   * Custom that walked in on its own while the player was elsewhere — or asleep.
+   *
+   * The district does not stop because nobody is looking at it. Visits are the corner's
+   * footfall times the hours elapsed, so siting is what earns, and every sale goes through
+   * settleCitizenVisit, which means the same pool, the same tranche decay, the same empty
+   * shelf and broken-machine refusals as trade done in person.
+   *
+   * Deliberately NOT worth the same toward $MM. The promise on the tin is "no passive
+   * yield, ever": unattended trade earns Merc Dollars, and its contribution is rebated
+   * back down to the auto-seller's weight so that showing up remains the thing that
+   * converts into tokens.
+   */
+  private settleOfflineFootfall(record: BusinessRecord, hours: number, now: number): { visits: number; gross: number } {
+    if (!record.license || !record.buildingPlaced || record.brokenDown || hours <= 0) return { visits: 0, gross: 0 };
+    const appeal = 1 + record.upgrades.appeal * 0.15;
+    const expected = this.plotFootfall(record.plotId) * OFFLINE_VISITS_PER_HOUR * appeal * hours;
+    const visits = Math.min(OFFLINE_VISIT_CAP, Math.floor(expected));
+    if (visits <= 0) return { visits: 0, gross: 0 };
+
+    let gross = 0, settled = 0;
+    for (let i = 0; i < visits; i += 1) {
+      const sale = this.settleCitizenVisit(record.plotId, now);
+      if (!sale) break;
+      gross += sale.gross;
+      settled += 1;
+    }
+    // settleCitizenVisit credited this at the household weight. Unattended trade is not
+    // worth that, so take back the difference rather than duplicating the settlement.
+    if (gross > 0) {
+      const rebate = gross * (CONTRIBUTION_WEIGHT.household - CONTRIBUTION_WEIGHT.auto);
+      this.state.epoch.contribution = Math.max(0, this.state.epoch.contribution - rebate);
+      this.state.lifetimeContribution = Math.max(0, this.state.lifetimeContribution - rebate);
+    }
+    return { visits: settled, gross };
+  }
+
   settleCitizenVisit(plotId: string, now = Date.now()): CitizenVisitSale | null {
     this.rollCalendar(now);
     const record = this.state.portfolio[plotId];
@@ -1493,6 +1534,18 @@ export class GameStore {
       report.produced += Math.max(0, this.storedUnits() - before);
       report.jobs += 1;
     }
+
+    // The district keeps trading while nobody is watching. This runs before the
+    // auto-production gate on purpose: a player who has switched the machines off has
+    // not closed the shop, and stock already on the shelf still sells to passers-by.
+    this.syncActive();
+    const trade = this.settleOfflineFootfall(this.state.portfolio[this.state.ownedPlotId ?? ""] ?? {
+      plotId: this.state.ownedPlotId ?? "", license: this.state.license, buildingPlaced: this.state.buildingPlaced,
+      job: this.state.job, upgrades: this.state.upgrades, condition: this.state.condition,
+      brokenDown: this.state.brokenDown, jobsCompleted: this.state.jobsCompleted,
+    }, report.hours, now);
+    report.sold += trade.visits;
+    report.revenue += trade.gross;
 
     if (!this.state.operations.autoProduce) {
       this.state.lastTickAt = now;

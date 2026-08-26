@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BUSINESS, CONTRIBUTION_WEIGHT, DEMAND_PRICE_FLOOR, RESOURCES, type LicenseKey } from "../src/data";
+import { BUSINESS, CIVIC_BUILDINGS, CONTRIBUTION_WEIGHT, DEMAND_PRICE_FLOOR, FOOTFALL_FLOOR, OFFLINE_VISIT_CAP,
+  PLOTS, plotFootfall, RESOURCES, type LicenseKey } from "../src/data";
 import { createFreshState, GameStore } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -180,5 +181,125 @@ describe("footfall settles the sale", () => {
 
     expect(store.state.citizenActivitySequence).toBe(sequence);
     expect(store.state.citizenActivity.length).toBe(queued);
+  });
+});
+
+describe("the corner earns, not the player standing on it", () => {
+  it("scores every plot between the floor and one", () => {
+    for (const plot of PLOTS) {
+      const score = plotFootfall(plot.id);
+      expect(score, `${plot.id} scored ${score}`).toBeGreaterThanOrEqual(FOOTFALL_FLOOR);
+      expect(score).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("scores nothing for a plot that does not exist", () => {
+    expect(plotFootfall("no-such-plot")).toBe(0);
+  });
+
+  it("rates a plot beside a civic landmark above one out on the edge", () => {
+    const hearth = PLOTS.filter((plot) => plot.island === "hearth");
+    const landmarks = CIVIC_BUILDINGS.filter((entry) => entry.island === "hearth");
+    const distanceToNearest = (plot: typeof hearth[number]): number =>
+      Math.min(...landmarks.map((entry) => Math.hypot(plot.x - entry.x, plot.z - entry.z)));
+
+    const sorted = [...hearth].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
+    const central = sorted[0]!;
+    const remote = sorted[sorted.length - 1]!;
+
+    expect(distanceToNearest(central)).toBeLessThan(distanceToNearest(remote));
+    expect(plotFootfall(central.id)).toBeGreaterThan(plotFootfall(remote.id));
+  });
+
+  it("does not depend on where the player is standing", () => {
+    const store = open("shop");
+    const before = store.plotFootfall("garden-row");
+    store.state.player = { x: 900, z: -900 };
+    expect(store.plotFootfall("garden-row")).toBe(before);
+  });
+});
+
+describe("the district trades while nobody is watching", () => {
+  /** Wind the clock back so catchUp sees elapsed hours. */
+  function goAway(store: GameStore, hours: number): void {
+    store.state.lastTickAt = Date.now() - hours * 3_600_000;
+  }
+
+  it("sells to passers-by over an absence", () => {
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 200;
+    store.state.citizenPool = 2_000_000;
+    const wallet = store.state.wallet;
+
+    goAway(store, 8);
+    const report = store.catchUp();
+
+    expect(report.sold).toBeGreaterThan(0);
+    expect(store.state.wallet).toBeGreaterThan(wallet);
+  });
+
+  it("keeps the shop open even with the machines switched off", () => {
+    // Switching off production is not the same as closing the shop: stock already on
+    // the shelf still sells to people walking past.
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 200;
+    store.state.citizenPool = 2_000_000;
+    store.state.operations.autoProduce = false;
+    const wallet = store.state.wallet;
+
+    goAway(store, 8);
+    store.catchUp();
+    expect(store.state.wallet).toBeGreaterThan(wallet);
+  });
+
+  it("creates no money while doing it", () => {
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 300;
+    store.state.citizenPool = 2_000_000;
+    store.state.operations.autoProduce = false;   // isolate the counter trade
+    const supply = store.totalMoneySupply();
+
+    goAway(store, 20);
+    store.catchUp();
+    expect(store.totalMoneySupply()).toBe(supply);
+  });
+
+  it("caps a long absence rather than draining the citizens' pool", () => {
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 5_000;
+    store.state.citizenPool = 5_000_000;
+    store.state.operations.autoProduce = false;
+
+    goAway(store, 24 * 14);          // a fortnight
+    const report = store.catchUp();
+    expect(report.sold).toBeLessThanOrEqual(OFFLINE_VISIT_CAP);
+  });
+
+  it("pays unattended trade at the auto weight, not the household one", () => {
+    // The promise is "no passive yield, ever". Merc Dollars accrue; $MM contribution
+    // stays at what the auto-seller earns, so showing up is still what converts.
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 200;
+    store.state.citizenPool = 2_000_000;
+    store.state.operations.autoProduce = false;
+    const contributionBefore = store.state.epoch.contribution;
+
+    goAway(store, 10);
+    const report = store.catchUp();
+
+    expect(report.revenue).toBeGreaterThan(0);
+    const gained = store.state.epoch.contribution - contributionBefore;
+    expect(gained).toBeCloseTo(report.revenue * CONTRIBUTION_WEIGHT.auto, 4);
+  });
+
+  it("still refuses when the shelf is bare", () => {
+    const store = open("shop");
+    store.state.inventory[retailGood("shop")! as "supply"] = 0;
+    store.state.operations.autoProduce = false;
+    const wallet = store.state.wallet;
+    goAway(store, 12);
+    const report = store.catchUp();
+    expect(report.sold).toBe(0);
+    expect(store.state.wallet).toBeLessThanOrEqual(wallet);   // charges may still apply
   });
 });

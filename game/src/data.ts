@@ -198,6 +198,32 @@ export const ISLANDS: IslandConfig[] = HIGHLANDS_DISTRICTS.map((district) => ({ 
 
 export const PLOTS: PlotConfig[] = HIGHLANDS_PLOTS.map((plot) => ({ ...plot }));
 
+/**
+ * How busy a plot's corner is, from 0 to 1, derived from the district's own geography.
+ *
+ * Pure and deterministic: no world, no camera, no avatar. That is what lets the same
+ * number decide who citizens walk to on screen AND settle trade while the player is
+ * away and nothing is being rendered at all.
+ */
+export function plotFootfall(plotId: string): number {
+  const plot = PLOTS.find((entry) => entry.id === plotId);
+  if (!plot) return 0;
+  const landmarks = CIVIC_BUILDINGS.filter((entry) => entry.island === plot.island);
+  if (landmarks.length === 0) return FOOTFALL_FLOOR;
+
+  // The nearest landmark carries most of it: a shop beside the City Hall sees the queue.
+  const nearest = Math.min(...landmarks.map((entry) => Math.hypot(plot.x - entry.x, plot.z - entry.z)));
+  const proximity = Math.max(0, 1 - nearest / FOOTFALL_LANDMARK_REACH);
+
+  // Plus a smaller term for sitting among several of them rather than out on a limb.
+  const cluster = landmarks.reduce((total, entry) => {
+    const distance = Math.hypot(plot.x - entry.x, plot.z - entry.z);
+    return total + Math.max(0, 1 - distance / (FOOTFALL_LANDMARK_REACH * 2));
+  }, 0) / landmarks.length;
+
+  return Math.min(1, FOOTFALL_FLOOR + proximity * 0.62 + cluster * 0.38);
+}
+
 export const TUTORIAL = [
   ["moved", "Explore Hearthmarket", "Move with WASD, arrows, or click the world."],
   ["leased", "Lease a plot", "Select a glowing plot and sign a starter lease."],
@@ -274,6 +300,18 @@ export const MAX_UPGRADE_LEVEL = 4;
 export const MM_BURN_RATE = 0.4;
 export const COHORT_CONTRIBUTION_BASE = 45_000;
 export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, civic: 0.1, auto: 0.05 } as const;
+
+// --- Footfall. A corner's busyness comes from the district's geography, not from where
+//     the player happens to be standing, so siting a shop well is a decision that pays.
+/** Even the quietest corner sees some passing trade. */
+export const FOOTFALL_FLOOR = 0.08;
+/** How far a civic landmark's queue spills onto neighbouring plots, in metres. */
+export const FOOTFALL_LANDMARK_REACH = 55;
+/** Customers an hour at a corner scoring 1.0, before appeal upgrades. */
+export const OFFLINE_VISITS_PER_HOUR = 4;
+/** Ceiling on a single catch-up, so a fortnight away cannot empty the citizens' pool. */
+export const OFFLINE_VISIT_CAP = 90;
+
 
 // ---------------------------------------------------------------------------
 // Passive operations. The business runs on a clock; the player spends attention

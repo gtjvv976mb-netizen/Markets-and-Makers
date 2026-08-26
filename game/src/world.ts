@@ -5,7 +5,7 @@ import { buildStreets, loadRoadNet, type BuiltStreets } from "./roadnet";
 import { ObstacleField, route, type Blocker } from "./collision";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE } from "./data";
+import { BUSINESS, CIVIC_BUILDINGS, ISLANDS, PLOTS, CURRENCY_CODE, plotFootfall } from "./data";
 import { OFFICIAL_PRESENTATION_CAMERA, SOLARPUNK_MATERIALS } from "./artStandard";
 import {
   characterHeightScale, dampWrappedYaw, headingYaw, planarSpeed, STANDARD_CHARACTER_HEIGHT_M,
@@ -1186,6 +1186,10 @@ export class World3D {
         x: arrival.x,
         z: arrival.z,
         operational,
+        // Weighted by the corner as well as the shopfront. Two identical businesses
+        // should not draw the same trade when one is beside the City Hall and the other
+        // is out on the edge of the map — siting is a decision the player makes, and
+        // this is where it pays off.
         appeal: customerAppeal({
           staff: state.staff,
           appealLevel: record.upgrades.appeal,
@@ -1193,7 +1197,7 @@ export class World3D {
           reputation: state.reputation,
           specialization: state.specialization,
           sponsored: state.sponsoredUntil > Date.now(),
-        }),
+        }) * (0.55 + plotFootfall(plot.id) * 0.9),
         capacity: operational ? 2 + record.upgrades.capacity * 3 + Math.min(4, state.staff) : 0,
         priceIndex: record.plotId === state.ownedPlotId ? state.servicePriceIndex : 1,
         plotId: plot.id,
