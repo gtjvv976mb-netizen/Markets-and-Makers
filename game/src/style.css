@@ -1755,3 +1755,50 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .wallet-pill small { display: none; }
   .wallet-pill strong { font-size: 12.5px; }
 }
+
+/* --- The boot gate -------------------------------------------------------------------
+   Nobody reaches the world without choosing how they are playing. Dropping straight into
+   a local save reads as "already signed in", and a player can build for an hour before
+   discovering none of it was on the realm. */
+.boot-gate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  padding: 20px; background: rgba(9,28,30,.93); backdrop-filter: blur(7px); }
+.boot-gate[hidden] { display: none; }
+.boot-card { width: min(460px, 100%); max-height: 92vh; overflow-y: auto; padding: 26px 24px;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 20px; text-align: center;
+  background: linear-gradient(150deg, #133f42, #1c5b50); color: #f2f8ef;
+  box-shadow: 0 30px 70px -30px rgba(0,0,0,.8); }
+.boot-logo { width: min(230px, 74%); margin: 0 auto 12px; display: block; }
+.boot-card > small { display: block; color: rgba(242,248,239,.6); font-size: 11px;
+  font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+.boot-card h1 { margin: 6px 0 8px; font-size: 27px; line-height: 1.15; }
+.boot-lede { margin: 0 0 18px; color: rgba(242,248,239,.78); font-size: 14px; line-height: 1.5; }
+
+.boot-choices { display: grid; gap: 9px; margin-bottom: 18px; }
+.boot-primary { display: block; min-height: 50px; padding: 14px 18px; border: 0; border-radius: 13px;
+  background: #f0b04a; color: #33240a; font: inherit; font-size: 15.5px; font-weight: 900;
+  text-decoration: none; cursor: pointer; }
+.boot-primary:hover { background: #f6bf63; }
+.boot-secondary { min-height: 46px; padding: 12px 18px; border: 1px solid rgba(255,255,255,.3);
+  border-radius: 13px; background: transparent; color: #f2f8ef; font: inherit; font-size: 14.5px;
+  font-weight: 800; cursor: pointer; }
+.boot-secondary:hover { background: rgba(255,255,255,.1); }
+.boot-hint { display: block; color: rgba(242,248,239,.62); font-size: 12px; line-height: 1.45; }
+
+.boot-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+  text-align: left; }
+.boot-compare > div { padding: 11px 12px; border-radius: 12px; background: rgba(0,0,0,.2); }
+.boot-compare strong { display: block; margin-bottom: 6px; font-size: 12.5px; }
+.boot-compare ul { margin: 0; padding-left: 15px; }
+.boot-compare li { color: rgba(242,248,239,.74); font-size: 11.5px; line-height: 1.5; }
+.boot-note { margin: 0; color: rgba(242,248,239,.55); font-size: 11.5px; line-height: 1.45; }
+
+/* A demo says so permanently — the mistake to prevent is building for an hour and only
+   then finding out none of it was kept. */
+.wallet-pill.demo { background: #b8742c; color: #fff; }
+.wallet-pill.demo small { color: rgba(255,255,255,.78); }
+
+@media (max-width: 520px) {
+  .boot-card { padding: 20px 17px; }
+  .boot-card h1 { font-size: 22px; }
+  .boot-compare { grid-template-columns: 1fr; }
+}

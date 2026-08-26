@@ -1,5 +1,6 @@
 import { serverBase } from "./network";
 import { sessionToken } from "./wallet";
+import { isDemo } from "./state";
 
 /**
  * The client half of the shared economy.
@@ -24,6 +25,10 @@ export type RealmOutcome<T> =
 const uuid = (): string => crypto.randomUUID();
 
 function authHeaders(): Record<string, string> | null {
+  // Sealed in a demo. Everything that settles in the shared world goes through here, so
+  // one check closes the whole layer: no trades, no listings, no registration, no
+  // contribution. A demo runs its own private simulation and reaches nothing real.
+  if (isDemo()) return null;
   const token = sessionToken();
   if (!serverBase() || !token) return null;
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
@@ -116,6 +121,7 @@ export interface RealmQuote {
 
 /** The district board is public, so it works signed in or not. */
 export async function fetchBoard(islandId: string): Promise<RealmQuote[] | null> {
+  if (isDemo()) return null;
   const base = serverBase();
   if (!base) return null;
   try {
@@ -172,6 +178,7 @@ export async function registerBusiness(input: {
  * anything" from "we are playing alone".
  */
 export async function fetchDistrict(islandId: string): Promise<RegisteredBusiness[] | null> {
+  if (isDemo()) return null;
   const base = serverBase();
   if (!base) return null;
   try {
@@ -250,6 +257,7 @@ export async function fetchHoldings(): Promise<{ wallet: number; inventory: Reco
 
 /** The island's open listings, cheapest first. Public: readable before you sign in. */
 export async function fetchMarketBook(islandId: string, itemKey?: string): Promise<MarketListing[] | null> {
+  if (isDemo()) return null;
   const base = serverBase();
   if (!base) return null;
   const query = new URLSearchParams({ island: islandId });

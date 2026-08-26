@@ -89,6 +89,18 @@ export interface FranchiseRound {
 export interface ActionResult { ok: boolean; message: string; }
 
 const resourceKeys = Object.keys(RESOURCES) as ResourceKey[];
+
+/**
+ * Whether this session is a sealed demo.
+ *
+ * Module-level and deliberately NOT part of the saved state: a demo cannot persist, so it
+ * cannot come back as one. Closing the tab ends it.
+ */
+let demoMode = false;
+export const isDemo = (): boolean => demoMode;
+export function startDemo(): void { demoMode = true; }
+
+
 const upgradeKeys: UpgradeKey[] = ["yield", "capacity", "speed", "appeal"];
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const utcDay = (now = Date.now()): string => new Date(now).toISOString().slice(0, 10);
@@ -602,7 +614,12 @@ export class GameStore {
       this.state.feed.unshift({ text: message, tone, at: Date.now() });
       this.state.feed = this.state.feed.slice(0, 18);
     }
-    localStorage.setItem(SAVE_KEY, JSON.stringify(this.state));
+    // THE DEMO SEAL. A demo must never be able to touch a real save: someone trying the
+    // game on a friend's machine, or clicking "Play demo" out of curiosity before signing
+    // in, must not overwrite the profile already sitting in this browser. Nothing is
+    // written at all — which also means a demo can never be laundered into a real account,
+    // because there is no file to promote.
+    if (!demoMode) localStorage.setItem(SAVE_KEY, JSON.stringify(this.state));
     this.listeners.forEach((listener) => listener());
   }
 
@@ -1642,6 +1659,19 @@ export class GameStore {
     if (this.state.mayorHidden === hidden) return;
     this.state.mayorHidden = hidden;
     this.commit();
+  }
+
+  /**
+   * Enter the sealed demo.
+   *
+   * Deliberately starts from a FRESH state rather than whatever is in this browser: a demo
+   * that inherited a real player's city would show them their own progress and then throw
+   * it away when the tab closed, which is worse than showing nothing.
+   */
+  startDemoSession(): void {
+    startDemo();
+    this.state = createFreshState();
+    this.commit("Demo city opened. Nothing here is saved.", "normal");
   }
 
   storageCapacity(): number {

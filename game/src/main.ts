@@ -3,7 +3,7 @@ import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
   cancelMarketListing, type MarketListing } from "./realm";
-import { GameStore, type ActionResult } from "./state";
+import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
 import { plotArrival } from "./highlandsWorld";
@@ -1792,6 +1792,12 @@ function renderWalletSlot(): void {
   const node = document.querySelector<HTMLElement>("#walletSlot");
   if (!node) return;
 
+  if (isDemo()) {
+    node.innerHTML = `<button class="wallet-pill demo" data-action="gate-connect"
+      title="You are in a demo. Nothing is saved and the shared market is closed.">
+      <span><small>Demo — nothing saved</small><strong>Sign in for real</strong></span></button>`;
+    return;
+  }
   if (principal) {
     const short = `${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}`;
     node.innerHTML = `<button class="wallet-pill linked" data-action="wallet-disconnect" title="Signed in as ${escapeMarkup(principal.walletAddress)} — click to sign out">
@@ -1806,6 +1812,48 @@ function renderWalletSlot(): void {
   }
   node.innerHTML = `<button class="wallet-pill" data-action="wallet-connect">
     <span><small>Play for real</small><strong>Connect wallet</strong></span></button>`;
+}
+
+
+// --- The boot gate -------------------------------------------------------------------
+//
+// Nobody reaches the world without saying how they are playing. The alternative — dropping
+// straight into a local save — reads as "already signed in", which is exactly the
+// confusion this replaces: a player builds a city for an hour and only then discovers
+// none of it was on the realm.
+//
+// The demo is sealed rather than merely unsaved (see isDemo): it writes nothing, so it
+// cannot overwrite a profile already in this browser, and it reaches no server, so it
+// cannot touch the shared economy. It is also never promoted in place — signing in from a
+// demo reloads, so the real flow starts from a clean state rather than inheriting one.
+
+let gateSettled = false;
+
+function renderBootGate(): void {
+  const choices = document.querySelector<HTMLElement>("#bootChoices");
+  if (!choices) return;
+  const canConnect = walletAvailable();
+  choices.innerHTML = `
+    ${canConnect
+      ? `<button class="boot-primary" data-action="gate-connect">Connect Solana wallet</button>`
+      : `<a class="boot-primary" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener">Get a Solana wallet</a>
+         <small class="boot-hint">On a phone, open this page inside your wallet's own browser to sign in.</small>`}
+    <button class="boot-secondary" data-action="gate-demo">Play the demo</button>`;
+}
+
+function openBootGate(): void {
+  const gate = element("#bootGate");
+  renderBootGate();
+  gate.hidden = false;
+  world.setInputEnabled(false);           // the world is behind the gate; do not drive it
+}
+
+function closeBootGate(): void {
+  if (gateSettled) return;
+  gateSettled = true;
+  element("#bootGate").hidden = true;
+  world.setInputEnabled(true);
+  renderAll();
 }
 
 function renderAll(): void {
@@ -2092,6 +2140,16 @@ document.body.addEventListener("click", (event) => {
     switchTab(store.state.portfolio[plotId]?.buildingPlaced ? "shop" : "shop");
     openSheet();
   }
+  else if (action === "gate-demo") { store.startDemoSession(); closeBootGate(); toast("Demo: nothing here is saved, and the shared market is closed."); }
+  else if (action === "gate-connect") {
+    // A demo is never promoted in place. Signing in from one would carry the demo's city
+    // into the real account — a player would "keep" a city that was never theirs, and the
+    // sealed session would quietly become an unsealed one. Reload instead, so the real
+    // flow starts from a clean state and whatever profile this browser already holds.
+    if (isDemo()) { window.location.reload(); return; }
+    signIn().then((who) => { principal = who; closeBootGate(); toast(`Signed in as ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
+      .catch((error: Error) => toast(error.message));
+  }
   else if (action === "wallet-connect") {
     signIn().then((who) => { principal = who; toast(`Wallet linked: ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
       .catch((error: Error) => toast(error.message));
@@ -2149,6 +2207,8 @@ try {
   await world.syncBuildings(store.state);
   world.start(store.state);
   window.setTimeout(() => loadingScreen.classList.add("hidden"), 260);
+  // A returning player with a live session is not asked again.
+  if (principal) closeBootGate(); else window.setTimeout(openBootGate, 300);
 } catch (error) {
   loadingLabel.textContent = "The 3D world could not be loaded. Check the local server and asset paths.";
   console.error(error);

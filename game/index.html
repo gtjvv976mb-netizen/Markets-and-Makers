@@ -64,6 +64,40 @@
       </div>
     </div>
 
+    <!-- The boot gate. Nobody reaches the world without choosing how they are playing:
+         signed in and part of the shared economy, or in a sealed demo that touches
+         nothing. Shown after the world finishes loading so the choice is instant. -->
+    <div class="boot-gate" id="bootGate" role="dialog" aria-modal="true" aria-labelledby="bootGateTitle" hidden>
+      <div class="boot-card">
+        <img class="boot-logo" src="/assets/brand/markets-makers-official.avif" alt="Markets &amp; Makers" />
+        <small>A solarpunk economy sandbox</small>
+        <h1 id="bootGateTitle">Welcome to Mercedonia</h1>
+        <p class="boot-lede">Fifteen trades that buy from each other, in a city that keeps trading while you are away.</p>
+
+        <div class="boot-choices" id="bootChoices"></div>
+
+        <div class="boot-compare">
+          <div>
+            <strong>Signed in</strong>
+            <ul>
+              <li>Your city is saved to the realm</li>
+              <li>Trade with other makers</li>
+              <li>Earn a share of the weekly $MM</li>
+            </ul>
+          </div>
+          <div>
+            <strong>Demo</strong>
+            <ul>
+              <li>The full game, run privately</li>
+              <li>Nothing is saved when you close the tab</li>
+              <li>No trading and no $MM</li>
+            </ul>
+          </div>
+        </div>
+        <p class="boot-note">Signing in asks your wallet to sign a message. It authorises no transfer and costs no fee.</p>
+      </div>
+    </div>
+
     <button class="rotate-button" id="rotateGate" type="button" aria-label="Play in landscape">
       <svg class="rotate-mark" viewBox="0 0 64 64" aria-hidden="true">
         <rect x="18" y="6" width="28" height="46" rx="4"/>
