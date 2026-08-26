@@ -221,6 +221,9 @@ const QUALITY_MIN_RATIO = 0.6;
 /** Seconds to leave a change alone before judging it. */
 const QUALITY_SETTLE_SECONDS = 2.5;
 
+/** How far above a remote player's feet their name plaque floats. */
+const PEER_LABEL_HEIGHT = 2.5;
+
 /** Reused by updateCamera every frame; never escapes it. */
 const SCRATCH_CAMERA_TARGET = new THREE.Vector3();
 const SCRATCH_CAMERA_OFFSET = new THREE.Vector3();
@@ -1593,6 +1596,23 @@ export class World3D {
   }
 
   get peerCount(): number { return this.peers.size; }
+
+  /**
+   * Where the other makers are, for labelling them in the world.
+   *
+   * Remote players were drawn as anonymous figures — indistinguishable from the
+   * Mercedonians walking to the shops, which is the opposite of what an MMO wants. A
+   * person is the most interesting thing on the street and should be the one thing
+   * labelled by name.
+   */
+  peerPositions(): Array<{ playerId: string; x: number; y: number; z: number }> {
+    const out: Array<{ playerId: string; x: number; y: number; z: number }> = [];
+    for (const [playerId, peer] of this.peers) {
+      const { position } = peer.group;
+      out.push({ playerId, x: position.x, y: position.y + PEER_LABEL_HEIGHT, z: position.z });
+    }
+    return out;
+  }
 
   /** The server may reject a step; when it does we accept its position. */
   applyCorrection(x: number, z: number, state: GameState): void {

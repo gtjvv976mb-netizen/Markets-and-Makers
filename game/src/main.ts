@@ -146,10 +146,33 @@ function closeSheet(restoreFocus = true): void {
 element("#sheetClose").addEventListener("click", () => closeSheet());
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
 
+/**
+ * A wallet address, shortened to something a person can recognise across a street.
+ *
+ * The full address is meaningless at a glance and far too long for a plaque; the first
+ * four characters are what everybody actually uses to tell each other apart.
+ */
+function makerName(playerId: string): string {
+  const clean = playerId.replace(/[^A-Za-z0-9]/g, "");
+  if (clean.length <= 8) return clean || "Maker";
+  return `${clean.slice(0, 4)}…${clean.slice(-4)}`;
+}
+
 function markerModels(): MarkerModel[] {
   const state = store.state;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0]!;
   const models: MarkerModel[] = [];
+
+  // Every real person in the district wears their name. Remote makers were drawn as
+  // anonymous figures, indistinguishable from the Mercedonians walking to the shops —
+  // so the one genuinely social thing on screen looked like scenery.
+  for (const peer of world.peerPositions()) {
+    models.push({
+      id: `peer-${peer.playerId}`, kind: "maker",
+      label: "Maker", title: makerName(peer.playerId), detail: "",
+      x: peer.x, y: peer.y, z: peer.z, building: false,
+    });
+  }
 
   // A named buyer standing in the district. Filling their order is the best-paying
   // action in the game, so it is also the most visible thing in the world.
@@ -1871,9 +1894,34 @@ function closeBootGate(): void {
   renderAll();
 }
 
+
+/**
+ * How many real people are in the realm right now.
+ *
+ * A number that changes because somebody else walked in is the cheapest proof an MMO can
+ * offer that it is one. It was previously buried inside a status sentence nobody reads.
+ */
+function renderOnlinePill(): void {
+  const node = document.querySelector<HTMLElement>("#onlinePill");
+  if (!node) return;
+  if (isDemo()) {
+    node.hidden = false;
+    node.className = "online-pill offline";
+    node.innerHTML = `<i aria-hidden="true"></i><span>Demo — not connected</span>`;
+    return;
+  }
+  const nearby = world.peerCount;
+  const total = Math.max(nearby, districtShopCount);
+  if (!isSynced() && nearby === 0) { node.hidden = true; return; }
+  node.hidden = false;
+  node.className = `online-pill${nearby > 0 ? " busy" : ""}`;
+  node.innerHTML = `<i aria-hidden="true"></i><span><b>${total || 1}</b> ${total === 1 ? "maker" : "makers"} here</span>`;
+}
+
 function renderAll(): void {
   renderHeader();
   renderWalletSlot();
+  renderOnlinePill();
   renderTutorial();
   renderSelectedPlot();
   renderBuild();
