@@ -1834,10 +1834,10 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   grid-template-rows: auto 1fr auto auto;
   grid-template-areas:
-    "context .     status"
-    ".       .     ."
-    "guide   guide guide"
-    "actions actions actions";
+    "top      top    top"
+    "rail     .      business"
+    "guide    guide  business"
+    "world    world  world";
   gap: 8px;
   padding: 10px;
   /* The world must stay clickable through the gaps; each control opts back in. */
@@ -1846,11 +1846,17 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .hud-grid > .hud-zone { min-width: 0; }
 .hud-grid :where(button, a, .biz-strip, .alert, .resource-chip, .wallet-pill, .next-step) { pointer-events: auto; }
 
-.hud-context { grid-area: context; display: grid; gap: 6px; justify-items: start; align-content: start; }
-.hud-status  { grid-area: status;  display: grid; gap: 8px; justify-items: end;   align-content: start;
+.hud-top { grid-area: top; display: grid; gap: 6px; justify-items: start; align-content: start; }
+.hud-business { grid-area: business;  display: grid; gap: 8px; justify-items: end;   align-content: start;
                width: min(300px, 100%); justify-self: end; }
 .hud-guide   { grid-area: guide;   display: grid; gap: 6px; justify-items: center; }
-.hud-actions { grid-area: actions; display: grid; gap: 8px; justify-items: center; }
+.hud-world { grid-area: world; display: grid; gap: 8px; justify-items: center; }
+/* The desks, on a rail up the left edge.
+   They were the tallest row of a four-row bottom stack — quick bar, resources, action,
+   desks — which together covered 162px along the bottom, and with the Mayor's card above
+   it nearly half a short window. Vertical costs nothing: the sides of an isometric view
+   are the emptiest part of the screen, which is why the genre puts tools there. */
+.hud-rail { grid-area: rail; align-self: start; justify-self: start; }
 
 /* Elements inside a zone are laid out BY the zone, so their old absolute anchors go. */
 .hud-grid .world-label,
@@ -2036,3 +2042,241 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .quick-bar small { display: none; }
   .quick-bar strong { font-size: 11.5px; }
 }
+
+/* --- The desk rail ------------------------------------------------------------------- */
+.hud-grid .hud-rail .maker-nav { flex-direction: column; gap: 4px; width: auto; padding: 5px;
+  border-radius: 16px; }
+.hud-grid .hud-rail .maker-nav-title { display: none; }
+.hud-grid .hud-rail .maker-nav button { flex: none; flex-direction: row; gap: 8px;
+  justify-content: flex-start; min-height: 40px; padding: 0 12px 0 9px; border-radius: 12px; }
+.hud-grid .hud-rail .maker-nav button strong { font-size: 11.5px; }
+.hud-grid .hud-rail .maker-nav button kbd { display: none; }
+
+@media (max-width: 720px) {
+  /* A phone has less width to spare than height once the desks leave the bottom, so the
+     rail keeps only its icons. The label is on the sheet header the moment you open one. */
+  .hud-grid .hud-rail .maker-nav button { padding: 0 9px; }
+  .hud-grid .hud-rail .maker-nav button strong,
+  .hud-grid .hud-rail .maker-nav button small { display: none; }
+  .hud-grid .hud-rail .maker-nav button { min-height: 36px; }
+}
+
+/* One line of goods, not a paragraph of them.
+   Wrapping, the dock grew to whatever the inventory needed — with the quick bar and the
+   action row it pushed the bottom stack to 299px, worse than the four rows this was meant
+   to fix. A resource strip is glanced at along one line; if there are more goods than fit,
+   the line scrolls. */
+.hud-grid .resource-dock { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+  justify-content: flex-start; padding-bottom: 2px; scrollbar-width: none; }
+.hud-grid .resource-dock::-webkit-scrollbar { display: none; }
+.hud-grid .resource-dock .resource-chip { flex: none; }
+.hud-grid .quick-bar { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start;
+  scrollbar-width: none; }
+.hud-grid .quick-bar::-webkit-scrollbar { display: none; }
+.hud-grid .quick-bar button { flex: none; }
+/* Both strips centre when they fit and scroll when they do not. */
+.hud-grid .resource-dock, .hud-grid .quick-bar { justify-content: safe center; }
+
+/* =====================================================================================
+   COMPACT PASS — small, and still readable
+   =====================================================================================
+   The HUD is furniture around a world and had grown to compete with it: controls sized
+   for a settings page, 38-48px tall with two lines of text apiece.
+
+   Compactness comes from HEIGHT and PADDING, not from shrinking type. A first pass took
+   labels to 8.5px, which is not compact, it is unreadable — so there are floors here and
+   they are not negotiable:
+
+       body / values      12px minimum
+       captions & labels  10px minimum, and never grey-on-grey at that size
+       tap targets        30px minimum on a coarse pointer
+
+   One visual language throughout: dark translucent glass, a 10-12px radius on controls
+   and 999px on pills, one accent (#f4d77b) for the thing you are meant to notice, and
+   captions in a colour that actually reads against it.
+   ===================================================================================== */
+.hud-grid { gap: 7px; padding: 9px; }
+.hud-context, .hud-status, .hud-actions { gap: 6px; }
+
+/* Shared surface: one glass, one border, one radius family. */
+.hud-grid :where(.world-label, .daylight-chip, .biz-strip, .online-pill, .quick-bar button,
+  .resource-chip, .hud-rail .maker-nav) {
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(12,42,44,.86);
+  backdrop-filter: blur(7px);
+}
+/* Captions carry meaning at small sizes only if they can be read. */
+.hud-grid :where(.world-label small, .daylight-chip span, .quick-bar small, .resource-chip small,
+  .biz-metrics small, .wallet-pill small) {
+  color: rgba(242,248,239,.74);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+/* Primary action */
+.hud-grid .world-actions { gap: 6px; }
+.hud-grid .world-action { min-height: 38px; padding: 0 13px; border-radius: 12px; }
+.hud-grid .world-action i { width: 23px; height: 23px; }
+.hud-grid .world-action strong { font-size: 13px; }
+.hud-grid .world-action small { font-size: 10px; }
+
+/* Desk rail */
+.hud-grid .hud-rail .maker-nav { padding: 4px; border-radius: 14px; gap: 3px; }
+.hud-grid .hud-rail .maker-nav button { min-height: 36px; padding: 0 11px 0 9px; border-radius: 11px; }
+.hud-grid .hud-rail .maker-nav button i { width: 21px; height: 21px; }
+.hud-grid .hud-rail .maker-nav button strong { font-size: 12px; }
+.hud-grid .hud-rail .maker-nav button small { display: none; }
+
+/* Errands and goods */
+.hud-grid .quick-bar button { min-height: 32px; padding: 0 11px; gap: 7px; border-radius: 999px; }
+.hud-grid .quick-bar strong { font-size: 12px; }
+.hud-grid .resource-chip { min-height: 32px; padding: 4px 10px; gap: 7px; border-radius: 11px; }
+.hud-grid .resource-chip i { font-size: 14px; }
+.hud-grid .resource-chip strong { font-size: 12.5px; }
+.hud-grid .resource-chip span { color: rgba(242,248,239,.66); font-size: 10.5px; }
+
+/* Account and presence */
+.hud-grid .wallet-pill { min-height: 34px; padding: 0 12px; gap: 7px; }
+.hud-grid .wallet-pill strong { font-size: 12.5px; }
+.hud-grid .online-pill { padding: 5px 10px; font-size: 11.5px; }
+
+/* The line, and what is wrong with it */
+.hud-grid .biz-strip { padding: 9px 11px 10px; }
+.hud-grid .biz-head strong { font-size: 13px; }
+.hud-grid .biz-head small { color: rgba(242,248,239,.7); font-size: 11px; }
+.hud-grid .biz-why { margin: 6px 0 8px; color: rgba(242,248,239,.82); font-size: 11.5px; }
+.hud-grid .biz-metrics strong { font-size: 12.5px; }
+.hud-grid .alert-stack .alert { padding: 8px 10px; font-size: 12px; gap: 8px; }
+.hud-grid .alert-stack .alert button { min-height: 28px; padding: 0 10px; font-size: 11.5px; }
+
+/* Context corner */
+.hud-grid .world-label { padding: 6px 11px; border-radius: 12px; }
+.hud-grid .world-label strong { font-size: 13px; }
+.hud-grid .daylight-chip { padding: 5px 11px; font-size: 11.5px; }
+
+/* The Mayor — she is being read, so she keeps the most room. */
+.hud-grid .next-step { padding: 10px 12px 12px; gap: 9px; }
+.hud-grid .next-step strong { font-size: 17px; }
+.hud-grid .next-step span#nextHint { font-size: 12.5px; line-height: 1.45; }
+.hud-grid .mayor-because { margin-top: 6px; padding-top: 6px; color: rgba(242,248,239,.76); font-size: 11.5px; }
+.hud-grid .mayor-portrait { width: 36px; height: 36px; }
+.hud-grid .next-go { min-height: 34px; padding: 0 13px; font-size: 12.5px; }
+.hud-grid .mayor-dismiss { min-height: 24px; font-size: 11px; }
+
+/* A control has to stay hittable. Below this a finger misses it. */
+@media (pointer: coarse) { .hud-grid :where(button, a) { min-height: 30px; } }
+
+/* Nothing on the play screen drops below the readable floor, whatever the breakpoint. */
+.hud-grid :where(strong, b) { font-size: max(12px, 1em); }
+.hud-grid :where(small, em, span) { font-size: max(10px, 1em); }
+
+/* The state badge was the last thing under the readable floor. It is the word that tells
+   a player their line has stopped — the worst thing on the HUD to make them squint at. */
+.hud-grid .biz-state { font-size: 10px; padding: 3px 8px; letter-spacing: .04em; }
+
+/* =====================================================================================
+   THE THREE ZONES
+   =====================================================================================
+   Top: who you are and what you hold. Right: your business, permanently. Bottom: the
+   world you are trading in. Everything else improvises around them — the desks on a rail
+   up the left, the Mayor above the world strip, alerts under the business panel.
+   ===================================================================================== */
+.hud-grid {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, 300px);
+  grid-template-rows: auto 1fr auto auto;
+}
+
+/* TOP — one line, everything on it glanceable. */
+.hud-top { display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+  justify-self: stretch; }
+.hud-vitals { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.hud-vitals .vital { display: flex; flex-direction: column; justify-content: center;
+  min-width: 0; padding: 5px 11px; border-radius: 11px;
+  border: 1px solid rgba(255,255,255,.15); background: rgba(12,42,44,.86);
+  backdrop-filter: blur(7px); }
+.hud-vitals .vital small { color: rgba(242,248,239,.72); font-size: 10px; font-weight: 800;
+  letter-spacing: .07em; text-transform: uppercase; }
+.hud-vitals .vital strong { color: #f2f8ef; font-size: 13px; line-height: 1.2;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-vitals .vital b { color: rgba(242,248,239,.5); font-size: 10px; font-weight: 800; }
+.hud-vitals .vital-level { min-width: 118px; }
+.vital-bar { display: block; height: 3px; margin-top: 4px; border-radius: 3px;
+  background: rgba(255,255,255,.16); overflow: hidden; }
+.vital-bar > b { display: block; height: 100%; background: #f4d77b; }
+
+/* RIGHT — the business, permanently. */
+.hud-business { justify-self: end; align-self: start; display: grid; gap: 6px;
+  width: min(300px, 100%); }
+#hudBusiness { padding: 10px 11px 11px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.15); background: rgba(12,42,44,.9);
+  backdrop-filter: blur(7px); color: #f2f8ef; }
+#hudBusiness[hidden] { display: none; }
+.bp-head { display: flex; align-items: center; gap: 9px; }
+.bp-model { display: grid; place-items: center; width: 40px; height: 40px; flex: none;
+  border-radius: 11px; background: color-mix(in srgb, var(--bp-color) 30%, #0d3234);
+  border: 1px solid color-mix(in srgb, var(--bp-color) 55%, transparent); }
+.bp-model i { font-size: 20px; font-style: normal; }
+.bp-name { min-width: 0; }
+.bp-name strong { display: block; font-size: 13px; line-height: 1.2; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.bp-name small { display: block; color: rgba(242,248,239,.66); font-size: 10.5px; }
+
+.bp-rate, .bp-books { display: grid; gap: 5px; margin-top: 8px; }
+.bp-rate { grid-template-columns: 1fr 1fr; }
+.bp-books { grid-template-columns: 1fr 1fr; }
+.bp-rate span, .bp-books span { padding: 6px 8px; border-radius: 9px; background: rgba(255,255,255,.06); }
+.bp-rate small, .bp-books small { display: block; color: rgba(242,248,239,.62); font-size: 10px;
+  font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.bp-rate strong, .bp-books strong { display: block; font-size: 14px; line-height: 1.2;
+  font-variant-numeric: tabular-nums; }
+.bp-rate b, .bp-books b { color: rgba(242,248,239,.5); font-size: 10px; font-weight: 700; }
+.bp-books .up strong { color: #8fd6a4; }
+.bp-books .down strong { color: #f0a08c; }
+
+.bp-upgrades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
+.bp-upgrades button { display: grid; gap: 4px; justify-items: center; padding: 6px 2px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(255,255,255,.05);
+  color: #f2f8ef; cursor: pointer; }
+.bp-upgrades button:hover { background: rgba(255,255,255,.12); }
+.bp-upgrades i { font-size: 13px; font-style: normal; }
+.bp-upgrades em { display: flex; gap: 2px; }
+.bp-upgrades u { width: 5px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.2);
+  text-decoration: none; }
+.bp-upgrades u.on { background: #f4d77b; }
+
+/* BOTTOM — the world, on one scrolling line. */
+.hud-world { display: grid; gap: 6px; justify-items: center; justify-self: stretch; }
+.world-strip { display: flex; gap: 5px; overflow-x: auto; max-width: 100%;
+  scrollbar-width: none; justify-content: safe center; }
+.world-strip::-webkit-scrollbar { display: none; }
+.ws-item { flex: none; min-width: 0; padding: 6px 11px; border-radius: 11px; text-align: left;
+  border: 1px solid rgba(255,255,255,.15); background: rgba(12,42,44,.86);
+  color: #f2f8ef; backdrop-filter: blur(7px); font: inherit; }
+.ws-item small { display: block; color: rgba(242,248,239,.68); font-size: 10px; font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.ws-item strong { display: block; font-size: 12.5px; line-height: 1.2; white-space: nowrap; }
+.ws-item b { color: rgba(242,248,239,.5); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.ws-order { border-color: rgba(244,215,123,.5); cursor: pointer; }
+.ws-order strong { color: #f4d77b; }
+.ws-wanted { border-color: rgba(110,231,168,.35); }
+
+@media (max-width: 860px) {
+  .hud-grid { grid-template-columns: minmax(0,auto) minmax(0,1fr) minmax(0,230px); }
+  .hud-business { width: min(230px, 100%); }
+  .bp-rate, .bp-books { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  /* No room for a permanent column beside the world; the business folds under the top. */
+  .hud-grid { grid-template-columns: minmax(0,auto) minmax(0,1fr);
+    grid-template-areas: "top top" "rail business" "guide guide" "world world"; }
+  .hud-business { width: min(190px, 100%); }
+  .bp-upgrades { grid-template-columns: repeat(4, 1fr); }
+  .bp-rate, .bp-books { grid-template-columns: 1fr 1fr; }
+}
+
+/* Zone children must never stretch to fill a row — that is how three quick-action buttons
+   became 386px tall columns standing in the middle of the world. */
+.hud-grid .hud-zone > * { align-self: start; }
+.hud-world { align-content: end; }

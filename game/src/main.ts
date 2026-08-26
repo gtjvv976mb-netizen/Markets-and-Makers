@@ -1993,9 +1993,109 @@ function renderQuickBar(): void {
   node.innerHTML = chips.join("");
 }
 
+
+/**
+ * TOP — who you are and what you hold.
+ *
+ * Online, balance, level, worth: the four numbers a player checks without thinking, on one
+ * line across the top where every management game puts them.
+ */
+function renderVitals(): void {
+  const node = document.querySelector<HTMLElement>("#hudVitals");
+  if (!node) return;
+  const level = store.careerLevel();
+  const next = store.nextCareerLevel();
+  const progress = store.careerProgress();
+  node.innerHTML = `
+    <div class="vital"><small>Balance</small><strong>${formatNumber(store.state.wallet)}</strong><b>${CURRENCY_CODE}</b></div>
+    <div class="vital"><small>Worth</small><strong>${formatNumber(store.netWorth())}</strong></div>
+    <div class="vital vital-level" title="${next ? `${formatNumber(next.xp - store.state.experience)} XP to ${next.name}` : "Top of the ladder"}">
+      <small>Level ${level.level}</small><strong>${escapeMarkup(level.name)}</strong>
+      <i class="vital-bar"><b style="width:${progress}%"></b></i></div>
+    <div class="vital"><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong></div>`;
+}
+
+/**
+ * RIGHT — your business, permanently on screen.
+ *
+ * Everything a maker needs to run the place without opening anything: what it is, what it
+ * is doing, the rate it produces at, what it costs, what it earns, and what is installed.
+ * This was spread across a panel, a strip and two tabs.
+ */
+function renderBusinessPanel(): void {
+  const node = document.querySelector<HTMLElement>("#hudBusiness");
+  if (!node) return;
+  const licence = store.state.license;
+  if (!licence || !store.state.buildingPlaced) { node.hidden = true; return; }
+  node.hidden = false;
+
+  const config = BUSINESS[licence];
+  const economics = store.unitEconomics();
+  const cycles = store.inputMultiplier();
+  const seconds = store.jobDuration(licence, cycles);
+  const perHour = seconds > 0 ? (3600 / seconds) : 0;
+  const outputs = (Object.keys(config.output) as ResourceKey[]).filter((k) => (config.output[k] ?? 0) > 0);
+  const madePerHour = outputs.length > 0
+    ? Math.round(perHour * (config.output[outputs[0]!] ?? 0) * cycles)
+    : Math.round(perHour * cycles);
+  const rateUnit = outputs.length > 0 ? RESOURCES[outputs[0]!].short : "visits";
+  const upgrades = (Object.keys(UPGRADE_NAMES) as UpgradeKey[]);
+  const profit = economics ? Math.round(economics.expectedProfit) : 0;
+  const daily = store.dailyOverhead();
+
+  node.innerHTML = `
+    <div class="bp-head">
+      <span class="bp-model" style="--bp-color:${escapeMarkup(config.color)}" aria-hidden="true"><i>${escapeMarkup(config.icon)}</i></span>
+      <span class="bp-name"><strong>${escapeMarkup(config.name)}</strong><small>${escapeMarkup(config.sector)}</small></span>
+    </div>
+    <div class="bp-rate">
+      <span><small>Making</small><strong>${madePerHour}</strong><b>${escapeMarkup(rateUnit)}/hr</b></span>
+      <span><small>Cycle</small><strong>${seconds}s</strong><b>${cycles} batch${cycles === 1 ? "" : "es"}</b></span>
+    </div>
+    <div class="bp-books">
+      <span class="${profit >= 0 ? "up" : "down"}"><small>Profit / cycle</small><strong>${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></span>
+      <span><small>Costs / cycle</small><strong>${economics ? formatNumber(economics.inputCost + economics.laborCost) : 0}</strong></span>
+      <span><small>Overheads / day</small><strong>${formatNumber(daily)}</strong></span>
+      <span class="${store.todayProfit() >= 0 ? "up" : "down"}"><small>Today</small><strong>${store.todayProfit() >= 0 ? "+" : ""}${formatNumber(store.todayProfit())}</strong></span>
+    </div>
+    <div class="bp-upgrades">
+      ${upgrades.map((key) => {
+        const level = store.state.upgrades[key];
+        const ceiling = store.upgradeCeiling();
+        return `<button data-action="tab" data-target="shop" title="${escapeMarkup(UPGRADE_NAMES[key].name)}: level ${level} of ${ceiling}">
+          <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i>
+          <em>${Array.from({ length: ceiling }, (_, i) => `<u class="${i < level ? "on" : ""}"></u>`).join("")}</em>
+        </button>`;
+      }).join("")}
+    </div>`;
+}
+
+/**
+ * BOTTOM — the world you are trading in.
+ *
+ * The cycle, what the district is short of, and the public orders on the board. A maker
+ * decides what to make next from these three things and all three were behind a tab.
+ */
+function renderWorldStrip(): void {
+  const node = document.querySelector<HTMLElement>("#hudWorld");
+  if (!node) return;
+  const wanted = store.demandHighlights(2);
+  const offer = store.bestOffer();
+  node.innerHTML = `
+    <div class="ws-item"><small>Economy</small><strong>${escapeMarkup(store.economicPhase())}</strong><b>${escapeMarkup(store.economyTrend())}</b></div>
+    <div class="ws-item"><small>Confidence</small><strong>${store.consumerConfidenceIndex()}</strong><b>prices ${store.marketPriceIndex()}</b></div>
+    ${wanted.map((entry) => `<div class="ws-item ws-wanted"><small>Wants ${escapeMarkup(RESOURCES[entry.key].short)}</small><strong>${entry.price} ${CURRENCY_CODE}</strong><b>${entry.remaining} more</b></div>`).join("")}
+    ${offer
+      ? `<button class="ws-item ws-order" data-action="tab" data-target="trade"><small>Government order</small><strong>${offer.quantity} ${escapeMarkup(RESOURCES[offer.resource].short)}</strong><b>${formatNumber(offer.grossReward)} ${CURRENCY_CODE}</b></button>`
+      : `<div class="ws-item"><small>Orders</small><strong>None worth taking</strong><b>check back later</b></div>`}`;
+}
+
 function renderAll(): void {
   renderHeader();
   renderWalletSlot();
+  renderVitals();
+  renderBusinessPanel();
+  renderWorldStrip();
   renderOnlinePill();
   renderTutorial();
   renderSelectedPlot();
