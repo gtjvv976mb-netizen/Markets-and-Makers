@@ -7,8 +7,29 @@
 // would have been one curl. This is that curl, run automatically so nobody has to
 // remember it.
 
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
 const ORIGIN = process.env.MM_LIVE_ORIGIN ?? "https://www.markets-makers.com";
 const TIMEOUT_MS = 20_000;
+const DIST = join(dirname(fileURLToPath(import.meta.url)), "..", "game", "dist");
+
+/** The hashed entry files an index.html points at. */
+function bundlesIn(html) {
+  return [...html.matchAll(/\/assets\/index-[A-Za-z0-9_-]+\.(?:js|css)/g)].map((m) => m[0]).sort();
+}
+
+async function text(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { redirect: "follow", signal: controller.signal, cache: "no-store" });
+    return { status: response.status, body: await response.text(), cache: response.headers.get("cf-cache-status") ?? "" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function head(url) {
   const controller = new AbortController();
@@ -49,6 +70,36 @@ for (const asset of ["/assets/brand/markets-makers-official.avif", "/assets/bran
   } else {
     console.log(`  ${asset} — ${result.status}, ${result.bytes} bytes, ${result.type}`);
   }
+}
+
+// THE CHECK THAT MATTERS: is the live page pointing at the bundle we just built?
+//
+// Everything above can pass while players still receive the previous release. That is not
+// hypothetical — it happened on 2026-08-27: both new assets uploaded and returned 200, the
+// entry document was a cached copy naming the OLD bundle, and this script called it green.
+// A deploy that changes nothing a player can load is a failed deploy, and it should say so
+// rather than printing "verified".
+try {
+  const built = bundlesIn(await readFile(join(DIST, "index.html"), "utf8"));
+  const live = await text(`${ORIGIN}/`);
+  const serving = bundlesIn(live.body);
+  const missing = built.filter((file) => !serving.includes(file));
+  if (built.length === 0) {
+    failures.push("could not find a hashed bundle in game/dist/index.html — did the build run?");
+  } else if (missing.length > 0) {
+    failures.push(
+      `the live page is not serving this build.\n`
+      + `      built:   ${built.join(", ")}\n`
+      + `      serving: ${serving.join(", ") || "(none found)"}\n`
+      + `      cf-cache-status: ${live.cache || "unknown"}\n`
+      + `      The assets almost certainly uploaded fine — it is the entry document that is\n`
+      + `      stale. Purge the cached HTML for this zone, or wait out its TTL. A Cache Rule\n`
+      + `      that ignores query strings will keep serving it however many times you deploy.`);
+  } else {
+    console.log(`  entry document names this build — ${built.join(", ")}`);
+  }
+} catch (error) {
+  failures.push(`could not compare the built bundle with the live one — ${error}`);
 }
 
 if (failures.length > 0) {
