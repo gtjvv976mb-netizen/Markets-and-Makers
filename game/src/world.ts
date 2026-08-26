@@ -170,6 +170,45 @@ function freezeTransforms(root: THREE.Object3D): void {
   root.matrixWorldAutoUpdate = false;
 }
 
+/**
+ * Fog of war: how much of the realm is kept in the world at once.
+ *
+ * The island is one mesh of 1,715 parts and the camera sees perhaps 100x60 units of it, yet
+ * chunk culling kept a 224x224 area alive to be frustum-tested every frame. Pulling the
+ * horizon in costs nothing a player can see — as long as the edge is hidden, which is what
+ * the fog is for. Without matching fog you get a visible cut line and it reads as a bug.
+ *
+ * Both dials move together with the quality signal, so a machine that is struggling gets a
+ * closer, mistier world and a fast one gets the long view.
+ */
+const FOG_OF_WAR = [
+  // struggling: the district and its immediate neighbours, heavy haze beyond
+  { chunkRadius: 2, fogDensity: 0.0068, furniture: 0.35 },
+  // comfortable
+  { chunkRadius: 3, fogDensity: 0.0038, furniture: 0.7 },
+  // plenty of headroom: the long view, near enough the original atmosphere
+  { chunkRadius: 3, fogDensity: 0.0021, furniture: 1 },
+] as const;
+
+/**
+ * Street furniture is where the triangles actually are.
+ *
+ * Measured: the streets are 147,152 of the scene's 201,332 rendered triangles — 73% — in
+ * seven draw calls. Of that, the SHRUBS alone are 63,800: six hundred and thirty-eight
+ * decorative bushes at a hundred triangles each, a third of everything the GPU draws.
+ * Lamps are 84 triangles apiece and benches 60.
+ *
+ * Chunk culling cannot touch any of it. Hiding half the map's chunks moved the triangle
+ * count by 0.7%, because the furniture is instanced across the whole realm rather than
+ * parcelled into chunks — so the honest way to render less is to plant fewer bushes, not
+ * to draw a smaller circle.
+ *
+ * Lowering `count` on an InstancedMesh draws fewer of them and costs nothing: no rebuild,
+ * no reallocation, effective on the very next frame. Instances are not sorted by position,
+ * so what thins is spread evenly over the realm rather than carving a bald patch.
+ */
+const THINNABLE_FURNITURE = ["MM_STREET_SHRUBS", "MM_STREET_LAMPS", "MM_STREET_BENCHES"] as const;
+
 // Adaptive quality. The gap between DOWN and UP is the hysteresis that stops a machine
 // sitting on the boundary from flickering between two resolutions every second.
 /** Sustained frame time that means this device is struggling (~45fps). */
@@ -211,6 +250,8 @@ export class World3D {
   /** Smoothed frame time in ms, the signal quality follows. */
   private frameCost = 0;
   private lastQualityChange = 0;
+  /** Index into FOG_OF_WAR. Starts optimistic and is corrected by measurement. */
+  private qualityTier = FOG_OF_WAR.length - 1;
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
   private readonly citizenTerrain = new Map<string, string>();
@@ -301,7 +342,7 @@ export class World3D {
     const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
     this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
     this.scene.background = new THREE.Color(0x0fa8bb);
-    this.scene.fog = new THREE.FogExp2(0x46bdca, 0.00042);
+    this.scene.fog = new THREE.FogExp2(0x46bdca, FOG_OF_WAR[FOG_OF_WAR.length - 1]!.fogDensity);
     this.setupLighting();
     this.setupAvatar();
     this.walkMarker.rotation.x = -Math.PI / 2;
@@ -800,7 +841,8 @@ export class World3D {
     this.visibleChunkKey = key;
     for (const entry of this.chunkRoots) {
       const padding = Number(entry.object.userData.visibilityPaddingChunks ?? 0);
-      entry.object.visible = Math.abs(entry.cx - chunk[0]) <= 3 + padding && Math.abs(entry.cy - chunk[1]) <= 3 + padding;
+      const reach = FOG_OF_WAR[this.qualityTier]!.chunkRadius + padding;
+      entry.object.visible = Math.abs(entry.cx - chunk[0]) <= reach && Math.abs(entry.cy - chunk[1]) <= reach;
     }
   }
 
@@ -2101,10 +2143,50 @@ export class World3D {
     this.frameCost = this.frameCost === 0 ? deltaMs : this.frameCost * 0.9 + deltaMs * 0.1;
     if (this.clock.elapsedTime - this.lastQualityChange < QUALITY_SETTLE_SECONDS) return;
 
-    if (this.frameCost > QUALITY_DOWN_MS && this.pixelRatio > QUALITY_MIN_RATIO) {
-      this.applyPixelRatio(Math.max(QUALITY_MIN_RATIO, this.pixelRatio - QUALITY_STEP));
-    } else if (this.frameCost < QUALITY_UP_MS && this.pixelRatio < this.pixelRatioCeiling) {
-      this.applyPixelRatio(Math.min(this.pixelRatioCeiling, this.pixelRatio + QUALITY_STEP));
+    if (this.frameCost > QUALITY_DOWN_MS) {
+      // Resolution first: it is the cheapest thing to give up and the least noticeable.
+      // Only pull the horizon in once there is no resolution left to trade.
+      if (this.pixelRatio > QUALITY_MIN_RATIO) {
+        this.applyPixelRatio(Math.max(QUALITY_MIN_RATIO, this.pixelRatio - QUALITY_STEP));
+      } else if (this.qualityTier > 0) {
+        this.applyQualityTier(this.qualityTier - 1);
+      }
+    } else if (this.frameCost < QUALITY_UP_MS) {
+      // Earn the world back before the pixels: seeing further matters more than sharpness.
+      if (this.qualityTier < FOG_OF_WAR.length - 1) {
+        this.applyQualityTier(this.qualityTier + 1);
+      } else if (this.pixelRatio < this.pixelRatioCeiling) {
+        this.applyPixelRatio(Math.min(this.pixelRatioCeiling, this.pixelRatio + QUALITY_STEP));
+      }
+    }
+  }
+
+  /** Move the horizon, and the fog that hides it, together. */
+  private applyQualityTier(tier: number): void {
+    const next = Math.max(0, Math.min(FOG_OF_WAR.length - 1, tier));
+    if (next === this.qualityTier) return;
+    this.qualityTier = next;
+    const settings = FOG_OF_WAR[next]!;
+    if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density = settings.fogDensity;
+    this.applyFurnitureDensity(settings.furniture);
+    // The radius changed, so the cached "same chunk as last frame" answer is stale.
+    this.updateChunkVisibility(true);
+    this.lastQualityChange = this.clock.elapsedTime;
+    this.frameCost = (QUALITY_DOWN_MS + QUALITY_UP_MS) / 2;
+  }
+
+  /** Draw a share of the street furniture. See THINNABLE_FURNITURE. */
+  private applyFurnitureDensity(share: number): void {
+    const streets = this.scene.getObjectByName("MM_STREETS");
+    if (!streets) return;
+    for (const name of THINNABLE_FURNITURE) {
+      const mesh = streets.getObjectByName(name);
+      if (!(mesh instanceof THREE.InstancedMesh)) continue;
+      // The full population is remembered the first time, because `count` is about to
+      // become a lie about how many were planted.
+      const planted = Number(mesh.userData.plantedCount ?? mesh.count);
+      mesh.userData.plantedCount = planted;
+      mesh.count = Math.max(1, Math.round(planted * share));
     }
   }
 
