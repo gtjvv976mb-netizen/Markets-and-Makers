@@ -8,6 +8,7 @@ import { clientMessageSchema, validateMove, type PositionSample } from "./protoc
 import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { runWorldTick } from "./tick.js";
 import { runMinds } from "./minds.js";
+import { dispatchAvailable, recentDispatches, writeDispatch } from "./bulletin.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
@@ -243,6 +244,17 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // The Dispatch is public: it is a newspaper, and the whole point is that anyone can
+    // read what the district did today without an account.
+    if (req.method === "GET" && url.pathname === "/api/world/dispatch") {
+      json(res, 200, {
+        realmName: REALM_NAME,
+        available: dispatchAvailable(),
+        dispatches: await recentDispatches(Number(url.searchParams.get("limit") ?? 7)),
+      });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/world/me") {
       const who = await authenticate(bearerFrom(req.headers.authorization));
       if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
@@ -440,6 +452,11 @@ server.listen(config.port, "0.0.0.0", async () => {
           if (report.businesses > 0 && (report.sold > 0 || report.produced > 0)) {
             console.log(`world tick: ${report.businesses} businesses, ${report.produced} cycles, ${report.sold} sold for ${report.gross}`);
           }
+        })
+        .then(() => writeDispatch())
+        .then((dispatch) => {
+          // A missing dispatch is unremarkable: no key, or the last one is still recent.
+          if (dispatch) console.log(`dispatch: "${dispatch.headline}" (${dispatch.mood})`);
         })
         .catch((error) => console.error("world tick failed", error))
         .finally(() => { running = false; });
