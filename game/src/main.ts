@@ -1,7 +1,8 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CURRENCY_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
-  worldRunsOnServer } from "./realm";
+  worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
+  cancelMarketListing, type MarketListing } from "./realm";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
@@ -394,6 +395,11 @@ async function refreshDistrict(): Promise<void> {
 }
 void refreshDistrict();
 window.setInterval(() => { void refreshDistrict(); }, 45_000);
+
+// The order book moves whenever anyone else trades, so it is refreshed on its own timer
+// rather than only when this player does something.
+void refreshMakerMarket();
+window.setInterval(() => { void refreshMakerMarket(); }, 30_000);
 
 // Counter trade lands whenever a Mercedonian reaches the door, which on a busy street
 // is several times a second. The takings are already banked by then; this only decides
@@ -1075,6 +1081,200 @@ function renderMarket(): void {
   `;
 }
 
+
+// --- The maker market ----------------------------------------------------------------
+//
+// Selling to the district is a published price you take or leave. This is the other half
+// of a market: makers setting their own prices and buying from each other. The authority
+// has escrowed order books since the world went server-side; nothing had ever called them.
+//
+// Prices are chosen RELATIVE to the district rate rather than typed into a blank box. Two
+// taps, no validation to fail, and it anchors a new maker to a sensible number instead of
+// asking them to guess what water is worth.
+
+interface ListingDraft { item: ResourceKey | null; quantity: number; markup: number }
+
+let makerListings: MarketListing[] = [];
+let makerHoldings: Record<string, number> = {};
+let myPlayerId: string | null = null;
+let marketBusy = false;
+const listingDraft: ListingDraft = { item: null, quantity: 10, markup: 0 };
+
+const MARKUP_STEPS: Array<{ markup: number; label: string }> = [
+  { markup: -0.15, label: "Undercut" },
+  { markup: 0, label: "Match" },
+  { markup: 0.2, label: "Premium" },
+];
+
+/** The district's proper name, not the id the URL uses. */
+function districtName(): string {
+  return (ISLANDS.find((entry) => entry.id === store.state.island) ?? ISLANDS[0]!).name;
+}
+
+/** The district's published price, which every listing price is quoted against. */
+function referencePrice(key: ResourceKey): number {
+  return Math.max(1, store.marketSellPrice(key));
+}
+
+function draftUnitPrice(): number {
+  if (!listingDraft.item) return 0;
+  return Math.max(1, Math.round(referencePrice(listingDraft.item) * (1 + listingDraft.markup)));
+}
+
+async function refreshMakerMarket(): Promise<void> {
+  const [book, holdings] = await Promise.all([
+    fetchMarketBook(store.state.island),
+    fetchHoldings(),
+  ]);
+  if (book) makerListings = book;
+  if (holdings) makerHoldings = holdings.inventory;
+  if (myPlayerId === null) myPlayerId = (await fetchIdentity())?.playerId ?? null;
+  renderMakerMarket();
+}
+
+function renderMakerMarket(): void {
+  const node = document.querySelector<HTMLElement>("#makerMarketPanel");
+  if (!node) return;
+
+  if (!isSynced()) {
+    node.innerHTML = `<h2>Maker market</h2>
+      <div class="empty-state"><i>⇄</i><strong>Sign in to trade with other makers</strong>
+      <p>Link a Solana wallet to buy and sell with everyone else in ${escapeMarkup(districtName())}. The district counter works either way.</p></div>`;
+    return;
+  }
+
+  // Only offer what the AUTHORITY says you hold: a listing escrows from the server's
+  // ledger, so offering what only the browser believes in is refused at the door.
+  const sellable = (Object.keys(RESOURCES) as ResourceKey[])
+    .filter((key) => (makerHoldings[key] ?? 0) > 0);
+  if (listingDraft.item && !sellable.includes(listingDraft.item)) listingDraft.item = null;
+  if (!listingDraft.item) listingDraft.item = sellable[0] ?? null;
+
+  const held = listingDraft.item ? makerHoldings[listingDraft.item] ?? 0 : 0;
+  const quantity = Math.max(1, Math.min(listingDraft.quantity, held));
+  const unitPrice = draftUnitPrice();
+
+  const mine = makerListings.filter((entry) => entry.sellerPlayerId === myPlayerId);
+  const theirs = makerListings.filter((entry) => entry.sellerPlayerId !== myPlayerId);
+
+  const row = (entry: MarketListing, ours: boolean): string => {
+    const spec = RESOURCES[entry.itemKey as ResourceKey];
+    if (!spec) return "";
+    const reference = referencePrice(entry.itemKey as ResourceKey);
+    const delta = Math.round(((entry.unitPrice - reference) / reference) * 100);
+    return `<li class="maker-listing${ours ? " mine" : ""}">
+      <i aria-hidden="true">${spec.icon}</i>
+      <span><strong>${entry.quantity} ${escapeMarkup(spec.short)}</strong>
+        <small>${entry.unitPrice} ${CURRENCY_CODE} each · ${delta === 0 ? "at the district rate" : `${delta > 0 ? "+" : ""}${delta}% vs district`}</small></span>
+      <span class="maker-listing-total">${formatNumber(entry.total)} ${CURRENCY_CODE}</span>
+      ${ours
+        ? `<button class="secondary" data-action="market-cancel" data-listing="${entry.id}" ${marketBusy ? "disabled" : ""}>Withdraw</button>`
+        : `<button data-action="market-buy" data-listing="${entry.id}" ${marketBusy || store.state.wallet < entry.total ? "disabled" : ""}>${store.state.wallet < entry.total ? "Too dear" : "Buy"}</button>`}
+    </li>`;
+  };
+
+  node.innerHTML = `
+    <h2>Maker market</h2>
+    <p class="model-note">Goods other makers are selling in ${escapeMarkup(districtName())}. Each district keeps its own book. A listing holds the goods in escrow until somebody buys them or you withdraw it. The city takes 2% of a sale.</p>
+
+    <div class="section-title">On offer${theirs.length ? ` · ${theirs.length}` : ""}</div>
+    ${theirs.length
+      ? `<ul class="maker-listings">${theirs.map((entry) => row(entry, false)).join("")}</ul>`
+      : `<div class="empty-state"><i>◎</i><strong>Nobody is selling here yet</strong><p>Be the first — list something below and set your own price.</p></div>`}
+
+    ${mine.length ? `<div class="section-title">Your listings · ${mine.length}</div>
+      <ul class="maker-listings">${mine.map((entry) => row(entry, true)).join("")}</ul>` : ""}
+
+    <div class="section-title">Sell to makers</div>
+    ${sellable.length ? `
+      <div class="maker-sell">
+        <div class="maker-chips" role="group" aria-label="Goods you hold">
+          ${sellable.map((key) => `<button class="${listingDraft.item === key ? "active" : ""}" data-action="market-pick" data-resource="${key}">
+            <i aria-hidden="true">${RESOURCES[key].icon}</i>${escapeMarkup(RESOURCES[key].short)} <small>${makerHoldings[key]}</small></button>`).join("")}
+        </div>
+        <div class="maker-chips" role="group" aria-label="How many">
+          ${[10, 50, held].filter((n, i, all) => n > 0 && all.indexOf(n) === i).map((n) => `<button class="${quantity === Math.min(n, held) ? "active" : ""}" data-action="market-qty" data-quantity="${n}">${n === held ? `All ${held}` : n}</button>`).join("")}
+        </div>
+        <div class="maker-chips" role="group" aria-label="Your price">
+          ${MARKUP_STEPS.map((step) => `<button class="${listingDraft.markup === step.markup ? "active" : ""}" data-action="market-markup" data-markup="${step.markup}">
+            ${step.label} <small>${listingDraft.item ? Math.max(1, Math.round(referencePrice(listingDraft.item) * (1 + step.markup))) : 0} ${CURRENCY_CODE}</small></button>`).join("")}
+        </div>
+        <button class="interior-buy" data-action="market-list" ${marketBusy || !listingDraft.item || held <= 0 ? "disabled" : ""}>
+          ${listingDraft.item
+            ? `List ${quantity} ${escapeMarkup(RESOURCES[listingDraft.item].short)} · ${formatNumber(quantity * unitPrice)} ${CURRENCY_CODE} if it all sells`
+            : "Nothing to list"}
+        </button>
+      </div>`
+      : `<div class="empty-state"><i>▤</i><strong>Nothing in the warehouse</strong><p>The authority holds no goods for you yet. Produce something, and it can be listed here.</p></div>`}
+  `;
+}
+
+
+/**
+ * Every maker-market action goes the same way: ask the authority, and only mirror what it
+ * confirms. A refusal is shown as-is — it is the shared market talking, and inventing a
+ * local fallback would let a browser believe it sold something the ledger never moved.
+ */
+async function withMarket(work: () => Promise<boolean>): Promise<void> {
+  if (marketBusy) return;
+  marketBusy = true;
+  renderMakerMarket();
+  try {
+    if (await work()) await refreshMakerMarket();
+  } finally {
+    marketBusy = false;
+    renderAll();
+    void refreshMakerMarket();
+  }
+}
+
+async function placeMakerListing(): Promise<void> {
+  const item = listingDraft.item;
+  if (!item) return;
+  const held = makerHoldings[item] ?? 0;
+  const quantity = Math.max(1, Math.min(listingDraft.quantity, held));
+  const unitPrice = draftUnitPrice();
+  if (quantity <= 0 || unitPrice <= 0) return;
+
+  await withMarket(async () => {
+    const outcome = await listOnMarket(store.state.island, item, quantity, unitPrice);
+    if (outcome.status === "ok") { report(store.applyMarketListing(item, quantity, unitPrice)); return true; }
+    if (outcome.status === "refused") toast(outcome.message);
+    else toast("The market is unreachable right now.");
+    return false;
+  });
+}
+
+async function takeMakerListing(listingId: string): Promise<void> {
+  const listing = makerListings.find((entry) => entry.id === listingId);
+  if (!listing) return;
+  await withMarket(async () => {
+    const outcome = await buyMarketListing(listingId);
+    if (outcome.status === "ok") {
+      report(store.applyMarketPurchase(listing.itemKey as ResourceKey, outcome.value.quantity, outcome.value.paid));
+      return true;
+    }
+    if (outcome.status === "refused") toast(outcome.message);
+    else toast("The market is unreachable right now.");
+    return false;
+  });
+}
+
+async function withdrawMakerListing(listingId: string): Promise<void> {
+  const listing = makerListings.find((entry) => entry.id === listingId);
+  if (!listing) return;
+  await withMarket(async () => {
+    const outcome = await cancelMarketListing(listingId);
+    if (outcome.status === "ok") {
+      report(store.applyMarketCancel(listing.itemKey as ResourceKey, outcome.value.returned));
+      return true;
+    }
+    if (outcome.status === "refused") toast(outcome.message);
+    else toast("The market is unreachable right now.");
+    return false;
+  });
+}
+
 function renderContracts(): void {
   const active = store.state.activeContract;
   const offers = store.contractOffers();
@@ -1251,6 +1451,7 @@ function renderAll(): void {
   renderBuild();
   renderBusiness();
   renderMarket();
+  renderMakerMarket();
   renderContracts();
   renderMap();
   renderResources();
@@ -1502,6 +1703,12 @@ document.body.addEventListener("click", (event) => {
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
     else switchTab("trade");
   }
+  else if (action === "market-pick") { listingDraft.item = button.dataset.resource as ResourceKey; renderMakerMarket(); }
+  else if (action === "market-qty") { listingDraft.quantity = Number(button.dataset.quantity ?? 10); renderMakerMarket(); }
+  else if (action === "market-markup") { listingDraft.markup = Number(button.dataset.markup ?? 0); renderMakerMarket(); }
+  else if (action === "market-list") void placeMakerListing();
+  else if (action === "market-buy") void takeMakerListing(button.dataset.listing ?? "");
+  else if (action === "market-cancel") void withdrawMakerListing(button.dataset.listing ?? "");
   else if (action === "marker" && button.dataset.plot === "market") switchTab("trade");
   else if (action === "marker" && (button.dataset.plot ?? "").startsWith("civic-")) {
     const civic = CIVIC_BUILDINGS.find((entry) => `civic-${entry.id}` === button.dataset.plot);

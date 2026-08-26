@@ -8,7 +8,7 @@ import {
   MERCEDONIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
   CHARTER_COST_MM, DEED_COST_MM, POWER_STANDING_CHARGE, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY, WATER_STANDING_CHARGE, EPOCH_EMISSION_RATE, MAX_UPGRADE_LEVEL, SPONSORSHIP_COST_MM, EPOCH_ISSUANCE_CAP, EPOCH_MM_FLOOR, MM_BURN_RATE, MM_REFERENCE_PRICE_USD, MERC_DOLLARS_PER_USD, TARGET_COLLATERAL, EVENT_ISLANDS, EVENT_MAX_BONUS, EVENT_MIN_BONUS, EVENT_REASONS,
   MAX_MARKET_SHARE, MIN_MARKET_SHARE,
-  RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
+  RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, RIVAL_GROWTH_CEILING_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
@@ -987,6 +987,52 @@ export class GameStore {
     this.state.todayExpenses += cost;
     this.commit(`Bought ${quantity} ${RESOURCES[key].short} from the city for ${cost} ${CURRENCY_CODE}.`, "success");
     return this.result(true, "Bought from the shared market.");
+  }
+
+  /**
+   * Mirror a listing the authority has already escrowed.
+   *
+   * The goods leave the shelf but are not sold yet — they sit in escrow until somebody
+   * buys them or the listing is cancelled. Counting that as revenue would pay a maker
+   * for goods still sitting in the window.
+   */
+  applyMarketListing(key: ResourceKey, quantity: number, unitPrice: number): ActionResult {
+    this.state.inventory[key] = Math.max(0, this.state.inventory[key] - quantity);
+    this.commit(`${quantity} ${RESOURCES[key].short} listed at ${unitPrice} ${CURRENCY_CODE} each.`, "success");
+    return this.result(true, "Listed on the market.");
+  }
+
+  /** Mirror a cancellation: escrow returns the goods untouched. */
+  applyMarketCancel(key: ResourceKey, quantity: number): ActionResult {
+    this.state.inventory[key] += quantity;
+    this.commit(`Listing withdrawn. ${quantity} ${RESOURCES[key].short} back on the shelf.`, "normal");
+    return this.result(true, "Listing cancelled.");
+  }
+
+  /** Mirror a purchase from another maker. The fee is already inside `paid`. */
+  applyMarketPurchase(key: ResourceKey, quantity: number, paid: number): ActionResult {
+    this.state.wallet -= paid;
+    this.state.inventory[key] += quantity;
+    this.state.todayExpenses += paid;
+    this.state.daily.trades += quantity;
+    this.commit(`Bought ${quantity} ${RESOURCES[key].short} from another maker for ${paid} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Bought from a maker.");
+  }
+
+  /**
+   * Mirror one of your listings being bought while you were away.
+   *
+   * Counted as real revenue and as CONTRACT-weight contribution: supplying a named buyer
+   * who chose your price is the most deliberate trade in the game, and it should not
+   * score below dumping stock on the civic counter.
+   */
+  applyMarketSale(key: ResourceKey, quantity: number, received: number): ActionResult {
+    this.state.wallet += received;
+    this.state.lifetimeRevenue += received;
+    this.state.todayRevenue += received;
+    this.addContribution(received, "contract");
+    this.commit(`Another maker bought ${quantity} ${RESOURCES[key].short} for ${received} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold to a maker.");
   }
 
   sellResource(key: ResourceKey, quantity = 1): ActionResult {
@@ -1993,7 +2039,9 @@ export class GameStore {
    * realm matures, so an early lead has to be defended rather than coasted on.
    */
   rivalStrength(key: ResourceKey): number {
-    const maturity = 1 + (this.careerLevel().level - 1) * RIVAL_GROWTH_PER_LEVEL;
+    // Rivals grow with your standing, but only up to a point — see RIVAL_GROWTH_CEILING_LEVEL.
+    const level = Math.min(this.careerLevel().level, RIVAL_GROWTH_CEILING_LEVEL);
+    const maturity = 1 + (level - 1) * RIVAL_GROWTH_PER_LEVEL;
     const contested = RESOURCES[key].buyer === "citizens" ? 1.15 : 1;
     return RIVAL_BASE_STRENGTH * maturity * contested;
   }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PLOTS, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type UpgradeKey } from "../src/data";
+import { CAREER_LEVELS, PLOTS, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type UpgradeKey } from "../src/data";
 import { createFreshState, GameStore } from "../src/state";
 
 /**
@@ -44,6 +44,9 @@ function open(licence: LicenseKey): GameStore {
   store.placeBuilding();
   return store;
 }
+
+/** Everything the maker is worth: cash plus stock at what it would fetch. */
+function worthOf(store: GameStore): number { return store.netWorth(); }
 
 /** A player who turns up, sells, works an order and buys what they can afford. */
 function liveADay(store: GameStore): void {
@@ -153,6 +156,45 @@ describe("the long haul", () => {
     expect(Object.keys(store.state.portfolio).length,
       "six months in and the realm is full: nothing left to expand into").toBeLessThan(PLOTS.length);
     expect(store.netWorth(), "a long-run player should still be gaining").toBeGreaterThan(1_000_000);
+  });
+
+
+  it("never makes a maker poorer for climbing the ladder", () => {
+    // Rivals grow with standing, and for a while they grew faster than the demand that
+    // came with them: one greenhouse earned 7,020 over thirty days at level 1 and 5,035 at
+    // level 12, with market share pinned to its floor from level 9. A progression bar that
+    // charges you to advance is worse than no progression bar. See
+    // RIVAL_GROWTH_CEILING_LEVEL for the cap this asserts.
+    const earnAtLevel = (level: number): number => {
+      clock = START;
+      vi.setSystemTime(clock);
+      const store = open("greenhouse");
+      store.state.experience = CAREER_LEVELS.find((entry) => entry.level === level)!.xp;
+      const opening = worthOf(store);
+      for (let day = 1; day <= 30; day += 1) liveADay(store);
+      return worthOf(store) - opening;
+    };
+
+    const seasoned = earnAtLevel(6);
+    const rows: string[] = [`  level  6  earned/30d ${seasoned}`];
+    for (const level of [9, 12]) {
+      const earned = earnAtLevel(level);
+      rows.push(`  level ${String(level).padStart(2)}  earned/30d ${earned}`);
+      // Some slack for the ordinary noise of contracts and events, but the TREND must not
+      // be downward: a level-12 maker must not be running a worse business than a level-6.
+      expect(earned, `level ${level} earns less than level 6 for the same work`)
+        .toBeGreaterThan(seasoned * 0.9);
+    }
+    console.log("CLIMBING THE LADDER\n" + rows.join("\n"));
+
+    // And the ladder has to be worth climbing: standing buys room to grow.
+    const held = (level: number): number => {
+      const store = open("greenhouse");
+      store.state.experience = CAREER_LEVELS.find((entry) => entry.level === level)!.xp;
+      return store.plotAllowance();
+    };
+    expect(held(12), "the top of the ladder must allow more plots than the middle")
+      .toBeGreaterThan(held(6));
   });
 
   it("does not inflate the currency while a hundred makers compound", () => {

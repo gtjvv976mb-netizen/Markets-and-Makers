@@ -187,3 +187,93 @@ export async function fetchDistrict(islandId: string): Promise<RegisteredBusines
     return null;
   }
 }
+
+// --- The maker-to-maker market -------------------------------------------------------
+//
+// The authority has carried a full order book since the world went server-side — escrowed
+// listings, an atomic settle that two buyers cannot both win, a treasury fee, and a block
+// on buying your own goods — and no client had ever called any of it. Selling to the
+// district (a civic buyer at a published price) was the only trade in the game, which
+// makes an economy but not a market: nobody could ever set a price, undercut anyone, or
+// buy from another player.
+
+export interface MarketListing {
+  id: string;
+  islandId: string;
+  sellerPlayerId: string;
+  itemKey: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface MarketListed { listingId: string; escrowed: number }
+export interface MarketCancelled { listingId: string; returned: number }
+export interface MarketBought { listingId: string; itemKey: string; quantity: number; paid: number; fee: number }
+
+/** Who this client is signed in as. Needed to tell your own listings from everyone else's. */
+export async function fetchIdentity(): Promise<{ playerId: string; walletAddress: string } | null> {
+  const headers = authHeaders();
+  const base = serverBase();
+  if (!headers || !base) return null;
+  try {
+    const response = await fetch(`${base}/api/auth/me`, { headers, signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    return await response.json() as { playerId: string; walletAddress: string };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the authority says this maker actually holds.
+ *
+ * The client keeps its own inventory for the offline simulation, but a listing escrows
+ * from the SERVER's ledger. Offering to sell something the ledger does not have is
+ * refused, so the market offers what the ledger reports rather than what the browser
+ * believes.
+ */
+export async function fetchHoldings(): Promise<{ wallet: number; inventory: Record<string, number> } | null> {
+  const headers = authHeaders();
+  const base = serverBase();
+  if (!headers || !base) return null;
+  try {
+    const response = await fetch(`${base}/api/world/me`, { headers, signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    const payload = await response.json() as { wallet?: number; inventory?: Record<string, number> };
+    return { wallet: Number(payload.wallet ?? 0), inventory: payload.inventory ?? {} };
+  } catch {
+    return null;
+  }
+}
+
+/** The island's open listings, cheapest first. Public: readable before you sign in. */
+export async function fetchMarketBook(islandId: string, itemKey?: string): Promise<MarketListing[] | null> {
+  const base = serverBase();
+  if (!base) return null;
+  const query = new URLSearchParams({ island: islandId });
+  if (itemKey) query.set("item", itemKey);
+  try {
+    const response = await fetch(`${base}/api/market/book?${query.toString()}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    return ((await response.json()) as { listings?: MarketListing[] }).listings ?? [];
+  } catch {
+    return null;
+  }
+}
+
+export function listOnMarket(
+  islandId: string, itemKey: string, quantity: number, unitPrice: number,
+): Promise<RealmOutcome<MarketListed>> {
+  return command<MarketListed>("/api/market/list", { islandId, itemKey, quantity, unitPrice });
+}
+
+export function buyMarketListing(listingId: string): Promise<RealmOutcome<MarketBought>> {
+  return command<MarketBought>("/api/market/buy", { listingId });
+}
+
+export function cancelMarketListing(listingId: string): Promise<RealmOutcome<MarketCancelled>> {
+  return command<MarketCancelled>("/api/market/cancel", { listingId });
+}

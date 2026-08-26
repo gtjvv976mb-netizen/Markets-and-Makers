@@ -1496,3 +1496,29 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .topbar { bottom: 150px; }
   .world-next { bottom: 222px; }
 }
+
+/* --- The maker market: other players' listings, and your own price setting ----------- */
+.maker-listings { display: grid; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+.maker-listing { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px;
+  padding: 9px 11px; border: 1px solid rgba(23,72,76,.14); border-radius: 12px; background: rgba(255,255,255,.7); }
+.maker-listing.mine { border-color: rgba(240,176,74,.55); background: rgba(240,176,74,.12); }
+.maker-listing > i { font-size: 19px; font-style: normal; line-height: 1; }
+.maker-listing strong { display: block; font-size: 14px; }
+.maker-listing small { display: block; color: var(--muted); font-size: 12px; }
+.maker-listing-total { font-weight: 950; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.maker-listing button { min-height: 32px; padding: 0 12px; }
+
+.maker-sell { display: grid; gap: 8px; }
+.maker-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.maker-chips button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 11px;
+  border: 1px solid rgba(23,72,76,.16); border-radius: 999px; background: rgba(255,255,255,.72);
+  font-size: 13px; font-weight: 800; }
+.maker-chips button.active { border-color: transparent; color: #17484c; background: #f4d77b; }
+.maker-chips button > i { font-size: 15px; font-style: normal; }
+.maker-chips button > small { color: var(--muted); font-size: 11.5px; font-weight: 800; }
+.maker-chips button.active > small { color: #2c5f52; }
+
+@media (max-width: 520px) {
+  .maker-listing { grid-template-columns: auto 1fr; row-gap: 6px; }
+  .maker-listing-total, .maker-listing button { grid-column: span 1; }
+}

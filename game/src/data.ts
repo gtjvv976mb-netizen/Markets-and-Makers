@@ -179,6 +179,21 @@ export const SPECIALIZATIONS: Record<SpecializationKey, SpecializationConfig> = 
   },
 };
 
+/**
+ * The career ladder.
+ *
+ * The last six rungs were added because the first six were measured, and they were over
+ * far too quickly: a single-plot maker reached the old ceiling on day 21 and a player
+ * running several reached it on day 8. After that the visible progression bar simply
+ * stopped, which reads as "I have finished this" even though the game had months of
+ * expansion left in it.
+ *
+ * The thresholds are not invented. A committed single-plot maker earns almost exactly 62
+ * XP a day once running, and these are set against that measured curve: level 7 lands
+ * around day 30, level 9 around day 60, and the last rung around day 180. Somebody
+ * operating a portfolio climbs it several times faster, which is the point — they are
+ * playing several times as much game.
+ */
 export const CAREER_LEVELS = [
   { level: 1, name: "New Maker", xp: 0 },
   { level: 2, name: "Licensed Operator", xp: 80 },
@@ -186,6 +201,12 @@ export const CAREER_LEVELS = [
   { level: 4, name: "District Supplier", xp: 450 },
   { level: 5, name: "Regional Founder", xp: 800 },
   { level: 6, name: "Mercedonian Industrialist", xp: 1_300 },
+  { level: 7, name: "Trade Principal", xp: 1_900 },
+  { level: 8, name: "Civic Benefactor", xp: 2_800 },
+  { level: 9, name: "Guildmaster", xp: 3_800 },
+  { level: 10, name: "Steward of the Commons", xp: 5_600 },
+  { level: 11, name: "Realm Architect", xp: 7_500 },
+  { level: 12, name: "Name in the Charter", xp: 11_000 },
 ] as const;
 
 export const DAILY_GOALS = { jobs: 2, contracts: 1, trades: 2, reward: 80, xp: 30 } as const;
@@ -450,6 +471,20 @@ export const TREND_HORIZON_PERIODS = 3;
 // attractive your business is against theirs, which is what upgrades actually buy.
 export const RIVAL_BASE_STRENGTH = 2.6;
 export const RIVAL_GROWTH_PER_LEVEL = 0.35;
+
+/**
+ * The career level past which rivals stop getting stronger.
+ *
+ * Competition growing with a maker's standing is the intended texture, but it is priced
+ * per level and it outruns the demand it comes with: measured over thirty days, one
+ * greenhouse earned 7,020 at level 1 and 5,247 at level 6, with market share pinned to its
+ * floor from level 9. Left uncapped, the six rungs added above level 6 would have been six
+ * more levels of getting poorer — a progression bar that punishes progress.
+ *
+ * Capping here keeps levels 1-6 behaving exactly as they always did, and makes the new
+ * upper half of the ladder about standing and how many plots you may hold, not margin.
+ */
+export const RIVAL_GROWTH_CEILING_LEVEL = 6;
 export const APPEAL_SHARE_WEIGHT = 0.42;
 export const QUALITY_SHARE_WEIGHT = 0.26;
 export const REPUTATION_SHARE_WEIGHT = 0.004;
