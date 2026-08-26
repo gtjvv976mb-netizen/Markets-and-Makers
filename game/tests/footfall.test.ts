@@ -275,9 +275,9 @@ describe("the district trades while nobody is watching", () => {
     expect(report.sold).toBeLessThanOrEqual(OFFLINE_VISIT_CAP);
   });
 
-  it("pays unattended trade at the auto weight, not the household one", () => {
-    // The promise is "no passive yield, ever". Merc Dollars accrue; $MM contribution
-    // stays at what the auto-seller earns, so showing up is still what converts.
+  it("earns real tokens while away, at the idle weight", () => {
+    // This is an idle game as well as an active one: a shop that traded overnight did
+    // work the district needed, and is paid for it.
     const store = open("shop");
     store.state.inventory[retailGood("shop")! as "supply"] = 200;
     store.state.citizenPool = 2_000_000;
@@ -289,7 +289,32 @@ describe("the district trades while nobody is watching", () => {
 
     expect(report.revenue).toBeGreaterThan(0);
     const gained = store.state.epoch.contribution - contributionBefore;
-    expect(gained).toBeCloseTo(report.revenue * CONTRIBUTION_WEIGHT.auto, 4);
+    expect(gained).toBeGreaterThan(0);
+    expect(gained).toBeCloseTo(report.revenue * CONTRIBUTION_WEIGHT.idle, 4);
+  });
+
+  it("still pays a present player better than an absent one", () => {
+    // Both modes are viable; turning up is simply the better day.
+    expect(CONTRIBUTION_WEIGHT.idle).toBeLessThan(CONTRIBUTION_WEIGHT.household);
+    expect(CONTRIBUTION_WEIGHT.household).toBeLessThan(CONTRIBUTION_WEIGHT.contract);
+    expect(CONTRIBUTION_WEIGHT.idle).toBeGreaterThan(CONTRIBUTION_WEIGHT.auto);
+  });
+
+  it("pays nothing for merely holding a plot — idle is not yield", () => {
+    // The distinction that keeps "no passive yield" honest: an idle business earns
+    // because it TRADED. A plot with nothing built on it earns nothing at all.
+    const store = new GameStore(createFreshState());
+    store.state.selectedPlotId = "GX072";
+    expect(store.leaseSelectedPlot().ok).toBe(true);
+    store.state.citizenPool = 2_000_000;
+    const contribution = store.state.epoch.contribution;
+    const wallet = store.state.wallet;
+
+    goAway(store, 24);
+    store.catchUp();
+
+    expect(store.state.epoch.contribution).toBe(contribution);
+    expect(store.state.wallet).toBeLessThanOrEqual(wallet);
   });
 
   it("still refuses when the shelf is bare", () => {

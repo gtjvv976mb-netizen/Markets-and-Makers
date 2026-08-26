@@ -461,10 +461,11 @@ export class GameStore {
    * settleCitizenVisit, which means the same pool, the same tranche decay, the same empty
    * shelf and broken-machine refusals as trade done in person.
    *
-   * Deliberately NOT worth the same toward $MM. The promise on the tin is "no passive
-   * yield, ever": unattended trade earns Merc Dollars, and its contribution is rebated
-   * back down to the auto-seller's weight so that showing up remains the thing that
-   * converts into tokens.
+   * This earns real tokens, at the `idle` weight. The game is an idle game as much as
+   * an active one, and a shop that traded all night did work the district needed. The
+   * weight sits below `household` so that serving the counter in person is still the
+   * better day — not so that being away is worthless. "No passive yield" bites on
+   * HOLDING: an empty plot still earns nothing, because nothing traded.
    */
   private settleOfflineFootfall(record: BusinessRecord, hours: number, now: number): { visits: number; gross: number } {
     if (!record.license || !record.buildingPlaced || record.brokenDown || hours <= 0) return { visits: 0, gross: 0 };
@@ -475,22 +476,19 @@ export class GameStore {
 
     let gross = 0, settled = 0;
     for (let i = 0; i < visits; i += 1) {
-      const sale = this.settleCitizenVisit(record.plotId, now);
+      const sale = this.settleCitizenVisit(record.plotId, now, "idle");
       if (!sale) break;
       gross += sale.gross;
       settled += 1;
     }
-    // settleCitizenVisit credited this at the household weight. Unattended trade is not
-    // worth that, so take back the difference rather than duplicating the settlement.
-    if (gross > 0) {
-      const rebate = gross * (CONTRIBUTION_WEIGHT.household - CONTRIBUTION_WEIGHT.auto);
-      this.state.epoch.contribution = Math.max(0, this.state.epoch.contribution - rebate);
-      this.state.lifetimeContribution = Math.max(0, this.state.lifetimeContribution - rebate);
-    }
     return { visits: settled, gross };
   }
 
-  settleCitizenVisit(plotId: string, now = Date.now()): CitizenVisitSale | null {
+  settleCitizenVisit(
+    plotId: string,
+    now = Date.now(),
+    weight: keyof typeof CONTRIBUTION_WEIGHT = "household",
+  ): CitizenVisitSale | null {
     this.rollCalendar(now);
     const record = this.state.portfolio[plotId];
     if (!record || !record.license || !record.buildingPlaced || record.brokenDown) return null;
@@ -505,7 +503,7 @@ export class GameStore {
       this.state.lifetimeRevenue += gross;
       this.state.householdSpend += gross;
       this.state.todayRevenue += gross;
-      this.addContribution(gross, "household");
+      this.addContribution(gross, weight);
       return gross;
     };
 

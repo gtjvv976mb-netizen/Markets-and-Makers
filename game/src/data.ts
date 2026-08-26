@@ -299,7 +299,19 @@ export const CHARTER_COST_MM = 600;
 export const MAX_UPGRADE_LEVEL = 4;
 export const MM_BURN_RATE = 0.4;
 export const COHORT_CONTRIBUTION_BASE = 45_000;
-export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, civic: 0.1, auto: 0.05 } as const;
+/**
+ * What each kind of sale is worth toward the $MM pool.
+ *
+ * `idle` is trade the business did while the player was away: real customers, real
+ * goods off the shelf, so it earns real tokens — this is an idle game as well as an
+ * active one, and a shop that ran all night did work the district needed. It sits
+ * below `household` rather than level with it so that turning up and serving the
+ * counter yourself is still the better day, and well below `contract`, which remains
+ * the thing worth logging in for. What it is NOT is yield on holding: an idle player
+ * earns because their business traded, and a plot with nothing built on it earns
+ * nothing at all.
+ */
+export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, idle: 0.18, civic: 0.1, auto: 0.05 } as const;
 
 // --- Footfall. A corner's busyness comes from the district's geography, not from where
 //     the player happens to be standing, so siting a shop well is a decision that pays.
