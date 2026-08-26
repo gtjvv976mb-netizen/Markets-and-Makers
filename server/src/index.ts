@@ -8,7 +8,7 @@ import { clientMessageSchema, validateMove, type PositionSample } from "./protoc
 import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { runWorldTick } from "./tick.js";
 import { runMinds } from "./minds.js";
-import { dispatchAvailable, recentDispatches, writeDispatch } from "./bulletin.js";
+import { dispatchAvailable, readEconomy, recentDispatches, writeDispatch } from "./bulletin.js";
 import { advisorAvailable, consultAdvisor, recentProposals, REQUIRED_HISTORY } from "./advisor.js";
 import { DIALS, readPolicy, resetPolicy } from "./policy.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
@@ -259,6 +259,22 @@ const server = createServer(async (req, res) => {
 
     // Policy is public too: players are entitled to see the rules they are playing under
     // and every change ever made to them, with its reasoning.
+    // The state of the realm, in numbers, to anyone who asks.
+    //
+    // readEconomy is what the Dispatch is written from; publishing it directly means the
+    // figures are visible whether or not anyone has paid for a language model to describe
+    // them, and it is the only way to see from outside that the world tick is running at
+    // all — wages leaving the treasury and arriving in Mercedonian pockets is the pulse.
+    if (req.method === "GET" && url.pathname === "/api/world/economy") {
+      json(res, 200, withMercCurrency({
+        realmName: REALM_NAME,
+        worldTick: config.worldTick ? "server" : "client",
+        measuredAt: new Date().toISOString(),
+        ...(await readEconomy()),
+      }));
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/world/policy") {
       json(res, 200, {
         realmName: REALM_NAME,
