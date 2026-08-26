@@ -198,6 +198,9 @@
             <span id="selectedPlotStatus">Available · 120 MERCS</span>
           </div>
             <div class="hud-zone hud-actions">
+              <!-- What a player does every session, one tap away. See renderQuickBar. -->
+              <div class="quick-bar" id="quickBar" hidden></div>
+              <footer class="resource-dock" id="resourceDock"></footer>
                   <div class="world-actions">
             <button class="world-action primary" id="leaseAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg></i><span><small>Property</small><strong>Lease plot</strong></span></button>
             <button class="world-action" id="buildAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-build" /></svg></i><span><small>Enterprise</small><strong>Build business</strong></span></button>
@@ -254,7 +257,6 @@
         </aside>
       </section>
 
-      <footer class="resource-dock" id="resourceDock"></footer>
     </main>
 
     <section class="modal interior-modal" id="interiorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="interiorTitle" inert>

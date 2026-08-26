@@ -10,6 +10,7 @@ import {
   MAX_MARKET_SHARE, MIN_MARKET_SHARE,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, RIVAL_GROWTH_CEILING_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
+  CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
@@ -1672,6 +1673,42 @@ export class GameStore {
     startDemo();
     this.state = createFreshState();
     this.commit("Demo city opened. Nothing here is saved.", "normal");
+  }
+
+  /**
+   * Hail a ride to a civic building, rather than walking there.
+   *
+   * Walking is free and always available — the city is built to be walkable and the
+   * Mayor says so in the first breath. This is the paid alternative for a player who has
+   * done that walk fifty times and now just wants to bank their $MM.
+   *
+   * The fare is distance-based and goes to the treasury, the same way the Transit Hall
+   * fare between districts already does. It is a genuine sink: every Merc spent here
+   * leaves circulation and funds the civic wage that pays your own customers.
+   */
+  rideFare(destinationId: string): number {
+    const site = CIVIC_BUILDINGS.find((entry) => entry.id === destinationId && entry.island === this.state.island);
+    if (!site) return 0;
+    const dx = site.x - this.state.player.x;
+    const dz = site.z - this.state.player.z;
+    const metres = Math.sqrt(dx * dx + dz * dz);
+    return Math.max(RIDE_MINIMUM_FARE, Math.round(metres * RIDE_FARE_PER_METRE));
+  }
+
+  rideTo(destinationId: string): ActionResult {
+    this.rollCalendar();
+    const site = CIVIC_BUILDINGS.find((entry) => entry.id === destinationId && entry.island === this.state.island);
+    if (!site) return this.result(false, "There is no route to that address from here.");
+    const fare = this.rideFare(destinationId);
+    if (this.state.wallet < fare) {
+      return this.result(false, `The fare is ${fare} ${CURRENCY_CODE}. Walking there is free.`);
+    }
+    this.state.wallet -= fare;
+    this.state.governmentTreasury += fare;
+    this.state.todayExpenses += fare;
+    this.state.player = { x: site.x, z: site.z + RIDE_DROP_OFF };
+    this.commit(`Rode to ${site.name} for ${fare} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Ride complete.");
   }
 
   storageCapacity(): number {

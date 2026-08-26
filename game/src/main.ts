@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, CURRENCY_CODE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -1943,6 +1943,56 @@ function renderOnlinePill(): void {
   node.innerHTML = `<i aria-hidden="true"></i><span><b>${total || 1}</b> ${total === 1 ? "maker" : "makers"} here</span>`;
 }
 
+
+/**
+ * The things a player does over and over, on screen at all times.
+ *
+ * Every one of these was already in the game and every one was buried: converting $MM sat
+ * at the bottom of the Exchange panel behind five sections, selling stock needed the trade
+ * screen, and getting to the bank meant walking the same route for the fiftieth time. An
+ * action a player repeats every session should cost one tap, not a hunt.
+ *
+ * Only what is actually available shows. A row of greyed-out buttons teaches nothing.
+ */
+function renderQuickBar(): void {
+  const node = document.querySelector<HTMLElement>("#quickBar");
+  if (!node) return;
+  const chips: string[] = [];
+  const state = store.state;
+
+  // Convert $MM into spendable money — the most repeated errand in the game.
+  if (state.mmHoldings >= 100) {
+    chips.push(`<button data-action="bank-in" title="Bring 100 $MM to the treasury">
+      <i aria-hidden="true">$</i><span><small>Convert</small><strong>100 $MM → ${formatNumber(store.mercDollarsForMM(100))}</strong></span></button>`);
+  }
+
+  // Ride to the bank, for the player who has walked it enough times.
+  const fare = store.rideFare("treasury");
+  const atBank = fare > 0 && fare <= RIDE_MINIMUM_FARE;
+  if (fare > 0 && !atBank && state.island === "hearth") {
+    chips.push(`<button data-action="ride" data-to="treasury" ${state.wallet < fare ? "disabled" : ""}
+      title="A ride to Sunvault Treasury. Walking there is free.">
+      <i aria-hidden="true">▸</i><span><small>Ride to bank</small><strong>${fare} ${CURRENCY_CODE}</strong></span></button>`);
+  }
+
+  // Sell what is on the shelf, if the district still wants any of it.
+  const sellable = (Object.keys(RESOURCES) as ResourceKey[])
+    .filter((key) => state.inventory[key] > 0 && store.procurementRemaining(key) > 0);
+  if (sellable.length > 0) {
+    chips.push(`<button data-action="tab" data-target="trade" title="The district is still buying">
+      <i aria-hidden="true">⇄</i><span><small>Sell stock</small><strong>${sellable.length} good${sellable.length === 1 ? "" : "s"} wanted</strong></span></button>`);
+  }
+
+  // The weekly share, which expires with the epoch.
+  if (!state.epoch.claimed && store.projectedEpochMM() > 0) {
+    chips.push(`<button class="quick-good" data-action="claim-epoch" title="Your share of this week's $MM">
+      <i aria-hidden="true">★</i><span><small>Claim share</small><strong>${formatNumber(store.projectedEpochMM())} $MM</strong></span></button>`);
+  }
+
+  node.hidden = chips.length === 0;
+  node.innerHTML = chips.join("");
+}
+
 function renderAll(): void {
   renderHeader();
   renderWalletSlot();
@@ -1958,6 +2008,7 @@ function renderAll(): void {
   renderBusinessStrip();
   renderAlerts();
   renderInfo();
+  renderQuickBar();
   renderResources();
   renderInterior();
   void world.syncBuildings(store.state);
@@ -2207,6 +2258,7 @@ document.body.addEventListener("click", (event) => {
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
     else switchTab("trade");
   }
+  else if (action === "ride") report(store.rideTo(button.dataset.to ?? "treasury"));
   else if (action === "info-tab") { infoTab = (button.dataset.info as typeof infoTab) ?? "you"; renderInfo(); }
   else if (action === "mayor-toggle") { store.setMayorHidden(!store.state.mayorHidden); renderAll(); }
   else if (action === "market-pick") { listingDraft.item = button.dataset.resource as ResourceKey; renderMakerMarket(); }

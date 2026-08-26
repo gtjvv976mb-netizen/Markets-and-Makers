@@ -2010,3 +2010,29 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .marker.maker .marker-pin strong { font-size: 10px; }
   .online-pill { padding: 4px 9px; font-size: 10.5px; }
 }
+
+/* --- What you do every session -------------------------------------------------------
+   Converting $MM, selling stock, getting to the bank, claiming the weekly share. All four
+   existed and all four were buried — converting sat at the bottom of the Exchange panel
+   behind five sections. An action repeated every session should cost one tap. */
+.quick-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  width: min(680px, 100%); }
+.quick-bar[hidden] { display: none; }
+.quick-bar button { display: inline-flex; align-items: center; gap: 8px; min-height: 38px;
+  padding: 0 13px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px;
+  background: rgba(12,42,44,.86); color: #f2f8ef; font: inherit; text-align: left;
+  cursor: pointer; backdrop-filter: blur(6px); }
+.quick-bar button:hover:not(:disabled) { background: rgba(20,62,60,.92); }
+.quick-bar button:disabled { opacity: .45; cursor: not-allowed; }
+.quick-bar button > i { font-style: normal; font-size: 13px; color: #f4d77b; }
+.quick-bar small { display: block; color: rgba(242,248,239,.6); font-size: 9.5px;
+  font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.quick-bar strong { display: block; font-size: 12.5px; line-height: 1.2; white-space: nowrap; }
+.quick-bar .quick-good { border-color: rgba(110,231,168,.5); }
+.quick-bar .quick-good > i { color: #6ee7a8; }
+
+@media (max-width: 720px) {
+  .quick-bar button { min-height: 32px; padding: 0 10px; gap: 6px; }
+  .quick-bar small { display: none; }
+  .quick-bar strong { font-size: 11.5px; }
+}

@@ -614,6 +614,18 @@ export interface CivicBuilding {
   supplies: ResourceKey[]; opens: "trade" | "world";
 }
 
+/**
+ * Hailing a ride instead of walking.
+ *
+ * Walking is free and always will be — a walkable city is the whole premise. The fare is
+ * for the player who has made the same trip fifty times, and it is a real sink: every
+ * Merc goes to the treasury, which funds the civic wage, which becomes somebody's custom.
+ */
+export const RIDE_FARE_PER_METRE = 0.35;
+export const RIDE_MINIMUM_FARE = 4;
+/** Dropped at the kerb, not inside the building. */
+export const RIDE_DROP_OFF = 6;
+
 export const CIVIC_BUILDINGS: CivicBuilding[] = [
   { id: "cityhall", name: "Sunspire City Hall", role: "Government, licences and civic records", island: "hearth",
     x: -1, z: -25, bannerY: 13.4, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },
