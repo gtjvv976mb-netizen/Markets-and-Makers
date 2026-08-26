@@ -7,6 +7,7 @@ import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { runWorldTick } from "./tick.js";
+import { runMinds } from "./minds.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
@@ -423,7 +424,18 @@ server.listen(config.port, "0.0.0.0", async () => {
     worldTickTimer = setInterval(() => {
       if (running) return;
       running = true;
-      void runWorldTick()
+      // The minds run first: wages are what the Mercedonians spend in the shops the tick
+      // is about to open, and the state's works are where those shops restock from.
+      void runMinds()
+        .then((minds) => {
+          if (minds.government.wagesPaid > 0 || minds.government.productionCost > 0) {
+            const made = Object.entries(minds.government.produced).map(([k, v]) => `${v} ${k}`).join(", ");
+            console.log(`government: paid ${minds.government.wagesPaid} in wages to ${minds.government.population} households`
+              + (made ? `, works made ${made}` : "")
+              + (minds.government.austerity ? " (austerity)" : ""));
+          }
+          return runWorldTick();
+        })
         .then((report) => {
           if (report.businesses > 0 && (report.sold > 0 || report.produced > 0)) {
             console.log(`world tick: ${report.businesses} businesses, ${report.produced} cycles, ${report.sold} sold for ${report.gross}`);

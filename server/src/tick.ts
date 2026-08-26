@@ -91,6 +91,37 @@ interface BusinessRow {
   broken: boolean; elapsed_seconds: string;
 }
 
+/**
+ * Bring goods into the world.
+ *
+ * Money must be conserved; goods must not be. A greenhouse turns water and power into
+ * food — the food did not exist before, and nothing anywhere is poorer for it. Routing
+ * output through takeItems was wrong for exactly that reason: it demanded the state hold
+ * a warehouse stocked with every good any business might ever make, and a district whose
+ * civic supplier had never been stocked with `supply` simply could not manufacture it.
+ *
+ * The transformation is still recorded — inputs are debited to government/consumed above,
+ * and this writes the matching creation to the item ledger — so the audit trail reads
+ * "these went in, that came out" rather than goods appearing from nowhere unexplained.
+ */
+async function createItems(
+  client: PoolClient, commandId: string, itemKey: string, quantity: number,
+  ownerId: string, reason: string,
+): Promise<void> {
+  if (quantity <= 0) return;
+  await client.query(
+    `insert into item_balance (realm_id, owner_type, owner_id, item_key, quantity)
+     values ($1,'player',$2,$3,$4)
+     on conflict (realm_id, owner_type, owner_id, item_key)
+     do update set quantity = item_balance.quantity + excluded.quantity`,
+    [REALM, ownerId, itemKey, quantity]);
+  await client.query(
+    `insert into item_ledger (command_id, realm_id, item_key, quantity,
+        from_owner_type, from_owner_id, to_owner_type, to_owner_id, reason)
+     values ($1,$2,$3,$4,'government','works','player',$5,$6)`,
+    [commandId, REALM, itemKey, quantity, ownerId, reason]);
+}
+
 /** Stock the owner actually holds, as the ledger sees it. */
 async function held(client: PoolClient, playerId: string, itemKey: string): Promise<number> {
   const row = await client.query<{ quantity: string }>(
@@ -207,12 +238,11 @@ async function produce(
   for (const [itemKey, perCycle] of Object.entries(trade.output)) {
     if (perCycle <= 0) continue;
     const made = Math.max(perCycle * cycles, Math.round(perCycle * cycles * qualityBonus));
-    await takeItems(client, REALM, keyFor(commandId, "out", itemKey), itemKey, made,
-      { type: "government", id: "supply" }, { type: "player", id: row.owner_player_id }, "tick.produce");
+    await createItems(client, keyFor(commandId, "out", itemKey), itemKey, made, row.owner_player_id, "tick.produce");
   }
   if (trade.wastePerCycle > 0) {
-    await takeItems(client, REALM, keyFor(commandId, "waste"), "waste", trade.wastePerCycle * cycles,
-      { type: "government", id: "supply" }, { type: "player", id: row.owner_player_id }, "tick.produce");
+    await createItems(client, keyFor(commandId, "waste"), "waste", trade.wastePerCycle * cycles,
+      row.owner_player_id, "tick.produce");
   }
   return cycles;
 }
