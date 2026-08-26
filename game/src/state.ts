@@ -1207,6 +1207,15 @@ export class GameStore {
   /** Settle the city's bill and the payroll for any whole days that have passed. */
   settleStandingCharges(now = Date.now()): number {
     if (!this.state.buildingPlaced) { this.state.chargesSettledAt = now; return 0; }
+
+    // A stopped line draws no water, no power and needs no shift on the floor.
+    //
+    // This is not a kindness, it is the difference between a setback and a death. A
+    // broken-down business earns nothing; if it is billed anyway it drains toward zero,
+    // and the repair costs money it will never have again. Simulated play found exactly
+    // that: a greenhouse broke down on day 8 and spent the next six days losing 14 a day
+    // with no way back, which is not a difficulty curve, it is a trap with no door.
+    if (this.state.brokenDown) { this.state.chargesSettledAt = now; return 0; }
     const elapsed = now - this.state.chargesSettledAt;
     const days = Math.floor(elapsed / 86_400_000);
     if (days <= 0) return 0;
@@ -1338,8 +1347,31 @@ export class GameStore {
         : "Level 3 is the limit without a master charter.");
     }
     const cost = UPGRADE_COSTS[current + 1];
-    if (this.state.wallet < cost.mercDollars) return this.result(false, `You need ${cost.mercDollars} ${CURRENCY_CODE}.`);
-    for (const resource of resourceKeys) { const needed = cost.resources[resource] ?? 0; if (this.state.inventory[resource] < needed) return this.result(false, `You need ${needed} ${RESOURCES[resource].short}.`); }
+
+    // Everything that is missing, in one message.
+    //
+    // This used to report the first shortfall and stop, so a player short of a crate AND
+    // a part was told about the crate, went and bought one, tried again, and only then
+    // learned about the part. Upgrades are the main money sink in the game and this is
+    // the wall every new maker meets: the first one costs a crate and a part, which a
+    // water utility never makes, so being told the whole bill at once — and where to get
+    // it — is the difference between a plan and a guessing game.
+    const missing: string[] = [];
+    if (this.state.wallet < cost.mercDollars) {
+      missing.push(`${cost.mercDollars - this.state.wallet} more ${CURRENCY_CODE}`);
+    }
+    for (const resource of resourceKeys) {
+      const short = (cost.resources[resource] ?? 0) - this.state.inventory[resource];
+      if (short > 0) missing.push(`${short} ${short === 1 ? RESOURCES[resource].name : RESOURCES[resource].short}`);
+    }
+    if (missing.length > 0) {
+      const list = missing.length === 1
+        ? missing[0]
+        : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+      const goods = missing.some((entry) => !entry.includes(CURRENCY_CODE));
+      return this.result(false, `This upgrade needs ${list}.`
+        + (goods ? " Buy what you are short of on the Market tab, or from another maker." : ""));
+    }
     this.state.wallet -= cost.mercDollars; this.state.governmentTreasury += cost.mercDollars;
     for (const resource of resourceKeys) this.state.inventory[resource] -= cost.resources[resource] ?? 0;
     this.state.upgrades[key] += 1; this.state.tutorial.upgraded = true; this.addExperience(18 + (current + 1) * 7);
@@ -1438,8 +1470,24 @@ export class GameStore {
   /** A breakdown halts the line until a person deals with it. Timers cannot clear it. */
   repairBreakdown(): ActionResult {
     if (!this.state.brokenDown) return this.result(false, "Nothing is broken down.");
-    if (this.state.wallet < BREAKDOWN_REPAIR_COST) return this.result(false, `Emergency repair costs ${BREAKDOWN_REPAIR_COST} ${CURRENCY_CODE}.`);
-    if (this.state.inventory.part < BREAKDOWN_REPAIR_PARTS) return this.result(false, `Emergency repair needs ${BREAKDOWN_REPAIR_PARTS} Utility Parts.`);
+    // Most trades never make a Utility Part, so demanding two of them as well is a wall
+    // for anyone who is not a workshop. The crew will fetch what is missing at the market
+    // price — but the whole bill is priced and checked FIRST.
+    //
+    // Buying the parts before confirming the repair is affordable is how the first version
+    // of this made things worse: a stalled greenhouse spent its last coins on parts every
+    // single day, was refused the repair each time, and drained faster than before.
+    const short = Math.max(0, BREAKDOWN_REPAIR_PARTS - this.state.inventory.part);
+    const partsBill = short * this.marketBuyPrice("part");
+    const wholeBill = BREAKDOWN_REPAIR_COST + partsBill;
+    if (this.state.wallet < wholeBill) {
+      return this.result(false, `Emergency repair costs ${wholeBill} ${CURRENCY_CODE}`
+        + (short > 0 ? ` including ${short} Utility Part${short === 1 ? "" : "s"} the crew must fetch` : "")
+        + `. Sell what you are holding, or fill an order, and come back — the line costs you nothing while it is stopped.`);
+    }
+    if (short > 0 && !this.buyResource("part", short).ok) {
+      return this.result(false, "No Utility Parts are available to buy right now.");
+    }
     this.state.wallet -= BREAKDOWN_REPAIR_COST;
     this.state.citizenPool += Math.round(BREAKDOWN_REPAIR_COST * .7);
     this.state.governmentTreasury += BREAKDOWN_REPAIR_COST - Math.round(BREAKDOWN_REPAIR_COST * .7);
