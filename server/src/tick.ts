@@ -301,7 +301,23 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
         const restocked = await restock(client, row, window);
         const cycles = await produce(client, row, window, elapsedHours);
         const counter = await serveCounter(client, row, window, elapsedHours, footfall);
-        await client.query("update business set last_tick_at = now() where plot_id = $1", [row.plot_id]);
+
+        // Only bank the clock when the pass actually did something.
+        //
+        // Both production and footfall floor to whole units, so a short interval settles
+        // nothing: a greenhouse takes 16 seconds a cycle and a busy corner draws four
+        // customers an hour, and a pass every fifteen seconds floors both to zero. Moving
+        // the clock on regardless would throw that fraction away every single pass, and a
+        // frequently-ticked world would sit idle for ever — which is exactly what a live
+        // server did before this line, while every unit test passed because they all wind
+        // the clock back by hours first.
+        //
+        // Letting the time accrue instead means the interval is a scheduling choice rather
+        // than an economic one. Unbounded accrual is not a risk: elapsedHours is capped at
+        // 26, and a business that throws has its clock moved on by the caller.
+        if (cycles > 0 || counter.units > 0 || restocked > 0) {
+          await client.query("update business set last_tick_at = now() where plot_id = $1", [row.plot_id]);
+        }
         return { cycles, counter, restocked };
       });
 

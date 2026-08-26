@@ -248,6 +248,29 @@ suite("the world ticks without anybody watching", () => {
     expect(report.produced).toBe(0);
   });
 
+  it("accrues time instead of throwing it away on a short interval", async () => {
+    // The bug a live server found and every unit test missed: production and footfall
+    // both floor to whole units, so a pass a few seconds apart settles nothing — and if
+    // the clock were banked anyway, that fraction would be lost every pass and a
+    // frequently-ticked world would idle for ever.
+    const alice = await player("alice");
+    await openShop(BUSY, "greenhouse", alice);
+    await pool!.query("delete from item_balance where owner_type='player' and owner_id=$1", [alice]);
+    await pool!.query("update currency_account set balance = 0 where owner_type='player' and owner_id=$1", [alice]);
+    await age(BUSY, 0.002);   // about seven seconds
+
+    const before = await pool!.query<{ at: string }>(
+      "select last_tick_at::text as at from business where plot_id=$1", [BUSY]);
+    const report = await runWorldTick();
+    const after = await pool!.query<{ at: string }>(
+      "select last_tick_at::text as at from business where plot_id=$1", [BUSY]);
+
+    expect(report.produced).toBe(0);
+    expect(report.sold).toBe(0);
+    // The clock did not move, so the next pass sees fourteen seconds, then twenty-one.
+    expect(after.rows[0]!.at).toBe(before.rows[0]!.at);
+  });
+
   it("does almost nothing when run twice in quick succession", async () => {
     const alice = await player("alice");
     await openShop(BUSY, "shop", alice);
