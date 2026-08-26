@@ -1574,8 +1574,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 /* --- The business strip --------------------------------------------------------------
    State of the line, always on screen, with the REASON attached: "halted" tells a player
    nothing, "the district has bought all it wants today" tells them what to do next. */
-.biz-strip { position: absolute; top: 12px; right: 12px; z-index: 6; width: min(300px, calc(100% - 24px));
-  padding: 10px 12px 11px; border-radius: 14px; border: 1px solid rgba(255,255,255,.2);
+.hud-right { position: absolute; top: 12px; right: 12px; z-index: 6;
+  display: grid; gap: 8px; width: min(300px, calc(100% - 24px)); justify-items: stretch;
+  pointer-events: none; }
+.hud-right > * { pointer-events: auto; }
+.biz-strip { padding: 10px 12px 11px; border-radius: 14px; border: 1px solid rgba(255,255,255,.2);
   background: linear-gradient(140deg, rgba(23,72,76,.94), rgba(31,94,84,.94));
   color: #f2f8ef; box-shadow: 0 10px 24px -14px rgba(8,32,30,.9); backdrop-filter: blur(6px); }
 .biz-strip[hidden] { display: none; }
@@ -1641,7 +1644,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .recipe-arrow { color: var(--muted); font-size: 20px; }
 
 @media (max-width: 720px) {
-  .biz-strip { top: 8px; right: 8px; width: min(260px, calc(100% - 16px)); padding: 8px 10px 9px; }
+  .hud-right { top: 8px; right: 8px; width: min(260px, calc(100% - 16px)); gap: 6px; }
+  .biz-strip { padding: 8px 10px 9px; }
   .biz-why { display: none; }
   .biz-metrics { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .info-row { grid-template-columns: 1.4fr .6fr .6fr .9fr; font-size: 12px; padding: 7px 9px; }
@@ -1669,3 +1673,58 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   border-radius: 8px; background: rgba(255,255,255,.1); color: #eaf4f0;
   font-family: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .perf-overlay button:hover { background: rgba(255,255,255,.18); }
+
+/* --- Alerts --------------------------------------------------------------------------
+   Anno 1800's rule, and it is a good one: the persistent HUD stays dark so it does not
+   tire the eye, and bright colour is spent ONLY on notifications — so that when something
+   is bright, it means something. These sit under the business card and carry the button
+   that fixes them, because telling a player their line has stopped without offering the
+   repair is only half the job. */
+.alert-stack { display: grid; gap: 6px; }
+.alert-stack[hidden] { display: none; }
+/* Scoped to the stack on purpose: `.alert` was already taken by world markers in a
+   warning state (.marker.alert), and a bare selector here silently restyled every one of
+   them into a grid with a background. */
+.alert-stack .alert { display: grid; grid-template-columns: 1fr auto; gap: 9px; align-items: center;
+  padding: 9px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.35; font-weight: 700;
+  box-shadow: 0 8px 20px -12px rgba(8,32,30,.9); animation: alert-in .22s ease-out; }
+@keyframes alert-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.alert-stack .alert button { min-height: 30px; padding: 0 11px; border: 0; border-radius: 999px;
+  font-size: 12px; font-weight: 900; white-space: nowrap; cursor: pointer; }
+.alert-stack .alert-urgent { color: #fff; background: #c9503a; }
+.alert-stack .alert-urgent button { color: #8e2f1d; background: #ffd9cf; }
+.alert-stack .alert-warn { color: #4a3208; background: #f4c95d; }
+.alert-stack .alert-warn button { color: #4a3208; background: rgba(255,255,255,.82); }
+.alert-stack .alert-good { color: #10362a; background: #8fd6a4; }
+.alert-stack .alert-good button { color: #10362a; background: rgba(255,255,255,.85); }
+
+/* --- The chain -----------------------------------------------------------------------
+   What feeds what. Anno is built around this view, and a fifteen-trade economy is
+   unreadable without it: you could not find out who buys timber without opening every
+   licence in the game and reading them one at a time. */
+.chain-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 7px; margin-bottom: 6px; }
+.chain-node { padding: 9px 10px; border: 1px solid rgba(23,72,76,.14); border-radius: 11px;
+  background: rgba(255,255,255,.72); }
+.chain-node.mine { border-color: rgba(240,176,74,.7); background: rgba(240,176,74,.14); }
+.chain-node strong { display: block; font-size: 12.5px; line-height: 1.25; }
+.chain-io { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 14px; }
+.chain-io b { color: var(--muted); font-size: 12px; }
+.chain-io em { color: var(--muted); font-size: 11px; font-style: normal; }
+.chain-in, .chain-out { display: inline-flex; gap: 3px; }
+.chain-node u { display: inline-block; margin-top: 5px; color: #8a5a12; font-size: 10.5px;
+  font-weight: 900; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; }
+
+.chain-goods { border: 1px solid rgba(23,72,76,.12); border-radius: 12px; overflow: hidden; }
+.chain-good { display: grid; grid-template-columns: 1fr 1.6fr 1.6fr; gap: 10px;
+  padding: 8px 11px; background: rgba(255,255,255,.66); font-size: 12px; line-height: 1.35; }
+.chain-good + .chain-good { border-top: 1px solid rgba(23,72,76,.08); }
+.chain-good-name { display: flex; align-items: center; gap: 6px; font-weight: 800; }
+.chain-good-name i { font-style: normal; font-size: 14px; }
+.chain-good-side small { display: block; color: var(--muted); font-size: 10px; font-weight: 900;
+  letter-spacing: .07em; text-transform: uppercase; }
+
+@media (max-width: 720px) {
+  .alert { font-size: 11.5px; padding: 8px 9px; }
+  .chain-good { grid-template-columns: 1fr; gap: 3px; }
+  .chain-row { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+}

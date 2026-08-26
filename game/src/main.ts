@@ -1523,10 +1523,73 @@ function renderBusinessStrip(): void {
 // district wants, and where the money actually went. Everything here already existed
 // somewhere; it was scattered across panels a beginner had no reason to open.
 
-let infoTab: "you" | "business" | "district" | "ledger" = "you";
+let infoTab: "you" | "business" | "chain" | "district" | "ledger" = "you";
 
 function statTile(label: string, value: string, note = ""): string {
   return `<div class="info-stat"><small>${escapeMarkup(label)}</small><strong>${escapeMarkup(value)}</strong>${note ? `<span>${escapeMarkup(note)}</span>` : ""}</div>`;
+}
+
+
+/**
+ * The supply chain, drawn.
+ *
+ * Anno 1800 is built around showing players what feeds what, and it is the single thing a
+ * fifteen-trade economy most needs explaining. Markets & Makers had the chain in its
+ * recipes and nowhere a player could see it: you could not find out who buys timber
+ * without opening all fifteen licences and reading them.
+ *
+ * Rendered from BUSINESS itself, so it can never drift from the recipes it describes.
+ */
+function renderChain(): string {
+  const licences = Object.keys(BUSINESS) as LicenseKey[];
+  const mine = store.state.license;
+
+  // Who makes it, and who consumes it — read straight off the recipes.
+  const makers = new Map<ResourceKey, LicenseKey[]>();
+  const buyers = new Map<ResourceKey, LicenseKey[]>();
+  for (const key of licences) {
+    for (const [resource, amount] of Object.entries(BUSINESS[key].output) as Array<[ResourceKey, number]>) {
+      if (amount > 0) makers.set(resource, [...(makers.get(resource) ?? []), key]);
+    }
+    for (const [resource, amount] of Object.entries(BUSINESS[key].inputs) as Array<[ResourceKey, number]>) {
+      if (amount > 0) buyers.set(resource, [...(buyers.get(resource) ?? []), key]);
+    }
+  }
+
+  const stages = BUSINESS_STAGES.filter((stage) => licences.some((k) => BUSINESS[k].stage === stage));
+  const chip = (key: LicenseKey): string => {
+    const config = BUSINESS[key];
+    const owned = key === mine;
+    const takes = (Object.keys(config.inputs) as ResourceKey[]).filter((r) => (config.inputs[r] ?? 0) > 0);
+    const gives = (Object.keys(config.output) as ResourceKey[]).filter((r) => (config.output[r] ?? 0) > 0);
+    return `<div class="chain-node${owned ? " mine" : ""}" title="${escapeMarkup(config.name)}">
+      <strong>${escapeMarkup(config.name)}</strong>
+      <div class="chain-io">
+        <span class="chain-in">${takes.length ? takes.map((r) => `<i title="${escapeMarkup(RESOURCES[r].name)}">${RESOURCES[r].icon}</i>`).join("") : "<em>labour only</em>"}</span>
+        <b aria-hidden="true">\u2192</b>
+        <span class="chain-out">${config.servicePayout ? "<em>service</em>" : gives.map((r) => `<i title="${escapeMarkup(RESOURCES[r].name)}">${RESOURCES[r].icon}</i>`).join("")}</span>
+      </div>
+      ${owned ? "<u>yours</u>" : ""}
+    </div>`;
+  };
+
+  const goodRow = (resource: ResourceKey): string => {
+    const from = makers.get(resource) ?? [];
+    const to = buyers.get(resource) ?? [];
+    return `<div class="chain-good">
+      <span class="chain-good-name"><i>${RESOURCES[resource].icon}</i>${escapeMarkup(RESOURCES[resource].short)}</span>
+      <span class="chain-good-side"><small>made by</small>${from.map((k) => escapeMarkup(BUSINESS[k].name)).join(", ") || "\u2014"}</span>
+      <span class="chain-good-side"><small>bought by</small>${to.map((k) => escapeMarkup(BUSINESS[k].name)).join(", ") || "households only"}</span>
+    </div>`;
+  };
+
+  return `
+    <p class="model-note">Every trade here buys from another. This is the whole chain, read straight from the recipes — find what your goods feed, or what you would need to make something yourself.</p>
+    ${stages.map((stage) => `
+      <div class="section-title">${escapeMarkup(stage)}</div>
+      <div class="chain-row">${licences.filter((k) => BUSINESS[k].stage === stage).map(chip).join("")}</div>`).join("")}
+    <div class="section-title">Who wants what</div>
+    <div class="chain-goods">${(Object.keys(RESOURCES) as ResourceKey[]).map(goodRow).join("")}</div>`;
 }
 
 function renderInfo(): void {
@@ -1597,6 +1660,8 @@ function renderInfo(): void {
     return;
   }
 
+  if (infoTab === "chain") { node.innerHTML = renderChain(); return; }
+
   if (infoTab === "district") {
     const keys = Object.keys(RESOURCES) as ResourceKey[];
     node.innerHTML = `
@@ -1647,6 +1712,70 @@ function renderInfo(): void {
     </div>`;
 }
 
+
+// --- Alerts --------------------------------------------------------------------------
+//
+// Anno 1800's UI team put it plainly: keep the persistent HUD dark so it does not tire the
+// eye, and save bright colour for notifications, so that when something IS bright it means
+// something. Cities: Skylines does the same job by putting an icon on the broken building.
+//
+// Markets & Makers had neither. A line could break down, run dry, or fill its warehouse
+// and the only sign was a word in the corner — a player watching their city would simply
+// not notice they had stopped earning. These are the things worth interrupting someone
+// for, each with the button that fixes it.
+
+interface Alert { tone: "urgent" | "warn" | "good"; text: string; action?: { label: string; act: string; target?: string } }
+
+function currentAlerts(): Alert[] {
+  const alerts: Alert[] = [];
+  if (!store.state.license || !store.state.buildingPlaced) return alerts;
+
+  if (store.state.brokenDown) {
+    alerts.push({ tone: "urgent", text: "Your line has broken down and is earning nothing.",
+      action: { label: "Repair it", act: "repair" } });
+  }
+  if (store.state.suppliesCut) {
+    alerts.push({ tone: "urgent", text: "The city cut your utilities over unpaid charges.",
+      action: { label: "Settle up", act: "restore-supply" } });
+  }
+  if (store.storageFull()) {
+    alerts.push({ tone: "warn", text: "The warehouse is full, so nothing more can be made.",
+      action: { label: "Go and sell", act: "tab", target: "trade" } });
+  }
+
+  // An order you can already deliver is money sitting on the shelf.
+  const contract = store.state.activeContract;
+  if (contract && store.state.inventory[contract.resource] >= contract.quantity) {
+    alerts.push({ tone: "good", text: `${contract.buyerName} is waiting — you have the goods.`,
+      action: { label: "Deliver it", act: "tab", target: "trade" } });
+  }
+
+  // The weekly share does not claim itself, and it expires with the epoch.
+  if (!store.state.epoch.claimed && store.projectedEpochMM() > 0) {
+    alerts.push({ tone: "good", text: `This week's share is ready: ${formatNumber(store.projectedEpochMM())} $MM.`,
+      action: { label: "Claim it", act: "tab", target: "trade" } });
+  }
+
+  // Quiet unless it is actually stopping you: a halt on demand is normal by evening.
+  if (!store.state.brokenDown && store.state.lastShift?.halted === "funds") {
+    alerts.push({ tone: "urgent", text: "Not enough money to buy inputs or pay wages.",
+      action: { label: "Sell something", act: "tab", target: "trade" } });
+  }
+  return alerts;
+}
+
+function renderAlerts(): void {
+  const node = document.querySelector<HTMLElement>("#alertStack");
+  if (!node) return;
+  const alerts = currentAlerts();
+  node.hidden = alerts.length === 0;
+  node.innerHTML = alerts.map((alert) => `
+    <div class="alert alert-${alert.tone}">
+      <span>${escapeMarkup(alert.text)}</span>
+      ${alert.action ? `<button data-action="${escapeMarkup(alert.action.act)}"${alert.action.target ? ` data-target="${escapeMarkup(alert.action.target)}"` : ""}>${escapeMarkup(alert.action.label)}</button>` : ""}
+    </div>`).join("");
+}
+
 function renderAll(): void {
   renderHeader();
   renderTutorial();
@@ -1658,6 +1787,7 @@ function renderAll(): void {
   renderContracts();
   renderMap();
   renderBusinessStrip();
+  renderAlerts();
   renderInfo();
   renderResources();
   renderInterior();

@@ -125,7 +125,13 @@
           </button>
           <!-- The state of your line, without opening anything. A business sim that hides
                whether the machines are running is asking the player to go and look. -->
-          <div class="biz-strip" id="bizStrip" hidden aria-live="polite"></div>
+          <!-- One column, so alerts always sit below the business card however tall it
+               grows. Pixel offsets between two separately-positioned boxes drift apart the
+               moment either one's content changes — they had already overlapped by 14px. -->
+          <div class="hud-right">
+            <div class="biz-strip" id="bizStrip" hidden aria-live="polite"></div>
+            <div class="alert-stack" id="alertStack" role="status" hidden></div>
+          </div>
           <div class="world-markers" id="worldMarkers"></div>
           <div class="world-hint" id="worldHint">Click the ground to walk</div>
           <div class="selected-card" id="selectedCard">
@@ -176,6 +182,7 @@
               <div class="info-tabs" role="tablist" aria-label="Information">
                 <button class="active" data-action="info-tab" data-info="you">You</button>
                 <button data-action="info-tab" data-info="business">Business</button>
+                <button data-action="info-tab" data-info="chain">Chain</button>
                 <button data-action="info-tab" data-info="district">District</button>
                 <button data-action="info-tab" data-info="ledger">Ledger</button>
               </div>
