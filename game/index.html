@@ -127,13 +127,27 @@
       <section class="game-layout">
         <div class="world-frame">
           <canvas id="worldCanvas" tabindex="0" aria-label="3D Mercedonia game world"></canvas>
-          <div class="daylight-chip"><i></i><span>Sun cycle</span><strong>09:42</strong></div>
-          <div class="world-label">
-            <small id="districtLabel">Civic heart</small>
-            <strong id="islandLabel">Hearthmarket</strong>
-            <span id="islandEconomy" hidden></span>
-          </div>
-          <div class="next-step world-next mayor-card" id="nextStep" aria-live="polite">
+          <!-- ============================================================
+               THE HUD GRID.
+               Everything on the play screen lives in one of four zones and is
+               laid out by grid, not by hand-measured offsets. The previous
+               arrangement positioned each element absolutely against numbers
+               kept in sync by a comment ("dock 78, actions 48, pill 64, quest
+               66"), so every new element had to be deconflicted by hand — and
+               twice was not: the quest card ran under the money strip, and the
+               alert stack overlapped the business card by 14px.
+               ============================================================ -->
+          <div class="hud-grid">
+            <div class="hud-zone hud-context">
+              <div class="world-label">
+                <small id="districtLabel">Civic heart</small>
+                <strong id="islandLabel">Hearthmarket</strong>
+                <span id="islandEconomy" hidden></span>
+              </div>
+              <div class="daylight-chip"><i></i><span>Sun cycle</span><strong>09:42</strong></div>
+            </div>
+            <div class="hud-zone hud-guide">
+            <div class="next-step world-next mayor-card" id="nextStep" aria-live="polite">
             <div class="mayor-portrait" aria-hidden="true">
               <svg viewBox="0 0 44 44" class="mayor-face">
                 <circle cx="22" cy="22" r="22" fill="#17484c"/>
@@ -154,15 +168,16 @@
             </div>
             <div class="next-meter"><span id="nextMeter"></span></div>
           </div>
-          <button class="mayor-recall" id="mayorRecall" data-action="mayor-toggle" hidden>
-            <span aria-hidden="true">🏛</span> Ask the Mayor
-          </button>
+            <button class="mayor-recall" id="mayorRecall" data-action="mayor-toggle" hidden>
+              <span aria-hidden="true">🏛</span> Ask the Mayor
+            </button>
+            </div>
           <!-- The state of your line, without opening anything. A business sim that hides
                whether the machines are running is asking the player to go and look. -->
           <!-- One column, so alerts always sit below the business card however tall it
                grows. Pixel offsets between two separately-positioned boxes drift apart the
                moment either one's content changes — they had already overlapped by 14px. -->
-          <div class="hud-right">
+            <div class="hud-zone hud-status">
             <!-- Sign-in, top-right, where accounts live in every application on the web.
                  It was previously reachable only from the BOTTOM of the Exchange panel,
                  under the orders board, the maker market, the bank and the contribution
@@ -171,15 +186,16 @@
                  width on the play screen. -->
             <div class="wallet-slot" id="walletSlot"></div>
             <div class="biz-strip" id="bizStrip" hidden aria-live="polite"></div>
-            <div class="alert-stack" id="alertStack" role="status" hidden></div>
-          </div>
+              <div class="alert-stack" id="alertStack" role="status" hidden></div>
+            </div>
           <div class="world-markers" id="worldMarkers"></div>
           <div class="world-hint" id="worldHint">Click the ground to walk</div>
           <div class="selected-card" id="selectedCard">
             <div><small>Selected plot</small><strong id="selectedPlotName">Garden Row Plot</strong></div>
             <span id="selectedPlotStatus">Available · 120 MERCS</span>
           </div>
-          <div class="world-actions">
+            <div class="hud-zone hud-actions">
+                  <div class="world-actions">
             <button class="world-action primary" id="leaseAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg></i><span><small>Property</small><strong>Lease plot</strong></span></button>
             <button class="world-action" id="buildAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-build" /></svg></i><span><small>Enterprise</small><strong>Build business</strong></span></button>
             <button class="world-action" id="enterAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enter" /></svg></i><span><small>Workspace</small><strong>Enter business</strong></span></button>
@@ -190,7 +206,9 @@
             <button class="active" data-tab="shop" aria-current="page" aria-pressed="true"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enterprise" /></svg></i><span><strong>Enterprise</strong><small>Build &amp; operate</small></span><kbd>⌥1</kbd></button>
             <button data-tab="trade" aria-pressed="false"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg></i><span><strong>Exchange</strong><small>Trade &amp; orders</small></span><kbd>⌥2</kbd></button>
             <button data-tab="world" aria-pressed="false"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-world" /></svg></i><span><strong>World</strong><small>Map &amp; journey</small></span><kbd>⌥3</kbd></button>
-          </nav>
+            </nav>
+            </div>
+          </div>
         </div>
 
         <aside class="control-panel" id="sheet" data-open="false" aria-hidden="true" inert>

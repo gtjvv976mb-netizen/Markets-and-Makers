@@ -1802,3 +1802,163 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .boot-card h1 { font-size: 22px; }
   .boot-compare { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================================
+   THE HUD GRID
+   =====================================================================================
+   Learned from how the genre lays out a management screen — Anno 1800, Cities: Skylines,
+   Tropico, Frostpunk all put the same three things in the same three places: context and
+   time in one corner, status and money where the eye rests, and ONE tool bar along the
+   bottom. None of them position elements individually.
+
+   This game did. Every HUD element was absolutely positioned against numbers kept in
+   sync by a comment — "dock 78, actions 48, pill 64, quest 66" — which meant each new
+   element had to be manually deconflicted against every existing one. Twice that failed
+   in the same week: the Mayor card grew and ran under the money strip, and the alert
+   stack overlapped the business card by 14 pixels. Neither was a styling mistake; both
+   were the arrangement working as designed.
+
+   Four zones now, laid out by grid. Adding something to a zone can no longer collide
+   with anything in another one, and nothing needs a measured offset ever again.
+
+       context  .        status      <- district & clock | account, line, alerts
+       .        .        .           <- the world, untouched
+       guide    guide    guide       <- the Mayor
+       actions  actions  actions     <- what you hold, what to do, where to go
+   ===================================================================================== */
+.hud-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-areas:
+    "context .     status"
+    ".       .     ."
+    "guide   guide guide"
+    "actions actions actions";
+  gap: 8px;
+  padding: 10px;
+  /* The world must stay clickable through the gaps; each control opts back in. */
+  pointer-events: none;
+}
+.hud-grid > .hud-zone { min-width: 0; }
+.hud-grid :where(button, a, .biz-strip, .alert, .resource-chip, .wallet-pill, .next-step) { pointer-events: auto; }
+
+.hud-context { grid-area: context; display: grid; gap: 6px; justify-items: start; align-content: start; }
+.hud-status  { grid-area: status;  display: grid; gap: 8px; justify-items: end;   align-content: start;
+               width: min(300px, 100%); justify-self: end; }
+.hud-guide   { grid-area: guide;   display: grid; gap: 6px; justify-items: center; }
+.hud-actions { grid-area: actions; display: grid; gap: 8px; justify-items: center; }
+
+/* Elements inside a zone are laid out BY the zone, so their old absolute anchors go. */
+.hud-grid .world-label,
+.hud-grid .daylight-chip,
+.hud-grid .biz-strip,
+.hud-grid .alert-stack,
+.hud-grid .mayor-recall,
+.hud-grid .resource-dock,
+.hud-grid .world-actions,
+.hud-grid .maker-nav,
+.hud-grid .next-step {
+  position: static;
+  inset: auto;
+  transform: none;
+  margin: 0;
+}
+.hud-grid .next-step { width: min(560px, 100%); }
+.hud-grid .maker-nav { width: auto; }
+.hud-grid .world-actions { width: min(560px, 100%); }
+.hud-grid .resource-dock { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  width: min(680px, 100%); }
+.hud-grid .resource-dock:empty { display: none; }
+.hud-grid .hud-status .wallet-slot { width: auto; }
+
+/* The money strip keeps its own fixed anchor; give it the row it deserves rather than
+   letting it float over the guide. */
+.topbar { bottom: auto; top: 10px; left: 50%; right: auto; transform: translateX(-50%);
+  width: auto; justify-content: center; }
+
+@media (max-width: 720px) {
+  .hud-grid { gap: 6px; padding: 8px; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); }
+  .hud-status { width: min(258px, 100%); }
+  .hud-grid .next-step { width: 100%; }
+  .hud-grid .world-actions { width: 100%; }
+}
+
+/* --- Zone contents, now that the zones give them room --------------------------------
+   These rules were sized for elements fighting for space against hand-placed neighbours.
+   Inside the grid they have a column of their own, so the compromises come off. */
+.hud-grid .maker-nav button strong { overflow: visible; text-overflow: clip; font-size: 11.5px; }
+.hud-grid .maker-nav button { padding: 6px 12px; }
+
+/* The district and the clock: context, in the corner the genre reserves for it. Both were
+   hidden when there was nowhere to put them that did not collide with something. */
+.hud-grid .world-label,
+.hud-grid .daylight-chip { display: inline-flex; }
+.hud-grid .hud-context { flex-wrap: wrap; }
+.hud-grid .world-label { flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 7px 12px; border-radius: 13px; border: 1px solid rgba(255,255,255,.16);
+  background: rgba(12,42,44,.82); color: #f2f8ef; backdrop-filter: blur(6px); }
+.hud-grid .world-label small { color: rgba(242,248,239,.6); font-size: 10px; font-weight: 900;
+  letter-spacing: .1em; text-transform: uppercase; }
+.hud-grid .world-label strong { font-size: 14px; line-height: 1.2; }
+/* Two lines in the corner: where you are, and what kind of place it is. The district's
+   full description is a sentence, which belongs in the World desk rather than sat over
+   the map — a corner label is glanced at, not read. */
+.hud-grid .world-label #islandEconomy { display: none; }
+.hud-grid .daylight-chip { align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(12,42,44,.82); color: #f2f8ef;
+  font-size: 11.5px; font-weight: 800; backdrop-filter: blur(6px); }
+.hud-grid .daylight-chip i { width: 8px; height: 8px; border-radius: 50%; background: #f4d77b; }
+.hud-grid .daylight-chip span { color: rgba(242,248,239,.6); font-size: 10px; font-weight: 900;
+  letter-spacing: .08em; text-transform: uppercase; }
+
+@media (max-width: 720px) {
+  /* On a phone the corner is for the district only; the clock is in the Info desk. */
+  .hud-grid .daylight-chip { display: none; }
+  .hud-grid .world-label { padding: 5px 9px; }
+  .hud-grid .world-label strong { font-size: 12px; }
+  .hud-grid .maker-nav button strong { font-size: 10px; }
+}
+
+/* --- Keeping zone contents inside their zone -----------------------------------------
+   A grid stops zones colliding with each other; it does not stop a child being wider than
+   the column it sits in. On a 375px portrait phone the business card (260px) and the
+   district label both overflowed to the right, clipping "BROKEN DOWN" to "BROKE" — and a
+   check that measured only the zone boxes reported no collision at all, because there
+   was none. The overflow was inside them. */
+.hud-grid .hud-zone > * { max-width: 100%; min-width: 0; }
+.hud-grid .biz-strip,
+.hud-grid .alert-stack,
+.hud-grid .alert-stack .alert { max-width: 100%; }
+.hud-grid .world-label strong,
+.hud-grid .world-label small { overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 720px) {
+  /* Portrait is a degraded posture — the game asks for landscape — but it must not look
+     broken. Two top corners do not fit beside each other at this width, so the status
+     column takes the room it needs and the district shrinks to a single line beside it. */
+  .hud-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 168px); }
+  .hud-grid .hud-status { width: 100%; }
+  .hud-grid .world-label { max-width: 100%; }
+  .hud-grid .world-label strong { font-size: 11.5px; white-space: nowrap; }
+  .hud-grid .world-label small { display: none; }
+  .hud-grid .biz-strip { padding: 7px 9px 8px; }
+  .hud-grid .biz-head strong { font-size: 12px; }
+  .hud-grid .biz-metrics { gap: 4px; }
+  .hud-grid .biz-metrics strong { font-size: 12px; }
+  .hud-grid .biz-state { padding: 2px 6px; font-size: 9.5px; }
+
+  /* The money strip is the one element still anchored by hand. Sat at top-centre it
+     landed on the district card; it belongs beside the status column, not over it. */
+  .topbar { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px;
+    transform: none; justify-content: flex-start; }
+}
+
+/* The state badge cannot shrink — "BROKEN DOWN" is as short as it goes — so the name
+   beside it has to. A grid child will not shrink below its content without min-width:0,
+   which is why the badge was pushed 22px off a 375px screen instead. */
+.hud-grid .biz-head > span { min-width: 0; }
+.hud-grid .biz-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
