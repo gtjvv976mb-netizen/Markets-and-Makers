@@ -17,6 +17,9 @@ import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
 import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, REALM_NAME } from "./catalogue.js";
 
+/** When this process came up. Paired with `commit`, tells you if a deploy landed. */
+const STARTED_AT = new Date().toISOString();
+
 const REALM_ID = "sunwoven-1";
 
 function withMercCurrency<T extends object>(value: T): T & { currencyCode: typeof CURRENCY_CODE; currencyName: typeof CURRENCY_NAME } {
@@ -108,7 +111,13 @@ const server = createServer(async (req, res) => {
         service: "markets-and-makers-authority",
         database,
         realtime: "ready",
-        chain: config.heliusApiKey && config.tokenMint ? "read-only-ready" : "not-configured"
+        chain: config.heliusApiKey && config.tokenMint ? "read-only-ready" : "not-configured",
+        // Which build is actually answering. Without this the only way to tell whether a
+        // deploy landed was to probe the economy and compare a quota against a number
+        // worked out by hand — which is exactly how a launch ships the wrong server and
+        // nobody notices. Render sets RENDER_GIT_COMMIT on every deploy.
+        commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+        startedAt: STARTED_AT,
       });
       return;
     }

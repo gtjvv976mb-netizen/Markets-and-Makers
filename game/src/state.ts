@@ -1346,6 +1346,12 @@ export class GameStore {
    */
   purchaseDeed(): ActionResult {
     if (this.state.mmHoldings < DEED_COST_MM) return this.result(false, `A civic deed costs ${DEED_COST_MM} $MM.`);
+    // A deed buys the RIGHT to hold another plot. Selling one to somebody whose standing
+    // already covers every plot in the realm takes 250 $MM for a permission they can never
+    // use — a sink that quietly charges for nothing. Refuse instead.
+    if (this.plotAllowance() >= PLOTS.length) {
+      return this.result(false, "Your standing already covers every plot in the realm. A deed would buy nothing.");
+    }
     const burned = Math.round(DEED_COST_MM * MM_BURN_RATE);
     this.state.mmHoldings -= DEED_COST_MM;
     this.state.mmBurned += burned;
@@ -1563,6 +1569,20 @@ export class GameStore {
     this.state.citizenPool -= fromHouseholds;
     this.state.governmentTreasury -= fromBusinesses;
     return true;
+  }
+
+  /**
+   * How many other makers are trading in this district.
+   *
+   * Fed from the world registry on a slow timer. It deepens every market the neighbours
+   * buy into, which is the cooperative dividend: arriving in a district with a working
+   * chain is worth more than arriving in an empty one, to you AND to them.
+   */
+  setDistrictBusinesses(count: number): void {
+    const next = Math.max(0, Math.min(400, Math.floor(count)));
+    if (next === this.state.districtBusinesses) return;
+    this.state.districtBusinesses = next;
+    this.commit();
   }
 
   storageCapacity(): number {

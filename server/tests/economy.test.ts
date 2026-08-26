@@ -138,11 +138,17 @@ describe("the chain, priced", () => {
     // has to stop below the civic supplier's asking price or buying from the counter and
     // selling it straight back is free money. Checked across the whole pressure range,
     // because the two prices scale together and only their ROUNDING can cross.
+    // Swept across neighbours too: the chain premium GROWS with how busy a district is, so
+    // a crowded street is exactly where the sell price would climb over the counter price
+    // if the ceiling were not holding it.
     for (const key of Object.keys(RESOURCES)) {
       for (const pressure of [PRESSURE_MIN, 0.85, 1, 1.2, PRESSURE_MAX]) {
-        const buy = Math.max(1, Math.round(RESOURCES[key]!.governmentPrice * pressure));
-        const sell = unitPriceAt(key, pressure, 0);
-        expect(sell, `${key} at pressure ${pressure} sells for ${sell} but costs ${buy}`).toBeLessThan(buy);
+        for (const neighbours of [0, 1, 5, 20, 100, 400]) {
+          const buy = Math.max(1, Math.round(RESOURCES[key]!.governmentPrice * pressure));
+          const sell = unitPriceAt(key, pressure, 0, neighbours);
+          expect(sell, `${key} at pressure ${pressure} with ${neighbours} neighbours sells for ${sell} but costs ${buy}`)
+            .toBeLessThan(buy);
+        }
       }
     }
   });
@@ -161,6 +167,24 @@ describe("the chain, priced", () => {
         .toBeGreaterThanOrEqual(Math.round(derivedDemand(key)));
       expect(chainPremium(key)).toBeGreaterThan(1);
       expect(chainPremium(key)).toBeLessThanOrEqual(1 + CHAIN_PREMIUM_MAX);
+    }
+  });
+
+  it("makes a district worth more to everyone as it fills up", () => {
+    // The cooperative claim on the authoritative side. More makers on the street means a
+    // deeper market for the goods they buy from each other, which means a better price and
+    // a smaller dent from each sale. Monotonic, or a neighbour is a rival instead.
+    for (const key of Object.keys(RESOURCES)) {
+      let previousQuota = districtQuota(key, 0);
+      let previousPremium = chainPremium(key, 0);
+      for (const neighbours of [1, 3, 10, 40]) {
+        const quota = districtQuota(key, neighbours);
+        const premium = chainPremium(key, neighbours);
+        expect(quota, `${key}: ${neighbours} neighbours must deepen the market`).toBeGreaterThan(previousQuota);
+        expect(premium, `${key}: ${neighbours} neighbours must not pay worse`).toBeGreaterThanOrEqual(previousPremium);
+        previousQuota = quota;
+        previousPremium = premium;
+      }
     }
   });
 });

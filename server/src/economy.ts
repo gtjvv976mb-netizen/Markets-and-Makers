@@ -3,7 +3,7 @@ import { pool } from "./database.js";
 import {
   CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, DEMAND_PRICE_FLOOR, DEMAND_TIER_WEIGHT, DEMAND_TRANCHE_DECAY,
   DISTRICT_TRADER_BASELINE, EPOCH_EMISSION_RATE, EPOCH_MM_FLOOR, REWARDS_POOL_MM, MEAN_REVERSION_CAP, MEAN_REVERSION_PER_MINUTE, MIN_EPOCH_PAYOUT,
-  CHAIN_CYCLES_PER_DAY, CHAIN_PREMIUM_MAX, DEPTH_PRICE_IMPACT,
+  CHAIN_CYCLES_PER_DAY, CHAIN_PREMIUM_MAX, DEPTH_PRICE_IMPACT, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT,
   CURRENCY_CODE, MERC_DOLLARS_PER_MM, PRESSURE_MAX, PRESSURE_MIN, RESERVE_FUNDING_RATE, RESOURCES, clamp, epochIdFor, utcDay,
 } from "./catalogue.js";
 import { TRADES } from "./trades.js";
@@ -70,62 +70,103 @@ const CHAIN_DRAW: Record<string, number> = (() => {
  * is that fraction of a full chain, which keeps this honest about the size of the place
  * rather than assuming a city.
  */
-export function derivedDemand(itemKey: string): number {
+export function derivedDemand(itemKey: string, neighbours = 0): number {
   const draw = CHAIN_DRAW[itemKey] ?? 0;
   if (draw <= 0) return 0;
-  return draw * CHAIN_CYCLES_PER_DAY * (DISTRICT_TRADER_BASELINE / Object.keys(TRADES).length);
+  const trades = DISTRICT_BASE_TRADES + Math.max(0, neighbours) * DISTRICT_NEIGHBOUR_WEIGHT;
+  return draw * CHAIN_CYCLES_PER_DAY * trades;
+}
+
+/**
+ * How many businesses are trading in a district.
+ *
+ * Read once per settlement and threaded through the pricing, never per unit priced — a
+ * query inside the price loop would run eleven times for one board and once per unit for
+ * a big sale.
+ */
+export async function countDistrictBusinesses(
+  client: PoolClient, realmId: string, islandId: string,
+): Promise<number> {
+  const row = await client.query<{ n: string }>(
+    `select count(*)::int as n from business b
+       join plot p on p.id = b.plot_id
+      where p.realm_id = $1 and p.island_id = $2`,
+    [realmId, islandId]);
+  return Number(row.rows[0]?.n ?? 0);
 }
 
 /** The whole district shares one daily allowance, sized for a population of traders. */
-export function districtQuota(itemKey: string): number {
+export function districtQuota(itemKey: string, neighbours = 0): number {
   const spec = RESOURCES[itemKey];
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${itemKey}`);
   const budget = (spec.buyer === "citizens" ? CITIZEN_DEMAND_BUDGET : CIVIC_DEMAND_BUDGET)
     * DEMAND_TIER_WEIGHT[spec.tier] * DISTRICT_TRADER_BASELINE;
-  return Math.max(8, Math.round(budget / spec.procurementPrice + derivedDemand(itemKey)));
+  return Math.max(8, Math.round(budget / spec.procurementPrice + derivedDemand(itemKey, neighbours)));
 }
 
 /** What a good is worth here because the district's own businesses want it. */
-export function chainPremium(itemKey: string): number {
-  const total = Math.max(1, districtQuota(itemKey));
-  return 1 + Math.min(1, derivedDemand(itemKey) / total) * CHAIN_PREMIUM_MAX;
+export function chainPremium(itemKey: string, neighbours = 0): number {
+  const total = Math.max(1, districtQuota(itemKey, neighbours));
+  return 1 + Math.min(1, derivedDemand(itemKey, neighbours) / total) * CHAIN_PREMIUM_MAX;
 }
 
 /** The price of one more unit at a given pressure and day's sales. Exported to be tested. */
-export function unitPriceAt(itemKey: string, pressure: number, soldSoFar: number): number {
+export function unitPriceAt(itemKey: string, pressure: number, soldSoFar: number, neighbours = 0): number {
   const spec = RESOURCES[itemKey]!;
-  const quota = districtQuota(itemKey);
+  const quota = districtQuota(itemKey, neighbours);
   const tranche = Math.floor(soldSoFar / quota);
   const decay = Math.max(DEMAND_PRICE_FLOOR, Math.pow(DEMAND_TRANCHE_DECAY, tranche));
-  const asked = Math.round(spec.procurementPrice * pressure * decay * chainPremium(itemKey));
+  const asked = Math.round(spec.procurementPrice * pressure * decay * chainPremium(itemKey, neighbours));
   // The civic supplier must never sell a good for less than the district pays for it, or
   // buying at the counter and selling it straight back is free money.
   const ceiling = Math.max(1, Math.round(spec.governmentPrice * pressure) - 1);
   return Math.max(1, Math.min(ceiling, asked));
 }
 
-export async function quote(realmId: string, islandId: string, itemKey: string): Promise<Quote> {
+async function quoteWithin(
+  client: PoolClient, realmId: string, islandId: string, itemKey: string, neighbours: number,
+): Promise<Quote> {
   const spec = RESOURCES[itemKey];
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${itemKey}`);
+  const pressure = await currentPressure(client, realmId, islandId, itemKey);
+  const sold = await client.query<{ units: string }>(
+    `select units from demand_day where realm_id=$1 and island_id=$2 and item_key=$3 and day=$4`,
+    [realmId, islandId, itemKey, utcDay()]);
+  const soldToday = Number(sold.rows[0]?.units ?? 0);
+  return {
+    itemKey, islandId, pressure: Number(pressure.toFixed(4)),
+    buy: Math.max(1, Math.round(spec.governmentPrice * pressure)),
+    sell: unitPriceAt(itemKey, pressure, 0, neighbours),
+    soldToday, districtQuota: districtQuota(itemKey, neighbours),
+    nextUnit: unitPriceAt(itemKey, pressure, soldToday, neighbours), currencyCode: CURRENCY_CODE,
+  };
+}
+
+export async function quote(realmId: string, islandId: string, itemKey: string): Promise<Quote> {
   const client = await db().connect();
   try {
-    const pressure = await currentPressure(client, realmId, islandId, itemKey);
-    const sold = await client.query<{ units: string }>(
-      `select units from demand_day where realm_id=$1 and island_id=$2 and item_key=$3 and day=$4`,
-      [realmId, islandId, itemKey, utcDay()]);
-    const soldToday = Number(sold.rows[0]?.units ?? 0);
-    return {
-      itemKey, islandId, pressure: Number(pressure.toFixed(4)),
-      buy: Math.max(1, Math.round(spec.governmentPrice * pressure)),
-      sell: unitPriceAt(itemKey, pressure, 0),
-      soldToday, districtQuota: districtQuota(itemKey),
-      nextUnit: unitPriceAt(itemKey, pressure, soldToday), currencyCode: CURRENCY_CODE,
-    };
+    const neighbours = await countDistrictBusinesses(client, realmId, islandId);
+    return await quoteWithin(client, realmId, islandId, itemKey, neighbours);
   } finally { client.release(); }
 }
 
+/**
+ * The whole board on ONE connection.
+ *
+ * This used to call quote() per resource, which took a connection out of the pool for each
+ * of the eleven goods and counted the district eleven times. On a starter plan that is a
+ * good way to exhaust the pool from a single player opening the trade screen.
+ */
 export async function islandBoard(realmId: string, islandId: string): Promise<Quote[]> {
-  return Promise.all(Object.keys(RESOURCES).map((key) => quote(realmId, islandId, key)));
+  const client = await db().connect();
+  try {
+    const neighbours = await countDistrictBusinesses(client, realmId, islandId);
+    const board: Quote[] = [];
+    for (const key of Object.keys(RESOURCES)) {
+      board.push(await quoteWithin(client, realmId, islandId, key, neighbours));
+    }
+    return board;
+  } finally { client.release(); }
 }
 
 /**
@@ -153,6 +194,8 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
   const at = input.at ?? Date.now();
   {
     const pressure = await currentPressure(client, input.realmId, input.islandId, input.itemKey);
+    // One read for the whole settlement; the district does not change mid-sale.
+    const neighbours = await countDistrictBusinesses(client, input.realmId, input.islandId);
     const day = utcDay(at);
     const soldRow = await client.query<{ units: string }>(
       `select units from demand_day
@@ -162,7 +205,7 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
 
     let gross = 0, firstUnit = 0, lastUnit = 0;
     for (let i = 0; i < input.quantity; i += 1) {
-      const price = unitPriceAt(input.itemKey, pressure, sold);
+      const price = unitPriceAt(input.itemKey, pressure, sold, neighbours);
       if (i === 0) firstUnit = price;
       lastUnit = price;
       gross += price;
@@ -177,7 +220,7 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
     // Impact is the size of the trade relative to the DEPTH of the market, not an absolute
     // step. See DEPTH_PRICE_IMPACT: the absolute version let one ordinary day of production
     // drive a maker's own goods to the clamp and kept them there.
-    const depth = Math.max(1, districtQuota(input.itemKey));
+    const depth = Math.max(1, districtQuota(input.itemKey, neighbours));
     const impact = Math.sqrt(Math.min(1, input.quantity / depth));
     const moved = clamp(pressure - spec.volatility * impact * DEPTH_PRICE_IMPACT, PRESSURE_MIN, PRESSURE_MAX);
     await writePressure(client, input.realmId, input.islandId, input.itemKey, moved);
@@ -219,7 +262,8 @@ export async function applyPurchaseWithin(client: PoolClient, input: PurchaseInp
   const cost = Math.max(1, Math.round(spec.governmentPrice * pressure)) * input.quantity;
   // Same depth scaling as the sale side; an asymmetric impact would let a buy-then-sell
   // round trip ratchet the price in one direction.
-  const depth = Math.max(1, districtQuota(input.itemKey));
+  const neighbours = await countDistrictBusinesses(client, input.realmId, input.islandId);
+  const depth = Math.max(1, districtQuota(input.itemKey, neighbours));
   const impact = Math.sqrt(Math.min(1, input.quantity / depth));
   const moved = clamp(pressure + spec.volatility * impact * DEPTH_PRICE_IMPACT, PRESSURE_MIN, PRESSURE_MAX);
   await writePressure(client, input.realmId, input.islandId, input.itemKey, moved);

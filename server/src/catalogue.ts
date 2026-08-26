@@ -54,6 +54,12 @@ export const DEPTH_PRICE_IMPACT = 1.2;
 /** Cycles a day the district's trades are assumed to run. Mirrors the client. */
 export const CHAIN_CYCLES_PER_DAY = 26;
 
+/** How many of each trade a district runs before any real maker turns up. */
+export const DISTRICT_BASE_TRADES = 1;
+
+/** What one more real business in the district adds, as a share of a base trade. */
+export const DISTRICT_NEIGHBOUR_WEIGHT = 0.5;
+
 /** The most a chain hungry for a good will pay over the reference price. */
 export const CHAIN_PREMIUM_MAX = 0.35;
 

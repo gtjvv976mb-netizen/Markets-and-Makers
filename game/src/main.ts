@@ -381,6 +381,12 @@ async function refreshDistrict(): Promise<void> {
   if (!listed) return;
   districtShopCount = listed.length;
   const others = listed.filter((entry) => !entry.mine);
+  // Neighbours are customers, not just scenery. Every business in the district buys the
+  // goods above it in the chain, so the count feeds straight into how deep the local
+  // market is — which is the whole reason a busy district pays better than an empty one.
+  // Without this line the cooperation the economy models could be measured in a test and
+  // reached by nobody in the actual game.
+  store.setDistrictBusinesses(others.length);
   await world.showNeighbours(others.map((entry) => ({
     plotId: entry.plotId, license: entry.license, owner: entry.owner,
   })));
