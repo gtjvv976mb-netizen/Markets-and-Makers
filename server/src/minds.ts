@@ -23,6 +23,7 @@ import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { moveCurrency } from "./market.js";
 import { RESOURCES } from "./catalogue.js";
+import { readPolicy } from "./policy.js";
 
 const REALM = "sunwoven-1";
 
@@ -133,6 +134,12 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     const hours = await claim(client, "government");
     if (hours <= 0.01) { await client.query("rollback"); return empty; }
 
+    // The dials as policy currently sets them. Clamped on the way out of readPolicy, so
+    // whatever is in the table, what arrives here is inside the range the code allows.
+    const policy = await readPolicy(REALM);
+    const dailyWage = policy.civicDailyWage ?? CIVIC_DAILY_WAGE;
+    const payrollCap = policy.payrollShareCap ?? PAYROLL_SHARE_CAP;
+
     const counted = await client.query<{ n: string }>(
       "select count(*)::text as n from business b join plot p on p.id=b.plot_id where p.realm_id=$1", [REALM]);
     const population = BASE_POPULATION + Number(counted.rows[0]!.n) * POPULATION_PER_BUSINESS;
@@ -141,8 +148,8 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     const spendable = Math.max(0, treasuryBefore - TREASURY_FLOOR);
 
     // --- payroll ------------------------------------------------------------
-    const wageBill = Math.floor(population * CIVIC_DAILY_WAGE * (hours / 24));
-    const wagesPaid = Math.max(0, Math.min(wageBill, Math.floor(spendable * PAYROLL_SHARE_CAP)));
+    const wageBill = Math.floor(population * dailyWage * (hours / 24));
+    const wagesPaid = Math.max(0, Math.min(wageBill, Math.floor(spendable * payrollCap)));
     if (wagesPaid > 0) {
       await moveCurrency(client, REALM, keyFor("payroll", String(Math.floor(now / 1000))), wagesPaid,
         { type: "government", id: "treasury" }, { type: "player", id: "citizens" }, "government.payroll");
@@ -155,15 +162,16 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
 
     for (const [itemKey, plan] of Object.entries(STATE_INDUSTRIES)) {
       if (!RESOURCES[itemKey] || budget <= 0) continue;
+      const target = policy[`${itemKey}Target`] ?? plan.target;
       const stocked = await client.query<{ quantity: string }>(
         `select quantity from item_balance
           where realm_id=$1 and owner_type='government' and owner_id='supply' and item_key=$2 for update`,
         [REALM, itemKey]);
       const have = Number(stocked.rows[0]?.quantity ?? 0);
-      if (have >= plan.target) continue;
+      if (have >= target) continue;
 
       // A works produces at a rate, not instantly: a day's run closes a quarter of the gap.
-      const wanted = Math.floor((plan.target - have) * Math.min(1, hours / 24) * 0.25);
+      const wanted = Math.floor((target - have) * Math.min(1, hours / 24) * 0.25);
       const affordable = Math.floor(budget / plan.costPerUnit);
       const made = Math.max(0, Math.min(wanted, affordable));
       if (made <= 0) continue;
@@ -221,8 +229,9 @@ export async function runCitizenMind(now = Date.now()): Promise<CitizenReport> {
     const hours = await claim(client, "citizens");
     if (hours <= 0.01) { await client.query("rollback"); return empty; }
 
+    const policy = await readPolicy(REALM);
     const purse = await balanceOf(client, "player", "citizens");
-    const spendingPower = Math.floor(purse * SPEND_RATE);
+    const spendingPower = Math.floor(purse * (policy.spendRate ?? SPEND_RATE));
 
     // What the district feels like buying. Weighted by what households actually consume:
     // finished goods and services, not ore. This is read by the pricing quota, so a

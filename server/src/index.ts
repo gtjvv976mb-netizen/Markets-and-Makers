@@ -9,6 +9,8 @@ import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, s
 import { runWorldTick } from "./tick.js";
 import { runMinds } from "./minds.js";
 import { dispatchAvailable, recentDispatches, writeDispatch } from "./bulletin.js";
+import { advisorAvailable, consultAdvisor, recentProposals, REQUIRED_HISTORY } from "./advisor.js";
+import { DIALS, readPolicy, resetPolicy } from "./policy.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
@@ -255,10 +257,36 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Policy is public too: players are entitled to see the rules they are playing under
+    // and every change ever made to them, with its reasoning.
+    if (req.method === "GET" && url.pathname === "/api/world/policy") {
+      json(res, 200, {
+        realmName: REALM_NAME,
+        advisorAvailable: advisorAvailable(),
+        requiredHistoryDays: REQUIRED_HISTORY,
+        dials: Object.values(DIALS).map((dial) => ({
+          key: dial.key, meaning: dial.meaning,
+          range: [dial.min, dial.max], maxStepShare: dial.maxStep,
+        })),
+        current: await readPolicy(REALM_ID),
+        proposals: await recentProposals(Number(url.searchParams.get("limit") ?? 20)),
+      });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/world/me") {
       const who = await authenticate(bearerFrom(req.headers.authorization));
       if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
       json(res, 200, withMercCurrency(await makerHoldings(REALM_ID, who.playerId)));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/world/policy/reset") {
+      // The kill switch: every dial back to the value shipped in the code.
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      await resetPolicy(REALM_ID);
+      json(res, 200, { reset: true, current: await readPolicy(REALM_ID) });
       return;
     }
 
