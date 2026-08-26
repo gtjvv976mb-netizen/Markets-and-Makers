@@ -6,6 +6,7 @@ import { parseTokenBalance } from "./chain.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { districtBusinesses, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
+import { runWorldTick } from "./tick.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
@@ -401,10 +402,33 @@ server.listen(config.port, "0.0.0.0", async () => {
   } catch (error) {
     console.error("world: could not seed plots", error);
   }
+
+  // The district runs itself from here. Passes never overlap: a slow one delays the next
+  // rather than stacking on top of it, because two concurrent passes over the same
+  // business would both read the same elapsed window.
+  if (config.worldTick && config.databaseUrl) {
+    console.log(`world: ticking every ${config.worldTickSeconds}s`);
+    let running = false;
+    worldTickTimer = setInterval(() => {
+      if (running) return;
+      running = true;
+      void runWorldTick()
+        .then((report) => {
+          if (report.businesses > 0 && (report.sold > 0 || report.produced > 0)) {
+            console.log(`world tick: ${report.businesses} businesses, ${report.produced} cycles, ${report.sold} sold for ${report.gross}`);
+          }
+        })
+        .catch((error) => console.error("world tick failed", error))
+        .finally(() => { running = false; });
+    }, config.worldTickSeconds * 1_000);
+  }
 });
+
+let worldTickTimer: NodeJS.Timeout | null = null;
 
 async function shutdown(): Promise<void> {
   clearInterval(broadcast);
+  if (worldTickTimer) clearInterval(worldTickTimer);
   for (const socket of presence.keys()) socket.close(1012, "server-restart");
   wss.close();
   server.close();

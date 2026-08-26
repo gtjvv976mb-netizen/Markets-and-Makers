@@ -11,7 +11,9 @@ const schema = z.object({
   MM_TOKEN_MINT: z.string().optional().default(""),
   // Market and settlement commands now derive the player from a wallet-signed session,
   // so they are safe to serve. The flag remains as an operational circuit breaker.
-  MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(1)
+  MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(1),
+  MM_WORLD_TICK: z.coerce.number().int().min(0).max(1).default(0),
+  MM_WORLD_TICK_SECONDS: z.coerce.number().int().min(15).max(3600).default(60)
 });
 
 const env = schema.parse(process.env);
@@ -43,7 +45,11 @@ export const config = {
   heliusApiKey: env.HELIUS_API_KEY,
   heliusWebhookSecret: env.HELIUS_WEBHOOK_SECRET,
   tokenMint: env.MM_TOKEN_MINT,
-  marketRoutes: env.MM_MARKET_ROUTES === 1
+  marketRoutes: env.MM_MARKET_ROUTES === 1,
+  // The world tick runs the district itself. Off by default so a deploy has to opt in:
+  // it is the one loop that moves money without a player asking it to.
+  worldTick: env.MM_WORLD_TICK === 1,
+  worldTickSeconds: env.MM_WORLD_TICK_SECONDS
 };
 
 export function heliusRpcUrl(): string {
