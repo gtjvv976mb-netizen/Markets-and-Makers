@@ -210,6 +210,8 @@ export class World3D {
   private replanned = 0;
   private inputEnabled = true;
   private readonly buildings = new Map<string, THREE.Group>();
+  /** Other players' shops, drawn from the authority's registry. */
+  private readonly neighbourBuildings = new Map<string, THREE.Group>();
   private readonly buildingBannerHeights = new Map<string, number>();
   private buildingSignature = "";
   private buildingLoadToken = 0;
@@ -1641,6 +1643,57 @@ export class World3D {
         if (decor) decor.visible = true;
       }
     }
+  }
+
+  /**
+   * Raise other makers' shops.
+   *
+   * Until the authority kept a registry there was nothing to draw: every browser knew
+   * only about its own business, so a street of fifteen players looked empty to all
+   * fifteen. These are read-only — the owner's own client is authoritative for its
+   * condition and upgrades — so they are built from the same models and marked with a
+   * plaque rather than being made interactive.
+   */
+  async showNeighbours(
+    neighbours: ReadonlyArray<{ plotId: string; license: string; owner: string }>,
+  ): Promise<void> {
+    const wanted = new Set(neighbours.map((entry) => entry.plotId));
+    for (const [plotId, model] of this.neighbourBuildings) {
+      if (wanted.has(plotId)) continue;
+      this.scene.remove(model);
+      this.neighbourBuildings.delete(plotId);
+      this.buildingSolids.delete(`neighbour:${plotId}`);
+    }
+
+    for (const entry of neighbours) {
+      if (this.neighbourBuildings.has(entry.plotId)) continue;
+      const plot = PLOTS.find((candidate) => candidate.id === entry.plotId);
+      const config = BUSINESS[entry.license as keyof typeof BUSINESS];
+      if (!plot || !config || plot.island !== this.currentIsland) continue;
+
+      const gltf = await this.loader.loadAsync(config.model);
+      const model = gltf.scene;
+      const bounds = new THREE.Box3().setFromObject(model);
+      const size = bounds.getSize(new THREE.Vector3());
+      const scale = Math.min((plot.width - 2) / Math.max(1, size.x), (plot.depth - 2) / Math.max(1, size.z), 1);
+      model.scale.setScalar(scale);
+      const scaled = new THREE.Box3().setFromObject(model);
+      const centre = scaled.getCenter(new THREE.Vector3());
+      const groundY = this.sampleWalkHeight(plot.x, plot.z, true) ?? 1.02;
+      model.position.set(plot.x - centre.x, groundY - scaled.min.y, plot.z - centre.z);
+      model.name = `MM_NEIGHBOUR_${entry.plotId.toUpperCase()}`;
+      model.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.frustumCulled = true;
+        object.castShadow = this.dynamicShadows;
+        object.receiveShadow = this.dynamicShadows;
+      });
+      this.scene.add(model);
+      this.neighbourBuildings.set(entry.plotId, model);
+      // Solid like any other building: a neighbour's wall is a wall.
+      this.buildingSolids.set(`neighbour:${entry.plotId}`, this.footprintOf(model));
+    }
+    this.rebuildObstacles();
   }
 
   async syncBuildings(state: GameState): Promise<void> {

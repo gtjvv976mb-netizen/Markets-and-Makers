@@ -1,6 +1,7 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CURRENCY_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
-import { buyFromCivic, isSynced, sellToDistrict } from "./realm";
+import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
+  worldRunsOnServer } from "./realm";
 import { GameStore, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
@@ -74,10 +75,32 @@ const world = new World3D(canvas, {
   },
 });
 
+/**
+ * Tell the authority what stands on this plot.
+ *
+ * Fire-and-forget: the game is perfectly playable unregistered — it simply runs alone,
+ * invisible to other makers and un-ticked by the server. So a failure here is worth a
+ * line in the console and nothing more, never an interruption to the player.
+ */
+function publishBusiness(): void {
+  if (!isSynced()) return;
+  const plotId = store.state.ownedPlotId;
+  const license = store.state.license;
+  if (!plotId || !license || !store.state.buildingPlaced) return;
+  void registerBusiness({
+    plotId, license,
+    condition: Math.round(store.state.condition),
+    upgrades: { ...store.state.upgrades },
+  }).then((outcome) => {
+    if (outcome.status === "refused") console.warn(`registry refused ${plotId}: ${outcome.message}`);
+  });
+}
+
 const interiorWorld = new InteriorWorld(interiorCanvas, {
   onInteract: (key) => {
     const result = store.purchaseUpgrade(key);
     report(result);
+    if (result.ok) publishBusiness();
     interiorWorld.updateUpgradeLevels(store.state.upgrades, store.upgradeCeiling());
     renderInterior();
   },
@@ -340,7 +363,31 @@ document.addEventListener("visibilitychange", () => {
   if (shift.jobs > 0) toast(`${shift.jobs} job${shift.jobs === 1 ? "" : "s"} ran while you were away.`);
   renderAll();
 });
+// Who owns the district decides whether this client settles its own footfall. Asked
+// once at boot, before any catch-up runs, so a returning player is not paid twice for
+// a night the authority already settled.
+void refreshWorldOwner().then((owner) => {
+  if (owner === "server") console.info("world: the authority is running this district");
+  publishBusiness();
+});
+
 window.setInterval(() => { if (store.catchUp().jobs > 0) renderAll(); }, 60_000);
+
+// Other makers' shops. Refreshed on a slow timer: a street does not change often, and
+// this is a courtesy view rather than anything the player's own game depends on.
+let districtShopCount = 0;
+async function refreshDistrict(): Promise<void> {
+  const listed = await fetchDistrict(store.state.island);
+  if (!listed) return;
+  districtShopCount = listed.length;
+  const others = listed.filter((entry) => !entry.mine);
+  await world.showNeighbours(others.map((entry) => ({
+    plotId: entry.plotId, license: entry.license, owner: entry.owner,
+  })));
+  renderHeader();
+}
+void refreshDistrict();
+window.setInterval(() => { void refreshDistrict(); }, 45_000);
 
 // Counter trade lands whenever a Mercedonian reaches the door, which on a busy street
 // is several times a second. The takings are already banked by then; this only decides
@@ -378,7 +425,13 @@ window.setInterval(() => { void refreshDistrictBoard(); }, 45_000);
 
 function paintNetwork(label: string, healthy: boolean): void {
   const network = element<HTMLElement>("#networkValue");
-  network.textContent = peerCount > 0 ? `${label} · ${peerCount} nearby` : label;
+  // Worth surfacing: whether this district is being run by the authority or by this
+  // browser alone changes what "away" means, and it is otherwise invisible.
+  const shared = worldRunsOnServer() ? "Shared world" : label;
+  const neighbours = districtShopCount > 0 ? ` · ${districtShopCount} shops` : "";
+  network.textContent = peerCount > 0
+    ? `${shared} · ${peerCount} nearby${neighbours}`
+    : `${shared}${neighbours}`;
   network.classList.toggle("status-local", healthy);
   network.classList.toggle("status-unavailable", !healthy);
 }
@@ -1397,6 +1450,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "build") {
     const result = store.placeBuilding();
     report(result);
+    if (result.ok) publishBusiness();
     if (result.ok && store.state.ownedPlotId) {
       const plot = PLOTS.find((entry) => entry.id === store.state.ownedPlotId);
       if (plot) {

@@ -15,6 +15,7 @@ import {
 } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
+import { worldRunsOnServer } from "./realm";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
 export interface UnitEconomics { inputCost: number; laborCost: number; expectedRevenue: number; expectedTax: number; expectedProfit: number; visitors: number; }
@@ -468,6 +469,10 @@ export class GameStore {
    * HOLDING: an empty plot still earns nothing, because nothing traded.
    */
   private settleOfflineFootfall(record: BusinessRecord, hours: number, now: number): { visits: number; gross: number } {
+    // Same rule, and it matters more here: the server ticks whether or not this browser
+    // ever opens, so an absence it has already settled must not be settled again on
+    // return. Catching up locally on top of that would pay twice for one night.
+    if (worldRunsOnServer()) return { visits: 0, gross: 0 };
     if (!record.license || !record.buildingPlaced || record.brokenDown || hours <= 0) return { visits: 0, gross: 0 };
     const appeal = 1 + record.upgrades.appeal * 0.15;
     const expected = this.plotFootfall(record.plotId) * OFFLINE_VISITS_PER_HOUR * appeal * hours;
@@ -489,6 +494,12 @@ export class GameStore {
     now = Date.now(),
     weight: keyof typeof CONTRIBUTION_WEIGHT = "household",
   ): CitizenVisitSale | null {
+    // When the authority is ticking the district, it has already sold this shop's goods
+    // to this shop's customers. Settling again here would pay the same shopkeeper twice
+    // for one sale — the citizens walking across the screen are then a picture of trade
+    // the server has done, which is exactly what they were before footfall meant
+    // anything, except now the trade is real and shared.
+    if (worldRunsOnServer()) return null;
     this.rollCalendar(now);
     const record = this.state.portfolio[plotId];
     if (!record || !record.license || !record.buildingPlaced || record.brokenDown) return null;

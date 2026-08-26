@@ -119,7 +119,11 @@ const server = createServer(async (req, res) => {
         chainNetwork: config.solanaNetwork,
         tokenMint: config.tokenMint || null,
         tokenMode: "read-only",
-        marketRoutes: config.marketRoutes ? "enabled" : "disabled"
+        marketRoutes: config.marketRoutes ? "enabled" : "disabled",
+        // Whether the authority is running the district itself. The client reads this
+        // to decide whether to settle its own footfall or to render what the server has
+        // already settled — so the flag can be flipped without shipping a client.
+        worldTick: config.worldTick ? "server" : "client"
       });
       return;
     }
