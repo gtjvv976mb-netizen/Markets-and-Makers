@@ -236,8 +236,22 @@ function escapeMarkup(value: string): string {
   })[character]!);
 }
 
-function syncMarkers(): void {
+/**
+ * The models currently on screen, kept between frames.
+ *
+ * Building signs and player nameplates are HTML projected onto 3D positions, and both
+ * jobs used to run on the same 90ms throttle: rebuilding the markup AND moving the
+ * markers. Content at 11Hz is fine — a price does not need sixty updates a second — but
+ * POSITION at 11Hz is a label sliding along behind the thing it belongs to, which is
+ * exactly what it looked like when the avatar walked.
+ *
+ * Content is still throttled. Position now runs every frame, off this cache.
+ */
+let markerCache: MarkerModel[] = [];
+
+function refreshMarkerContent(): void {
   const models = markerModels();
+  markerCache = models;
   const signature = models.map((m) => [
     m.id, m.kind, m.label, m.title, m.detail, m.x, m.y, m.z,
     m.building, m.icon ?? "", m.accent ?? "",
@@ -268,6 +282,12 @@ function syncMarkers(): void {
         </div>`;
     }).join("");
   }
+}
+
+/** Move every marker to where its anchor is now. Cheap, and runs every frame. */
+function positionMarkers(): void {
+  const models = markerCache;
+  if (models.length === 0) return;
   // Every named structure supplies a roof-height anchor. Plot and activity pins stay
   // lower, while building banners float above the actual architecture.
   const projected = world.project(models.map((model) => ({ id: model.id, x: model.x, y: model.y, z: model.z })));
@@ -373,10 +393,15 @@ function syncMarkers(): void {
 
 let lastMarkerSync = 0;
 world.setFrameCallback(() => {
+  // What a marker SAYS can lag; where it IS cannot. Rebuilding the markup is the
+  // expensive half and stays on a throttle; moving them is cheap and happens every frame,
+  // so a nameplate stays glued to the maker wearing it.
   const now = performance.now();
-  if (now - lastMarkerSync < 90) return;
-  lastMarkerSync = now;
-  syncMarkers();
+  if (now - lastMarkerSync >= 90) {
+    lastMarkerSync = now;
+    refreshMarkerContent();
+  }
+  positionMarkers();
 });
 
 // Replay the time the player was away, on load and whenever they come back to the tab.
