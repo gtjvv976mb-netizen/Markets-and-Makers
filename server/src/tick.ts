@@ -16,7 +16,7 @@
 import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
-import { applySaleWithin, EconomyError } from "./economy.js";
+import { applyPurchaseWithin, applySaleWithin, EconomyError } from "./economy.js";
 import { command, moveCurrency, takeItems, MarketError } from "./market.js";
 import { PLOTS_BY_ID } from "./plots.js";
 import { TRADES } from "./trades.js";
@@ -56,6 +56,10 @@ const VISITS_PER_HOUR = 4;
 const MAX_VISITS_PER_PASS = 90;
 /** Ignore gaps below this: a tick that fires twice in a second should do nothing twice. */
 const MIN_ELAPSED_SECONDS = 5;
+/** Never spend more than this share of a business's purse restocking in one pass. */
+const RESTOCK_BUDGET_SHARE = 0.4;
+/** Cycles' worth of inputs to buy at a time, so a shop is not always one unit short. */
+const RESTOCK_CYCLES = 8;
 
 export interface BusinessTick {
   plotId: string;
@@ -76,6 +80,7 @@ export interface TickReport {
   produced: number;
   sold: number;
   gross: number;
+  spent: number;
   skipped: number;
   results: BusinessTick[];
 }
@@ -93,6 +98,74 @@ async function held(client: PoolClient, playerId: string, itemKey: string): Prom
       where realm_id=$1 and owner_type='player' and owner_id=$2 and item_key=$3 for update`,
     [REALM, playerId, itemKey]);
   return Number(row.rows[0]?.quantity ?? 0);
+}
+
+/** What the owner's purse holds, as the ledger sees it. */
+async function purse(client: PoolClient, playerId: string): Promise<number> {
+  const row = await client.query<{ balance: string }>(
+    `select balance from currency_account
+      where realm_id=$1 and owner_type='player' and owner_id=$2 and currency_code='MERCS' for update`,
+    [REALM, playerId]);
+  return Number(row.rows[0]?.balance ?? 0);
+}
+
+/**
+ * Buy the inputs a business is short of, from the civic supplier.
+ *
+ * Without this the world runs down: the opening stock turns into goods, the goods sell,
+ * and then the shop sits idle forever because nothing refills the shelves. The civic
+ * supplier is the expensive option of last resort by design, which is exactly right for
+ * an owner who is not there to shop around — a player who turns up and buys from another
+ * maker will always beat it.
+ *
+ * Bounded by a share of the purse rather than the whole of it, so an unattended business
+ * cannot spend itself to nothing on one bad pass and leave the owner unable to act.
+ */
+async function restock(
+  client: PoolClient, row: BusinessRow, commandId: string,
+): Promise<number> {
+  const trade = TRADES[row.license];
+  if (!trade) return 0;
+  let budget = Math.floor(await purse(client, row.owner_player_id) * RESTOCK_BUDGET_SHARE);
+  if (budget <= 0) return 0;
+  let spent = 0;
+
+  for (const [itemKey, perCycle] of Object.entries(trade.inputs)) {
+    if (perCycle <= 0) continue;
+    const have = await held(client, row.owner_player_id, itemKey);
+    const want = perCycle * RESTOCK_CYCLES;
+    if (have >= want) continue;
+
+    // The civic supplier only sells what it is stocked with, and some resources are
+    // recovered from production rather than supplied at all.
+    const available = await client.query<{ quantity: string }>(
+      `select quantity from item_balance
+        where realm_id=$1 and owner_type='government' and owner_id='supply' and item_key=$2 for update`,
+      [REALM, itemKey]);
+    const supply = Number(available.rows[0]?.quantity ?? 0);
+    let quantity = Math.min(want - have, supply);
+    if (quantity <= 0) continue;
+
+    // Price it before committing, and trim to what the budget can actually cover.
+    const priced = await applyPurchaseWithin(client, {
+      realmId: REALM, islandId: row.island_id, itemKey, quantity,
+    });
+    if (priced.cost > budget) {
+      const unit = Math.max(1, Math.round(priced.cost / quantity));
+      quantity = Math.floor(budget / unit);
+      if (quantity <= 0) continue;
+    }
+    const cost = Math.min(priced.cost, budget);
+
+    await moveCurrency(client, REALM, keyFor(commandId, "buy", itemKey), cost,
+      { type: "player", id: row.owner_player_id }, { type: "government", id: "treasury" }, "tick.restock");
+    await takeItems(client, REALM, keyFor(commandId, "stock", itemKey), itemKey, quantity,
+      { type: "government", id: "supply" }, { type: "player", id: row.owner_player_id }, "tick.restock");
+    budget -= cost;
+    spent += cost;
+    if (budget <= 0) break;
+  }
+  return spent;
 }
 
 /**
@@ -197,7 +270,7 @@ async function serveCounter(
  * shop failing — an empty citizens' account, a bad recipe — cannot roll back the street.
  */
 export async function runWorldTick(now = Date.now()): Promise<TickReport> {
-  const report: TickReport = { businesses: 0, produced: 0, sold: 0, gross: 0, skipped: 0, results: [] };
+  const report: TickReport = { businesses: 0, produced: 0, sold: 0, gross: 0, spent: 0, skipped: 0, results: [] };
   if (!pool) return report;
 
   const due = await pool.query<BusinessRow>(
@@ -225,16 +298,18 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
 
     try {
       const settled = await command(commandId, "world.tick", row.owner_player_id, async (client) => {
+        const restocked = await restock(client, row, window);
         const cycles = await produce(client, row, window, elapsedHours);
         const counter = await serveCounter(client, row, window, elapsedHours, footfall);
         await client.query("update business set last_tick_at = now() where plot_id = $1", [row.plot_id]);
-        return { cycles, counter };
+        return { cycles, counter, restocked };
       });
 
       report.businesses += 1;
       report.produced += settled.cycles;
       report.sold += settled.counter.units;
       report.gross += settled.counter.gross;
+      report.spent += settled.restocked;
       report.results.push({
         plotId: row.plot_id, island: row.island_id, license: row.license,
         ownerPlayerId: row.owner_player_id, footfall,

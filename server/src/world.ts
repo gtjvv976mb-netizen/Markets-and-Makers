@@ -12,6 +12,7 @@
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID, type PlotSpec } from "./plots.js";
+import { TRADES } from "./trades.js";
 
 export class WorldError extends Error {
   constructor(public code: string, message: string) {
@@ -43,6 +44,11 @@ export interface DistrictBusiness {
 }
 
 const UPGRADE_KEYS = ["yield", "capacity", "speed", "appeal"] as const;
+
+/** What a maker opens with, matching the client's own starting wallet. */
+export const FOUNDERS_ADVANCE = 750;
+/** Cycles' worth of inputs handed over so a new business can start turning. */
+const STARTER_CYCLES = 12;
 
 /** Clamp anything a client sends before it reaches a column. */
 function sanitiseUpgrades(raw: unknown): BusinessUpsert["upgrades"] {
@@ -133,6 +139,29 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
       "update plot set owner_player_id = $2, license = $3, updated_at = now() where id = $1",
       [input.plotId, input.playerId, input.license],
     );
+
+    // A maker who has never traded in the shared world has no account and no shelves, so
+    // the authority's tick would find an empty business and do nothing forever. Both are
+    // granted once, on the first registration, and never topped up: `do nothing` on
+    // conflict is what keeps re-licensing from being a way to print an advance.
+    await client.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1, 'player', $2, 'MERCS', $3)
+       on conflict (realm_id, owner_type, owner_id, currency_code) do nothing`,
+      [input.realmId, input.playerId, FOUNDERS_ADVANCE],
+    );
+    const trade = TRADES[input.license];
+    if (trade) {
+      for (const [itemKey, perCycle] of Object.entries(trade.inputs)) {
+        if (perCycle <= 0) continue;
+        await client.query(
+          `insert into item_balance (realm_id, owner_type, owner_id, item_key, quantity)
+           values ($1, 'player', $2, $3, $4)
+           on conflict (realm_id, owner_type, owner_id, item_key) do nothing`,
+          [input.realmId, input.playerId, itemKey, perCycle * STARTER_CYCLES],
+        );
+      }
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -229,4 +258,48 @@ export async function allBusinesses(realmId: string, client?: PoolClient): Promi
     mine: false,
     updatedAt: row.updated_at.toISOString(),
   }));
+}
+
+export interface MakerHoldings {
+  wallet: number;
+  inventory: Record<string, number>;
+  businesses: DistrictBusiness[];
+}
+
+/**
+ * What a maker actually owns, according to the ledger.
+ *
+ * The client keeps its own copy of the purse and the shelves in localStorage, which was
+ * fine while every browser ran a private world. Once the authority is ticking, that copy
+ * is a cache of something it does not own: the server has been buying inputs, making
+ * goods and selling them while the tab was shut. This is the truth to reconcile against.
+ */
+export async function makerHoldings(realmId: string, playerId: string): Promise<MakerHoldings> {
+  if (!pool) return { wallet: 0, inventory: {}, businesses: [] };
+
+  const [money, goods, owned] = await Promise.all([
+    pool.query<{ balance: string }>(
+      `select balance from currency_account
+        where realm_id=$1 and owner_type='player' and owner_id=$2 and currency_code='MERCS'`,
+      [realmId, playerId]),
+    pool.query<{ item_key: string; quantity: string }>(
+      `select item_key, quantity from item_balance
+        where realm_id=$1 and owner_type='player' and owner_id=$2 and quantity > 0`,
+      [realmId, playerId]),
+    pool.query<{ plot_id: string; island_id: string }>(
+      `select b.plot_id, p.island_id from business b join plot p on p.id = b.plot_id
+        where p.realm_id=$1 and b.owner_player_id=$2`,
+      [realmId, playerId]),
+  ]);
+
+  const inventory: Record<string, number> = {};
+  for (const row of goods.rows) inventory[row.item_key] = Number(row.quantity);
+
+  const businesses: DistrictBusiness[] = [];
+  for (const island of new Set(owned.rows.map((row) => row.island_id))) {
+    const listed = await districtBusinesses(realmId, island, playerId);
+    businesses.push(...listed.filter((entry) => entry.mine));
+  }
+
+  return { wallet: Number(money.rows[0]?.balance ?? 0), inventory, businesses };
 }

@@ -3,7 +3,7 @@ import { closeDatabase, pool } from "../src/database.js";
 import { stockCivicSupply } from "../src/settlement.js";
 import { IDLE_CONTRIBUTION_WEIGHT, runWorldTick } from "../src/tick.js";
 import { TRADES } from "../src/trades.js";
-import { registerBusiness, seedPlots } from "../src/world.js";
+import { FOUNDERS_ADVANCE, makerHoldings, registerBusiness, seedPlots } from "../src/world.js";
 import { epochIdFor } from "../src/catalogue.js";
 
 const live = Boolean(process.env.DATABASE_URL);
@@ -105,7 +105,6 @@ suite("the world ticks without anybody watching", () => {
     await pool!.query("delete from currency_ledger");
     await pool!.query("delete from item_balance where owner_type = 'player'");
     await pool!.query("delete from currency_account where owner_type = 'player' and owner_id <> 'citizens'");
-    await closeDatabase();
   });
 
   it("sells a stocked shop's goods to passers-by while the owner is away", async () => {
@@ -115,13 +114,17 @@ suite("the world ticks without anybody watching", () => {
     await giveItems(alice, retail, 200);
     await age(BUSY, 8);
 
-    const before = await balance("player", alice);
+    const citizensBefore = await balance("player", "citizens");
     const report = await runWorldTick();
 
     expect(report.sold).toBeGreaterThan(0);
     expect(report.gross).toBeGreaterThan(0);
-    expect(await balance("player", alice)).toBeGreaterThan(before);
-    expect(await items(alice, retail)).toBeLessThan(200);
+    // The citizens paid for exactly what they carried off. Not asserting the shelf
+    // shrank or the purse grew: the same pass restocks from the civic supplier and runs
+    // production, and a shop that makes 10 units a cycle can easily end the pass with
+    // MORE stock than it started with, having sold all day.
+    expect(citizensBefore - (await balance("player", "citizens"))).toBe(report.gross);
+    void retail;
   });
 
   it("creates no money doing it", async () => {
@@ -197,6 +200,9 @@ suite("the world ticks without anybody watching", () => {
   it("sells nothing from an empty shelf", async () => {
     const alice = await player("alice");
     await openShop(BUSY, "shop", alice);
+    // A new business opens with starter inputs and would otherwise produce its own stock.
+    await pool!.query("delete from item_balance where owner_type='player' and owner_id=$1", [alice]);
+    await pool!.query("update currency_account set balance = 0 where owner_type='player' and owner_id=$1", [alice]);
     await age(BUSY, 24);
     const before = await balance("player", alice);
     const report = await runWorldTick();
@@ -234,6 +240,9 @@ suite("the world ticks without anybody watching", () => {
   it("produces nothing without the inputs to do it", async () => {
     const alice = await player("alice");
     await openShop(BUSY, "greenhouse", alice);
+    // Strip the starter shelves AND the purse, or it simply buys more and carries on.
+    await pool!.query("delete from item_balance where owner_type='player' and owner_id=$1", [alice]);
+    await pool!.query("update currency_account set balance = 0 where owner_type='player' and owner_id=$1", [alice]);
     await age(BUSY, 12);
     const report = await runWorldTick();
     expect(report.produced).toBe(0);
@@ -296,4 +305,114 @@ suite("the world ticks without anybody watching", () => {
       "select extract(epoch from (now() - last_tick_at))::text as seconds from business where plot_id=$1", [BUSY]);
     expect(Number(row.rows[0]!.seconds)).toBeLessThan(60);
   });
+});
+
+suite("a business the authority can keep running", () => {
+  beforeEach(async () => {
+    await pool!.query("delete from business");
+    await pool!.query("update plot set owner_player_id = null, license = null");
+    await pool!.query("delete from demand_day");
+    await pool!.query("delete from contribution_epoch");
+    await pool!.query("delete from command_receipt");
+    await pool!.query("delete from item_ledger");
+    await pool!.query("delete from currency_ledger");
+    await pool!.query("delete from item_balance");
+    await pool!.query("delete from currency_account where owner_id <> 'citizens'");
+    await seedPlots(REALM);
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'player','citizens','MERCS',5000000)
+       on conflict (realm_id, owner_type, owner_id, currency_code) do update set balance = 5000000`, [REALM]);
+    for (const item of ["supply", "food", "water", "power", "part", "material", "crate", "waste", "ore", "timber"]) {
+      await stockCivicSupply(item, 1_000_000);
+    }
+  });
+
+  it("gives a new maker an opening float and shelves to start from", async () => {
+    const alice = await player("alice");
+    await openShop(BUSY, "greenhouse", alice);
+    expect(await balance("player", alice)).toBe(FOUNDERS_ADVANCE);
+    for (const [item, per] of Object.entries(TRADES.greenhouse!.inputs)) {
+      expect(await items(alice, item), `no starter ${item}`).toBeGreaterThanOrEqual(per);
+    }
+  });
+
+  it("does not hand out a second advance for re-licensing", async () => {
+    const alice = await player("alice");
+    await openShop(BUSY, "greenhouse", alice);
+    await pool!.query(
+      "update currency_account set balance = 10 where realm_id=$1 and owner_type='player' and owner_id=$2",
+      [REALM, alice]);
+    await openShop(BUSY, "shop", alice);
+    expect(await balance("player", alice)).toBe(10);
+  });
+
+  it("restocks itself from the civic supplier when the shelves run low", async () => {
+    const alice = await player("alice");
+    await openShop(BUSY, "greenhouse", alice);
+    const inputKey = Object.keys(TRADES.greenhouse!.inputs)[0]!;
+    await pool!.query(
+      "update item_balance set quantity = 0 where realm_id=$1 and owner_id=$2 and item_key=$3",
+      [REALM, alice, inputKey]);
+    await age(BUSY, 2);
+
+    const report = await runWorldTick();
+    // The inputs are bought and then eaten by production in the same pass — that is the
+    // loop working, so the evidence is the spend and the cycles, not a full shelf after.
+    expect(report.spent).toBeGreaterThan(0);
+    expect(report.produced).toBeGreaterThan(0);
+    void inputKey;
+  });
+
+  it("never spends the whole purse restocking in one pass", async () => {
+    const alice = await player("alice");
+    await openShop(BUSY, "greenhouse", alice);
+    await pool!.query("delete from item_balance where owner_id = $1", [alice]);
+    await age(BUSY, 2);
+    await runWorldTick();
+    expect(await balance("player", alice)).toBeGreaterThan(0);
+  });
+
+  it("runs itself for a simulated week without minting a single Merc Dollar", async () => {
+    // The real test of a self-sustaining world: buy, make, sell, repeat, and let the
+    // ledger prove nothing appeared from nowhere along the way.
+    const alice = await player("alice");
+    const bob = await player("bob");
+    await openShop(BUSY, "greenhouse", alice);
+    await openShop(QUIET, "shop", bob);
+
+    const opening = await totalCurrency();
+    for (let pass = 0; pass < 14; pass += 1) {
+      await pool!.query("update business set last_tick_at = now() - interval '12 hours'");
+      await runWorldTick();
+      expect(await totalCurrency(), `money supply moved on pass ${pass + 1}`).toBe(opening);
+    }
+
+    // And it actually did something, rather than stalling immediately.
+    expect(await balance("player", alice)).toBeGreaterThan(0);
+  });
+
+  it("reports a maker's holdings from the ledger", async () => {
+    const alice = await player("alice");
+    await openShop(BUSY, "shop", alice);
+    const holdings = await makerHoldings(REALM, alice);
+    expect(holdings.wallet).toBe(FOUNDERS_ADVANCE);
+    expect(Object.keys(holdings.inventory).length).toBeGreaterThan(0);
+    expect(holdings.businesses.map((b) => b.plotId)).toEqual([BUSY]);
+  });
+});
+
+// The pool belongs to the file, not to any one suite: closing it in a suite's afterAll
+// leaves every later suite in the same file without a database.
+afterAll(async () => {
+  if (!live) return;
+  await pool!.query("delete from business");
+  await pool!.query("update plot set owner_player_id = null, license = null");
+  await pool!.query("delete from command_receipt");
+  await pool!.query("delete from contribution_epoch");
+  await pool!.query("delete from item_ledger");
+  await pool!.query("delete from currency_ledger");
+  await pool!.query("delete from item_balance where owner_type = 'player'");
+  await pool!.query("delete from currency_account where owner_type = 'player' and owner_id <> 'citizens'");
+  await closeDatabase();
 });

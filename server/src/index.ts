@@ -5,7 +5,7 @@ import { config, heliusRpcUrl } from "./config.js";
 import { parseTokenBalance } from "./chain.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
-import { districtBusinesses, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
+import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { runWorldTick } from "./tick.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
@@ -239,6 +239,13 @@ const server = createServer(async (req, res) => {
         realmName: REALM_NAME,
         businesses: await districtBusinesses(REALM_ID, island, who?.playerId),
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/world/me") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      json(res, 200, withMercCurrency(await makerHoldings(REALM_ID, who.playerId)));
       return;
     }
 
