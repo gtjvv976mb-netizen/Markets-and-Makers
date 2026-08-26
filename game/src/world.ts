@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { civicStructureFor, installProceduralLoader } from "./proceduralAssets";
 import { buildStreets, loadRoadNet, type BuiltStreets } from "./roadnet";
+import { Diagnostics } from "./diagnostics";
 import { ObstacleField, route, type Blocker } from "./collision";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
@@ -250,8 +251,22 @@ export class World3D {
   /** Smoothed frame time in ms, the signal quality follows. */
   private frameCost = 0;
   private lastQualityChange = 0;
+  /** Wall clock of the previous frame, for the unclamped frame time. */
+  private lastFrameAt = 0;
   /** Index into FOG_OF_WAR. Starts optimistic and is corrected by measurement. */
   private qualityTier = FOG_OF_WAR.length - 1;
+  /**
+   * The frame readout. Reports what the game settled on rather than what a developer's
+   * machine could manage — including whether adaptive quality engaged at all, which is the
+   * one thing three rounds of blind fixes could never establish.
+   */
+  readonly diagnostics = new Diagnostics(() => ({
+    pixelRatio: this.pixelRatio,
+    qualityTier: this.qualityTier,
+    drawCalls: this.renderer.info.render.calls,
+    triangles: this.renderer.info.render.triangles,
+    liteScene: this.liteScene,
+  }));
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
   private readonly citizenTerrain = new Map<string, string>();
@@ -2226,8 +2241,16 @@ export class World3D {
     const animate = (): void => {
       if (!this.running) return;
       requestAnimationFrame(animate);
+      // Two clocks on purpose. `delta` is clamped so a stall cannot teleport the avatar
+      // across the map; the quality signal must NOT use that clamp, because a device at
+      // 8fps and one at 20fps both report exactly 50ms through it, and the adaptation
+      // would under-correct for precisely the players it exists to rescue.
+      const now = performance.now();
+      const trueFrameMs = this.lastFrameAt === 0 ? 0 : now - this.lastFrameAt;
+      this.lastFrameAt = now;
       const delta = Math.min(0.05, this.clock.getDelta());
-      this.sampleFrameCost(delta * 1000);
+      if (trueFrameMs > 0) this.sampleFrameCost(trueFrameMs);
+      this.diagnostics.sample(trueFrameMs);
       const movementSpeed = this.updateMovement(delta, state);
       this.updateAvatarAnimations(delta, movementSpeed);
       this.updateCitizens(delta, this.clock.elapsedTime, state);

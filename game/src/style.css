@@ -1646,3 +1646,26 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .biz-metrics { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .info-row { grid-template-columns: 1.4fr .6fr .6fr .9fr; font-size: 12px; padding: 7px 9px; }
 }
+
+/* --- The frame readout ---------------------------------------------------------------
+   Shown only when a tester asks for it (?perf=1, F3, or backquote). Deliberately plain
+   and high-contrast: it exists to be screenshotted or copied, not to look nice. */
+.perf-overlay { position: fixed; top: 10px; left: 10px; z-index: 9999; width: min(300px, calc(100vw - 20px));
+  padding: 11px 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px;
+  background: rgba(12,26,28,.93); color: #eaf4f0; font-size: 12px; line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 12px 30px -16px rgba(0,0,0,.9); pointer-events: auto; }
+.perf-fps { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.perf-fps strong { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.perf-fps small { font-size: 12px; opacity: .7; }
+.perf-fps.tone-good strong { color: #8fd6a4; }
+.perf-fps.tone-warn strong { color: #f4d77b; }
+.perf-fps.tone-bad strong { color: #f0836a; }
+.perf-overlay dl { margin: 0; }
+.perf-overlay dl > div { display: grid; grid-template-columns: 62px 1fr; gap: 8px; padding: 2px 0; }
+.perf-overlay dt { color: rgba(234,244,240,.55); }
+.perf-overlay dd { margin: 0; overflow-wrap: anywhere; }
+.perf-overlay button { width: 100%; min-height: 32px; margin-top: 9px; border: 1px solid rgba(255,255,255,.25);
+  border-radius: 8px; background: rgba(255,255,255,.1); color: #eaf4f0;
+  font-family: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.perf-overlay button:hover { background: rgba(255,255,255,.18); }
