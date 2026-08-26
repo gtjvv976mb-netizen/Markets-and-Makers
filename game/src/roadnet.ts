@@ -407,6 +407,29 @@ function buildTraffic(
   const group = new THREE.Group();
   group.name = "MM_STREET_TRAFFIC";
   const tile = net.tileSize;
+
+  /**
+   * Ground height under the traffic, sampled once per patch of road and remembered.
+   *
+   * sampleGround raycasts, and the walkable set is 1,450 meshes — measured at 0.724ms a
+   * call, with a fallback path that fires up to nine rays when the first misses a tile
+   * seam. The traffic called it once per car EVERY FRAME, which cost more than drawing the
+   * entire scene did (1.6ms against a 1.3ms render) and got worse as the world grew.
+   *
+   * The terrain under a road does not move, so the answer only has to be found once.
+   * Roads are cut into terraces four cells wide, so a metre grid is finer than anything
+   * the surface actually does.
+   */
+  const groundCache = new Map<number, number | null>();
+  const cachedGround: SampleGround = (x, z) => {
+    // One integer key per square metre; the offset keeps negative coordinates distinct.
+    const key = (Math.round(x) + 4096) * 8192 + (Math.round(z) + 4096);
+    const hit = groundCache.get(key);
+    if (hit !== undefined) return hit;
+    const found = sampleGround(x, z);
+    groundCache.set(key, found);
+    return found;
+  };
   const usable = net.carriageways.filter(([, , from, to]) => to - from >= 6);
 
   const crossings: Crossing[][] = usable.map(() => []);
@@ -484,7 +507,7 @@ function buildTraffic(
       const offset = 1.05 * car.lane;
       const x = horizontal ? car.along : centre * tile + offset;
       const z = horizontal ? -centre * tile + offset : -car.along;
-      const ground = sampleGround(x, z);
+      const ground = cachedGround(x, z);
       car.mesh.position.set(x, (ground ?? car.mesh.position.y) + 0.14, z);
       car.mesh.rotation.y = horizontal
         ? (car.direction === 1 ? Math.PI / 2 : -Math.PI / 2)

@@ -149,6 +149,42 @@ function popNavigationNode(heap: NavigationQueueNode[]): NavigationQueueNode | n
   return first;
 }
 
+/**
+ * Stop Three.js walking a subtree's transforms every frame.
+ *
+ * The island is 1,715 objects and it does not move. Neither do the civic landmarks, and
+ * between them they were most of a 5,340-object scene graph whose matrices were being
+ * recomputed sixty times a second for nothing — measured at 0.65ms a frame, 44% of the
+ * whole render, on a fast desktop. On a phone that is the frame budget.
+ *
+ * Matrices are settled once here; `matrixWorldAutoUpdate = false` then makes
+ * updateMatrixWorld skip the subtree entirely rather than merely skip the multiply.
+ *
+ * ONLY for geometry that never moves again. Toggling `visible` is still fine — that is
+ * what chunk culling does — but anything that needs to be repositioned later must either
+ * stay out of here or call updateMatrixWorld(true) on itself afterwards.
+ */
+function freezeTransforms(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true);
+  root.matrixAutoUpdate = false;
+  root.matrixWorldAutoUpdate = false;
+}
+
+// Adaptive quality. The gap between DOWN and UP is the hysteresis that stops a machine
+// sitting on the boundary from flickering between two resolutions every second.
+/** Sustained frame time that means this device is struggling (~45fps). */
+const QUALITY_DOWN_MS = 22;
+/** Sustained frame time comfortable enough to earn resolution back (~80fps). */
+const QUALITY_UP_MS = 12.5;
+const QUALITY_STEP = 0.15;
+const QUALITY_MIN_RATIO = 0.6;
+/** Seconds to leave a change alone before judging it. */
+const QUALITY_SETTLE_SECONDS = 2.5;
+
+/** Reused by updateCamera every frame; never escapes it. */
+const SCRATCH_CAMERA_TARGET = new THREE.Vector3();
+const SCRATCH_CAMERA_OFFSET = new THREE.Vector3();
+
 export class World3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -169,6 +205,12 @@ export class World3D {
   private readonly walkableMeshes: THREE.Mesh[] = [];
   private readonly chunkRoots: Array<{ object: THREE.Object3D; cx: number; cy: number }> = [];
   private streets: BuiltStreets | null = null;
+  /** The best resolution this device is allowed; adaptation never exceeds it. */
+  private pixelRatioCeiling = 1;
+  private pixelRatio = 1;
+  /** Smoothed frame time in ms, the signal quality follows. */
+  private frameCost = 0;
+  private lastQualityChange = 0;
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly citizens: Citizen[] = [];
   private readonly citizenTerrain = new Map<string, string>();
@@ -249,10 +291,12 @@ export class World3D {
     // player to do, moved them from the 1.15 cap up to 1.45 and made the GPU shade 59%
     // more pixels. Exactly backwards. A phone now renders at 1.0: on a screen this
     // small it is indistinguishable, and it is the cheapest frame-rate win available.
-    this.renderer.setPixelRatio(Math.min(
+    this.pixelRatioCeiling = Math.min(
       window.devicePixelRatio,
       this.liteScene ? 1.0 : (window.innerWidth < 780 ? 1.15 : 1.45),
-    ));
+    );
+    this.pixelRatio = this.pixelRatioCeiling;
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.camera = new THREE.OrthographicCamera(-30, 30, 20, -20, 0.1, 900);
     const initialAxisOffset = this.cameraDistance / Math.sqrt(2);
     this.camera.position.set(initialAxisOffset, this.cameraHeight, initialAxisOffset);
@@ -612,6 +656,7 @@ export class World3D {
       if (object.name === "MM_HRW_GOVERNMENT_FERRY") object.visible = false;
     });
     this.scene.add(gltf.scene);
+    freezeTransforms(gltf.scene);
     this.placeCivicLandmarks();
     await this.buildStreetNetwork();
     this.callbacks.onLoadProgress(0.84, "Planting the solarpunk garden city");
@@ -2032,11 +2077,54 @@ export class World3D {
     for (const material of this.waterMaterials) material.opacity = 0.82 + Math.sin(elapsed * 0.7) * 0.035;
   }
 
+  /**
+   * Resolution that follows the machine it is actually running on.
+   *
+   * Every fixed quality tier is a guess about hardware. The tiers here were chosen by
+   * screen size, which says nothing about GPU: a cheap large-screened laptop takes the
+   * desktop path and a flagship phone takes the lite one. Beta reported drops on both
+   * mobile AND desktop, which is what a guess looks like when it is wrong in both
+   * directions.
+   *
+   * So the game measures itself instead. Sustained slow frames step the pixel ratio down,
+   * sustained fast frames earn it back, and the gap between the two thresholds stops it
+   * oscillating. Resolution is the right dial because it is the only one that trades
+   * quality for speed smoothly and instantly, with nothing to reload.
+   *
+   * Note this reacts to the WHOLE frame, GPU included — which is the part that cannot be
+   * measured from a probe, and the part most likely to be the real ceiling on a laptop
+   * with integrated graphics.
+   */
+  private sampleFrameCost(deltaMs: number): void {
+    // Ignore the outliers: a GC pause or a tab returning to focus is not a quality signal.
+    if (deltaMs > 400) return;
+    this.frameCost = this.frameCost === 0 ? deltaMs : this.frameCost * 0.9 + deltaMs * 0.1;
+    if (this.clock.elapsedTime - this.lastQualityChange < QUALITY_SETTLE_SECONDS) return;
+
+    if (this.frameCost > QUALITY_DOWN_MS && this.pixelRatio > QUALITY_MIN_RATIO) {
+      this.applyPixelRatio(Math.max(QUALITY_MIN_RATIO, this.pixelRatio - QUALITY_STEP));
+    } else if (this.frameCost < QUALITY_UP_MS && this.pixelRatio < this.pixelRatioCeiling) {
+      this.applyPixelRatio(Math.min(this.pixelRatioCeiling, this.pixelRatio + QUALITY_STEP));
+    }
+  }
+
+  private applyPixelRatio(ratio: number): void {
+    if (Math.abs(ratio - this.pixelRatio) < 0.01) return;
+    this.pixelRatio = ratio;
+    this.renderer.setPixelRatio(ratio);
+    this.lastQualityChange = this.clock.elapsedTime;
+    // Give the new resolution a fair hearing rather than judging it on the old average.
+    this.frameCost = (QUALITY_DOWN_MS + QUALITY_UP_MS) / 2;
+  }
+
   private updateCamera(delta: number): void {
-    const target = new THREE.Vector3(this.avatar.position.x, 1.2, this.avatar.position.z);
+    // Scratch vectors, reused. Two fresh Vector3s a frame is 120 short-lived objects a
+    // second for the collector to sweep up, and a GC pause reads to a player as a stutter
+    // rather than as slowness. Every other per-frame method here is already allocation-free.
+    const target = SCRATCH_CAMERA_TARGET.set(this.avatar.position.x, 1.2, this.avatar.position.z);
     const smooth = 1 - Math.exp(-delta * 6);
     this.cameraTarget.lerp(target, smooth);
-    const offset = new THREE.Vector3(
+    const offset = SCRATCH_CAMERA_OFFSET.set(
       Math.sin(this.cameraYaw) * this.cameraDistance,
       this.cameraHeight,
       Math.cos(this.cameraYaw) * this.cameraDistance,
@@ -2057,6 +2145,7 @@ export class World3D {
       if (!this.running) return;
       requestAnimationFrame(animate);
       const delta = Math.min(0.05, this.clock.getDelta());
+      this.sampleFrameCost(delta * 1000);
       const movementSpeed = this.updateMovement(delta, state);
       this.updateAvatarAnimations(delta, movementSpeed);
       this.updateCitizens(delta, this.clock.elapsedTime, state);
