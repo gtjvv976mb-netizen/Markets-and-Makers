@@ -31,6 +31,17 @@ services:
       # Public mint address, safe in the blueprint; the Helius key is not.
       - key: MM_TOKEN_MINT
         value: 3mEpcPcmKmHbRUUEhZfutTUsQNaJv3ibao6cyZPDpump
+      # The world tick: the authority produces goods, sells them to Mercedonians and pays
+      # civic wages on its own schedule, whether or not anyone is playing. Off by default
+      # in code because it is the one loop that moves money without a player asking it to;
+      # switching it on here is the deliberate act.
+      #
+      # 60s is a scheduling choice, not an economic one — the tick accrues the time it
+      # cannot yet use, so a shorter interval settles the same trade in smaller pieces.
+      - key: MM_WORLD_TICK
+        value: 1
+      - key: MM_WORLD_TICK_SECONDS
+        value: 60
 
 databases:
   - name: markets-and-makers-db
