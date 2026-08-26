@@ -473,7 +473,7 @@ const realm = new RealmConnection({
  * which is the point — the card this replaced covered the whole screen to deliver one
  * sentence the player could already see for themselves.
  */
-async function requestLandscape(): Promise<void> {
+async function requestLandscape(): Promise<boolean> {
   const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
   try {
     if (!document.fullscreenElement) {
@@ -484,17 +484,32 @@ async function requestLandscape(): Promise<void> {
     // Refused. The lock below will almost certainly be refused too; that is fine.
   }
   const orientation = screen.orientation as (ScreenOrientation & { lock?: (to: string) => Promise<void> }) | undefined;
-  if (!orientation?.lock) return;
+  if (!orientation?.lock) return false;
   try {
     await orientation.lock("landscape");
+    return true;
   } catch {
-    // iOS, a desktop, or fullscreen was denied. The player turns the phone themselves.
+    return false;
   }
 }
 
-// The button is the deliberate route: a tap is the user gesture the lock requires.
+/**
+ * The button, and the reason it needs to answer even when it fails.
+ *
+ * iPhone Safari has no orientation lock at all — `screen.orientation.lock` is simply not
+ * there — and no fullscreen outside a video element, so on the most common phone in the
+ * world this control could do literally nothing and said nothing about it. Tapping a
+ * button and having the screen not react reads as a broken game, not as an unsupported
+ * platform, and it was reported as exactly that.
+ *
+ * It now either rotates the screen or tells the player to rotate the phone. One of those
+ * always happens.
+ */
 element<HTMLButtonElement>("#rotateGate").addEventListener("click", () => {
-  void requestLandscape();
+  void requestLandscape().then((locked) => {
+    if (locked) return;
+    toast("This browser will not turn the screen for you — turn your phone sideways instead.");
+  });
 });
 
 // And one silent attempt on the first touch, for the platforms that allow it without
