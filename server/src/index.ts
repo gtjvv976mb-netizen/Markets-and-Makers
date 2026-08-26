@@ -5,6 +5,7 @@ import { config, heliusRpcUrl } from "./config.js";
 import { parseTokenBalance } from "./chain.js";
 import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js";
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
+import { districtBusinesses, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
@@ -222,6 +223,50 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // --- the world registry -------------------------------------------------
+    // What is built, and where. Reading a district is public: a shared world that you
+    // must log in to look at is not a shared world. Building in it is not.
+    if (req.method === "GET" && url.pathname === "/api/world/district") {
+      const island = url.searchParams.get("island") ?? "hearth";
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      json(res, 200, {
+        island,
+        realmName: REALM_NAME,
+        businesses: await districtBusinesses(REALM_ID, island, who?.playerId),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/world/business") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const payload = (await body(req, 2_000)) as Record<string, unknown> | null;
+      if (!payload) { json(res, 400, { error: "body-required" }); return; }
+      try {
+        const saved = await registerBusiness({
+          realmId: REALM_ID,
+          playerId: who.playerId,
+          plotId: String(payload.plotId ?? ""),
+          license: String(payload.license ?? ""),
+          condition: Number(payload.condition ?? 100),
+          upgrades: payload.upgrades as never,
+        });
+        json(res, 200, saved);
+      } catch (error) {
+        if (error instanceof WorldError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
+    if (req.method === "DELETE" && url.pathname === "/api/world/business") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const plotId = url.searchParams.get("plot") ?? "";
+      json(res, 200, { released: await releaseBusiness(who.playerId, plotId) });
+      return;
+    }
+
     if (url.pathname.startsWith("/api/market/")) {
       if (!config.marketRoutes) { json(res, 404, { error: "market-disabled" }); return; }
       try {
@@ -345,7 +390,18 @@ const broadcast = setInterval(() => {
   }
 }, 100);
 
-server.listen(config.port, "0.0.0.0", () => console.log(`Markets & Makers authority listening on ${config.port}`));
+server.listen(config.port, "0.0.0.0", async () => {
+  console.log(`Markets & Makers authority listening on ${config.port}`);
+  // The registry is useless without the plots it references, and the layout is generated
+  // from the client's own world, so this is safe to run every boot. A database that is
+  // not configured yet is not an error — the realm simply runs without persistence.
+  try {
+    const seeded = await seedPlots(REALM_ID);
+    if (seeded > 0) console.log(`world: ${seeded} plots registered across the realm`);
+  } catch (error) {
+    console.error("world: could not seed plots", error);
+  }
+});
 
 async function shutdown(): Promise<void> {
   clearInterval(broadcast);

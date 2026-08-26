@@ -13,7 +13,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "validate:assets": "node ../scripts/validate-runtime-assets.mjs",
-    "deploy:verify": "node ../scripts/verify-live-deploy.mjs"
+    "deploy:verify": "node ../scripts/verify-live-deploy.mjs",
+    "export:plots": "vite-node ../scripts/export-plots.ts"
   },
   "dependencies": {
     "three": "^0.180.0"
