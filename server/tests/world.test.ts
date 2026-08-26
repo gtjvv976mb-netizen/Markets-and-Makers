@@ -4,8 +4,11 @@ import { ISLAND_IDS, PLOTS, PLOTS_BY_ID } from "../src/plots.js";
 import {
   allBusinesses, districtBusinesses, registerBusiness, releaseBusiness, seedPlots, WorldError,
 } from "../src/world.js";
+import { live as liveDatabase } from "./live-database.js";
 
-const live = Boolean(process.env.DATABASE_URL);
+// See live-database.ts: these suites EMPTY their tables, so they refuse to run
+// against a database that is not obviously disposable.
+const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
 

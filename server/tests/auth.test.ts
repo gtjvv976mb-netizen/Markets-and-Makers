@@ -3,8 +3,11 @@ import bs58 from "bs58";
 import nacl from "tweetnacl";
 import { pool, closeDatabase } from "../src/database.js";
 import { authenticate, bearerFrom, challengeMessage, createChallenge, isWalletAddress, revokeSession, verifyChallenge, AuthError } from "../src/auth.js";
+import { live as liveDatabase } from "./live-database.js";
 
-const live = Boolean(process.env.DATABASE_URL);
+// See live-database.ts: these suites EMPTY their tables, so they refuse to run
+// against a database that is not obviously disposable.
+const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 
 function wallet() {

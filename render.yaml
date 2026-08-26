@@ -9,7 +9,23 @@ services:
     preDeployCommand: npm run migrate:deploy
     startCommand: npm start
     healthCheckPath: /health
-    autoDeployTrigger: checksPass
+    # Deploy on the push itself, not on GitHub checks reporting green.
+    #
+    # checksPass waits for a check run to arrive and says nothing when none ever does. On
+    # 2026-08-27 three commits sat undeployed behind it while the live economy served a
+    # build with a known money-losing bug, and every repo-side cause was ruled out: both
+    # `npm ci` commands pass, the CI jobs pass with the exact commands the workflow runs,
+    # the build emits dist/index.js and dist/migrate.js, and the push was confirmed on
+    # refs/heads/main. A gate that blocks everything and reports nothing is not a gate.
+    #
+    # What is lost is the test suite gating the deploy. What is NOT lost: Render's own
+    # build runs `npm ci && npm run build`, which type-checks, and a build that fails
+    # leaves the previous version serving. Tests still gate the push via CI.
+    #
+    # NOTE: this line only governs anything if the service is Blueprint-managed. For a
+    # service created by hand, the dashboard's Auto-Deploy setting wins and this is
+    # decorative — check there if a push still does not deploy.
+    autoDeployTrigger: commit
     maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_ENV

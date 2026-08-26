@@ -3,8 +3,11 @@ import { closeDatabase, pool } from "../src/database.js";
 import { dispatchAvailable, readEconomy, recentDispatches, writeDispatch } from "../src/bulletin.js";
 import { runGovernmentMind } from "../src/minds.js";
 import { registerBusiness, seedPlots } from "../src/world.js";
+import { live as liveDatabase } from "./live-database.js";
 
-const live = Boolean(process.env.DATABASE_URL);
+// See live-database.ts: these suites EMPTY their tables, so they refuse to run
+// against a database that is not obviously disposable.
+const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
 

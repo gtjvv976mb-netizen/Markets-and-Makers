@@ -5,8 +5,11 @@ import { IDLE_CONTRIBUTION_WEIGHT, runWorldTick } from "../src/tick.js";
 import { TRADES } from "../src/trades.js";
 import { FOUNDERS_ADVANCE, makerHoldings, registerBusiness, seedPlots } from "../src/world.js";
 import { epochIdFor } from "../src/catalogue.js";
+import { live as liveDatabase } from "./live-database.js";
 
-const live = Boolean(process.env.DATABASE_URL);
+// See live-database.ts: these suites EMPTY their tables, so they refuse to run
+// against a database that is not obviously disposable.
+const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
 

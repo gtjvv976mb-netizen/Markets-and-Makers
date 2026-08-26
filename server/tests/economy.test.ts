@@ -5,8 +5,11 @@ import {
 } from "../src/economy.js";
 import { CHAIN_PREMIUM_MAX, CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, PRESSURE_MAX, PRESSURE_MIN, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
 import { chainPremium, derivedDemand, unitPriceAt } from "../src/economy.js";
+import { live as liveDatabase } from "./live-database.js";
 
-const live = Boolean(process.env.DATABASE_URL);
+// See live-database.ts: these suites EMPTY their tables, so they refuse to run
+// against a database that is not obviously disposable.
+const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
 
