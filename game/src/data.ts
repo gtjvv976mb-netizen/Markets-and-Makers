@@ -245,6 +245,69 @@ export function plotFootfall(plotId: string): number {
   return Math.min(1, FOOTFALL_FLOOR + proximity * 0.62 + cluster * 0.38);
 }
 
+/**
+ * The Mayor.
+ *
+ * First steps are a conversation with somebody who lives here, not a checklist. A new
+ * maker needs two things from every step — what to do, and why this city works that way —
+ * and the second is what turns a business sim from a sequence of buttons into a place with
+ * rules you can reason about.
+ */
+export const MAYOR = {
+  name: "Perenna Vale",
+  title: "Mayor of Mercedonia",
+  /** Said once, before the first step, when somebody has never played. */
+  welcome: "Welcome to Mercedonia. I'm Perenna Vale — I run the place, which mostly means I keep the lights on and the wages paid.",
+  /** Said when every step is done. */
+  farewell: "You know the ropes now. The city's yours to argue with.",
+} as const;
+
+/**
+ * What the Mayor says at each step, and the reason underneath it.
+ *
+ * `says` is the instruction in her voice. `because` is the economics — always true, and
+ * always checkable in the game. Nothing here is flavour that the simulation does not
+ * actually do.
+ */
+export const MAYOR_SCRIPT: Record<string, { says: string; because: string }> = {
+  moved: {
+    says: "Walk with me a moment. Click anywhere on the ground and your maker will head there.",
+    because: "Everything here is within walking distance on purpose. A city works when people can reach each other.",
+  },
+  leased: {
+    says: "Pick a corner and the registry will draw up a lease. The glowing plots are the ones going spare.",
+    because: "Where you build decides who walks past your door, and passing trade is most of what you earn early on.",
+  },
+  licensed: {
+    says: "Now — what will you make? Fifteen trades, and every one of them buys from another.",
+    because: "There is no wrong first choice. Water and power sell to nearly everyone; a shop earns more but needs suppliers.",
+  },
+  built: {
+    says: "Put the building up. The city will send an inspector, by which I mean it will send nobody.",
+    because: "Nothing is produced until there is somewhere to produce it.",
+  },
+  produced: {
+    says: "Buy what the recipe wants, pay your worker, and run a cycle.",
+    because: "Wages are not a fee the city invented. Every Merc you pay walks back out into somebody's till — often enough, your own.",
+  },
+  upgraded: {
+    says: "Put something better in the building. Yield for more per cycle, appeal for a bigger share of the district's custom.",
+    because: "The shop will say plainly when a machine cannot help you yet. Believe it, and buy the other one.",
+  },
+  sold: {
+    says: "Sell. The civic counter takes anything at a published price, and other makers will sometimes pay more.",
+    because: "Prices follow what the district actually wants. Flood it and the price sags — that is the market answering, not a penalty.",
+  },
+  contracted: {
+    says: "Take an order from the board. A named buyer pays better than the counter, every time.",
+    because: "It counts for far more toward your weekly share too. It is the most valuable hour you can spend here.",
+  },
+  traveled: {
+    says: "Go and see another district. There are nine of them, and 298 corners between them.",
+    because: "A district with a working chain in it pays everyone in it more — you included. Neighbours are customers.",
+  },
+};
+
 export const TUTORIAL = [
   ["moved", "Explore Hearthmarket", "Move with WASD, arrows, or click the world."],
   ["leased", "Lease a plot", "Select a glowing plot and sign a starter lease."],

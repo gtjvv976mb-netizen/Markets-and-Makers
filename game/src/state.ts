@@ -71,6 +71,8 @@ export interface GameState {
   districtBusinesses: number;
   /** Fractional output banked between cycles, so a yield bonus is never rounded away. */
   yieldCarry: Record<ResourceKey, number>;
+  /** Whether the player has waved the Mayor away. She can always be asked back. */
+  mayorHidden: boolean;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
   condition: number; jobsCompleted: number; visitorsServed: number; lifetimeRevenue: number;
@@ -144,6 +146,7 @@ export function createFreshState(): GameState {
     servicePriceIndex: 1,
     districtBusinesses: 0,
     yieldCarry: blankProcurement(),
+    mayorHidden: false,
     island: "hearth",
     player: { x: 0, z: -16 },
     selectedPlotId: "garden-row",
@@ -328,6 +331,7 @@ export function loadState(): GameState {
       reputation: Math.floor(finite(saved.reputation, 0)), inventory, marketPressure,
       marketLastUpdated: finite(saved.marketLastUpdated, Date.now()), servicePriceIndex: finite(saved.servicePriceIndex, 1, .85, 1.3),
       districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
+      mayorHidden: Boolean(saved.mayorHidden),
       yieldCarry: (() => {
         const carry = blankProcurement();
         for (const key of resourceKeys) carry[key] = finite(saved.yieldCarry?.[key], 0, 0, 1);
@@ -780,7 +784,8 @@ export class GameStore {
     return this.result(true, "Resource purchased.");
   }
 
-  private inputMultiplier(): number { return 1 + this.state.upgrades.capacity; }
+  /** Batches run at once. Read by the info desk to explain a cycle. */
+  inputMultiplier(): number { return 1 + this.state.upgrades.capacity; }
 
   /** Seconds for one job. The single source of truth for manual and unattended runs. */
   jobDuration(license: LicenseKey, cycles = this.inputMultiplier()): number {
@@ -818,7 +823,8 @@ export class GameStore {
     return this.result(true, "Job started.");
   }
 
-  private serviceVisitors(config: (typeof BUSINESS)[LicenseKey], cycles: number): number {
+  /** Customers one cycle serves. Read by the info desk. */
+  serviceVisitors(config: (typeof BUSINESS)[LicenseKey], cycles: number): number {
     if (!config.servicePayout) return 0;
     const appeal = 1 + this.state.upgrades.appeal * .15;
     const specialization = this.state.specialization === "community" ? 1.15 : this.state.specialization === "premium" ? 1.08 : 1;
@@ -1628,6 +1634,13 @@ export class GameStore {
     const next = Math.max(0, Math.min(400, Math.floor(count)));
     if (next === this.state.districtBusinesses) return;
     this.state.districtBusinesses = next;
+    this.commit();
+  }
+
+  /** Wave the Mayor away, or ask her back. Remembered across sessions. */
+  setMayorHidden(hidden: boolean): void {
+    if (this.state.mayorHidden === hidden) return;
+    this.state.mayorHidden = hidden;
     this.commit();
   }
 

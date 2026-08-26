@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CURRENCY_CODE, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, CURRENCY_CODE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -545,9 +545,10 @@ const SHEET_TITLE: Record<string, string> = {
   shop: "Your enterprise",
   trade: "Mercedonian exchange",
   world: "Explore Mercedonia",
+  info: "Everything at a glance",
 };
 
-type UiIconName = "enterprise" | "exchange" | "world";
+type UiIconName = "enterprise" | "exchange" | "world" | "rank";
 
 function uiIcon(name: UiIconName): string {
   return `<svg class="mm-icon" aria-hidden="true" focusable="false"><use href="#mm-icon-${name}"></use></svg>`;
@@ -557,6 +558,7 @@ const SHEET_META: Record<string, { icon: UiIconName; kicker: string }> = {
   shop: { icon: "enterprise", kicker: "Enterprise desk" },
   trade: { icon: "exchange", kicker: "Exchange hall" },
   world: { icon: "world", kicker: "World atlas" },
+  info: { icon: "rank", kicker: "Information desk" },
 };
 
 function switchTab(requested: string): void {
@@ -647,7 +649,6 @@ function renderTutorial(): void {
   const stepIndex = next ? TUTORIAL.findIndex(([entry]) => entry === next[0]) : TUTORIAL.length - 1;
   element("#nextLabel").textContent = next ? `Step ${stepIndex + 1} of ${TUTORIAL.length}` : "All set";
   element("#nextTitle").textContent = next?.[1] ?? "You know the ropes";
-  element("#nextHint").textContent = step?.hint ?? "Grow your business however you like.";
   element<HTMLSpanElement>("#nextMeter").style.width = `${Math.round((done / TUTORIAL.length) * 100)}%`;
 
   const go = element<HTMLButtonElement>("#nextGo");
@@ -655,6 +656,22 @@ function renderTutorial(): void {
   go.dataset.action = key === "moved" ? "walk-plaza" : "tab";
   go.dataset.target = step?.tab ?? "world";
   element("#nextStep").classList.toggle("complete", !next);
+
+  // The Mayor's half: what she says, and the reason underneath it. On the very first step
+  // she introduces herself, because a stranger giving instructions is just a tooltip.
+  const script = key ? MAYOR_SCRIPT[key] : undefined;
+  const opening = key === "moved" && !store.state.tutorial.moved ? `${MAYOR.welcome} ` : "";
+  element("#nextHint").textContent = script ? `${opening}${script.says}` : (next ? step?.hint ?? "" : MAYOR.farewell);
+  element("#nextBecause").textContent = script?.because ?? "";
+  element("#nextBecause").hidden = !script;
+  element("#nextLabel").textContent = next
+    ? `${MAYOR.name} · Step ${stepIndex + 1} of ${TUTORIAL.length}`
+    : `${MAYOR.name} · ${MAYOR.title}`;
+
+  // Hidden by choice, or automatically once there is nothing left to be told.
+  const hidden = store.state.mayorHidden || !next;
+  element("#nextStep").hidden = hidden;
+  element<HTMLButtonElement>("#mayorRecall").hidden = !hidden || !next;
 
   element("#guidePanel").innerHTML = `
     <div class="section-title">Your progress</div>
@@ -1444,6 +1461,192 @@ function renderInterior(): void {
   consoleNode.scrollTop = 0;
 }
 
+
+// --- The always-on business strip ----------------------------------------------------
+//
+// A business sim that hides whether the machines are running is asking the player to go
+// and look. This is the state of the line — running, idle, out of stock, broken — on
+// screen at all times, with the reason attached. "Halted" is useless; "nobody is buying
+// timber today" is something a player can act on.
+
+const HALT_REASON: Record<string, { tone: string; label: string; why: string }> = {
+  running:    { tone: "good",  label: "Running",        why: "A job is on the floor." },
+  demand:     { tone: "warn",  label: "Waiting on demand", why: "The district has bought all it wants today. It refreshes at midnight UTC." },
+  storage:    { tone: "warn",  label: "Warehouse full",  why: "Sell something, or fit more storage." },
+  funds:      { tone: "bad",   label: "Out of money",    why: "Not enough in the till to pay for inputs or wages." },
+  inputs:     { tone: "warn",  label: "Out of inputs",   why: "Turn auto-buy on, or buy the recipe's inputs yourself." },
+  breakdown:  { tone: "bad",   label: "Broken down",     why: "Repair it before anything else can run." },
+  idle:       { tone: "warn",  label: "Idle",            why: "Nothing is on the floor. Start a job." },
+};
+
+function renderBusinessStrip(): void {
+  const node = element("#bizStrip");
+  const licence = store.state.license;
+  if (!licence || !store.state.buildingPlaced) { node.hidden = true; return; }
+  node.hidden = false;
+
+  const config = BUSINESS[licence];
+  const shift = store.state.lastShift;
+  const broken = store.state.brokenDown;
+  const key = broken ? "breakdown" : (store.state.job ? "running" : (shift?.halted ?? "idle"));
+  const status = HALT_REASON[key] ?? HALT_REASON.idle!;
+
+  const stock = store.storedUnits();
+  const capacity = store.storageCapacity();
+  const stockShare = Math.min(100, Math.round((stock / Math.max(1, capacity)) * 100));
+  const condition = Math.round(store.state.condition);
+  const profit = store.todayProfit();
+  const makes = (Object.keys(config.output) as ResourceKey[]).filter((k) => (config.output[k] ?? 0) > 0);
+  const makesLabel = config.servicePayout ? "Serves customers" : makes.map((k) => RESOURCES[k].short).join(", ");
+
+  node.className = `biz-strip tone-${status.tone}`;
+  node.innerHTML = `
+    <div class="biz-head">
+      <i aria-hidden="true">${escapeMarkup(config.icon ?? "\u2699")}</i>
+      <span><strong>${escapeMarkup(config.name)}</strong><small>${escapeMarkup(makesLabel)}</small></span>
+      <b class="biz-state">${escapeMarkup(status.label)}</b>
+    </div>
+    <p class="biz-why">${escapeMarkup(status.why)}</p>
+    <div class="biz-metrics">
+      <span title="Goods on the shelf"><small>Stock</small><strong>${stock}/${capacity}</strong>
+        <i class="biz-bar ${stockShare > 90 ? "full" : ""}"><b style="width:${stockShare}%"></b></i></span>
+      <span title="Wear on the machines"><small>Condition</small><strong>${condition}%</strong>
+        <i class="biz-bar ${condition < 35 ? "full" : ""}"><b style="width:${condition}%"></b></i></span>
+      <span title="Takings less outgoings since midnight"><small>Today</small>
+        <strong class="${profit >= 0 ? "up" : "down"}">${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></span>
+    </div>`;
+}
+
+// --- The info desk -------------------------------------------------------------------
+//
+// Four views of the same world: what you are worth, what your line is doing, what the
+// district wants, and where the money actually went. Everything here already existed
+// somewhere; it was scattered across panels a beginner had no reason to open.
+
+let infoTab: "you" | "business" | "district" | "ledger" = "you";
+
+function statTile(label: string, value: string, note = ""): string {
+  return `<div class="info-stat"><small>${escapeMarkup(label)}</small><strong>${escapeMarkup(value)}</strong>${note ? `<span>${escapeMarkup(note)}</span>` : ""}</div>`;
+}
+
+function renderInfo(): void {
+  const node = document.querySelector<HTMLElement>("#infoPanel");
+  if (!node) return;
+  document.querySelectorAll<HTMLButtonElement>("[data-action='info-tab']")
+    .forEach((b) => b.classList.toggle("active", b.dataset.info === infoTab));
+
+  const level = store.careerLevel();
+  const next = store.nextCareerLevel();
+  const licence = store.state.license;
+
+  if (infoTab === "you") {
+    node.innerHTML = `
+      <div class="section-title">Standing</div>
+      <div class="info-grid">
+        ${statTile("Maker rank", `${level.name}`, `Level ${level.level} of ${CAREER_LEVELS.length}`)}
+        ${statTile("Experience", `${formatNumber(store.state.experience)} XP`, next ? `${formatNumber(next.xp - store.state.experience)} to ${next.name}` : "Top of the ladder")}
+        ${statTile("Reputation", formatNumber(store.state.reputation), "Earned by selling and delivering")}
+        ${statTile("Orders filled", formatNumber(store.state.contractsCompleted), "Named buyers served")}
+      </div>
+      <div class="section-title">Purse</div>
+      <div class="info-grid">
+        ${statTile("Merc Dollars", `${formatNumber(store.state.wallet)} ${CURRENCY_CODE}`, "Spendable now")}
+        ${statTile("Net worth", `${formatNumber(store.netWorth())} ${CURRENCY_CODE}`, "Cash plus stock at market")}
+        ${statTile("$MM held", formatNumber(store.state.mmHoldings), `${formatNumber(store.state.lifetimeMMEarned)} earned in total`)}
+        ${statTile("This epoch", formatNumber(Math.round(store.state.epoch.contribution)), `${(store.epochShare() * 100).toFixed(2)}% share · ${formatNumber(store.projectedEpochMM())} $MM projected`)}
+      </div>
+      <div class="section-title">Holdings</div>
+      <div class="info-grid">
+        ${statTile("Plots", `${store.ownedPlotIds().length} of ${store.plotAllowance()}`, "Standing and deeds set the ceiling")}
+        ${statTile("Civic deeds", formatNumber(store.state.deeds), "Each one raises the ceiling by one")}
+        ${statTile("Charter", store.state.chartered ? "Granted" : "Not yet", store.state.chartered ? "Equipment may reach the top level" : `${CHARTER_COST_MM} $MM at the bank`)}
+        ${statTile("Specialisation", store.state.specialization ? SPECIALIZATIONS[store.state.specialization].name : "None chosen", "Shapes quality, cost and appeal")}
+      </div>`;
+    return;
+  }
+
+  if (infoTab === "business") {
+    if (!licence) {
+      node.innerHTML = `<div class="empty-state"><i>\u2699</i><strong>No business yet</strong><p>Lease a plot and choose a trade, and everything about it will show up here.</p></div>`;
+      return;
+    }
+    const config = BUSINESS[licence];
+    const economics = store.unitEconomics();
+    const cycles = store.inputMultiplier();
+    const inputs = (Object.keys(config.inputs) as ResourceKey[]).filter((k) => (config.inputs[k] ?? 0) > 0);
+    const outputs = (Object.keys(config.output) as ResourceKey[]).filter((k) => (config.output[k] ?? 0) > 0);
+    node.innerHTML = `
+      <div class="section-title">${escapeMarkup(config.name)}</div>
+      <p class="model-note">${escapeMarkup(config.copy ?? "")}</p>
+      <div class="section-title">One cycle</div>
+      <div class="recipe-flow">
+        <div class="recipe-side"><small>Takes</small>${inputs.length ? inputs.map((k) => `<span><i>${RESOURCES[k].icon}</i>${(config.inputs[k] ?? 0) * cycles} ${escapeMarkup(RESOURCES[k].short)}<b class="${store.state.inventory[k] >= (config.inputs[k] ?? 0) * cycles ? "ok" : "short"}">have ${store.state.inventory[k]}</b></span>`).join("") : "<span>Nothing but labour</span>"}</div>
+        <div class="recipe-arrow" aria-hidden="true">\u2192</div>
+        <div class="recipe-side"><small>Makes</small>${config.servicePayout ? `<span>Serves ${store.serviceVisitors(config, cycles)} customers</span>` : outputs.map((k) => `<span><i>${RESOURCES[k].icon}</i>${(config.output[k] ?? 0) * cycles} ${escapeMarkup(RESOURCES[k].short)}</span>`).join("")}</div>
+      </div>
+      ${economics ? `<div class="info-grid">
+        ${statTile("Revenue a cycle", `${formatNumber(Math.round(economics.expectedRevenue))} ${CURRENCY_CODE}`, "At today's prices")}
+        ${statTile("Costs a cycle", `${formatNumber(economics.inputCost + economics.laborCost)} ${CURRENCY_CODE}`, `${formatNumber(economics.inputCost)} inputs · ${formatNumber(economics.laborCost)} wages`)}
+        ${statTile("Profit a cycle", `${economics.expectedProfit >= 0 ? "+" : ""}${formatNumber(Math.round(economics.expectedProfit))} ${CURRENCY_CODE}`, `after ${formatNumber(economics.expectedTax)} tax`)}
+        ${statTile("Takes", `${store.jobDuration(licence, cycles)}s`, `${cycles} batch${cycles === 1 ? "" : "es"} at once`)}
+      </div>` : ""}
+      <div class="section-title">Equipment</div>
+      <div class="info-grid">
+        ${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((k) => statTile(UPGRADE_NAMES[k].name, `Level ${store.state.upgrades[k]}`, store.upgradeOutlook(k) ? "Will not help yet" : UPGRADE_NAMES[k].effect)).join("")}
+      </div>`;
+    return;
+  }
+
+  if (infoTab === "district") {
+    const keys = Object.keys(RESOURCES) as ResourceKey[];
+    node.innerHTML = `
+      <div class="section-title">What ${escapeMarkup(districtName())} wants today</div>
+      <p class="model-note">The counter buys at these prices until the day's appetite runs out. A busier district has a deeper appetite — and pays a little more for what its own businesses need.</p>
+      <div class="info-table">
+        <div class="info-row head"><span>Good</span><span>Buy</span><span>Sell</span><span>Left today</span></div>
+        ${keys.map((k) => {
+          const left = store.procurementRemaining(k);
+          const quota = Math.max(1, store.dailyQuota(k));
+          return `<div class="info-row"><span><i>${RESOURCES[k].icon}</i>${escapeMarkup(RESOURCES[k].short)}</span>
+            <span>${store.marketBuyPrice(k)}</span>
+            <span>${store.marketSellPrice(k)}</span>
+            <span class="${left === 0 ? "spent" : ""}">${left}<i class="biz-bar"><b style="width:${Math.round((left / quota) * 100)}%"></b></i></span></div>`;
+        }).join("")}
+      </div>
+      <div class="section-title">The street</div>
+      <div class="info-grid">
+        ${statTile("Other makers here", formatNumber(store.state.districtBusinesses), "Every one of them is a customer for something")}
+        ${statTile("Mercedonians", formatNumber(store.mercedonianPopulation?.() ?? store.dailyAudience()), "They walk in and buy what is on the shelf")}
+        ${statTile("Confidence", `${store.consumerConfidenceIndex()}`, `Cycle: ${store.economicPhase()}`)}
+        ${statTile("Price index", `${store.marketPriceIndex()}`, store.economyTrend())}
+      </div>`;
+    return;
+  }
+
+  node.innerHTML = `
+    <div class="section-title">Since midnight</div>
+    <div class="info-grid">
+      ${statTile("Takings", `${formatNumber(store.state.todayRevenue)} ${CURRENCY_CODE}`)}
+      ${statTile("Outgoings", `${formatNumber(store.state.todayExpenses)} ${CURRENCY_CODE}`)}
+      ${statTile("Profit today", `${store.todayProfit() >= 0 ? "+" : ""}${formatNumber(store.todayProfit())} ${CURRENCY_CODE}`)}
+      ${statTile("Jobs run", formatNumber(store.state.daily.jobs), `${formatNumber(store.state.daily.trades)} trades`)}
+    </div>
+    <div class="section-title">All time</div>
+    <div class="info-grid">
+      ${statTile("Lifetime revenue", `${formatNumber(store.state.lifetimeRevenue)} ${CURRENCY_CODE}`)}
+      ${statTile("Wages paid", `${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}`, "Which became somebody's custom")}
+      ${statTile("Tax paid", `${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}`, "Funds the civic wage")}
+      ${statTile("Jobs completed", formatNumber(store.state.jobsCompleted))}
+    </div>
+    <div class="section-title">Where the city's money sits</div>
+    <div class="info-grid">
+      ${statTile("Civic treasury", `${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}`)}
+      ${statTile("Household purses", `${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}`, "What your customers can afford")}
+      ${statTile("Your purse", `${formatNumber(store.state.wallet)} ${CURRENCY_CODE}`)}
+      ${statTile("Money supply", `${formatNumber(store.totalMoneySupply())} ${CURRENCY_CODE}`, "Never created, only moved")}
+    </div>`;
+}
+
 function renderAll(): void {
   renderHeader();
   renderTutorial();
@@ -1454,6 +1657,8 @@ function renderAll(): void {
   renderMakerMarket();
   renderContracts();
   renderMap();
+  renderBusinessStrip();
+  renderInfo();
   renderResources();
   renderInterior();
   void world.syncBuildings(store.state);
@@ -1703,6 +1908,8 @@ document.body.addEventListener("click", (event) => {
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
     else switchTab("trade");
   }
+  else if (action === "info-tab") { infoTab = (button.dataset.info as typeof infoTab) ?? "you"; renderInfo(); }
+  else if (action === "mayor-toggle") { store.setMayorHidden(!store.state.mayorHidden); renderAll(); }
   else if (action === "market-pick") { listingDraft.item = button.dataset.resource as ResourceKey; renderMakerMarket(); }
   else if (action === "market-qty") { listingDraft.quantity = Number(button.dataset.quantity ?? 10); renderMakerMarket(); }
   else if (action === "market-markup") { listingDraft.markup = Number(button.dataset.markup ?? 0); renderMakerMarket(); }
