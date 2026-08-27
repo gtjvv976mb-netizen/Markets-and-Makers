@@ -1542,43 +1542,6 @@ const HALT_REASON: Record<string, { tone: string; label: string; why: string }> 
   idle:       { tone: "warn",  label: "Idle",            why: "Nothing is on the floor. Start a job." },
 };
 
-function renderBusinessStrip(): void {
-  const node = element("#bizStrip");
-  const licence = store.state.license;
-  if (!licence || !store.state.buildingPlaced) { node.hidden = true; return; }
-  node.hidden = false;
-
-  const config = BUSINESS[licence];
-  const shift = store.state.lastShift;
-  const broken = store.state.brokenDown;
-  const key = broken ? "breakdown" : (store.state.job ? "running" : (shift?.halted ?? "idle"));
-  const status = HALT_REASON[key] ?? HALT_REASON.idle!;
-
-  const stock = store.storedUnits();
-  const capacity = store.storageCapacity();
-  const stockShare = Math.min(100, Math.round((stock / Math.max(1, capacity)) * 100));
-  const condition = Math.round(store.state.condition);
-  const profit = store.todayProfit();
-  const makes = (Object.keys(config.output) as ResourceKey[]).filter((k) => (config.output[k] ?? 0) > 0);
-  const makesLabel = config.servicePayout ? "Serves customers" : makes.map((k) => RESOURCES[k].short).join(", ");
-
-  node.className = `biz-strip tone-${status.tone}`;
-  node.innerHTML = `
-    <div class="biz-head">
-      <i aria-hidden="true">${escapeMarkup(config.icon ?? "\u2699")}</i>
-      <span><strong>${escapeMarkup(config.name)}</strong><small>${escapeMarkup(makesLabel)}</small></span>
-      <b class="biz-state">${escapeMarkup(status.label)}</b>
-    </div>
-    <p class="biz-why">${escapeMarkup(status.why)}</p>
-    <div class="biz-metrics">
-      <span title="Goods on the shelf"><small>Stock</small><strong>${stock}/${capacity}</strong>
-        <i class="biz-bar ${stockShare > 90 ? "full" : ""}"><b style="width:${stockShare}%"></b></i></span>
-      <span title="Wear on the machines"><small>Condition</small><strong>${condition}%</strong>
-        <i class="biz-bar ${condition < 35 ? "full" : ""}"><b style="width:${condition}%"></b></i></span>
-      <span title="Takings less outgoings since midnight"><small>Today</small>
-        <strong class="${profit >= 0 ? "up" : "down"}">${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></span>
-    </div>`;
-}
 
 // --- The info desk -------------------------------------------------------------------
 //
@@ -2043,10 +2006,28 @@ function renderBusinessPanel(): void {
   const profit = economics ? Math.round(economics.expectedProfit) : 0;
   const daily = store.dailyOverhead();
 
+  // The state of the line, folded in. It used to be a second card stacked under this one,
+  // repeating the name, the stock and today's takings — two layers saying the same thing.
+  const shift = store.state.lastShift;
+  const key = store.state.brokenDown ? "breakdown" : (store.state.job ? "running" : (shift?.halted ?? "idle"));
+  const status = HALT_REASON[key] ?? HALT_REASON.idle!;
+  const stock = store.storedUnits();
+  const capacity = store.storageCapacity();
+  const condition = Math.round(store.state.condition);
+
+  node.className = `bp tone-${status.tone}`;
   node.innerHTML = `
     <div class="bp-head">
       <span class="bp-model" style="--bp-color:${escapeMarkup(config.color)}" aria-hidden="true"><i>${escapeMarkup(config.icon)}</i></span>
       <span class="bp-name"><strong>${escapeMarkup(config.name)}</strong><small>${escapeMarkup(config.sector)}</small></span>
+      <b class="bp-state">${escapeMarkup(status.label)}</b>
+    </div>
+    <p class="bp-why">${escapeMarkup(status.why)}</p>
+    <div class="bp-bars">
+      <span><small>Stock</small><strong>${stock}/${capacity}</strong>
+        <i class="bp-bar ${stock / Math.max(1, capacity) > 0.9 ? "full" : ""}"><b style="width:${Math.min(100, Math.round((stock / Math.max(1, capacity)) * 100))}%"></b></i></span>
+      <span><small>Condition</small><strong>${condition}%</strong>
+        <i class="bp-bar ${condition < 35 ? "full" : ""}"><b style="width:${condition}%"></b></i></span>
     </div>
     <div class="bp-rate">
       <span><small>Making</small><strong>${madePerHour}</strong><b>${escapeMarkup(rateUnit)}/hr</b></span>
@@ -2176,7 +2157,6 @@ function renderAll(): void {
   renderMakerMarket();
   renderContracts();
   renderMap();
-  renderBusinessStrip();
   renderAlerts();
   renderInfo();
   renderQuickBar();

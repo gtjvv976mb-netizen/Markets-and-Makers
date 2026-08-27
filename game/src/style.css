@@ -2327,3 +2327,37 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .counter-prompt { bottom: 150px; }
   .counter-panel { bottom: 136px; width: min(300px, calc(100% - 16px)); }
 }
+
+/* --- One layer ------------------------------------------------------------------------
+   The HUD had grown into stacked cards: three of them down the right side, three rows
+   along the bottom, each with its own border and its own shadow. Layers over a world read
+   as clutter however neat each one is, and two of them were saying the same thing — the
+   business panel and the business strip both carried the name, the stock and today's
+   takings.
+
+   One surface per zone now. The right side is a single business panel with the state of
+   the line folded into it; the bottom is a single line that scrolls. */
+.hud-world { display: flex; flex-wrap: nowrap; align-items: center; gap: 5px;
+  overflow-x: auto; scrollbar-width: none; justify-content: safe center; }
+.hud-world::-webkit-scrollbar { display: none; }
+.hud-world > * { flex: none; }
+.hud-world .world-strip, .hud-world .quick-bar, .hud-world .resource-dock {
+  display: flex; gap: 5px; overflow: visible; }
+
+/* The state of the line, inside the one panel. */
+.bp-state { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 950;
+  letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.bp.tone-good .bp-state { color: #113a2c; background: #8fd6a4; }
+.bp.tone-warn .bp-state { color: #4a3208; background: #f4d77b; }
+.bp.tone-bad  .bp-state { color: #fff; background: #d3654f; }
+.bp-head { grid-template-columns: auto 1fr auto; display: grid; }
+.bp-why { margin: 7px 0 0; color: rgba(242,248,239,.78); font-size: 11.5px; line-height: 1.4; }
+.bp-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+.bp-bars span { padding: 6px 8px; border-radius: 9px; background: rgba(255,255,255,.06); }
+.bp-bars small { display: block; color: rgba(242,248,239,.62); font-size: 10px; font-weight: 800;
+  letter-spacing: .05em; text-transform: uppercase; }
+.bp-bars strong { display: block; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.bp-bar { display: block; height: 3px; margin-top: 4px; border-radius: 3px;
+  background: rgba(255,255,255,.18); overflow: hidden; }
+.bp-bar > b { display: block; height: 100%; background: #8fd6a4; }
+.bp-bar.full > b { background: #f0b04a; }

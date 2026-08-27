@@ -200,39 +200,67 @@ export interface RoomDesign {
   sky: number;
   /** Floor kit, taken in order into PROP_SLOTS. Fewer than six leaves slots empty. */
   props: readonly PropKind[];
+  /**
+   * How the room is lit.
+   *
+   * All fifteen interiors shared one hard-coded rig — the same hemisphere, the same warm
+   * key, the same cyan window fill — so a mine and a restaurant were the same room in
+   * different paint. Colour alone cannot carry a mood; light does most of that work, and
+   * it is the cheapest thing in the scene to change.
+   *
+   * `key` is the sun through the glazing, `bounce` what comes back off the floor, `fill`
+   * the cool light from the windows, and `level` the overall exposure — a mine is dim, a
+   * greenhouse is flooded.
+   */
+  light: { key: number; keyStrength: number; bounce: number; fill: number; fillStrength: number; level: number };
 }
 
 export const INTERIOR_ROOMS: Record<LicenseKey, RoomDesign> = {
   aquaworks: { floor: 0xbfd3d6, path: 0xa9c4c9, wall: 0x7f9aa1, trim: 0x5d7f88, glass: 0x9cdfe0, sky: 0x123e42,
-    props: ["tanks", "tanks", "conveyor", "bins", "crates", "shelves"] },
+    props: ["tanks", "tanks", "conveyor", "bins", "crates", "shelves"],
+    light: { key: 0xd6f4ff, keyStrength: 2.4, bounce: 0x2c5a63, fill: 0x8fe6ea, fillStrength: 1.05, level: 1.7 } },
   sungrid: { floor: 0xd9cfa6, path: 0xcabf90, wall: 0x9a9673, trim: 0x8a6f3c, glass: 0xd8e9a8, sky: 0x2c4a3a,
-    props: ["solar", "solar", "toolwall", "crates", "shelves", "conveyor"] },
+    props: ["solar", "solar", "toolwall", "crates", "shelves", "conveyor"],
+    light: { key: 0xfff0c2, keyStrength: 3.4, bounce: 0x6a6a3c, fill: 0xffe9a8, fillStrength: 1.15, level: 2.0 } },
   greenhouse: { floor: 0xc6bd8c, path: 0xb3ac7c, wall: 0x7f9668, trim: 0x6f5a34, glass: 0xb9e7b0, sky: 0x1d4630,
-    props: ["beds", "beds", "shelves", "crates", "bins", "tanks"] },
+    props: ["beds", "beds", "shelves", "crates", "bins", "tanks"],
+    light: { key: 0xf4ffd9, keyStrength: 3.2, bounce: 0x3f6a3a, fill: 0xc8f0a8, fillStrength: 1.2, level: 2.1 } },
   mine: { floor: 0x9b9188, path: 0x8b8078, wall: 0x6f6862, trim: 0x4f4a45, glass: 0x9fb2b8, sky: 0x241f1c,
-    props: ["orecart", "orecart", "conveyor", "crates", "toolwall", "bins"] },
+    props: ["orecart", "orecart", "conveyor", "crates", "toolwall", "bins"],
+    light: { key: 0xffd9a0, keyStrength: 1.5, bounce: 0x241d18, fill: 0x6d8b96, fillStrength: 0.45, level: 0.95 } },
   timberworks: { floor: 0xc7a273, path: 0xb69065, wall: 0x8d6c46, trim: 0x6c4f2f, glass: 0xcfe0a8, sky: 0x2a3a24,
-    props: ["logs", "logs", "toolwall", "crates", "conveyor", "shelves"] },
+    props: ["logs", "logs", "toolwall", "crates", "conveyor", "shelves"],
+    light: { key: 0xffe6b8, keyStrength: 2.7, bounce: 0x5a4028, fill: 0xd2e6a4, fillStrength: 0.8, level: 1.6 } },
   cratemill: { floor: 0xcbb187, path: 0xbaa077, wall: 0x8f7550, trim: 0x6f5537, glass: 0xd8dfae, sky: 0x2f3b2a,
-    props: ["crates", "crates", "conveyor", "pallets", "toolwall", "shelves"] },
+    props: ["crates", "crates", "conveyor", "pallets", "toolwall", "shelves"],
+    light: { key: 0xffe3ae, keyStrength: 2.6, bounce: 0x5c452a, fill: 0xd8dfae, fillStrength: 0.75, level: 1.55 } },
   workshop: { floor: 0xc4b596, path: 0xb2a385, wall: 0x84836c, trim: 0x6d5738, glass: 0xc9e3d0, sky: 0x243d3a,
-    props: ["toolwall", "toolwall", "crates", "shelves", "conveyor", "pallets"] },
+    props: ["toolwall", "toolwall", "crates", "shelves", "conveyor", "pallets"],
+    light: { key: 0xffe1b0, keyStrength: 2.6, bounce: 0x4a4636, fill: 0x9fd8c6, fillStrength: 0.8, level: 1.6 } },
   factory: { floor: 0xa9a9a2, path: 0x999992, wall: 0x767a7c, trim: 0x565b5e, glass: 0xa9cfd6, sky: 0x1e2e33,
-    props: ["conveyor", "conveyor", "toolwall", "pallets", "crates", "bins"] },
+    props: ["conveyor", "conveyor", "toolwall", "pallets", "crates", "bins"],
+    light: { key: 0xe8f0ff, keyStrength: 2.5, bounce: 0x33393c, fill: 0x9ec6d6, fillStrength: 0.9, level: 1.45 } },
   construction: { floor: 0xb8ada0, path: 0xa79c90, wall: 0x827a70, trim: 0x64594d, glass: 0xc4d8c0, sky: 0x2b3630,
-    props: ["scaffold", "scaffold", "pallets", "crates", "toolwall", "conveyor"] },
+    props: ["scaffold", "scaffold", "pallets", "crates", "toolwall", "conveyor"],
+    light: { key: 0xffeccb, keyStrength: 2.8, bounce: 0x4c463c, fill: 0xb8ccb4, fillStrength: 0.7, level: 1.6 } },
   freight: { floor: 0xb0a894, path: 0x9f9784, wall: 0x7c7566, trim: 0x5c5648, glass: 0xb6d2d6, sky: 0x223034,
-    props: ["pallets", "pallets", "crates", "shelves", "conveyor", "bins"] },
+    props: ["pallets", "pallets", "crates", "shelves", "conveyor", "bins"],
+    light: { key: 0xffeed2, keyStrength: 2.4, bounce: 0x3e3a30, fill: 0xa8c6cc, fillStrength: 0.8, level: 1.45 } },
   shop: { floor: 0xdcc9a8, path: 0xcbb897, wall: 0x9a8367, trim: 0x7a5f42, glass: 0xf0d5b8, sky: 0x3a3026,
-    props: ["shelves", "shelves", "crates", "diner", "bins", "toolwall"] },
+    props: ["shelves", "shelves", "crates", "diner", "bins", "toolwall"],
+    light: { key: 0xfff0d0, keyStrength: 2.9, bounce: 0x6b543a, fill: 0xffdcb4, fillStrength: 1.0, level: 1.85 } },
   restaurant: { floor: 0xd8b58c, path: 0xc7a37b, wall: 0x96694a, trim: 0x74492f, glass: 0xf5cf9a, sky: 0x3d2a1e,
-    props: ["diner", "diner", "shelves", "crates", "bins", "tanks"] },
+    props: ["diner", "diner", "shelves", "crates", "bins", "tanks"],
+    light: { key: 0xffd9a2, keyStrength: 3.0, bounce: 0x6a3f26, fill: 0xffc98a, fillStrength: 1.05, level: 1.8 } },
   gym: { floor: 0xa8bfae, path: 0x97ae9d, wall: 0x6f8b7c, trim: 0x50695c, glass: 0xb9e2d4, sky: 0x1c3a33,
-    props: ["weights", "weights", "shelves", "bins", "tanks", "toolwall"] },
+    props: ["weights", "weights", "shelves", "bins", "tanks", "toolwall"],
+    light: { key: 0xeaffef, keyStrength: 2.7, bounce: 0x2f5147, fill: 0xa8e6d2, fillStrength: 1.0, level: 1.75 } },
   cinema: { floor: 0x6d6070, path: 0x5f5363, wall: 0x4b4152, trim: 0x352d3b, glass: 0x9a86b4, sky: 0x1a1522,
-    props: ["seats", "seats", "shelves", "diner", "bins", "crates"] },
+    props: ["seats", "seats", "shelves", "diner", "bins", "crates"],
+    light: { key: 0xb49ad8, keyStrength: 1.2, bounce: 0x1a1522, fill: 0x8a72b4, fillStrength: 0.55, level: 0.8 } },
   recycler: { floor: 0xa9b394, path: 0x98a284, wall: 0x74805f, trim: 0x555f43, glass: 0xc0dba8, sky: 0x252f22,
-    props: ["bins", "bins", "conveyor", "crates", "pallets", "shelves"] },
+    props: ["bins", "bins", "conveyor", "crates", "pallets", "shelves"],
+    light: { key: 0xf2ffd6, keyStrength: 2.5, bounce: 0x424a34, fill: 0xbcd8a4, fillStrength: 0.85, level: 1.55 } },
 };
 
 type TargetId = UpgradeKey | "exit";
@@ -629,9 +657,25 @@ export class InteriorWorld {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
   }
 
+  /**
+   * The rig, built once. Its COLOURS are set per trade in applyLighting.
+   *
+   * This ran in the constructor with a "workshop" fallback and never again, so every
+   * interior in the game was lit as a workshop no matter which trade's room had been
+   * built around it — the mine had the mine's floor, props and palette under a workshop's
+   * warm key light. buildInterior already rebuilds the room per trade; the lights simply
+   * were not part of it.
+   */
+  private hemisphere: THREE.HemisphereLight | null = null;
+  private keyLight: THREE.DirectionalLight | null = null;
+  private fillLight: THREE.DirectionalLight | null = null;
+
   private setupLighting(): void {
-    this.scene.add(new THREE.HemisphereLight(0xf0fff2, 0x38564b, 1.65));
-    const sun = new THREE.DirectionalLight(0xffdf9d, 2.7);
+    const mood = INTERIOR_ROOMS[this.license].light;
+    this.hemisphere = new THREE.HemisphereLight(mood.key, mood.bounce, mood.level);
+    this.scene.add(this.hemisphere);
+    const sun = new THREE.DirectionalLight(mood.key, mood.keyStrength);
+    this.keyLight = sun;
     sun.position.set(-8, 15, 10);
     sun.castShadow = this.renderer.shadowMap.enabled;
     sun.shadow.mapSize.set(1024, 1024);
@@ -643,9 +687,19 @@ export class InteriorWorld {
     sun.shadow.camera.far = 35;
     sun.shadow.bias = -0.0004;
     this.scene.add(sun);
-    const windowFill = new THREE.DirectionalLight(0x7edee1, 0.75);
+    const windowFill = new THREE.DirectionalLight(mood.fill, mood.fillStrength);
+    this.fillLight = windowFill;
     windowFill.position.set(12, 7, -8);
     this.scene.add(windowFill);
+  }
+
+  /** Re-tint the rig for whichever trade's room is being built. */
+  private applyLighting(): void {
+    const mood = INTERIOR_ROOMS[this.license].light;
+    this.hemisphere?.color.setHex(mood.key);
+    if (this.hemisphere) { this.hemisphere.groundColor.setHex(mood.bounce); this.hemisphere.intensity = mood.level; }
+    if (this.keyLight) { this.keyLight.color.setHex(mood.key); this.keyLight.intensity = mood.keyStrength; }
+    if (this.fillLight) { this.fillLight.color.setHex(mood.fill); this.fillLight.intensity = mood.fillStrength; }
   }
 
   private setupPlayer(): void {
@@ -703,6 +757,7 @@ export class InteriorWorld {
   }
 
   private buildInterior(): void {
+    this.applyLighting();
     if (!this.business) return;
     this.scene.remove(this.content);
     disposeObject(this.content);
