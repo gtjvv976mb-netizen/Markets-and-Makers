@@ -2374,3 +2374,98 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .bp-fitting .bp-bar { grid-column: 1 / -1; }
 .bp-fitting .bp-bar > b { background: #f4d77b; }
 .bp-upgrades button.fitting { border-color: rgba(244,215,123,.55); background: rgba(244,215,123,.14); }
+
+/* =====================================================================================
+   ONE SURFACE PER ZONE
+   =====================================================================================
+   Counted: 45 separately bordered surfaces on screen at once. Seven pills across the top
+   row alone, the money shown twice — once as a gold coin and again as a balance — and
+   every statistic inside the business panel wearing its own filled box inside the panel's
+   filled box.
+
+   That is the mess. Not any single element; the number of them. A HUD reads as clutter
+   when the eye has to resolve dozens of separate objects before it can find a number.
+
+   Structure now comes from SPACING and HAIRLINES inside one surface, which is how a
+   dashboard is supposed to work. Four surfaces total: top bar, business panel, world bar,
+   and the Mayor.
+   ===================================================================================== */
+
+/* ---- TOP: one bar ---- */
+.hud-top {
+  padding: 5px 6px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  background: rgba(12,42,44,.88);
+  backdrop-filter: blur(8px);
+}
+/* Children stop being cards and become columns of one bar. */
+.hud-top > *, .hud-top .vital, .hud-top .world-label, .hud-top .online-pill,
+.hud-top .daylight-chip, .hud-top .wallet-pill {
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 3px 11px;
+}
+/* Hairlines between them instead of eight outlines. */
+.hud-top .vital + .vital,
+.hud-top .hud-vitals + *, .hud-top .world-label + * { border-left: 1px solid rgba(255,255,255,.12); }
+.hud-top .hud-vitals { gap: 0; }
+.hud-top .wallet-pill { margin-left: auto; }
+.hud-top .wallet-pill.demo, .hud-top .wallet-pill.needs { border-radius: 999px; padding: 4px 11px; }
+.hud-top .wallet-pill.demo { background: rgba(184,116,44,.9); }
+.hud-top .wallet-pill.needs { background: rgba(240,176,74,.92); }
+
+/* The money was on screen twice: a gold coin from the old top bar, and the balance in the
+   vitals. The coin goes — the bar says it once, in the same voice as everything else. */
+.topbar { display: none !important; }
+
+/* ---- RIGHT: one panel ---- */
+#hudBusiness .bp-rate span, #hudBusiness .bp-books span, #hudBusiness .bp-bars span {
+  background: transparent;
+  padding: 0;
+}
+#hudBusiness .bp-rate, #hudBusiness .bp-books, #hudBusiness .bp-bars {
+  gap: 9px 14px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+#hudBusiness .bp-upgrades { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.1); }
+#hudBusiness .bp-upgrades button { border: 0; background: transparent; padding: 3px 0; }
+#hudBusiness .bp-upgrades button:hover { background: rgba(255,255,255,.08); border-radius: 8px; }
+#hudBusiness .bp-fitting { border: 0; background: transparent; padding: 9px 0 0;
+  margin-top: 9px; border-top: 1px solid rgba(244,215,123,.3); }
+
+/* ---- BOTTOM: one bar ---- */
+.hud-world {
+  padding: 5px 6px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  background: rgba(12,42,44,.88);
+  backdrop-filter: blur(8px);
+  max-width: 100%;
+}
+.hud-world .ws-item, .hud-world .quick-bar button, .hud-world .resource-chip {
+  border: 0; background: transparent; backdrop-filter: none; box-shadow: none;
+  border-radius: 0; padding: 3px 11px;
+}
+.hud-world .ws-item + .ws-item,
+.hud-world .world-strip + *, .hud-world .quick-bar + * { border-left: 1px solid rgba(255,255,255,.12); }
+.hud-world .quick-bar button + button, .hud-world .resource-chip + .resource-chip {
+  border-left: 1px solid rgba(255,255,255,.12); }
+.hud-world .quick-bar button:hover { background: rgba(255,255,255,.08); }
+/* The one thing that should still stand out: an order worth taking. */
+.hud-world .ws-order strong { color: #f4d77b; }
+.hud-world .quick-bar .quick-good strong { color: #8fd6a4; }
+
+/* ---- The desk rail keeps its own surface; it is a control, not a readout ---- */
+.hud-rail .maker-nav { border: 1px solid rgba(255,255,255,.14); background: rgba(12,42,44,.88); }
+
+/* The counter prompt sat at a fixed offset from the bottom and landed on the Mayor. It
+   belongs above her, out of the guide's way — the same lesson as the alert stack: a fixed
+   offset between two things that both change height will meet eventually. */
+.counter-prompt { bottom: auto; top: 74px; }
+.counter-panel { bottom: auto; top: 74px; }

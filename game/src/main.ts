@@ -300,7 +300,15 @@ function positionMarkers(): void {
   // and skipped automatically; the rest are the controls the minimal layout actually
   // shows — and in landscape they sit in the corners, which is exactly where pins
   // would otherwise pile up.
-  const reserved = [".world-label", ".selected-card", ".world-next", ".maker-nav", ".world-actions", ".topbar"]
+  // The zones the HUD occupies. Markers must not be placed under any of them.
+  //
+  // This list still named the elements from before the HUD was laid out on a grid —
+  // .topbar is now hidden, and .world-label and .world-actions moved inside zones — so
+  // most of it matched nothing and pins were free to pile up under the business panel and
+  // the two bars. Naming the ZONES instead means it cannot rot the next time something
+  // moves house.
+  const reserved = [".hud-top", ".hud-business", ".hud-world", ".hud-guide", ".hud-rail",
+                    ".counter-panel", ".selected-card"]
     .map((selector) => document.querySelector<HTMLElement>(selector))
     .filter((node): node is HTMLElement => Boolean(node && getComputedStyle(node).display !== "none"))
     .map((node) => {
@@ -1543,7 +1551,7 @@ const HALT_REASON: Record<string, { tone: string; label: string; why: string }> 
   funds:      { tone: "bad",   label: "Out of money",    why: "Not enough in the till to pay for inputs or wages." },
   inputs:     { tone: "warn",  label: "Out of inputs",   why: "Turn auto-buy on, or buy the recipe's inputs yourself." },
   breakdown:  { tone: "bad",   label: "Broken down",     why: "Repair it before anything else can run." },
-  idle:       { tone: "warn",  label: "Idle",            why: "Nothing is on the floor. Start a job." },
+  idle:       { tone: "warn",  label: "Between cycles",  why: "Your workers are starting the next one. Nothing here needs pressing." },
 };
 
 
