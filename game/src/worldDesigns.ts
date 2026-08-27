@@ -1,8 +1,13 @@
 import * as THREE from "three";
 import type { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { characterHeightScale, STANDARD_CHARACTER_HEIGHT_M, yawCorrectionFor, type CharacterFrontAxis } from "./characterRig";
+import type { CharacterFrontAxis } from "./characterRig";
 import { HIGHLANDS_WORLD_BASE, worldChunkAt } from "./highlandsWorld";
+import {
+  CIVIC_PLAYER_AVATAR_GROUNDING,
+  CIVIC_PLAYER_AVATAR_STEM,
+  createPlayerMercedonian,
+  prepareMercedonianAvatar,
+} from "./mercedonianAvatar";
 import { versionedWorldUrl } from "./tileTextures";
 
 export const WORLD_DESIGNS_BASE = `${HIGHLANDS_WORLD_BASE}/world-designs-v1`;
@@ -154,8 +159,10 @@ export const WORLD_DESIGN_GROUNDING: Readonly<Record<string, WorldDesignGroundin
     groundClearanceM: 0, forwardAxis: "x", placementRole: "water", waterlineM: 0.72,
   },
   av01_civic_maker: {
-    baseAnchorXZ: [0.045, 0.012], footprintM: [0.43, 0.72], supportPoints: rectangleSupports(0.13, 0.23),
-    groundClearanceM: 0.01, forwardAxis: "x", placementRole: "avatar",
+    baseAnchorXZ: CIVIC_PLAYER_AVATAR_GROUNDING.baseAnchorXZ,
+    footprintM: [0.43, 0.72], supportPoints: rectangleSupports(0.13, 0.23),
+    groundClearanceM: CIVIC_PLAYER_AVATAR_GROUNDING.groundClearanceM,
+    forwardAxis: "x", placementRole: "avatar",
   },
 };
 
@@ -241,33 +248,14 @@ function prepareAvatar(
   grounding: WorldDesignGrounding,
   dynamicShadows: boolean,
 ): { group: THREE.Group; animations: THREE.AnimationClip[] } {
-  const avatar = cloneSkeleton(source) as THREE.Group;
-  const bounds = new THREE.Box3().setFromObject(avatar, true);
-  const size = bounds.getSize(new THREE.Vector3());
-  const scale = characterHeightScale(size.y);
-  avatar.scale.setScalar(scale);
-  avatar.position.set(
-    -(bounds.min.x + bounds.max.x) * 0.5 * scale - grounding.baseAnchorXZ[0],
-    -bounds.min.y * scale + grounding.groundClearanceM,
-    -(bounds.min.z + bounds.max.z) * 0.5 * scale - grounding.baseAnchorXZ[1],
-  );
-  avatar.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    object.castShadow = dynamicShadows;
-    object.receiveShadow = dynamicShadows;
-    object.frustumCulled = true;
-  });
-  const wrapper = new THREE.Group();
-  wrapper.name = "MM_CIVIC_MAKER_PLAYER_MODEL";
-  wrapper.userData.characterHeightM = STANDARD_CHARACTER_HEIGHT_M;
-  const facing = new THREE.Group();
   const inferredFrontAxis: CharacterFrontAxis = grounding.forwardAxis === "x" ? "+X" : "+Z";
-  facing.rotation.y = Number.isFinite(asset.yawCorrectionDegrees)
-    ? THREE.MathUtils.degToRad(asset.yawCorrectionDegrees ?? 0)
-    : yawCorrectionFor(asset.frontAxis ?? inferredFrontAxis);
-  facing.add(avatar);
-  wrapper.add(facing);
-  return { group: wrapper, animations };
+  return prepareMercedonianAvatar(source, animations, {
+    baseAnchorXZ: grounding.baseAnchorXZ,
+    groundClearanceM: grounding.groundClearanceM,
+    frontAxis: asset.frontAxis ?? inferredFrontAxis,
+    yawCorrectionDegrees: asset.yawCorrectionDegrees,
+    dynamicShadows,
+  });
 }
 
 export function worldDesignSupportSamples(
@@ -357,6 +345,14 @@ export async function loadWorldDesigns(
   let loadedStaticInstances = 0;
   await Promise.all(manifest.assets.map(async (asset) => {
     try {
+      if (asset.category === "avatar" && asset.id === "av01_civic_maker") {
+        if ((asset.file.split("/").pop() ?? "").replace(/\.glb$/i, "") !== CIVIC_PLAYER_AVATAR_STEM) {
+          throw new Error(`${asset.id} no longer matches the canonical player Mercedonian`);
+        }
+        avatar = createPlayerMercedonian(dynamicShadows);
+        loadedUniqueAssets += 1;
+        return;
+      }
       const gltf = await loader.loadAsync(`${WORLD_DESIGNS_BASE}/${asset.file}`);
       const grounding = worldDesignGrounding(asset);
       if (asset.category === "avatar") {

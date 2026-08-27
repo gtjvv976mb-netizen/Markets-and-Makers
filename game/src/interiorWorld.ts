@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import { dampWrappedYaw, headingYaw, planarSpeed, walkAnimationRate } from "./characterRig";
 import { BUSINESS, MAX_UPGRADE_LEVEL } from "./data";
 import type { BusinessConfig, LicenseKey, UpgradeKey } from "./data";
+import { createPlayerMercedonian } from "./mercedonianAvatar";
 
 export interface InteriorEnterOptions {
   business: BusinessConfig;
@@ -299,19 +301,14 @@ export const ROOM_HALF_DEPTH = 6;
 const PLAYER_RADIUS = 0.38;
 const WALK_SPEED = 4.25;
 
-/**
- * The procedural interior avatar's backpack sits on local +Z, so its visible
- * forward axis is -Z. Rotate that axis onto the displacement that actually
- * succeeded after collision resolution.
- */
+/** Match the open world's +Z-forward actor convention. */
 export function interiorAvatarYaw(directionX: number, directionZ: number): number {
-  return Math.atan2(-directionX, -directionZ);
+  return headingYaw(directionX, directionZ);
 }
 
 /** Damp a yaw over the shortest arc, including across the -PI/PI seam. */
 export function dampInteriorAvatarYaw(current: number, target: number, delta: number): number {
-  const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-  return current + difference * (1 - Math.exp(-12 * delta));
+  return dampWrappedYaw(current, target, delta, 12);
 }
 const STATION_RANGE = 2.05;
 const EXIT_RANGE = 1.65;
@@ -385,6 +382,7 @@ export class InteriorWorld {
   private readonly interactiveObjects: THREE.Object3D[] = [];
   private readonly textures = new Set<THREE.Texture>();
   private readonly player = new THREE.Group();
+  private playerFallback: THREE.Group | null = null;
   private readonly cameraLookAt = new THREE.Vector3(0, 0.85, -0.5);
   private readonly obstacles: Array<{ x: number; z: number; radius: number }> = [];
   private readonly ambientObjects: Array<{
@@ -414,6 +412,10 @@ export class InteriorWorld {
   private promptSignature = "";
   private elapsed = 0;
   private lastMoveReport = new THREE.Vector3(Number.NaN, 0, Number.NaN);
+  private playerMixer: THREE.AnimationMixer | null = null;
+  private playerIdleAction: THREE.AnimationAction | null = null;
+  private playerWalkAction: THREE.AnimationAction | null = null;
+  private playerWalking = false;
 
   private readonly previousCanvasState: {
     tabIndex: string | null;
@@ -547,8 +549,8 @@ export class InteriorWorld {
     this.upgradeCeiling = THREE.MathUtils.clamp(Math.floor(options.upgradeCeiling), 1, MAX_UPGRADE_LEVEL);
     this.upgrades = this.normaliseLevels(options.upgrades);
     this.player.position.set(0, 0, 3.85);
-    // Face into the room. The avatar's visual forward axis is local -Z.
-    this.player.rotation.y = 0;
+    // The shared Mercedonian is local +Z-forward, so PI faces into the room (-Z).
+    this.player.rotation.y = Math.PI;
     this.lastMoveReport.copy(this.player.position);
     this.moveTarget = null;
     this.chosenTarget = null;
@@ -745,10 +747,35 @@ export class InteriorWorld {
       new THREE.CircleGeometry(0.48, 20),
       new THREE.MeshBasicMaterial({ color: 0x123f3d, transparent: true, opacity: 0.24, depthWrite: false }),
     );
+    shadow.name = "interior-player-shadow";
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.025;
     this.player.add(shadow);
 
+    let candidate: THREE.Group | null = null;
+    try {
+      const mercedonian = createPlayerMercedonian(this.renderer.shadowMap.enabled);
+      candidate = mercedonian.group;
+      if (!this.setupPlayerAnimations(mercedonian.group, mercedonian.animations)) {
+        throw new Error("The shared Mercedonian has no Idle or Walk clip");
+      }
+      this.player.add(mercedonian.group);
+    } catch (error) {
+      if (candidate) disposeObject(candidate);
+      // Built lazily: successful players carry no hidden second body or wasted meshes.
+      this.playerFallback = this.createPlayerFallback();
+      this.playerFallback.name = "interior-mercedonian-fallback";
+      this.player.add(this.playerFallback);
+      console.warn("The Mercedonian avatar could not be created; using the interior fallback.", error);
+    }
+
+    this.player.position.set(0, 0, 3.85);
+    this.scene.add(this.player);
+  }
+
+  /** Emergency-only figure for browsers that cannot construct the rigged avatar. */
+  private createPlayerFallback(): THREE.Group {
+    const fallback = new THREE.Group();
     const legs = new THREE.Group();
     legs.name = "interior-player-legs";
     const legMaterial = new THREE.MeshStandardMaterial({ color: 0x244f58, roughness: 0.76 });
@@ -756,42 +783,69 @@ export class InteriorWorld {
       const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.42, 3, 7), legMaterial);
       leg.position.set(side * 0.17, 0.45, 0);
       leg.name = side < 0 ? "left-leg" : "right-leg";
-      leg.castShadow = true;
+      leg.castShadow = this.renderer.shadowMap.enabled;
       legs.add(leg);
     }
-    this.player.add(legs);
+    fallback.add(legs);
 
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.34, 0.72, 5, 10),
       new THREE.MeshStandardMaterial({ color: 0xe6795f, roughness: 0.7 }),
     );
     body.position.y = 1.06;
-    body.castShadow = true;
-    this.player.add(body);
+    body.castShadow = this.renderer.shadowMap.enabled;
+    fallback.add(body);
 
     const vest = new THREE.Mesh(
       new THREE.CylinderGeometry(0.37, 0.34, 0.44, 10),
       new THREE.MeshStandardMaterial({ color: 0x1e7b78, roughness: 0.65 }),
     );
     vest.position.y = 1.13;
-    this.player.add(vest);
+    fallback.add(vest);
 
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.27, 12, 8),
       new THREE.MeshStandardMaterial({ color: 0xc98c68, roughness: 0.8 }),
     );
     head.position.y = 1.86;
-    head.castShadow = true;
-    this.player.add(head);
+    head.castShadow = this.renderer.shadowMap.enabled;
+    fallback.add(head);
 
     const backpack = new THREE.Mesh(
       new THREE.BoxGeometry(0.44, 0.55, 0.18),
       new THREE.MeshStandardMaterial({ color: 0xe1ad3e, roughness: 0.7 }),
     );
-    backpack.position.set(0, 1.13, 0.34);
-    this.player.add(backpack);
-    this.player.position.set(0, 0, 3.85);
-    this.scene.add(this.player);
+    // Match the canonical actor convention: backpack behind, visible front on +Z.
+    backpack.position.set(0, 1.13, -0.34);
+    fallback.add(backpack);
+    return fallback;
+  }
+
+  private setupPlayerAnimations(model: THREE.Group, animations: THREE.AnimationClip[]): boolean {
+    const idleClip = THREE.AnimationClip.findByName(animations, "Idle");
+    const walkClip = THREE.AnimationClip.findByName(animations, "Walk");
+    if (!idleClip || !walkClip) return false;
+    this.playerMixer = new THREE.AnimationMixer(model);
+    this.playerIdleAction = this.playerMixer.clipAction(idleClip);
+    this.playerWalkAction = this.playerMixer.clipAction(walkClip);
+    this.playerIdleAction.reset().setEffectiveWeight(1).play();
+    this.playerWalkAction.setEffectiveWeight(0).play();
+    this.playerWalking = false;
+    return true;
+  }
+
+  private updatePlayerAnimations(delta: number, movementSpeed: number): void {
+    if (!this.playerMixer || !this.playerIdleAction || !this.playerWalkAction) return;
+    const walking = movementSpeed > 0.05;
+    this.playerWalkAction.timeScale = walkAnimationRate(movementSpeed);
+    if (walking !== this.playerWalking) {
+      const incoming = walking ? this.playerWalkAction : this.playerIdleAction;
+      const outgoing = walking ? this.playerIdleAction : this.playerWalkAction;
+      incoming.reset().setEffectiveTimeScale(walking ? this.playerWalkAction.timeScale : 1).setEffectiveWeight(1).play();
+      incoming.crossFadeFrom(outgoing, 0.18, true);
+      this.playerWalking = walking;
+    }
+    this.playerMixer.update(delta);
   }
 
   private buildInterior(): void {
@@ -2345,6 +2399,7 @@ export class InteriorWorld {
     }
 
     let walking = false;
+    let movementSpeed = 0;
     if (movement.lengthSq() > 0) {
       movement.normalize();
       const step = movement.multiplyScalar(WALK_SPEED * delta);
@@ -2359,6 +2414,7 @@ export class InteriorWorld {
       const movedX = this.player.position.x - beforeX;
       const movedZ = this.player.position.z - beforeZ;
       walking = movedX * movedX + movedZ * movedZ > 1e-8;
+      movementSpeed = planarSpeed(movedX, movedZ, delta);
       if (walking) {
         this.player.rotation.y = dampInteriorAvatarYaw(
           this.player.rotation.y,
@@ -2368,15 +2424,19 @@ export class InteriorWorld {
       }
     }
 
-    const bob = walking ? Math.sin(this.elapsed * 10) * 0.035 : 0;
-    this.player.position.y = bob;
-    const legs = this.player.getObjectByName("interior-player-legs");
-    if (legs) {
-      const swing = walking ? Math.sin(this.elapsed * 10) * 0.42 : 0;
-      const left = legs.getObjectByName("left-leg");
-      const right = legs.getObjectByName("right-leg");
-      if (left) left.rotation.x = swing;
-      if (right) right.rotation.x = -swing;
+    this.updatePlayerAnimations(delta, movementSpeed);
+    if (this.playerMixer) {
+      this.player.position.y = 0;
+    } else {
+      this.player.position.y = walking ? Math.sin(this.elapsed * 10) * 0.035 : 0;
+      const legs = this.playerFallback?.getObjectByName("interior-player-legs");
+      if (legs) {
+        const swing = walking ? Math.sin(this.elapsed * 10) * 0.42 : 0;
+        const left = legs.getObjectByName("left-leg");
+        const right = legs.getObjectByName("right-leg");
+        if (left) left.rotation.x = swing;
+        if (right) right.rotation.x = -swing;
+      }
     }
 
     if (this.callbacks.onMoved && this.player.position.distanceToSquared(this.lastMoveReport) > 0.04) {

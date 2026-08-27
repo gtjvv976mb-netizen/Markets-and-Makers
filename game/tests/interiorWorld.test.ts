@@ -51,12 +51,12 @@ describe("business interior equipment catalog", () => {
 });
 
 describe("business interior avatar heading", () => {
-  it("turns the avatar's visible -Z front toward every cardinal movement", () => {
+  it("turns the shared avatar's +Z actor front toward every cardinal movement", () => {
     const directions = [
-      { x: 0, z: -1, yaw: 0 },
-      { x: 1, z: 0, yaw: -Math.PI / 2 },
-      { x: 0, z: 1, yaw: Math.PI },
-      { x: -1, z: 0, yaw: Math.PI / 2 },
+      { x: 0, z: -1, yaw: Math.PI },
+      { x: 1, z: 0, yaw: Math.PI / 2 },
+      { x: 0, z: 1, yaw: 0 },
+      { x: -1, z: 0, yaw: -Math.PI / 2 },
     ];
 
     for (const direction of directions) {
