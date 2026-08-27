@@ -308,7 +308,12 @@ function positionMarkers(): void {
   // the two bars. Naming the ZONES instead means it cannot rot the next time something
   // moves house.
   const reserved = [".hud-top", ".hud-business", ".hud-world", ".hud-guide", ".hud-rail",
-                    ".counter-panel", ".selected-card"]
+                    // The prompts belong here too. They were left out, so a "Press E"
+                    // sitting at the top of the screen landed straight on the building
+                    // signs — Sunspire City Hall printed twice, once as its own marker and
+                    // once under the prompt naming it.
+                    ".counter-prompt", ".counter-panel", ".taxi-prompt", "#taxiPanel",
+                    ".selected-card"]
     .map((selector) => document.querySelector<HTMLElement>(selector))
     .filter((node): node is HTMLElement => Boolean(node && getComputedStyle(node).display !== "none"))
     .map((node) => {
