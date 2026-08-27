@@ -626,6 +626,59 @@ export const RIDE_MINIMUM_FARE = 4;
 /** Dropped at the kerb, not inside the building. */
 export const RIDE_DROP_OFF = 6;
 
+/**
+ * What each civic building will actually do for you at the counter.
+ *
+ * The buildings existed as scenery with a name over the door. Walking up to the Treasury
+ * and pressing E should bank your $MM, not open a panel somewhere else and hope you make
+ * the connection — a counter is the oldest and clearest interface a city has.
+ *
+ * Every action here already existed. This puts it behind the right door.
+ */
+export interface CounterService {
+  label: string;
+  detail: string;
+  /** Matches a data-action already handled in main.ts. */
+  action: string;
+  target?: string;
+}
+
+export const COUNTER_SERVICES: Record<string, CounterService[]> = {
+  treasury: [
+    { label: "Convert 100 $MM", detail: "Into spendable Merc Dollars at the day's rate", action: "bank-in" },
+    { label: "Withdraw capital", detail: "Take back what you brought in, as $MM", action: "bank-out" },
+    { label: "Claim weekly share", detail: "Your cut of this epoch's distribution", action: "claim-epoch" },
+    { label: "Open the exchange", detail: "Rates, reserves and the contribution board", action: "tab", target: "trade" },
+  ],
+  registry: [
+    { label: "Lease a plot", detail: "Take a corner and sign for it", action: "tab", target: "shop" },
+    { label: "Buy a civic deed", detail: "Raise how many plots you may hold", action: "buy-deed" },
+    { label: "Apply for a charter", detail: "Let equipment pass its normal ceiling", action: "buy-charter" },
+  ],
+  cityhall: [
+    { label: "Licences and trades", detail: "All fifteen, and what each one makes", action: "tab", target: "shop" },
+    { label: "Read the Dispatch", detail: "What the city recorded today", action: "tab", target: "info" },
+  ],
+  transit: [
+    { label: "Travel the realm", detail: "Nine districts, 298 corners", action: "tab", target: "world" },
+  ],
+  clinic: [
+    { label: "Public health notice", detail: "Wellbeing shapes how freely Mercedonians spend", action: "tab", target: "info" },
+  ],
+  rescue: [
+    { label: "Call a repair crew", detail: "Put a broken line back to work", action: "repair" },
+  ],
+  works: [
+    { label: "Buy from the civic supplier", detail: "Water, power and the rest, at the counter price", action: "tab", target: "trade" },
+  ],
+  academy: [
+    { label: "Your standing", detail: "Rank, experience and what the next rung needs", action: "tab", target: "info" },
+  ],
+  homes: [
+    { label: "Who lives here", detail: "The households your shop actually sells to", action: "tab", target: "info" },
+  ],
+};
+
 export const CIVIC_BUILDINGS: CivicBuilding[] = [
   { id: "cityhall", name: "Sunspire City Hall", role: "Government, licences and civic records", island: "hearth",
     x: -1, z: -25, bannerY: 13.4, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },

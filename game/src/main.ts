@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -2090,12 +2090,83 @@ function renderWorldStrip(): void {
       : `<div class="ws-item"><small>Orders</small><strong>None worth taking</strong><b>check back later</b></div>`}`;
 }
 
+
+// --- The counter ---------------------------------------------------------------------
+//
+// Walk up to a building, press E, and it tells you what it does for you. The buildings
+// were scenery with a name over the door: the Treasury was a shape you walked past while
+// the actual banking sat five sections down a panel. A counter is the oldest and clearest
+// interface a city has — you go to the place, and the place serves you.
+//
+// Everything offered here already existed. This only puts each action behind its own door.
+
+const COUNTER_RANGE = 14;
+let counterOpenFor: string | null = null;
+
+/** The nearest building close enough to talk to, if any. */
+function nearbyCounter(): { id: string; name: string; role: string; icon: string; color: string } | null {
+  const state = store.state;
+  let best: { id: string; name: string; role: string; icon: string; color: string; distance: number } | null = null;
+  for (const site of CIVIC_BUILDINGS) {
+    if (site.island !== state.island) continue;
+    if (!COUNTER_SERVICES[site.id]) continue;
+    const distance = Math.hypot(state.player.x - site.x, state.player.z - site.z);
+    if (distance > COUNTER_RANGE) continue;
+    if (!best || distance < best.distance) {
+      best = { id: site.id, name: site.name, role: site.role, icon: site.icon, color: site.color, distance };
+    }
+  }
+  return best;
+}
+
+function renderCounterPrompt(): void {
+  const prompt = document.querySelector<HTMLElement>("#counterPrompt");
+  const panel = document.querySelector<HTMLElement>("#counterPanel");
+  if (!prompt || !panel) return;
+  const near = nearbyCounter();
+
+  // Walking away closes the counter. Standing at a desk you have left is nonsense.
+  if (counterOpenFor && (!near || near.id !== counterOpenFor)) counterOpenFor = null;
+
+  prompt.hidden = !near || counterOpenFor !== null;
+  if (near && !counterOpenFor) {
+    prompt.innerHTML = `<kbd>E</kbd><span><strong>${escapeMarkup(near.name)}</strong><small>${escapeMarkup(near.role)}</small></span>`;
+  }
+
+  panel.hidden = counterOpenFor === null;
+  if (!counterOpenFor || !near) return;
+  const services = COUNTER_SERVICES[counterOpenFor] ?? [];
+  panel.innerHTML = `
+    <div class="counter-head" style="--counter-color:${escapeMarkup(near.color)}">
+      <i aria-hidden="true">${escapeMarkup(near.icon)}</i>
+      <span><strong>${escapeMarkup(near.name)}</strong><small>${escapeMarkup(near.role)}</small></span>
+      <button class="counter-close" data-action="counter-close" aria-label="Leave the counter">✕</button>
+    </div>
+    <ul class="counter-services">
+      ${services.map((service) => `<li><button data-action="${escapeMarkup(service.action)}"${service.target ? ` data-target="${escapeMarkup(service.target)}"` : ""}>
+        <strong>${escapeMarkup(service.label)}</strong><small>${escapeMarkup(service.detail)}</small></button></li>`).join("")}
+    </ul>`;
+}
+
+/** E opens the counter you are standing at, and closes it again. */
+window.addEventListener("keydown", (event) => {
+  if (event.code !== "KeyE" || event.metaKey || event.ctrlKey || event.altKey) return;
+  const target = event.target as HTMLElement | null;
+  if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+  const near = nearbyCounter();
+  if (!near && counterOpenFor === null) return;
+  event.preventDefault();
+  counterOpenFor = counterOpenFor ? null : near?.id ?? null;
+  renderCounterPrompt();
+});
+
 function renderAll(): void {
   renderHeader();
   renderWalletSlot();
   renderVitals();
   renderBusinessPanel();
   renderWorldStrip();
+  renderCounterPrompt();
   renderOnlinePill();
   renderTutorial();
   renderSelectedPlot();
@@ -2358,6 +2429,7 @@ document.body.addEventListener("click", (event) => {
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
     else switchTab("trade");
   }
+  else if (action === "counter-close") { counterOpenFor = null; renderCounterPrompt(); }
   else if (action === "ride") report(store.rideTo(button.dataset.to ?? "treasury"));
   else if (action === "info-tab") { infoTab = (button.dataset.info as typeof infoTab) ?? "you"; renderInfo(); }
   else if (action === "mayor-toggle") { store.setMayorHidden(!store.state.mayorHidden); renderAll(); }

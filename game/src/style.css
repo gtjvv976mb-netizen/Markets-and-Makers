@@ -2280,3 +2280,50 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
    became 386px tall columns standing in the middle of the world. */
 .hud-grid .hud-zone > * { align-self: start; }
 .hud-world { align-content: end; }
+
+/* --- The counter ---------------------------------------------------------------------
+   Walk up, press E, be served. The buildings were scenery with a name over the door —
+   you could stand inside the Treasury while the banking sat five sections down a panel. */
+.counter-prompt { position: absolute; left: 50%; bottom: 168px; z-index: 8;
+  display: inline-flex; align-items: center; gap: 9px; transform: translateX(-50%);
+  padding: 7px 13px 7px 8px; border-radius: 999px;
+  border: 1px solid rgba(244,215,123,.45); background: rgba(12,42,44,.92);
+  color: #f2f8ef; backdrop-filter: blur(7px); pointer-events: none;
+  box-shadow: 0 10px 24px -14px rgba(4,26,28,.9); animation: alert-in .18s ease-out; }
+.counter-prompt[hidden] { display: none; }
+.counter-prompt kbd { display: grid; place-items: center; width: 26px; height: 26px;
+  border-radius: 8px; border: 1px solid rgba(244,215,123,.5); background: rgba(244,215,123,.16);
+  color: #f4d77b; font: 800 12px/1 ui-monospace, Menlo, monospace; }
+.counter-prompt strong { display: block; font-size: 12.5px; line-height: 1.2; }
+.counter-prompt small { display: block; color: rgba(242,248,239,.66); font-size: 10.5px; }
+
+.counter-panel { position: absolute; left: 50%; bottom: 150px; z-index: 9;
+  width: min(340px, calc(100% - 24px)); transform: translateX(-50%);
+  border-radius: 16px; border: 1px solid rgba(255,255,255,.16);
+  background: rgba(10,36,38,.96); color: #f2f8ef; backdrop-filter: blur(10px);
+  box-shadow: 0 22px 50px -24px rgba(0,0,0,.85); overflow: hidden; }
+.counter-panel[hidden] { display: none; }
+.counter-head { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,.1);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--counter-color) 26%, transparent), transparent); }
+.counter-head > i { display: grid; place-items: center; width: 32px; height: 32px; font-style: normal;
+  font-size: 16px; border-radius: 10px; background: color-mix(in srgb, var(--counter-color) 34%, #0d3234); }
+.counter-head strong { display: block; font-size: 13.5px; line-height: 1.2; }
+.counter-head small { display: block; color: rgba(242,248,239,.66); font-size: 10.5px; }
+.counter-close { width: 26px; height: 26px; border: 0; border-radius: 8px; cursor: pointer;
+  background: rgba(255,255,255,.08); color: rgba(242,248,239,.75); font-size: 12px; }
+.counter-close:hover { background: rgba(255,255,255,.18); color: #fff; }
+
+.counter-services { margin: 0; padding: 7px; list-style: none; display: grid; gap: 4px; }
+.counter-services button { display: block; width: 100%; padding: 9px 11px; text-align: left;
+  border: 1px solid transparent; border-radius: 10px; background: rgba(255,255,255,.05);
+  color: #f2f8ef; font: inherit; cursor: pointer; }
+.counter-services button:hover { border-color: rgba(244,215,123,.4); background: rgba(255,255,255,.11); }
+.counter-services strong { display: block; font-size: 12.5px; line-height: 1.25; }
+.counter-services small { display: block; margin-top: 2px; color: rgba(242,248,239,.64);
+  font-size: 11px; line-height: 1.35; }
+
+@media (max-width: 720px) {
+  .counter-prompt { bottom: 150px; }
+  .counter-panel { bottom: 136px; width: min(300px, calc(100% - 16px)); }
+}
