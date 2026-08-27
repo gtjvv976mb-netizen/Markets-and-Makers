@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { INSTALL_BASE_SECONDS, RESOURCES, UPGRADE_NAMES, type ResourceKey, type UpgradeKey } from "../src/data";
+import { INSTALL_BASE_SECONDS, RESOURCES, UPGRADE_NAMES, type ResourceKey } from "../src/data";
 import { createFreshState, GameStore, loadState } from "../src/state";
 
 /**
