@@ -511,6 +511,26 @@ server.listen(config.port, "0.0.0.0", async () => {
           // A missing dispatch is unremarkable: no key, or the last one is still recent.
           if (dispatch) console.log(`dispatch: "${dispatch.headline}" (${dispatch.mood})`);
         })
+        // The advisor was imported and never called, so the one mind allowed to CHANGE
+        // how the city behaves only ever ran if a human hit an HTTP route. It belongs on
+        // the same clock as everything else.
+        //
+        // Safe to offer every minute: it refuses on its own until a week has passed, and
+        // refuses again below five days of recorded history — an advisor asked about a
+        // realm it has barely seen will answer fluently and from nothing. Every proposal
+        // still passes the clamps in policy.ts before it reaches the economy.
+        .then(() => consultAdvisor())
+        .then((advice) => {
+          if (advice.status !== "advised") return;
+          const applied = advice.applied.filter((change) => change.status === "applied");
+          console.log(`advisor: ${advice.assessment}`);
+          for (const change of applied) {
+            console.log(`  ${change.key}: ${change.previous} -> ${change.applied} (${change.reason})`);
+          }
+          for (const change of advice.applied.filter((entry) => entry.status !== "applied")) {
+            console.log(`  ${change.key}: ${change.status} (asked for ${change.proposed})`);
+          }
+        })
         .catch((error) => console.error("world tick failed", error))
         .finally(() => { running = false; });
     }, config.worldTickSeconds * 1_000);
