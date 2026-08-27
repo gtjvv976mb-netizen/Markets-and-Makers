@@ -76,6 +76,13 @@ export const REAL_HOURS: Record<LicenseKey, number> = {
 };
 
 /** Seconds for a trade that takes one real hour. */
+/**
+ * How long a crew takes to fit the FIRST level of a piece of equipment; higher levels take
+ * proportionally longer. Long enough that buying one is a decision you live with for a
+ * while, short enough that a session still sees it finish.
+ */
+export const INSTALL_BASE_SECONDS = 75;
+
 export const TIME_BASE_SECONDS = 14;
 /** How hard the real-world range is compressed. 1 would be literal; see REAL_HOURS. */
 export const TIME_COMPRESSION = 0.22;

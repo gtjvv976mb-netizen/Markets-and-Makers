@@ -2361,3 +2361,16 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   background: rgba(255,255,255,.18); overflow: hidden; }
 .bp-bar > b { display: block; height: 100%; background: #8fd6a4; }
 .bp-bar.full > b { background: #f0b04a; }
+
+/* Equipment being fitted. Bought is not installed — the crew is on the floor and the line
+   runs without it until they are done. */
+.bp-fitting { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center;
+  margin-top: 8px; padding: 7px 9px; border-radius: 10px;
+  border: 1px solid rgba(244,215,123,.4); background: rgba(244,215,123,.12); }
+.bp-fitting small { display: block; color: rgba(242,248,239,.66); font-size: 10px; font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase; }
+.bp-fitting strong { display: block; font-size: 12px; line-height: 1.2; }
+.bp-fitting > b { color: #f4d77b; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.bp-fitting .bp-bar { grid-column: 1 / -1; }
+.bp-fitting .bp-bar > b { background: #f4d77b; }
+.bp-upgrades button.fitting { border-color: rgba(244,215,123,.55); background: rgba(244,215,123,.14); }

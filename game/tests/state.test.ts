@@ -653,8 +653,15 @@ describe("Markets & Makers economy", () => {
     expect(store.upgradeCeiling()).toBe(MAX_UPGRADE_LEVEL);
     expect(store.state.mmBurned).toBe(Math.round(CHARTER_COST_MM * MM_BURN_RATE));
 
+    // Buying starts an installation; the crew has to finish before the level counts.
     expect(store.purchaseUpgrade("yield").ok).toBe(true);
-    expect(store.state.upgrades.yield).toBe(4);
+    expect(store.state.upgrades.yield, "bought is not yet fitted").toBe(3);
+    expect(store.installation()?.level).toBe(4);
+
+    // Wind the clock past the fitters and let the calendar settle it.
+    store.state.installation!.completeAt = Date.now() - 1;
+    store.catchUp();
+    expect(store.state.upgrades.yield, "fitted, and now it counts").toBe(4);
     const restored = loadState();
     expect(restored.chartered).toBe(true);
     expect(restored.upgrades.yield).toBe(4);

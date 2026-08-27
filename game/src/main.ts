@@ -1555,6 +1555,14 @@ const HALT_REASON: Record<string, { tone: string; label: string; why: string }> 
 
 let infoTab: "you" | "business" | "chain" | "district" | "ledger" = "you";
 
+/** "3m 20s" — the same shape the store uses when it tells you how long the fitters need. */
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
+}
+
 function statTile(label: string, value: string, note = ""): string {
   return `<div class="info-stat"><small>${escapeMarkup(label)}</small><strong>${escapeMarkup(value)}</strong>${note ? `<span>${escapeMarkup(note)}</span>` : ""}</div>`;
 }
@@ -2043,11 +2051,21 @@ function renderBusinessPanel(): void {
       <span><small>Overheads / day</small><strong>${formatNumber(daily)}</strong></span>
       <span class="${store.todayProfit() >= 0 ? "up" : "down"}"><small>Today</small><strong>${store.todayProfit() >= 0 ? "+" : ""}${formatNumber(store.todayProfit())}</strong></span>
     </div>
+    ${(() => {
+      const fitting = store.installation();
+      if (!fitting) return "";
+      return `<div class="bp-fitting" title="One crew, one job">
+        <span><small>Fitting</small><strong>${escapeMarkup(UPGRADE_NAMES[fitting.key].name)} · level ${fitting.level}</strong></span>
+        <b>${formatDuration(fitting.secondsLeft)}</b>
+        <i class="bp-bar"><b style="width:${fitting.progress}%"></b></i>
+      </div>`;
+    })()}
     <div class="bp-upgrades">
       ${upgrades.map((key) => {
         const level = store.state.upgrades[key];
         const ceiling = store.upgradeCeiling();
-        return `<button data-action="tab" data-target="shop" title="${escapeMarkup(UPGRADE_NAMES[key].name)}: level ${level} of ${ceiling}">
+        const beingFitted = store.installation()?.key === key;
+        return `<button class="${beingFitted ? "fitting" : ""}" data-action="tab" data-target="shop" title="${escapeMarkup(UPGRADE_NAMES[key].name)}: level ${level} of ${ceiling}${beingFitted ? " — being fitted now" : ""}">
           <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i>
           <em>${Array.from({ length: ceiling }, (_, i) => `<u class="${i < level ? "on" : ""}"></u>`).join("")}</em>
         </button>`;

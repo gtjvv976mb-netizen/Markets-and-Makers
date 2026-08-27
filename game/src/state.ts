@@ -10,7 +10,7 @@ import {
   MAX_MARKET_SHARE, MIN_MARKET_SHARE,
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, RIVAL_GROWTH_CEILING_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
-  CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
+  INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
   CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
@@ -85,6 +85,8 @@ export interface GameState {
   yieldCarry: Record<ResourceKey, number>;
   /** Whether the player has waved the Mayor away. She can always be asked back. */
   mayorHidden: boolean;
+  /** Equipment paid for and being fitted. One crew, one job. */
+  installation: { key: UpgradeKey; level: number; startedAt: number; completeAt: number } | null;
   island: string; player: { x: number; z: number }; selectedPlotId: string | null; ownedPlotId: string | null;
   license: LicenseKey | null; buildingPlaced: boolean; job: ProductionJob | null; upgrades: Record<UpgradeKey, number>;
   condition: number; jobsCompleted: number; visitorsServed: number; lifetimeRevenue: number;
@@ -101,6 +103,15 @@ export interface FranchiseRound {
 export interface ActionResult { ok: boolean; message: string; }
 
 const resourceKeys = Object.keys(RESOURCES) as ResourceKey[];
+
+/** "3m 20s" — for telling somebody how long the fitters will be. */
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
+}
+
 
 /**
  * Whether this session is a sealed demo.
@@ -171,6 +182,7 @@ export function createFreshState(): GameState {
     districtBusinesses: 0,
     yieldCarry: blankProcurement(),
     mayorHidden: false,
+    installation: null,
     island: "hearth",
     player: { x: 0, z: -16 },
     selectedPlotId: "garden-row",
@@ -357,6 +369,14 @@ export function loadState(): GameState {
       marketLastUpdated: finite(saved.marketLastUpdated, Date.now()), servicePriceIndex: finite(saved.servicePriceIndex, 1, .85, 1.3),
       districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
       mayorHidden: Boolean(saved.mayorHidden),
+      installation: saved.installation && typeof saved.installation === "object"
+        ? {
+            key: saved.installation.key as UpgradeKey,
+            level: Math.max(1, Math.floor(finite(saved.installation.level, 1, 1, 9))),
+            startedAt: finite(saved.installation.startedAt, Date.now()),
+            completeAt: finite(saved.installation.completeAt, Date.now()),
+          }
+        : null,
       yieldCarry: (() => {
         const carry = blankProcurement();
         for (const key of resourceKeys) carry[key] = finite(saved.yieldCarry?.[key], 0, 0, 1);
@@ -1508,11 +1528,27 @@ export class GameStore {
       return this.result(false, `This upgrade needs ${list}.`
         + (goods ? " Buy what you are short of on the Market tab, or from another maker." : ""));
     }
+    if (this.state.installation) {
+      const fitting = UPGRADE_NAMES[this.state.installation.key].name;
+      return this.result(false, `The fitters are still installing your ${fitting.toLowerCase()}. One job at a time.`);
+    }
+
     this.state.wallet -= cost.mercDollars; this.state.governmentTreasury += cost.mercDollars;
     for (const resource of resourceKeys) this.state.inventory[resource] -= cost.resources[resource] ?? 0;
-    this.state.upgrades[key] += 1; this.state.tutorial.upgraded = true; this.addExperience(18 + (current + 1) * 7);
-    this.commit(`${key[0].toUpperCase()}${key.slice(1)} improved to level ${current + 1}.`, "success");
-    return this.result(true, "Upgrade installed.");
+
+    // Paid for, and now it has to be FITTED. Machines do not appear the instant they are
+    // bought — the crew arrives, the floor comes up, and the line runs without it until
+    // they are done. It is also the only decision in the game a player cannot take back,
+    // so it should cost time as well as money.
+    const seconds = this.installSeconds(current + 1);
+    this.state.installation = {
+      key, level: current + 1,
+      startedAt: Date.now(),
+      completeAt: Date.now() + seconds * 1000,
+    };
+    this.state.tutorial.upgraded = true;
+    this.commit(`${UPGRADE_NAMES[key].name} bought. The fitters need ${formatDuration(seconds)}.`, "success");
+    return this.result(true, "Installation started.");
   }
 
   maintainBusiness(): ActionResult {
@@ -1723,6 +1759,42 @@ export class GameStore {
     return this.result(true, "Ride complete.");
   }
 
+  /**
+   * How long a crew takes to fit one piece of equipment.
+   *
+   * Rises with the level being installed: a first bench is bolted down in a morning, a
+   * fourth-level machine is a rebuild of the floor. Independent of the trade, because
+   * fitting a machine takes about as long whoever is fitting it.
+   */
+  installSeconds(level: number): number {
+    return INSTALL_BASE_SECONDS * Math.max(1, level);
+  }
+
+  /** What is being fitted right now, and how far along it is. */
+  installation(now = Date.now()): { key: UpgradeKey; level: number; secondsLeft: number; progress: number } | null {
+    const job = this.state.installation;
+    if (!job) return null;
+    const total = Math.max(1, job.completeAt - job.startedAt);
+    const left = Math.max(0, job.completeAt - now);
+    return { key: job.key, level: job.level, secondsLeft: Math.ceil(left / 1000),
+      progress: Math.min(100, Math.round(((total - left) / total) * 100)) };
+  }
+
+  /**
+   * Finish any installation whose time has come.
+   *
+   * Called from the catch-up, so a crew that finished while the player was away has
+   * finished when they return rather than resuming from where it was left.
+   */
+  private settleInstallation(now = Date.now()): { key: UpgradeKey; level: number } | null {
+    const job = this.state.installation;
+    if (!job || job.completeAt > now) return null;
+    this.state.upgrades[job.key] = Math.min(this.upgradeCeiling(), job.level);
+    this.state.installation = null;
+    this.addExperience(18 + job.level * 7);
+    return { key: job.key, level: job.level };
+  }
+
   storageCapacity(): number {
     return STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
   }
@@ -1852,6 +1924,17 @@ export class GameStore {
   }
 
   private catchUpOne(now = Date.now()): ShiftReport {
+    // Before anything else, and before any early return: a crew whose time is up has
+    // finished, whether or not the line had the money or the demand to run today.
+    //
+    // It has to be WRITTEN too, not merely applied in memory. A finished installation that
+    // never reached the save meant a player paid for a machine, watched it appear, closed
+    // the tab and found it gone — with the money spent. Caught by the saved state still
+    // reporting the old level after the crew had finished.
+    const fitted = this.settleInstallation(now);
+    if (fitted) {
+      this.commit(`${UPGRADE_NAMES[fitted.key].name} is fitted and running at level ${fitted.level}.`, "success");
+    }
     const report: ShiftReport = { hours: 0, jobs: 0, produced: 0, sold: 0, revenue: 0, spent: 0, wages: 0, halted: "idle" };
     const license = this.state.license;
     if (!license || !this.state.buildingPlaced) { this.state.lastTickAt = now; return report; }
