@@ -69,6 +69,25 @@ export const STATE_INDUSTRIES: Record<string, { target: number; costPerUnit: num
  * past `spendable * cap` — and `spendable` is already the treasury less its floor, so the
  * floor cannot be crossed either.
  */
+/**
+ * The wage bill for a stretch of elapsed time, in whole Mercs.
+ *
+ * Exported and called by the mind so the accrual property can be tested against the real
+ * rule. The floor is the reason the guard below it exists: a bill under one Merc is zero,
+ * and zero paid while the clock advances is a wage silently destroyed.
+ */
+export function wageBillFor(
+  population: number, dailyWage: number, hours: number, carry = 0,
+): { bill: number; carry: number } {
+  const owed = Math.max(0, carry)
+    + Math.max(0, population) * Math.max(0, dailyWage) * (Math.max(0, hours) / 24);
+  const bill = Math.floor(owed);
+  // What is left is owed, not forgiven. Without this the remainder above each whole Merc
+  // is discarded on every payment, which cost roughly a third of the wage even once the
+  // clock stopped resetting.
+  return { bill, carry: owed - bill };
+}
+
 export function settlePayroll(
   wageBill: number, spendable: number, payrollCap: number, wageFactor: number,
 ): { paid: number; ceiling: number; austerity: boolean; restraint: boolean } {
@@ -190,7 +209,14 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     const spendable = Math.max(0, treasuryBefore - TREASURY_FLOOR);
 
     // --- payroll ------------------------------------------------------------
-    const wageBill = Math.floor(population * dailyWage * (hours / 24));
+    // The carry is the fraction of a Merc the last floor could not pay. It rides on the
+    // clock row, so a tick of any length settles the same wage.
+    const carried = await client.query<{ wage_carry: string }>(
+      "select wage_carry from realm_clock where realm_id=$1 and mind='government'", [REALM]);
+    const owedBefore = Number(carried.rows[0]?.wage_carry ?? 0);
+    const { bill: wageBill, carry: wageCarry } = wageBillFor(population, dailyWage, hours, owedBefore);
+    await client.query(
+      "update realm_clock set wage_carry=$2 where realm_id=$1 and mind='government'", [REALM, wageCarry]);
 
     // The cabinet decides what share of the bill to pay; the cap decides the most it may.
     // Order matters: the factor is applied to the BILL, then the cap is applied to the
@@ -350,7 +376,8 @@ export async function governmentBriefing(): Promise<import("./cabinet.js").Cabin
     pool.query<{ reason: string; total: string }>(
       `select reason, coalesce(sum(amount),0)::text as total from currency_ledger
         where realm_id=$1 and created_at > now() - interval '24 hours'
-          and reason in ('government.payroll','market.sale') group by reason`, [REALM]),
+          and reason in ('government.payroll','government.works','market.sale')
+        group by reason`, [REALM]),
     pool.query<{ treasury: string }>(
       `select distinct on (published_at::date) (snapshot->>'treasury') as treasury
          from bulletin where realm_id=$1
@@ -375,6 +402,9 @@ export async function governmentBriefing(): Promise<import("./cabinet.js").Cabin
     maximumPayableToday: Math.floor(spendable * payrollCap),
     citizensPurse: balance("player", "citizens"),
     wagesPaidYesterday: total("government.payroll"),
+    // Reported separately because both land in the same purses. Shown the wage alone, a
+    // cabinet reads a day that paid 28,000 through the works as a day nobody was paid.
+    worksSpendYesterday: total("government.works"),
     soldYesterday: total("market.sale"),
     stock: Object.entries(STATE_INDUSTRIES).map(([item, plan]) => ({
       item,

@@ -1,0 +1,12 @@
+-- The fraction of a Merc the wage floor cannot pay yet.
+--
+-- The bill is floor(population * rate * hours/24). At a 60s tick and 126 households on a
+-- 9/day wage that is floor(0.7875) = 0, and the clock advanced anyway — so every ordinary
+-- tick paid nothing and destroyed the time it was owed. Measured on the live realm: 77
+-- Mercs paid across 24 hours against an intended 1,134, the difference arriving only from
+-- restart gaps long enough to clear the floor.
+--
+-- Carrying the remainder makes the payroll exact regardless of tick length: the same wages
+-- arrive, in fewer and larger transfers. It is the pattern the client already uses for
+-- production yields, for the same reason.
+alter table realm_clock add column if not exists wage_carry numeric(20,6) not null default 0;

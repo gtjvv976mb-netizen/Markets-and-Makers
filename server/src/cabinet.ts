@@ -193,6 +193,8 @@ export interface CabinetBriefing {
   maximumPayableToday: number;
   citizensPurse: number;
   wagesPaidYesterday: number;
+  /** What the civic works paid out. It reaches the same household purses as the wage. */
+  worksSpendYesterday: number;
   soldYesterday: number;
   stock: { item: string; have: number; target: number; costPerUnit: number }[];
   recentTreasury: number[];
@@ -220,7 +222,9 @@ What you are governing toward, in order:
    a genuinely thin treasury, not a habit.
 2. The treasury must not trend toward its floor. Watch the direction across the days you
    are shown, not the size of today's number.
-3. The works should keep makers supplied. A works that stays empty is makers who cannot
+3. The works should keep makers supplied. Note that worksSpendYesterday reaches the same
+   household purses the wage does — a day with a small wage and large works spending is not
+   a day Mercedonians went unpaid. A works that stays empty is makers who cannot
    produce, which shows up as falling sales two days later.
 
 How to decide:

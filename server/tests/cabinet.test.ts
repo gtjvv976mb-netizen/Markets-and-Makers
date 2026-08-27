@@ -10,7 +10,7 @@
 // with its own copy while the real one drifts.
 
 import { describe, expect, it } from "vitest";
-import { settlePayroll } from "../src/minds.js";
+import { settlePayroll, wageBillFor } from "../src/minds.js";
 import { NEUTRAL, sanitise, WAGE_FACTOR, WORKS_FACTOR } from "../src/cabinet.js";
 
 const KNOWN = ["water", "power", "ore", "timber"];
@@ -162,5 +162,71 @@ describe("the cabinet cannot starve Mercedonia", () => {
     expect(WAGE_FACTOR.min).toBeGreaterThan(0);
     const worst = settlePayroll(10_000, 1_000_000, 0.05, WAGE_FACTOR.min).paid;
     expect(worst, "the least a cabinet can pay on a healthy treasury").toBe(6_000);
+  });
+});
+
+describe("the wage clock carries what the floor cannot pay", () => {
+  // The bug the cabinet found by citing it. At a 60s tick the bill floors to zero and the
+  // clock advanced anyway, so the wage was destroyed rather than owed. Measured live: 77
+  // Mercs paid across 24 hours against an intended 1,134.
+  const POP = 126, WAGE = 9, TICK_HOURS = 60 / 3600, DAY = 1440;
+
+  it("still floors a single tick's bill to nothing", () => {
+    expect(wageBillFor(POP, WAGE, TICK_HOURS).bill).toBe(0);
+  });
+
+  it("owes the fraction rather than forgiving it", () => {
+    const { bill, carry } = wageBillFor(POP, WAGE, TICK_HOURS);
+    expect(bill).toBe(0);
+    expect(carry).toBeCloseTo(0.7875, 4);
+  });
+
+  it("paid nothing across a whole day when the fraction was discarded", () => {
+    // The old rule, run forward: no carry, so every tick starts from zero and stays there.
+    let paid = 0;
+    for (let tick = 0; tick < DAY; tick += 1) paid += wageBillFor(POP, WAGE, TICK_HOURS).bill;
+    expect(paid, "a full day of ticks under the old rule").toBe(0);
+  });
+
+  it("pays the intended daily wage to the Merc once the carry rides along", () => {
+    let carry = 0, paid = 0;
+    for (let tick = 0; tick < DAY; tick += 1) {
+      const settled = wageBillFor(POP, WAGE, TICK_HOURS, carry);
+      paid += settled.bill;
+      carry = settled.carry;
+    }
+    // paid + still-owed == intended, exactly. Asserting `paid === intended` on a day
+    // boundary would be asserting that the last fraction happens to land inside the
+    // window, which is a fact about where I stopped counting, not about the payroll.
+    const intended = POP * WAGE;
+    expect(paid + carry, `paid ${paid} plus ${carry.toFixed(4)} owed`).toBeCloseTo(intended, 6);
+    expect(paid, "and essentially all of it has actually been paid").toBeGreaterThanOrEqual(intended - 1);
+  });
+
+  it("settles the same wage whatever the tick length", () => {
+    // The property that makes the tick interval a scheduling choice again, not an
+    // economic one. Any cadence must deliver the same day's wage.
+    const totals = [15, 60, 300, 900].map((secs) => {
+      const ticks = Math.round(86_400 / secs);
+      let carry = 0, paid = 0;
+      for (let tick = 0; tick < ticks; tick += 1) {
+        const settled = wageBillFor(POP, WAGE, secs / 3600, carry);
+        paid += settled.bill;
+        carry = settled.carry;
+      }
+      return { secs, paid, carry };
+    });
+    for (const { secs, paid, carry } of totals) {
+      expect(paid + carry, `at a ${secs}s tick`).toBeCloseTo(POP * WAGE, 6);
+      expect(paid, `at a ${secs}s tick`).toBeGreaterThanOrEqual(POP * WAGE - 1);
+    }
+  });
+
+  it("never runs the carry away when the treasury cannot pay", () => {
+    // Austerity must not become a debt that pays out later in a lump. The carry tracks the
+    // BILL; what the cap refused is refused, not deferred.
+    let carry = 0;
+    for (let tick = 0; tick < DAY; tick += 1) carry = wageBillFor(POP, WAGE, TICK_HOURS, carry).carry;
+    expect(carry, "the carry after a full day").toBeLessThan(1);
   });
 });
