@@ -2,7 +2,7 @@ import {
   AUTO_BUY_PREMIUM, AUTO_MAINTAIN_AT, AUTO_MAINTAIN_COST, AUTO_SELL_BROKER_FEE, BREAKDOWN_CONDITION,
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
   BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
-  DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS, EPOCH_MM_BUDGET,
+  DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS,
   OFFLINE_VISITS_PER_HOUR, OFFLINE_VISIT_CAP, plotFootfall,
   BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
   MERCEDONIAN_SPEND_RATE, MM_CIRCULATING_SUPPLY,
@@ -1471,18 +1471,41 @@ export class GameStore {
    * contribution share, so a larger or busier population dilutes every payout rather than
    * draining the vault faster. This is the whole anti-farm property of the design.
    */
-  claimEpochRewards(now = Date.now()): ActionResult {
+  /**
+   * Claim this epoch's distribution.
+   *
+   * `authoritative` is the authority's own figure from /api/economy/standing, and it wins
+   * whenever it is present. The local projection divides by COHORT_CONTRIBUTION_BASE — a
+   * standing guess at how much everyone else contributed — while the server divides by
+   * what the realm's makers ACTUALLY contributed this epoch. Early on those are nothing
+   * alike: a maker with 500 of a real 2,000 total is owed a quarter of the budget, and the
+   * local formula offers 1.1% of it.
+   *
+   * The panel already displayed the server's number. Only the button still paid the guess,
+   * which is the worst arrangement of the two — the player reads the true figure and is
+   * handed a different one.
+   */
+  claimEpochRewards(now = Date.now(), authoritative?: number): ActionResult {
     this.rollCalendar(now);
     if (this.state.epoch.claimed) return this.result(false, "This epoch's distribution is already claimed.");
     if (this.state.epoch.contribution <= 0) return this.result(false, "Fulfil an order or supply the district to earn a contribution share.");
-    const units = this.projectedEpochMM();
+    const owed = Number.isFinite(authoritative) && (authoritative ?? 0) > 0
+      ? Math.floor(authoritative!) : this.projectedEpochMM();
+    // The reserve still binds. $MM paid out has to come from somewhere the client can
+    // account for, so a server figure larger than the reserve is capped and SAID to be
+    // capped rather than quietly reduced.
+    const room = Math.max(0, this.state.mmReserve - MIN_MM_RESERVE);
+    const units = Math.min(owed, room);
+    const capped = units < owed;
     if (units <= 0) return this.result(false, "Your contribution share does not yet round to a whole $MM.");
     this.state.mmReserve -= units;
     this.state.mmHoldings += units;
     this.state.lifetimeMMEarned += units;
     this.state.epoch.claimed = true;
     this.addExperience(40);
-    this.commit(`Epoch distribution paid ${units} $MM for a ${(this.epochShare() * 100).toFixed(2)}% contribution share of the ${EPOCH_MM_BUDGET.toLocaleString()} $MM budget.`, "success");
+    this.commit(capped
+      ? `Epoch distribution paid ${units} $MM. The reserve could not cover the full ${owed} $MM owed this epoch.`
+      : `Epoch distribution paid ${units} $MM for this epoch's contribution share.`, "success");
     return this.result(true, "Epoch rewards claimed.");
   }
 

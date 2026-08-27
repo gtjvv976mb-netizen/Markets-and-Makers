@@ -1141,7 +1141,7 @@ function renderMarket(): void {
       <div class="reserve-balance">
         <div><small>Your contribution</small><strong>${formatNumber(Math.round(standing ? standing.mine : store.state.epoch.contribution))}</strong></div>
         <div><small>Your share</small><strong>${((standing ? standing.share : store.epochShare()) * 100).toFixed(2)}%</strong></div>
-        <div><small>Projected payout</small><strong>${formatNumber(standing ? standing.projected : store.projectedEpochMM())} $MM</strong></div>
+        <div><small>Projected payout</small><strong>${formatNumber(epochProjection().units)} $MM</strong>${epochProjection().authoritative ? "" : "<em class=\"estimate-tag\">estimate</em>"}</div>
         <div><small>Held / lifetime earned</small><strong>${formatNumber(store.state.mmHoldings)} / ${formatNumber(store.state.lifetimeMMEarned)}</strong></div>
       </div>
       ${walletMarkup()}
@@ -1164,7 +1164,7 @@ function renderMarket(): void {
       <small class="epoch-note">${Math.round(MM_BURN_RATE * 100)}% of everything spent here is destroyed for good; the rest returns to next week's pool. ${store.state.mmBurned ? `You have burned ${formatNumber(store.state.mmBurned)} $MM.` : ""}</small>
       <div class="reserve-actions">
         <button class="secondary" hidden data-action="buy-deed" ${store.state.mmHoldings < DEED_COST_MM ? "disabled" : ""}>Buy a civic deed <small>${DEED_COST_MM} $MM · +1 plot</small></button>
-        <button data-action="claim-epoch" ${store.state.epoch.claimed || store.projectedEpochMM() <= 0 ? "disabled" : ""}>${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(store.projectedEpochMM())} $MM`}</button>
+        <button data-action="claim-epoch" ${store.state.epoch.claimed || epochProjection().units <= 0 ? "disabled" : ""} title="${epochProjection().authoritative ? "Confirmed by the authority" : "Local estimate — the authority could not be reached"}">${store.state.epoch.claimed ? "Epoch already claimed" : `Claim ${formatNumber(epochProjection().units)} $MM${epochProjection().authoritative ? "" : " (estimate)"}`}</button>
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
@@ -1750,6 +1750,18 @@ function renderCity(): string {
     ` : ""}`;
 }
 
+/**
+ * What this epoch owes, and whether the authority said so.
+ *
+ * The panel read the server's projection while the button, the alert and the quick-bar
+ * chip each read the local one, so a maker could be shown 15,000 $MM and offered 659.
+ * Everything that names a figure now goes through here.
+ */
+function epochProjection(): { units: number; authoritative: boolean } {
+  if (standing && standing.projected > 0) return { units: standing.projected, authoritative: true };
+  return { units: store.projectedEpochMM(), authoritative: false };
+}
+
 function renderInfo(): void {
   const node = document.querySelector<HTMLElement>("#infoPanel");
   if (!node) return;
@@ -1774,7 +1786,7 @@ function renderInfo(): void {
         ${statTile("Merc Dollars", `${formatNumber(store.state.wallet)} ${CURRENCY_CODE}`, "Spendable now")}
         ${statTile("Net worth", `${formatNumber(store.netWorth())} ${CURRENCY_CODE}`, "Cash plus stock at market")}
         ${statTile("$MM held", formatNumber(store.state.mmHoldings), `${formatNumber(store.state.lifetimeMMEarned)} earned in total`)}
-        ${statTile("This epoch", formatNumber(Math.round(store.state.epoch.contribution)), `${(store.epochShare() * 100).toFixed(2)}% share · ${formatNumber(store.projectedEpochMM())} $MM projected`)}
+        ${statTile("This epoch", formatNumber(Math.round(store.state.epoch.contribution)), `${((standing ? standing.share : store.epochShare()) * 100).toFixed(2)}% share · ${formatNumber(epochProjection().units)} $MM projected`)}
       </div>
       <div class="section-title">Holdings</div>
       <div class="info-grid">
@@ -1910,8 +1922,8 @@ function currentAlerts(): Alert[] {
   }
 
   // The weekly share does not claim itself, and it expires with the epoch.
-  if (!store.state.epoch.claimed && store.projectedEpochMM() > 0) {
-    alerts.push({ tone: "good", text: `This week's share is ready: ${formatNumber(store.projectedEpochMM())} $MM.`,
+  if (!store.state.epoch.claimed && epochProjection().units > 0) {
+    alerts.push({ tone: "good", text: `This week's share is ready: ${formatNumber(epochProjection().units)} $MM.`,
       action: { label: "Claim it", act: "tab", target: "trade" } });
   }
 
@@ -2074,9 +2086,9 @@ function renderQuickBar(): void {
   }
 
   // The weekly share, which expires with the epoch.
-  if (!state.epoch.claimed && store.projectedEpochMM() > 0) {
+  if (!state.epoch.claimed && epochProjection().units > 0) {
     chips.push(`<button class="quick-good" data-action="claim-epoch" title="Your share of this week's $MM">
-      <i aria-hidden="true">★</i><span><small>Claim share</small><strong>${formatNumber(store.projectedEpochMM())} $MM</strong></span></button>`);
+      <i aria-hidden="true">★</i><span><small>Claim share</small><strong>${formatNumber(epochProjection().units)} $MM</strong></span></button>`);
   }
 
   node.hidden = chips.length === 0;
@@ -2605,7 +2617,7 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
-  else if (action === "claim-epoch") report(store.claimEpochRewards());
+  else if (action === "claim-epoch") report(store.claimEpochRewards(Date.now(), epochProjection().units));
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
