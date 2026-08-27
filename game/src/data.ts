@@ -51,6 +51,40 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   waste: { name: "Recoverable Scrap", short: "Scrap", icon: "♻", governmentPrice: 12, procurementPrice: 4, color: "#74875d", buyer: "government", tier: "recovered", volatility: .06, indexWeight: 2 },
 };
 
+/**
+ * How long each trade takes in the real world, in hours for one batch.
+ *
+ * A crate is assembled in half an hour; a greenhouse crop is sixty days. The game should
+ * feel that: some businesses tick constantly and some deliver rarely and in bulk.
+ *
+ * THE RANGE CANNOT BE TAKEN LITERALLY, and the numbers say why. Real production spans
+ * 2,880:1 from a crate to a crop. Pinning the fastest trade at a playable ten seconds puts
+ * a greenhouse harvest 9.6 HOURS apart, and for it to still earn, one harvest would have
+ * to yield 2,880 times the food — which a district that wants a few hundred a day cannot
+ * buy at any price. Strict proportion and a daily appetite cannot both hold.
+ *
+ * So the ORDER is real and the RANGE is compressed: duration rises with the fourth-ish
+ * root of real time, which keeps every trade in the right place relative to every other
+ * and lands the spread at about 11:1 instead of 2,880:1. Output scales by the same factor,
+ * so a slow trade delivers in bulk rather than simply earning less, and value per second
+ * stays where the economy was balanced.
+ */
+export const REAL_HOURS: Record<LicenseKey, number> = {
+  cratemill: 0.5, shop: 0.5, restaurant: 0.5, gym: 1, cinema: 2,
+  aquaworks: 3, recycler: 4, freight: 4, mine: 6, timberworks: 6,
+  workshop: 8, sungrid: 12, factory: 48, construction: 72, greenhouse: 1440,
+};
+
+/** Seconds for a trade that takes one real hour. */
+export const TIME_BASE_SECONDS = 14;
+/** How hard the real-world range is compressed. 1 would be literal; see REAL_HOURS. */
+export const TIME_COMPRESSION = 0.22;
+
+/** The factor a trade's duration and output are both scaled by. */
+export function realTimeFactor(license: LicenseKey): number {
+  return Math.pow(REAL_HOURS[license], TIME_COMPRESSION);
+}
+
 export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
   aquaworks: {
     name: "Tideglass AquaWorks", sector: "Water utility", stage: "Infrastructure", islandAffinity: "Tideglass", icon: "≈", color: "#4eaeb7", model: "./assets/structures/b04-aquaworks.glb",
@@ -143,6 +177,37 @@ export const BUSINESS: Record<LicenseKey, BusinessConfig> = {
     ecosystem: { upstream: "Every producing business", process: "Sorting and remanufacture", downstream: "Construction, utilities and repairs" },
   },
 };
+
+/**
+ * Re-time every trade against the real world, and scale what it makes to match.
+ *
+ * Applied to BUSINESS in place so there is exactly one source of truth: a recipe's shape
+ * lives in the table above, its RHYTHM is derived here. Inputs scale too — a harvest that
+ * yields ten times as much consumes ten times the water.
+ */
+for (const key of Object.keys(BUSINESS) as LicenseKey[]) {
+  const config = BUSINESS[key];
+  const factor = realTimeFactor(key);
+  config.duration = Math.max(8, Math.round(TIME_BASE_SECONDS * factor));
+  const scale = config.duration / (TIME_BASE_SECONDS * Math.pow(0.5, TIME_COMPRESSION));
+  for (const resource of Object.keys(config.output) as ResourceKey[]) {
+    const amount = config.output[resource];
+    if (amount) config.output[resource] = Math.max(1, Math.round(amount * scale));
+  }
+  for (const resource of Object.keys(config.inputs) as ResourceKey[]) {
+    const amount = config.inputs[resource];
+    if (amount) config.inputs[resource] = Math.max(1, Math.round(amount * scale));
+  }
+  // The starter grant is one cycle of inputs. Scaling the recipe without scaling the
+  // grant means a new maker is handed less than a single cycle needs and cannot start.
+  for (const resource of Object.keys(config.starter) as ResourceKey[]) {
+    const amount = config.starter[resource];
+    if (amount) config.starter[resource] = Math.max(1, Math.round(amount * scale));
+  }
+  if (config.wastePerCycle) config.wastePerCycle = Math.max(1, Math.round(config.wastePerCycle * scale));
+  if (config.servicePayout) config.servicePayout = Math.max(1, Math.round(config.servicePayout * scale));
+  config.laborCost = Math.max(1, Math.round(config.laborCost * scale));
+}
 
 export const BUSINESS_STAGES: BusinessStage[] = ["Infrastructure", "Primary", "Manufacturing", "Commerce", "Services", "Circular"];
 
@@ -287,16 +352,16 @@ export const MAYOR_SCRIPT: Record<string, { says: string; because: string }> = {
     because: "Nothing is produced until there is somewhere to produce it.",
   },
   produced: {
-    says: "Buy what the recipe wants, pay your worker, and run a cycle.",
-    because: "Wages are not a fee the city invented. Every Merc you pay walks back out into somebody's till — often enough, your own.",
+    says: "Now stand back. Your workers buy what the recipe wants and run the cycle themselves, over and over.",
+    because: "Nobody in a real city stands over a bench pressing a button. You decide what to build and where; the work is the work, and it takes as long as that work takes.",
   },
   upgraded: {
     says: "Put something better in the building. Yield for more per cycle, appeal for a bigger share of the district's custom.",
     because: "The shop will say plainly when a machine cannot help you yet. Believe it, and buy the other one.",
   },
   sold: {
-    says: "Sell. The civic counter takes anything at a published price, and other makers will sometimes pay more.",
-    because: "Prices follow what the district actually wants. Flood it and the price sags — that is the market answering, not a penalty.",
+    says: "You do not sell anything either. Mercedonians walk in and buy it, and the trades below you order what they need.",
+    because: "Which is why WHERE you built matters more than anything you can press: a busy corner is customers, and a quiet one is a warehouse filling up.",
   },
   contracted: {
     says: "Take an order from the board. A named buyer pays better than the counter, every time.",
@@ -313,9 +378,9 @@ export const TUTORIAL = [
   ["leased", "Lease a plot", "Select a glowing plot and sign a starter lease."],
   ["licensed", "Choose a business", "Pick one of fifteen connected roles across six economic stages."],
   ["built", "Build the business", "Place the existing 3D structure on your plot."],
-  ["produced", "Run production", "Buy required inputs, pay labor and complete one job."],
+  ["produced", "Let the line run", "Your workers buy inputs and run cycles on their own."],
   ["upgraded", "Improve the interior", "Install a yield, capacity, speed or appeal upgrade."],
-  ["sold", "Earn Merc Dollars", "Sell an output or serve price-sensitive Mercedonian demand."],
+  ["sold", "Earn Merc Dollars", "Mercedonians buy what you make. Siting and appeal decide how many."],
   ["contracted", "Fulfill a trade contract", "Complete a public, commercial or household order from the Contracts Board."],
   ["traveled", "Use Transit Hall", "Fast-travel to another economic district in the connected world."],
 ] as const;

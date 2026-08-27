@@ -684,9 +684,9 @@ const STEP_ACTION: Record<string, { tab: string; label: string; hint: string }> 
   leased:     { tab: "shop",  label: "Pick a plot",  hint: "Choose a glowing plot, then sign the lease." },
   licensed:   { tab: "shop",  label: "Choose a trade", hint: "Pick what your business will make." },
   built:      { tab: "shop",  label: "Build it",     hint: "Put your building on the plot." },
-  produced:   { tab: "shop",  label: "Start a job",  hint: "Buy what the recipe needs, then run it." },
+  produced:   { tab: "shop",  label: "See the floor", hint: "Watch a cycle run. You do not start it." },
   upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building." },
-  sold:       { tab: "trade", label: "Sell",         hint: "Sell what you made, or serve customers." },
+  sold:       { tab: "trade", label: "See who buys", hint: "Mercedonians buy what you make." },
   contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most." },
   traveled:   { tab: "world", label: "Use Transit Hall", hint: "Fast-travel to another district." },
 };
@@ -848,7 +848,11 @@ function formatWait(ms: number): string {
 
 function jobMarkup(): string {
   const state = store.state;
-  if (!state.job || !state.license) return `<button class="operation-cta" data-action="start-job">Start production job</button>`;
+  // Nothing to press. The line runs itself — see the note on Operations in state.ts.
+  if (!state.job || !state.license) {
+    return `<div class="operation-idle"><strong>The line is between cycles</strong>
+      <small>Your workers start the next one on their own. Nothing here needs pressing.</small></div>`;
+  }
   const remaining = Math.max(0, state.job.completeAt - Date.now());
   const total = Math.max(1, state.job.completeAt - state.job.startedAt);
   const progress = Math.min(100, Math.round((1 - remaining / total) * 100));
@@ -1151,7 +1155,7 @@ function renderMarket(): void {
         const resource = RESOURCES[key];
         const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
         const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
-        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><button class="sell" data-action="sell" data-resource="${key}">Sell 1</button></div></div>`;
+        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><span class="market-auto" title="Mercedonians and the trades below you buy this as they need it">bought by demand</span></div></div>`;
       }).join("")}
       ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
     </div>

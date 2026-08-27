@@ -203,31 +203,52 @@ describe("the shape of the economy", () => {
     }
   });
 
-  it("rewards showing up more than leaving it alone", () => {
-    // The game's whole pitch is idle AND active. Active must actually be better.
+  it("rewards a maker who invests over one who lets it pile up", () => {
+    // The game no longer has a sell button, so "turning up" cannot mean clicking one.
+    // A business buys its own inputs, runs its own cycles, and its goods are bought by
+    // Mercedonians and by the trades below it. What a player still decides is what to
+    // IMPROVE — so that is what this has to measure.
     const rows: string[] = [];
     for (const licence of TRADES) {
-      const idle = open(licence);
-      const active = open(licence);
+      const neglected = open(licence);
+      const invested = open(licence);
       for (let day = 1; day <= 30; day += 1) {
-        // Both live the same day. Idle simply never visits.
         advanceOneDay();
-        idle.catchUp();
-        active.catchUp();
-        if (active.state.brokenDown) active.repairBreakdown();
-        if (active.state.suppliesCut) active.restoreSupply();
-        for (const key of Object.keys(active.state.inventory) as ResourceKey[]) {
-          const amount = Math.min(active.state.inventory[key], active.procurementRemaining(key));
-          if (amount > 0) active.sellResource(key, amount);
+        neglected.catchUp();
+        invested.catchUp();
+        if (invested.state.brokenDown) invested.repairBreakdown();
+        if (invested.state.suppliesCut) invested.restoreSupply();
+        // Reinvest like an operator, not a spendthrift: ONE improvement at a time, and
+        // only out of money the business can clearly spare. Buying all four every day and
+        // paying any price for the materials is not investing, it is bleeding — measured
+        // at a greenhouse ending on 632 against 4,133 for doing nothing at all.
+        const key = (["yield", "appeal", "capacity", "speed"] as UpgradeKey[])
+          .find((k) => UPGRADE_COSTS[invested.state.upgrades[k] + 1] && !invested.upgradeOutlook(k));
+        if (key) {
+          const cost = UPGRADE_COSTS[invested.state.upgrades[key] + 1]!;
+          const bill = Object.entries(cost.resources).reduce((total, [item, need]) => {
+            const short = (need as number) - invested.state.inventory[item as ResourceKey];
+            return total + Math.max(0, short) * invested.marketBuyPrice(item as ResourceKey);
+          }, cost.mercDollars);
+          // Keep a fortnight of overheads in hand before improving anything.
+          if (invested.state.wallet - bill > invested.dailyOverhead() * 14) {
+            for (const [item, need] of Object.entries(cost.resources) as Array<[ResourceKey, number]>) {
+              const short = need - invested.state.inventory[item];
+              if (short > 0) invested.buyResource(item, short);
+            }
+            invested.purchaseUpgrade(key);
+          }
         }
-        takeOrFillAnOrder(active);
       }
-      const ratio = worth(idle) > 0 ? (worth(active) / worth(idle)) : Infinity;
-      rows.push(`  ${licence.padEnd(12)} idle ${String(worth(idle)).padStart(6)}  active ${String(worth(active)).padStart(6)}  ${ratio.toFixed(2)}x`);
-      expect(worth(active), `${licence}: turning up is not worth it`).toBeGreaterThan(worth(idle));
+      const ratio = worth(neglected) > 0 ? worth(invested) / worth(neglected) : Infinity;
+      rows.push(`  ${licence.padEnd(12)} neglected ${String(worth(neglected)).padStart(7)}`
+        + `  invested ${String(worth(invested)).padStart(7)}  ${ratio.toFixed(2)}x`);
+      expect(worth(invested), `${licence}: investing must beat leaving it alone`)
+        .toBeGreaterThan(worth(neglected));
     }
-    console.log("ACTIVE vs IDLE OVER A MONTH\n" + rows.join("\n"));
+    console.log("INVESTED vs NEGLECTED OVER A MONTH\n" + rows.join("\n"));
   });
+
 });
 
 

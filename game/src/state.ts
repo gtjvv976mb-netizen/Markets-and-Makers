@@ -28,6 +28,17 @@ export interface ContractOffer {
 export interface DailyProgress { date: string; jobs: number; contracts: number; trades: number; visits: number; claimed: boolean; }
 export interface EpochProgress { id: number; contribution: number; claimed: boolean; }
 export interface DistrictEvent { islandId: string; resource: ResourceKey; multiplier: number; reason: string; endsAt: number; }
+/**
+ * Operations.
+ *
+ * These are no longer choices. A business runs itself: it buys what the recipe needs,
+ * works its cycle, and its goods are bought by Mercedonians and by the trades below it in
+ * the chain. A player decides WHAT to build, WHERE, and what to improve — not when to
+ * press a button.
+ *
+ * The flags survive because the catch-up engine reads them and because a saved game may
+ * carry them, but nothing can turn them off any more.
+ */
 export interface Operations { autoProduce: boolean; autoBuy: boolean; autoSell: boolean; }
 
 /**
@@ -297,9 +308,10 @@ export function loadState(): GameState {
         ? { id: epochId(), contribution: finite(saved.epoch.contribution, 0), claimed: Boolean(saved.epoch.claimed) }
         : { id: epochId(), contribution: 0, claimed: false },
       operations: {
-        autoProduce: saved.operations?.autoProduce !== false,
-        autoBuy: saved.operations?.autoBuy !== false,
-        autoSell: saved.operations?.autoSell !== false,
+        // Always on. A save from before the line ran itself must not arrive switched off.
+        autoProduce: true,
+        autoBuy: true,
+        autoSell: true,
       },
       lastTickAt: finite(saved.lastTickAt, Date.now()),
       brokenDown: Boolean(saved.brokenDown),

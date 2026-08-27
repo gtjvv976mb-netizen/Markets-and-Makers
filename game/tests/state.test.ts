@@ -214,7 +214,13 @@ describe("Markets & Makers economy", () => {
   it("raises a resource price when civic supply is used and lowers it when output is sold", () => {
     const store = new GameStore(createFreshState());
     const opening = store.marketBuyPrice("ore");
-    expect(store.buyResource("ore", 20).ok).toBe(true);
+    // Sized against the market rather than a fixed number. Price impact scales with how
+    // much of the district's daily appetite a trade represents, so "twenty" stopped being
+    // a meaningful purchase the moment recipes were re-timed and got bigger — the price
+    // still moved, just not far enough to cross an integer.
+    const meaningful = Math.max(20, Math.round(store.dailyQuota("ore") * 0.25));
+    store.state.wallet = 500_000;
+    expect(store.buyResource("ore", meaningful).ok).toBe(true);
     expect(store.marketBuyPrice("ore")).toBeGreaterThan(opening);
     store.state.inventory.ore += 30;
     const scarcePrice = store.marketSellPrice("ore");
