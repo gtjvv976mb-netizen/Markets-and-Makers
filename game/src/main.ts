@@ -1,7 +1,7 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
-  worldRunsOnServer, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
+  worldRunsOnServer, fetchCityBooks, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
   cancelMarketListing, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
@@ -456,6 +456,14 @@ window.setInterval(() => { void refreshDistrict(); }, 45_000);
 // rather than only when this player does something.
 void refreshMakerMarket();
 window.setInterval(() => { void refreshMakerMarket(); }, 30_000);
+
+// The city's books. Slow on purpose — the treasury moves every minute, not every frame.
+async function refreshCityBooks(): Promise<void> {
+  cityBooks = await fetchCityBooks();
+  if (infoTab === "city") renderInfo();
+}
+void refreshCityBooks();
+window.setInterval(() => { void refreshCityBooks(); }, 60_000);
 
 // Counter trade lands whenever a Mercedonian reaches the door, which on a busy street
 // is several times a second. The takings are already banked by then; this only decides
@@ -1561,7 +1569,10 @@ const HALT_REASON: Record<string, { tone: string; label: string; why: string }> 
 // district wants, and where the money actually went. Everything here already existed
 // somewhere; it was scattered across panels a beginner had no reason to open.
 
-let infoTab: "you" | "business" | "chain" | "district" | "ledger" = "you";
+let infoTab: "you" | "business" | "chain" | "district" | "city" | "ledger" = "you";
+
+/** The city's books, refreshed on a slow timer. Public data; no session needed. */
+let cityBooks: Awaited<ReturnType<typeof fetchCityBooks>> = { books: null, policy: null };
 
 /** "3m 20s" — the same shape the store uses when it tells you how long the fitters need. */
 function formatDuration(seconds: number): string {
@@ -1638,6 +1649,75 @@ function renderChain(): string {
     <div class="chain-goods">${(Object.keys(RESOURCES) as ResourceKey[]).map(goodRow).join("")}</div>`;
 }
 
+
+/**
+ * THE TREASURY — the city's books, and the government's reasoning.
+ *
+ * This is the engine of the entire economy: the treasury pays wages every minute, those
+ * wages become household purses, and those purses are every shop's customers. It was a
+ * number in three stat grids, so a player could not tell whether the thing their income
+ * ultimately depends on was healthy, what it was spending, or what the AI running it had
+ * decided to do lately.
+ *
+ * Everything here is measured off the live authority, including the runway — how long the
+ * treasury lasts at today's wage bill — which is the one figure that says whether any of
+ * this is sustainable.
+ */
+function renderCity(): string {
+  const { books, policy } = cityBooks;
+  if (!books) {
+    return `<div class="empty-state"><i>\u25C8</i><strong>The city's books are not open from here</strong>
+      <p>${isDemo() ? "A demo runs its own private city. Sign in to see the real one." : "The authority could not be reached. The books are public — try again in a moment."}</p></div>`;
+  }
+
+  const supply = books.treasury + books.citizensPurse + books.makersHolding;
+  // At today's wage bill, how long does the treasury last? The number that matters.
+  const runwayDays = books.wagesPaidToday > 0 ? Math.floor(books.treasury / books.wagesPaidToday) : Infinity;
+  const runway = !Number.isFinite(runwayDays) ? "no wages drawn yet"
+    : runwayDays > 3650 ? "over ten years" : `${formatNumber(runwayDays)} days at today's rate`;
+  const measured = new Date(books.measuredAt);
+
+  return `
+    <p class="model-note">Mercedonia's accounts, read from the authority ${measured.toLocaleTimeString()}. The treasury pays every household a civic wage each day; that money becomes the custom in your shop. Nothing here is minted — it only moves.</p>
+
+    <div class="section-title">Where the city's money is</div>
+    <div class="info-grid">
+      ${statTile("Civic treasury", `${formatNumber(books.treasury)} ${CURRENCY_CODE}`, `Runway: ${runway}`)}
+      ${statTile("Household purses", `${formatNumber(books.citizensPurse)} ${CURRENCY_CODE}`, "What your customers can afford")}
+      ${statTile("Makers hold", `${formatNumber(books.makersHolding)} ${CURRENCY_CODE}`, `Across ${formatNumber(books.businesses)} ${books.businesses === 1 ? "business" : "businesses"}`)}
+      ${statTile("Total in circulation", `${formatNumber(supply)} ${CURRENCY_CODE}`, "Moved, never created")}
+    </div>
+
+    <div class="section-title">Today</div>
+    <div class="info-grid">
+      ${statTile("Wages paid", `${formatNumber(books.wagesPaidToday)} ${CURRENCY_CODE}`, "Straight into household purses")}
+      ${statTile("Districts trading", formatNumber(books.districts.length))}
+      ${statTile("Busiest trade", books.busiestTrade ? String(books.busiestTrade) : "Nothing sold yet")}
+      ${statTile("Quietest shelf", books.quietestShelf ? String(books.quietestShelf) : "—", "Nobody has touched it")}
+    </div>
+
+    ${policy ? `
+      <div class="section-title">What the government is set to</div>
+      <p class="model-note">Five dials, and an advisor that may propose new values for them once a week. It moves no money and it cannot widen its own limits — every proposal passes a clamp and a step limit written in code before it reaches the economy${policy.advisorAvailable ? "" : ", and no advisor is configured on this realm"}.</p>
+      <div class="info-table">
+        <div class="info-row head"><span>Dial</span><span>Set to</span><span>Allowed</span><span></span></div>
+        ${policy.dials.map((dial) => `<div class="info-row" title="${escapeMarkup(dial.meaning)}">
+          <span>${escapeMarkup(dial.key.replace(/([A-Z])/g, " $1").toLowerCase())}</span>
+          <span>${policy.current[dial.key] ?? "—"}</span>
+          <span>${dial.range[0]}–${dial.range[1]}</span><span></span></div>`).join("")}
+      </div>
+
+      <div class="section-title">The advisor's record</div>
+      ${policy.proposals.length === 0
+        ? `<div class="empty-state"><i>\u2696</i><strong>Nothing proposed yet</strong>
+            <p>It declines until the realm has ${policy.requiredHistoryDays} days of recorded history. Asked sooner, it would answer fluently and from nothing.</p></div>`
+        : `<ul class="advisor-log">${policy.proposals.slice(0, 6).map((entry) => `<li class="advisor-${escapeMarkup(entry.status)}">
+            <strong>${escapeMarkup(entry.key)} ${entry.previous} \u2192 ${entry.applied ?? entry.proposed}</strong>
+            <em>${escapeMarkup(entry.status)}</em>
+            <small>${escapeMarkup(entry.rationale)}</small></li>`).join("")}</ul>`}
+    ` : ""}`;
+}
+
 function renderInfo(): void {
   const node = document.querySelector<HTMLElement>("#infoPanel");
   if (!node) return;
@@ -1707,6 +1787,7 @@ function renderInfo(): void {
   }
 
   if (infoTab === "chain") { node.innerHTML = renderChain(); return; }
+  if (infoTab === "city") { node.innerHTML = renderCity(); return; }
 
   if (infoTab === "district") {
     const keys = Object.keys(RESOURCES) as ResourceKey[];

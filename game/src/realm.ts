@@ -285,3 +285,47 @@ export function buyMarketListing(listingId: string): Promise<RealmOutcome<Market
 export function cancelMarketListing(listingId: string): Promise<RealmOutcome<MarketCancelled>> {
   return command<MarketCancelled>("/api/market/cancel", { listingId });
 }
+
+// --- The city's books ------------------------------------------------------------------
+//
+// The treasury was a number in three stat grids. It is the engine of the whole economy —
+// it pays the wages that become every shop's customers — and a player could not see
+// whether it was healthy, what it was spending, or what the AI government had decided to
+// do about it.
+
+export interface CityBooks {
+  treasury: number;
+  citizensPurse: number;
+  makersHolding: number;
+  wagesPaidToday: number;
+  businesses: number;
+  districts: string[];
+  busiestTrade: string | null;
+  quietestShelf: string | null;
+  measuredAt: string;
+}
+
+export interface CityPolicy {
+  advisorAvailable: boolean;
+  requiredHistoryDays: number;
+  current: Record<string, number>;
+  dials: Array<{ key: string; meaning: string; range: [number, number] }>;
+  proposals: Array<{
+    proposedAt: string; key: string; previous: number; proposed: number;
+    applied: number | null; status: string; rationale: string;
+  }>;
+}
+
+/** Public, both of them: the city's accounts are not a secret from the people in it. */
+export async function fetchCityBooks(): Promise<{ books: CityBooks | null; policy: CityPolicy | null }> {
+  const base = serverBase();
+  if (!base || isDemo()) return { books: null, policy: null };
+  const get = async <T,>(path: string): Promise<T | null> => {
+    try {
+      const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(6000) });
+      return response.ok ? await response.json() as T : null;
+    } catch { return null; }
+  };
+  const [books, policy] = await Promise.all([get<CityBooks>("/api/world/economy"), get<CityPolicy>("/api/world/policy")]);
+  return { books, policy };
+}
