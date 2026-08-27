@@ -46,11 +46,19 @@ const CAR_BODY = [0xd9d3c4, 0x9fb4c4, 0xc98c5f, 0x8fa9a2, 0xb46e63, 0xe0c07a] as
 
 export interface BuiltStreets {
   group: THREE.Group;
-  update: (delta: number) => void;
+  update: (delta: number, hailedFrom?: { x: number; z: number }) => void;
   /** Static footprints — lamps, benches, planters — for the obstacle field. */
   furniture: Blocker[];
   /** Live footprints of the traffic, read fresh because the cars are moving. */
   carBlockers: () => Blocker[];
+  /**
+   * Where every cab is right now.
+   *
+   * The traffic was scenery that also happened to block the pavement. These are the
+   * city's taxis: a player walks up to one and hails it, which is a great deal more of a
+   * city than a button reading "ride to bank".
+   */
+  carPositions: () => Array<{ id: number; x: number; y: number; z: number }>;
   carCount: number;
   lampCount: number;
   shrubCount: number;
@@ -315,6 +323,7 @@ export function buildStreets(
     update: traffic.update,
     furniture: furnitureSolids,
     carBlockers: traffic.blockers,
+    carPositions: traffic.positions,
     carCount: traffic.count,
     lampCount: lamps.length,
     shrubCount: shrubs.length,
@@ -403,7 +412,10 @@ function buildTraffic(
   sampleGround: SampleGround,
   shadows: boolean,
   fleetSize: number,
-): { group: THREE.Group; update: (delta: number) => void; blockers: () => Blocker[]; count: number } {
+): {
+  group: THREE.Group; update: (delta: number, hailedFrom?: { x: number; z: number }) => void; blockers: () => Blocker[];
+  positions: () => Array<{ id: number; x: number; y: number; z: number }>; count: number;
+} {
   const group = new THREE.Group();
   group.name = "MM_STREET_TRAFFIC";
   const tile = net.tileSize;
@@ -472,9 +484,25 @@ function buildTraffic(
   // Often enough that the city feels driven, rarely enough that a car still follows a
   // road for a while rather than jittering at every crossing.
   const TURN_CHANCE = 0.4;
+  /** How close a person has to be before a cab pulls over for them. */
+  const TAXI_STOP_RANGE = 7;
 
-  const update = (delta: number): void => {
+  /**
+   * Drive the traffic, and pull over for anyone standing at the kerb.
+   *
+   * A cab you cannot catch is not a taxi service. The cars move continuously, so a player
+   * walking toward one found the hail prompt flickering on and off as it drove away —
+   * measured while testing the fare board, which opened only because the test put the
+   * player beside a car faster than the car could leave. A cab slows as somebody
+   * approaches and stops for them, which is both what happens and what makes the
+   * interaction reliable.
+   */
+  const update = (delta: number, hailedFrom?: { x: number; z: number }): void => {
     for (const car of cars) {
+      if (hailedFrom) {
+        const gap = Math.hypot(car.mesh.position.x - hailedFrom.x, car.mesh.position.z - hailedFrom.z);
+        if (gap < TAXI_STOP_RANGE) continue;         // pulled over, waiting
+      }
       const previous = car.along;
       car.along += car.speed * delta * car.direction;
 
@@ -527,7 +555,12 @@ function buildTraffic(
     };
   });
 
-  return { group, update, blockers, count: cars.length };
+  /** Where each cab is right now, so a player can walk up to one and hail it. */
+  const positions = () => cars.map((car, index) => ({
+    id: index, x: car.mesh.position.x, y: car.mesh.position.y, z: car.mesh.position.z,
+  }));
+
+  return { group, update, blockers, positions, count: cars.length };
 }
 
 /** A small solar runabout, in the same blocky language as everything else. */

@@ -2486,3 +2486,14 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .advisor-clamped em { color: #9a6a1a; }
 .advisor-rejected, .advisor-unknown-key { border-left: 3px solid #b0503a; }
 .advisor-rejected em, .advisor-unknown-key em { color: #a04532; }
+
+/* Hailing a cab. The fare sits on the right of each stop because that is the number a
+   person actually decides on. */
+.taxi-prompt { border-color: rgba(78,174,183,.5); }
+.taxi-prompt kbd { border-color: rgba(78,174,183,.55); background: rgba(78,174,183,.18); color: #7fd6dd; }
+#taxiPanel .counter-services button { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+#taxiPanel .counter-services small { grid-column: 1; }
+.taxi-fare { grid-row: 1 / span 2; align-self: center; color: #f4d77b; font-size: 13px;
+  font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#taxiPanel .counter-services button:disabled { opacity: .45; cursor: not-allowed; }
+#taxiPanel .counter-services button:disabled .taxi-fare { color: #f0a08c; }

@@ -1597,6 +1597,11 @@ export class World3D {
 
   get peerCount(): number { return this.peers.size; }
 
+  /** Every cab on the street, for a player looking to flag one down. */
+  taxiPositions(): Array<{ id: number; x: number; y: number; z: number }> {
+    return this.streets?.carPositions() ?? [];
+  }
+
   /**
    * Where the other makers are, for labelling them in the world.
    *
@@ -2274,7 +2279,8 @@ export class World3D {
       const movementSpeed = this.updateMovement(delta, state);
       this.updateAvatarAnimations(delta, movementSpeed);
       this.updateCitizens(delta, this.clock.elapsedTime, state);
-      this.streets?.update(delta);
+      // Cabs pull over for whoever is standing at the kerb.
+      this.streets?.update(delta, this.avatar.position);
       this.updatePeers(delta, this.clock.elapsedTime);
       this.updateWorldMotion(this.clock.elapsedTime, movementSpeed > 0.05);
       this.updateCamera(delta);

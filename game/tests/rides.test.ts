@@ -75,3 +75,38 @@ describe("hailing a ride", () => {
     expect(store.state.wallet).toBe(before);
   });
 });
+
+describe("the fare board", () => {
+  it("only offers places worth paying to reach", () => {
+    // Standing at a door, the fare falls to the minimum — and paying to travel nowhere is
+    // how a service loses a player's trust. Those stops are left off the board.
+    const store = new GameStore(createFreshState());
+    const bank = CIVIC_BUILDINGS.find((b) => b.id === "treasury")!;
+    store.state.player = { x: bank.x, z: bank.z };
+    expect(store.rideFare("treasury")).toBe(RIDE_MINIMUM_FARE);
+
+    const worthwhile = CIVIC_BUILDINGS
+      .filter((site) => site.island === store.state.island)
+      .map((site) => ({ id: site.id, fare: store.rideFare(site.id) }))
+      .filter((entry) => entry.fare > RIDE_MINIMUM_FARE);
+    expect(worthwhile.some((entry) => entry.id === "treasury"),
+      "the place you are standing must not be on the board").toBe(false);
+    expect(worthwhile.length, "but somewhere else should be").toBeGreaterThan(0);
+  });
+
+  it("prices every stop by how far it actually is", () => {
+    const store = new GameStore(createFreshState());
+    store.state.player = { x: 0, z: 0 };
+    const fares = CIVIC_BUILDINGS
+      .filter((site) => site.island === store.state.island)
+      .map((site) => ({
+        id: site.id,
+        fare: store.rideFare(site.id),
+        metres: Math.hypot(site.x, site.z),
+      }));
+    // Sorting by fare must give the same order as sorting by distance.
+    const byFare = [...fares].sort((a, b) => a.fare - b.fare).map((entry) => entry.id);
+    const byDistance = [...fares].sort((a, b) => a.metres - b.metres).map((entry) => entry.id);
+    expect(byFare, "the cheapest ride must also be the shortest").toEqual(byDistance);
+  });
+});

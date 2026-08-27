@@ -2030,14 +2030,8 @@ function renderQuickBar(): void {
       <i aria-hidden="true">$</i><span><small>Convert</small><strong>100 $MM → ${formatNumber(store.mercDollarsForMM(100))}</strong></span></button>`);
   }
 
-  // Ride to the bank, for the player who has walked it enough times.
-  const fare = store.rideFare("treasury");
-  const atBank = fare > 0 && fare <= RIDE_MINIMUM_FARE;
-  if (fare > 0 && !atBank && state.island === "hearth") {
-    chips.push(`<button data-action="ride" data-to="treasury" ${state.wallet < fare ? "disabled" : ""}
-      title="A ride to Sunvault Treasury. Walking there is free.">
-      <i aria-hidden="true">▸</i><span><small>Ride to bank</small><strong>${fare} ${CURRENCY_CODE}</strong></span></button>`);
-  }
+  // No ride button here any more. A cab is something you walk up to and hail — putting it
+  // on a toolbar moved the player across the map without their ever being anywhere.
 
   // Sell what is on the shelf, if the district still wants any of it.
   const sellable = (Object.keys(RESOURCES) as ResourceKey[])
@@ -2246,11 +2240,86 @@ window.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement | null;
   if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
   const near = nearbyCounter();
-  if (!near && counterOpenFor === null) return;
+  if (near || counterOpenFor !== null) {
+    event.preventDefault();
+    counterOpenFor = counterOpenFor ? null : near?.id ?? null;
+    renderCounterPrompt();
+    return;
+  }
+  // No counter here — is there a cab?
+  const cab = nearbyTaxi();
+  if (!cab && hailedTaxi === null) return;
   event.preventDefault();
-  counterOpenFor = counterOpenFor ? null : near?.id ?? null;
-  renderCounterPrompt();
+  hailedTaxi = hailedTaxi === null ? cab?.id ?? null : null;
+  renderTaxi();
 });
+
+
+// --- Hailing a cab ---------------------------------------------------------------------
+//
+// The traffic was scenery that also blocked the pavement. These are the city's taxis now:
+// walk up to one, press E, pick where you are going, pay the fare. A button reading "ride
+// to bank" moved a player across the map without their ever being anywhere — this makes
+// the fare something you go and do, and it puts the cars in the world to work.
+//
+// The fare still goes to the treasury, which is what makes it a sink rather than a
+// convenience: the money leaves circulation and funds the civic wage.
+
+const TAXI_RANGE = 6;
+let hailedTaxi: number | null = null;
+
+/** The nearest cab close enough to flag down. */
+function nearbyTaxi(): { id: number; distance: number } | null {
+  const { x, z } = store.state.player;
+  let best: { id: number; distance: number } | null = null;
+  for (const car of world.taxiPositions()) {
+    const distance = Math.hypot(car.x - x, car.z - z);
+    if (distance > TAXI_RANGE) continue;
+    if (!best || distance < best.distance) best = { id: car.id, distance };
+  }
+  return best;
+}
+
+/** Everywhere a cab will take you from here, and what it costs. */
+function taxiDestinations(): Array<{ id: string; name: string; role: string; fare: number }> {
+  return CIVIC_BUILDINGS
+    .filter((site) => site.island === store.state.island)
+    .map((site) => ({ id: site.id, name: site.name, role: site.role, fare: store.rideFare(site.id) }))
+    .filter((entry) => entry.fare > RIDE_MINIMUM_FARE)   // already there: walk
+    .sort((a, b) => a.fare - b.fare);
+}
+
+function renderTaxi(): void {
+  const prompt = document.querySelector<HTMLElement>("#taxiPrompt");
+  const panel = document.querySelector<HTMLElement>("#taxiPanel");
+  if (!prompt || !panel) return;
+  const near = nearbyTaxi();
+
+  // Cabs drive off. If yours has, the fare board goes with it.
+  if (hailedTaxi !== null && (!near || near.id !== hailedTaxi)) hailedTaxi = null;
+
+  prompt.hidden = !near || hailedTaxi !== null;
+  if (near && hailedTaxi === null) {
+    prompt.innerHTML = `<kbd>E</kbd><span><strong>Hail this cab</strong><small>Fares are paid to the city</small></span>`;
+  }
+
+  panel.hidden = hailedTaxi === null;
+  if (hailedTaxi === null) return;
+  const stops = taxiDestinations();
+  panel.innerHTML = `
+    <div class="counter-head" style="--counter-color:#4eaeb7">
+      <i aria-hidden="true">▸</i>
+      <span><strong>Where to?</strong><small>Walking is free. This is not.</small></span>
+      <button class="counter-close" data-action="taxi-close" aria-label="Wave the cab on">✕</button>
+    </div>
+    ${stops.length === 0
+      ? `<div class="empty-state"><i>▸</i><strong>Everything is within a short walk</strong><p>No fare worth paying from here.</p></div>`
+      : `<ul class="counter-services">${stops.map((stop) => `<li><button data-action="taxi-go" data-to="${escapeMarkup(stop.id)}"
+          ${store.state.wallet < stop.fare ? "disabled" : ""}>
+          <strong>${escapeMarkup(stop.name)}</strong>
+          <small>${escapeMarkup(stop.role)}</small>
+          <b class="taxi-fare">${stop.fare} ${CURRENCY_CODE}</b></button></li>`).join("")}</ul>`}`;
+}
 
 function renderAll(): void {
   renderHeader();
@@ -2259,6 +2328,7 @@ function renderAll(): void {
   renderBusinessPanel();
   renderWorldStrip();
   renderCounterPrompt();
+  renderTaxi();
   renderOnlinePill();
   renderTutorial();
   renderSelectedPlot();
@@ -2519,6 +2589,12 @@ document.body.addEventListener("click", (event) => {
     if (active && store.state.inventory[active.resource] >= active.quantity) report(store.fulfillContract());
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
     else switchTab("trade");
+  }
+  else if (action === "taxi-close") { hailedTaxi = null; renderTaxi(); }
+  else if (action === "taxi-go") {
+    const result = store.rideTo(button.dataset.to ?? "treasury");
+    report(result);
+    if (result.ok) { hailedTaxi = null; world.teleportToState(store.state); renderAll(); }
   }
   else if (action === "counter-close") { counterOpenFor = null; renderCounterPrompt(); }
   else if (action === "ride") report(store.rideTo(button.dataset.to ?? "treasury"));
