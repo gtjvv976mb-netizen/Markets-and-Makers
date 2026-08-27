@@ -1695,7 +1695,8 @@ function renderCity(): string {
 
     <div class="section-title">Today</div>
     <div class="info-grid">
-      ${statTile("Wages paid", `${formatNumber(books.wagesPaidToday)} ${CURRENCY_CODE}`, "Straight into household purses")}
+      ${statTile("Civic wage", `${formatNumber(books.payrollToday ?? 0)} ${CURRENCY_CODE}`, "Paid to every household")}
+      ${statTile("Civic works", `${formatNumber(books.worksSpendToday ?? 0)} ${CURRENCY_CODE}`, "Wages for making water, power, ore and timber")}
       ${statTile("Districts trading", formatNumber(books.districts.length))}
       ${statTile("Busiest trade", books.busiestTrade ? String(books.busiestTrade) : "Nothing sold yet")}
       ${statTile("Quietest shelf", books.quietestShelf ? String(books.quietestShelf) : "—", "Nobody has touched it")}

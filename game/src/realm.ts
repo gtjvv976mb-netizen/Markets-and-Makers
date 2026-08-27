@@ -298,6 +298,8 @@ export interface CityBooks {
   citizensPurse: number;
   makersHolding: number;
   wagesPaidToday: number;
+  payrollToday: number;
+  worksSpendToday: number;
   businesses: number;
   districts: string[];
   busiestTrade: string | null;

@@ -40,7 +40,12 @@ export interface EconomySnapshot {
   treasury: number;
   citizensPurse: number;
   makersHolding: number;
+  /** Payroll and works together: the whole civic injection into household purses. */
   wagesPaidToday: number;
+  /** The wage proper. Split out because the two are not interchangeable — a payroll of
+   *  77 beside works of 28,000 reads as a healthy day only while they are added up. */
+  payrollToday: number;
+  worksSpendToday: number;
   worksOutput: Record<string, number>;
   soldToday: number;
   grossToday: number;
@@ -60,7 +65,8 @@ export interface Dispatch {
 export async function readEconomy(): Promise<EconomySnapshot> {
   const empty: EconomySnapshot = {
     businesses: 0, districts: [], treasury: 0, citizensPurse: 0, makersHolding: 0,
-    wagesPaidToday: 0, worksOutput: {}, soldToday: 0, grossToday: 0,
+    wagesPaidToday: 0, payrollToday: 0, worksSpendToday: 0,
+    worksOutput: {}, soldToday: 0, grossToday: 0,
     busiestTrade: null, quietestShelf: null,
   };
   if (!pool) return empty;
@@ -97,8 +103,14 @@ export async function readEconomy(): Promise<EconomySnapshot> {
   }
 
   for (const row of wages.rows) {
-    if (row.reason === "government.payroll") snapshot.wagesPaidToday += Number(row.total);
-    if (row.reason === "government.works") snapshot.wagesPaidToday += Number(row.total);
+    if (row.reason === "government.payroll") {
+      snapshot.payrollToday += Number(row.total);
+      snapshot.wagesPaidToday += Number(row.total);
+    }
+    if (row.reason === "government.works") {
+      snapshot.worksSpendToday += Number(row.total);
+      snapshot.wagesPaidToday += Number(row.total);
+    }
     if (row.reason === "tick.counter") snapshot.grossToday += Number(row.total);
   }
 
