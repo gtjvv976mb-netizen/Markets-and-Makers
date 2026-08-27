@@ -14,7 +14,7 @@ import { dispatchAvailable, readEconomy, recentDispatches, writeDispatch } from 
 import { advisorAvailable, consultAdvisor, recentProposals, REQUIRED_HISTORY } from "./advisor.js";
 import { DIALS, readPolicy, resetPolicy } from "./policy.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
-import { epochStanding, islandBoard, EconomyError } from "./economy.js";
+import { claimEpoch, epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
 import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, REALM_NAME } from "./catalogue.js";
@@ -206,6 +206,19 @@ const server = createServer(async (req, res) => {
         if (error instanceof EconomyError) { json(res, 409, { error: error.code, message: error.message }); return; }
         throw error;
       }
+      return;
+    }
+
+    // Claiming the epoch. The body carries an idempotency key and nothing else: the
+    // amount is computed here from the ledger, because a client that can name its own
+    // payout is not a client, it is a mint.
+    if (req.method === "POST" && url.pathname === "/api/economy/claim") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const payload = (await body(req, 2_000)) as { idempotencyKey?: unknown } | null;
+      const key = typeof payload?.idempotencyKey === "string" ? payload.idempotencyKey : null;
+      if (!key) { json(res, 400, { error: "idempotencyKey required" }); return; }
+      json(res, 200, await claimEpoch(REALM_ID, who.playerId, key));
       return;
     }
 

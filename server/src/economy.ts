@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
+import { command } from "./market.js";
 import {
   CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, DEMAND_PRICE_FLOOR, DEMAND_TIER_WEIGHT, DEMAND_TRANCHE_DECAY,
   DISTRICT_TRADER_BASELINE, EPOCH_EMISSION_RATE, EPOCH_MM_FLOOR, REWARDS_POOL_MM, MEAN_REVERSION_CAP, MEAN_REVERSION_PER_MINUTE, MIN_EPOCH_PAYOUT,
@@ -11,6 +12,9 @@ import { TRADES } from "./trades.js";
 export class EconomyError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
+
+/** Anything that can run a query: the pool, or a client already inside a transaction. */
+type Queryable = { query: NonNullable<typeof pool>["query"] };
 
 function db(): NonNullable<typeof pool> {
   if (!pool) throw new EconomyError("no-database", "The shared economy requires a database.");
@@ -286,6 +290,22 @@ export async function recordPurchase(input: PurchaseInput): Promise<{ cost: numb
 export interface EpochStanding {
   epochId: number; mine: number; cohort: number; total: number;
   share: number; projected: number; budget: number; contributors: number;
+  /** Already paid for THIS epoch. Non-zero means the claim is spent. */
+  claimed: number;
+  /** Every $MM this player has ever been paid, across all epochs. The authority's
+   *  figure for what the client calls lifetimeMMEarned. */
+  lifetime: number;
+}
+
+export interface EpochClaim {
+  epochId: number;
+  paid: number;
+  /** What the share was worth before the budget or the pool trimmed it. */
+  owed: number;
+  /** True when this key had already been honoured — the same payment, reported again. */
+  replayed: boolean;
+  reason: "paid" | "already-claimed" | "no-contribution" | "budget-exhausted" | "pool-exhausted";
+  lifetime: number;
 }
 
 /**
@@ -294,19 +314,28 @@ export interface EpochStanding {
  */
 export async function epochStanding(realmId: string, playerId: string, at = Date.now()): Promise<EpochStanding> {
   const epochId = epochIdFor(at);
-  const totals = await db().query<{ total: string; contributors: string; mine: string }>(
+  const totals = await db().query<{ total: string; contributors: string; mine: string; claimed: string }>(
     `select coalesce(sum(contribution),0) as total,
             count(*) filter (where contribution > 0) as contributors,
-            coalesce(sum(contribution) filter (where player_id = $3), 0) as mine
+            coalesce(sum(contribution) filter (where player_id = $3), 0) as mine,
+            coalesce(sum(claimed_units) filter (where player_id = $3), 0) as claimed
        from contribution_epoch where realm_id = $1 and epoch_id = $2`,
     [realmId, epochId, playerId]);
+  const earned = await db().query<{ lifetime: string }>(
+    `select coalesce(sum(claimed_units),0) as lifetime
+       from contribution_epoch where realm_id = $1 and player_id = $2`, [realmId, playerId]);
   const row = totals.rows[0]!;
   const total = Number(row.total);
   const mine = Number(row.mine);
   const budget = await epochBudget(realmId, epochId);
   const share = total > 0 ? mine / total : 0;
   const projected = mine <= 0 ? 0 : Math.max(MIN_EPOCH_PAYOUT, Math.floor(budget * share));
-  return { epochId, mine, cohort: total - mine, total, share, projected, budget, contributors: Number(row.contributors) };
+  return {
+    epochId, mine, cohort: total - mine, total, share, projected, budget,
+    contributors: Number(row.contributors),
+    claimed: Number(row.claimed),
+    lifetime: Number(earned.rows[0]?.lifetime ?? 0),
+  };
 }
 
 /**
@@ -317,12 +346,24 @@ export async function epochStanding(realmId: string, playerId: string, at = Date
  * reward pool by the peg ratio, and applying RESERVE_FUNDING_RATE here as well as at the
  * call site applied it twice.
  */
-export async function epochBudget(realmId: string, epochId: number): Promise<number> {
-  const funded = await db().query<{ amount: string }>(
+/**
+ * This epoch's pot.
+ *
+ * `on` MUST be the caller's transaction client when this is called from inside one. It
+ * used to reach for the pool unconditionally, which meant a claim already holding a
+ * connection needed a second one to compute its own budget — so ten concurrent claims
+ * took all ten connections and then waited forever for an eleventh. That is a deadlock
+ * under exactly the load a payout day produces, and it only surfaced because the
+ * concurrency test ran against a real database.
+ */
+export async function epochBudget(
+  realmId: string, epochId: number, on: Queryable = db(),
+): Promise<number> {
+  const funded = await on.query<{ amount: string }>(
     `select coalesce(sum(amount),0) as amount from reserve_funding where realm_id = $1 and epoch_id = $2`,
     [realmId, epochId - 1]);
   const mercDollars = Number(funded.rows[0]?.amount ?? 0);
-  const drawn = await db().query<{ total: string }>(
+  const drawn = await on.query<{ total: string }>(
     `select coalesce(sum(claimed_units),0) as total from contribution_epoch where realm_id = $1`, [realmId]);
   const remaining = Math.max(0, REWARDS_POOL_MM - Number(drawn.rows[0]?.total ?? 0));
   const endowment = Math.max(Math.min(EPOCH_MM_FLOOR, remaining), Math.floor(remaining * EPOCH_EMISSION_RATE));
@@ -339,4 +380,91 @@ export async function fundReserve(realmId: string, mercDollarAmount: number, sou
   await db().query(
     `insert into reserve_funding (realm_id, epoch_id, amount, source) values ($1,$2,$3,$4)`,
     [realmId, epochIdFor(at), contribution, source]);
+}
+
+/**
+ * Pay a maker their share of the epoch, once.
+ *
+ * This is the first place $MM is created for a player by the authority rather than by
+ * their own browser, so every way it could pay twice is closed deliberately:
+ *
+ * - **Replay** is handled by `command()`: a repeated idempotency key returns the first
+ *   response verbatim and moves nothing.
+ * - **A second claim under a NEW key** is stopped by `claimed_at`, read under
+ *   `FOR UPDATE`. Two tabs racing take the row lock in turn; the loser sees the winner's
+ *   timestamp and is told the epoch is spent.
+ * - **The budget** is checked against what every OTHER maker has already drawn this
+ *   epoch, inside a realm-wide advisory lock. Without that lock two players claiming
+ *   simultaneously would each read a budget the other was about to spend, and the epoch
+ *   would overpay by design under exactly the load that matters.
+ * - **The pool** is the last bound. REWARDS_POOL_MM is the lifetime cap across every
+ *   epoch, and `epochBudget` already reads the same `claimed_units` this writes, so
+ *   emission cannot be inflated by adding epochs.
+ *
+ * Nothing here trusts a number from the client. The amount is computed from the ledger at
+ * claim time; the request carries only an idempotency key.
+ */
+export async function claimEpoch(
+  realmId: string, playerId: string, idempotencyKey: string, at = Date.now(),
+): Promise<EpochClaim> {
+  const epochId = epochIdFor(at);
+
+  return command(idempotencyKey, "epoch.claim", playerId, async (client) => {
+    // Serialise every claim in this realm-epoch. Advisory locks are transaction-scoped, so
+    // this releases on commit or rollback without a cleanup path.
+    await client.query("select pg_advisory_xact_lock(hashtext($1))", [`${realmId}:${epochId}:claim`]);
+
+    const mine = await client.query<{ contribution: string; claimed_units: string; claimed_at: Date | null }>(
+      `select contribution, claimed_units, claimed_at from contribution_epoch
+        where realm_id=$1 and epoch_id=$2 and player_id=$3 for update`,
+      [realmId, epochId, playerId]);
+
+    const lifetimeOf = async (): Promise<number> => {
+      const row = await client.query<{ lifetime: string }>(
+        `select coalesce(sum(claimed_units),0) as lifetime
+           from contribution_epoch where realm_id=$1 and player_id=$2`, [realmId, playerId]);
+      return Number(row.rows[0]?.lifetime ?? 0);
+    };
+
+    const row = mine.rows[0];
+    if (!row || Number(row.contribution) <= 0) {
+      return { epochId, paid: 0, owed: 0, replayed: false, reason: "no-contribution" as const, lifetime: await lifetimeOf() };
+    }
+    if (row.claimed_at !== null) {
+      return {
+        epochId, paid: 0, owed: 0, replayed: false,
+        reason: "already-claimed" as const, lifetime: await lifetimeOf(),
+      };
+    }
+
+    const totals = await client.query<{ total: string; drawn: string }>(
+      `select coalesce(sum(contribution),0) as total, coalesce(sum(claimed_units),0) as drawn
+         from contribution_epoch where realm_id=$1 and epoch_id=$2`, [realmId, epochId]);
+    const total = Number(totals.rows[0]!.total);
+    const drawnThisEpoch = Number(totals.rows[0]!.drawn);
+
+    const contribution = Number(row.contribution);
+    const share = total > 0 ? contribution / total : 0;
+    const budget = await epochBudget(realmId, epochId, client);
+    const owed = Math.max(MIN_EPOCH_PAYOUT, Math.floor(budget * share));
+
+    // What this epoch has left, and what the pool has left for all time. The smaller wins.
+    const epochRoom = Math.max(0, budget - drawnThisEpoch);
+    const poolDrawn = await client.query<{ total: string }>(
+      `select coalesce(sum(claimed_units),0) as total from contribution_epoch where realm_id=$1`, [realmId]);
+    const poolRoom = Math.max(0, REWARDS_POOL_MM - Number(poolDrawn.rows[0]!.total));
+
+    const paid = Math.min(owed, epochRoom, poolRoom);
+    if (paid <= 0) {
+      const reason: EpochClaim["reason"] = poolRoom <= 0 ? "pool-exhausted" : "budget-exhausted";
+      return { epochId, paid: 0, owed, replayed: false, reason, lifetime: await lifetimeOf() };
+    }
+
+    await client.query(
+      `update contribution_epoch set claimed_units = claimed_units + $4, claimed_at = now()
+        where realm_id=$1 and epoch_id=$2 and player_id=$3`,
+      [realmId, epochId, playerId, paid]);
+
+    return { epochId, paid, owed, replayed: false, reason: "paid" as const, lifetime: await lifetimeOf() };
+  });
 }

@@ -121,3 +121,28 @@ describe("a claim cannot be taken twice", () => {
     expect(store.claimEpochRewards(Date.now(), 15_000).ok).toBe(false);
   });
 });
+
+describe("the authority's lifetime total wins", () => {
+  it("takes the server's lifetime rather than adding to a local one", () => {
+    // A browser that was cleared, or the same wallet played on a second device, has a
+    // local lifetime that never saw those epochs. The authority has seen all of them.
+    const store = earning(500);
+    store.state.lifetimeMMEarned = 0;          // this device has no memory of past epochs
+    store.claimEpochRewards(Date.now(), 1_000, 48_000);
+    expect(store.state.lifetimeMMEarned, "the authority's total, not 0 + 1,000").toBe(48_000);
+  });
+
+  it("falls back to adding locally when no lifetime is supplied", () => {
+    const store = earning(500);
+    store.state.lifetimeMMEarned = 300;
+    store.claimEpochRewards(Date.now(), 1_000);
+    expect(store.state.lifetimeMMEarned).toBe(1_300);
+  });
+
+  it("ignores a negative lifetime rather than erasing the player's record", () => {
+    const store = earning(500);
+    store.state.lifetimeMMEarned = 5_000;
+    store.claimEpochRewards(Date.now(), 1_000, -1);
+    expect(store.state.lifetimeMMEarned).toBe(6_000);
+  });
+});

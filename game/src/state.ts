@@ -1485,7 +1485,7 @@ export class GameStore {
    * which is the worst arrangement of the two — the player reads the true figure and is
    * handed a different one.
    */
-  claimEpochRewards(now = Date.now(), authoritative?: number): ActionResult {
+  claimEpochRewards(now = Date.now(), authoritative?: number, lifetime?: number): ActionResult {
     this.rollCalendar(now);
     if (this.state.epoch.claimed) return this.result(false, "This epoch's distribution is already claimed.");
     if (this.state.epoch.contribution <= 0) return this.result(false, "Fulfil an order or supply the district to earn a contribution share.");
@@ -1500,7 +1500,11 @@ export class GameStore {
     if (units <= 0) return this.result(false, "Your contribution share does not yet round to a whole $MM.");
     this.state.mmReserve -= units;
     this.state.mmHoldings += units;
-    this.state.lifetimeMMEarned += units;
+    // When the authority settled this claim it also reports the player's lifetime total,
+    // which is the figure to trust: a browser that was cleared, or a wallet played on a
+    // second device, has a local total that never saw those epochs.
+    this.state.lifetimeMMEarned = lifetime !== undefined && lifetime >= 0
+      ? lifetime : this.state.lifetimeMMEarned + units;
     this.state.epoch.claimed = true;
     this.addExperience(40);
     this.commit(capped

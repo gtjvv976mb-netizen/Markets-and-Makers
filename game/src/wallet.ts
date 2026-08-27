@@ -3,6 +3,14 @@ import { serverBase } from "./network";
 const TOKEN_KEY = "markets-makers-session";
 
 export interface Principal { playerId: string; walletAddress: string }
+export interface EpochClaimResult {
+  epochId: number;
+  paid: number;
+  owed: number;
+  reason: "paid" | "already-claimed" | "no-contribution" | "budget-exhausted" | "pool-exhausted";
+  lifetime: number;
+}
+
 export interface EpochStanding {
   epochId: number; mine: number; cohort: number; total: number;
   share: number; projected: number; budget: number; contributors: number;
@@ -103,6 +111,33 @@ export async function fetchStanding(): Promise<EpochStanding | null> {
     const response = await fetch(`${base}/api/economy/standing`, { headers: authHeaders(), signal: AbortSignal.timeout(6000) });
     if (!response.ok) return null;
     return await response.json() as EpochStanding;
+  } catch { return null; }
+}
+
+/**
+ * Claim this epoch from the authority.
+ *
+ * The request carries an idempotency key and nothing else — the amount is computed on the
+ * server from the ledger, because a client that can name its own payout is a mint. The key
+ * is generated once per attempt and reused on retry, so a dropped response replays the
+ * same payment rather than making a second one.
+ *
+ * Returns null when the authority cannot be reached, and the caller falls back to the
+ * local estimate. That fallback is still browser-side money; it is marked as an estimate
+ * on the face of the button for exactly that reason.
+ */
+export async function claimEpochOnServer(idempotencyKey: string): Promise<EpochClaimResult | null> {
+  const base = serverBase();
+  const headers = authHeaders();
+  if (!base || !headers) return null;
+  try {
+    const response = await fetch(`${base}/api/economy/claim`, {
+      method: "POST", headers,
+      body: JSON.stringify({ idempotencyKey }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+    return await response.json() as EpochClaimResult;
   } catch { return null; }
 }
 

@@ -9,7 +9,7 @@ import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, 
 import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
-import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal } from "./wallet";
+import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer} from "./wallet";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -1757,6 +1757,35 @@ function renderCity(): string {
  * chip each read the local one, so a maker could be shown 15,000 $MM and offered 659.
  * Everything that names a figure now goes through here.
  */
+/**
+ * Claim the epoch, through the authority when it can be reached.
+ *
+ * The server decides the amount and records it; the client only mirrors what came back.
+ * If the authority is unreachable the local estimate still pays, because refusing to pay
+ * a maker because a fetch failed is worse than paying an approximate figure — but the
+ * button already said "estimate" in that state, so nobody was promised otherwise.
+ */
+async function claimEpoch(): Promise<void> {
+  if (isSynced()) {
+    const settled = await claimEpochOnServer(crypto.randomUUID());
+    if (settled) {
+      if (settled.reason === "paid" && settled.paid > 0) {
+        report(store.claimEpochRewards(Date.now(), settled.paid, settled.lifetime));
+      } else {
+        const why = settled.reason === "already-claimed" ? "This epoch's distribution is already claimed."
+          : settled.reason === "no-contribution" ? "Fulfil an order or supply the district to earn a share."
+          : settled.reason === "pool-exhausted" ? "The rewards pool is fully drawn."
+          : "This epoch's budget is fully drawn.";
+        report({ ok: false, message: why });
+      }
+      standing = await fetchStanding();
+      renderAll();
+      return;
+    }
+  }
+  report(store.claimEpochRewards(Date.now(), epochProjection().units));
+}
+
 function epochProjection(): { units: number; authoritative: boolean } {
   if (standing && standing.projected > 0) return { units: standing.projected, authoritative: true };
   return { units: store.projectedEpochMM(), authoritative: false };
@@ -2617,7 +2646,7 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
-  else if (action === "claim-epoch") report(store.claimEpochRewards(Date.now(), epochProjection().units));
+  else if (action === "claim-epoch") void claimEpoch();
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
