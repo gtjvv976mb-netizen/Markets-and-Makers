@@ -4,6 +4,8 @@ import main from "../src/main.ts?raw";
 import interior from "../src/interiorWorld.ts?raw";
 import styles from "../src/style.css?inline";
 import turntable from "../src/businessTurntable.ts?raw";
+import data from "../src/data.ts?raw";
+import state from "../src/state.ts?raw";
 
 describe("markup contract", () => {
   it("every element() selector main.ts requires actually exists in index.html", () => {
@@ -148,6 +150,10 @@ describe("markup contract", () => {
     expect(html).toContain('id="interiorCanvas"');
     expect(html).toContain('id="interiorPrompt"');
     expect(html).toContain('id="interiorInteract"');
+    expect(html).toContain('id="interiorRoomLabel"');
+    expect(html).toContain('id="interiorObjectiveTitle"');
+    expect(html).toContain('id="interiorObjectiveCopy"');
+    expect(html).toContain('id="interiorSystem"');
     expect(html).toContain('data-interior-move="forward"');
     expect(main).toContain("interiorWorld.enter({");
     expect(main).toContain("store.purchaseUpgrade(key)");
@@ -159,5 +165,30 @@ describe("markup contract", () => {
     expect(interior).toContain("INTERIOR_EQUIPMENT_CATALOG");
     expect(interior).toContain("station.blueprint.visible = level === 0");
     expect(interior).toContain("setMoveInput(direction");
+  });
+
+  it("identifies every rebuilt room as a Mercedonian enterprise with its own living system", () => {
+    expect(html).toContain("Mercedonian enterprise interior");
+    expect(html).toContain('aria-describedby="interiorObjectiveCopy"');
+    expect(main).toContain("INTERIOR_ROOMS[license]");
+    expect(main).toContain("room.displayName");
+    expect(main).toContain("room.description");
+    expect(main).toContain("room.regenerativeSystem");
+    expect(main).toContain('interiorModal.dataset.architecture = room.architecture');
+    expect(main).toContain('interiorModal.style.setProperty("--interior-accent", roomAccent)');
+    expect(main).toContain("your Mercedonian will walk");
+    expect(main).not.toContain("your Maker will walk");
+  });
+
+  it("calls people Mercedonians while preserving the Markets & Makers brand", () => {
+    expect(html).toContain("Markets &amp; Makers");
+    expect(main).toContain('label: "Mercedonian"');
+    expect(main).toContain("Mercedonian market");
+    expect(main).toContain("Demo Mercedonian");
+    expect(main).toContain('total === 1 ? "Mercedonian" : "Mercedonians"');
+    expect(data).toContain('name: "New Mercedonian"');
+    expect(data).toContain("your Mercedonian will head there");
+    expect(state).toContain("Bought from a Mercedonian");
+    expect(main).not.toMatch(/Maker market|Demo Maker|maker · (?:private|local)|Other makers here/);
   });
 });

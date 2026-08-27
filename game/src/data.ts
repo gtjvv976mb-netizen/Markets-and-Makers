@@ -267,7 +267,7 @@ export const SPECIALIZATIONS: Record<SpecializationKey, SpecializationConfig> = 
  * playing several times as much game.
  */
 export const CAREER_LEVELS = [
-  { level: 1, name: "New Maker", xp: 0 },
+  { level: 1, name: "New Mercedonian", xp: 0 },
   { level: 2, name: "Licensed Operator", xp: 80 },
   { level: 3, name: "Local Proprietor", xp: 220 },
   { level: 4, name: "District Supplier", xp: 450 },
@@ -343,7 +343,7 @@ export const MAYOR = {
  */
 export const MAYOR_SCRIPT: Record<string, { says: string; because: string }> = {
   moved: {
-    says: "Walk with me a moment. Click anywhere on the ground and your maker will head there.",
+    says: "Walk with me a moment. Click anywhere on the ground and your Mercedonian will head there.",
     because: "Everything here is within walking distance on purpose. A city works when people can reach each other.",
   },
   leased: {

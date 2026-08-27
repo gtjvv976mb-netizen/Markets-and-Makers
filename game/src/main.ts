@@ -5,7 +5,7 @@ import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusin
   cancelMarketListing, type CityDispatch, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
-import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
+import { INTERIOR_EQUIPMENT_CATALOG, INTERIOR_ROOMS, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
 import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
@@ -232,7 +232,7 @@ document.addEventListener("keydown", (event) => {
  */
 function makerName(playerId: string): string {
   const clean = playerId.replace(/[^A-Za-z0-9]/g, "");
-  if (clean.length <= 8) return clean || "Maker";
+  if (clean.length <= 8) return clean || "Mercedonian";
   return `${clean.slice(0, 4)}…${clean.slice(-4)}`;
 }
 
@@ -247,7 +247,7 @@ function markerModels(): MarkerModel[] {
   for (const peer of world.peerPositions()) {
     models.push({
       id: `peer-${peer.playerId}`, kind: "maker",
-      label: "Maker", title: makerName(peer.playerId), detail: "",
+      label: "Mercedonian", title: makerName(peer.playerId), detail: "",
       x: peer.x, y: peer.y, z: peer.z, building: false,
     });
   }
@@ -1341,8 +1341,8 @@ function renderMakerMarket(): void {
   if (!node) return;
 
   if (!isSynced()) {
-    node.innerHTML = `<h2>Maker market</h2>
-      <div class="empty-state"><i>⇄</i><strong>Sign in to trade with other makers</strong>
+    node.innerHTML = `<h2>Mercedonian market</h2>
+      <div class="empty-state"><i>⇄</i><strong>Sign in to trade with other Mercedonians</strong>
       <p>Link a Solana wallet to buy and sell with everyone else in ${escapeMarkup(districtName())}. The district counter works either way.</p></div>`;
     return;
   }
@@ -1378,8 +1378,8 @@ function renderMakerMarket(): void {
   };
 
   node.innerHTML = `
-    <h2>Maker market</h2>
-    <p class="model-note">Goods other makers are selling in ${escapeMarkup(districtName())}. Each district keeps its own book. A listing holds the goods in escrow until somebody buys them or you withdraw it. The city takes 2% of a sale.</p>
+    <h2>Mercedonian market</h2>
+    <p class="model-note">Goods other Mercedonians are selling in ${escapeMarkup(districtName())}. Each district keeps its own book. A listing holds the goods in escrow until somebody buys them or you withdraw it. The city takes 2% of a sale.</p>
 
     <div class="section-title">On offer${theirs.length ? ` · ${theirs.length}` : ""}</div>
     ${theirs.length
@@ -1389,7 +1389,7 @@ function renderMakerMarket(): void {
     ${mine.length ? `<div class="section-title">Your listings · ${mine.length}</div>
       <ul class="maker-listings">${mine.map((entry) => row(entry, true)).join("")}</ul>` : ""}
 
-    <div class="section-title">Sell to makers</div>
+    <div class="section-title">Sell to Mercedonians</div>
     ${sellable.length ? `
       <div class="maker-sell">
         <div class="maker-chips" role="group" aria-label="Goods you hold">
@@ -1589,9 +1589,19 @@ function renderInterior(): void {
   if (!interiorOpen || !store.state.license) return;
   const license = store.state.license;
   const config = BUSINESS[license];
+  const room = INTERIOR_ROOMS[license];
   const ceiling = store.upgradeCeiling();
   const installed = (Object.keys(UPGRADE_NAMES) as UpgradeKey[]).reduce((total, key) => total + store.state.upgrades[key], 0);
+  const roomAccent = `#${room.accent.toString(16).padStart(6, "0")}`;
+  interiorModal.dataset.license = license;
+  interiorModal.dataset.architecture = room.architecture;
+  interiorModal.style.setProperty("--interior-accent", roomAccent);
+  element("#interiorEyebrow").textContent = `${config.sector} · Mercedonian enterprise`;
   element("#interiorTitle").textContent = config.name;
+  element("#interiorRoomLabel").textContent = room.displayName;
+  element("#interiorObjectiveTitle").textContent = "Explore the production floor";
+  element("#interiorObjectiveCopy").textContent = room.description;
+  element("#interiorSystem").textContent = room.regenerativeSystem;
   element("#interiorLevel").textContent = `Installed modules · ${installed}/${ceiling * 4}`;
   renderInteriorPrompt();
 
@@ -1613,7 +1623,7 @@ function renderInterior(): void {
   const consoleNode = element("#interiorConsole");
   if (!selectedKey) {
     const atExit = interiorSelection?.kind === "exit";
-    consoleNode.innerHTML = `<div id="interiorEquipmentPanel" class="interior-console-empty"><i>${atExit ? "↗" : config.icon}</i><strong>${atExit ? "Ready to leave?" : "Choose what to buy first"}</strong><p>${atExit ? "Use the exit below or choose another equipment station to keep improving this business." : `Every ${escapeMarkup(config.name)} machine is purpose-built. Select one and your Maker will walk to it before purchasing.`}</p>${atExit ? `<button class="interior-buy" data-action="interior-exit">Return to Mercedonia</button>` : ""}${selector}</div>`;
+    consoleNode.innerHTML = `<div id="interiorEquipmentPanel" class="interior-console-empty"><i>${atExit ? "↗" : config.icon}</i><small class="equipment-kicker">${escapeMarkup(room.displayName)}</small><strong>${atExit ? "Ready to leave?" : "Choose what to buy first"}</strong><p>${atExit ? "Use the exit below or choose another equipment station to keep improving this business." : `Every ${escapeMarkup(config.name)} machine is purpose-built for this production floor. Select one and your Mercedonian will walk to it before purchasing.`}</p><div class="interior-system-note"><small>Regenerative system</small><strong>${escapeMarkup(room.regenerativeSystem)}</strong></div>${atExit ? `<button class="interior-buy" data-action="interior-exit">Return to Mercedonia</button>` : ""}${selector}</div>`;
     consoleNode.scrollTop = 0;
     return;
   }
@@ -1635,6 +1645,7 @@ function renderInterior(): void {
     <small class="equipment-kicker">${escapeMarkup(config.name)} · ${escapeMarkup(upgrade.name)}</small>
     <div class="equipment-title"><i>${upgrade.icon}</i><div><h3>${escapeMarkup(design.name)}</h3><small>${level === 0 ? "Blueprint ready · not installed" : `Physical equipment · level ${level} of ${ceiling}`}</small></div></div>
     <p class="equipment-copy">${escapeMarkup(design.description)}</p>
+    <div class="interior-system-note"><small>${escapeMarkup(room.displayName)}</small><strong>${escapeMarkup(room.regenerativeSystem)}</strong></div>
     <div class="equipment-benefit"><small>Business improvement</small><strong>${escapeMarkup(upgrade.effect)}</strong></div>
     ${(() => { const outlook = store.upgradeOutlook(selectedKey);
       return outlook ? `<p class="equipment-outlook">${escapeMarkup(outlook)}</p>` : ""; })()}
@@ -1790,7 +1801,7 @@ function renderCity(): string {
     <div class="info-grid">
       ${statTile("Civic treasury", `${formatNumber(books.treasury)} ${CURRENCY_CODE}`, `Runway: ${runway}`)}
       ${statTile("Household purses", `${formatNumber(books.citizensPurse)} ${CURRENCY_CODE}`, "What your customers can afford")}
-      ${statTile("Makers hold", `${formatNumber(books.makersHolding)} ${CURRENCY_CODE}`, `Across ${formatNumber(books.businesses)} ${books.businesses === 1 ? "business" : "businesses"}`)}
+      ${statTile("Businesses hold", `${formatNumber(books.makersHolding)} ${CURRENCY_CODE}`, `Across ${formatNumber(books.businesses)} ${books.businesses === 1 ? "business" : "businesses"}`)}
       ${statTile("Total in circulation", `${formatNumber(supply)} ${CURRENCY_CODE}`, "Moved, never created")}
     </div>
 
@@ -1906,7 +1917,7 @@ function renderInfo(): void {
     node.innerHTML = `
       <div class="section-title">Standing</div>
       <div class="info-grid">
-        ${statTile("Maker rank", `${level.name}`, `Level ${level.level} of ${CAREER_LEVELS.length}`)}
+        ${statTile("Mercedonian standing", `${level.name}`, `Level ${level.level} of ${CAREER_LEVELS.length}`)}
         ${statTile("Experience", `${formatNumber(store.state.experience)} XP`, next ? `${formatNumber(next.xp - store.state.experience)} to ${next.name}` : "Top of the ladder")}
         ${statTile("Reputation", formatNumber(store.state.reputation), "Earned by selling and delivering")}
         ${statTile("Orders filled", formatNumber(store.state.contractsCompleted), "Named buyers served")}
@@ -1983,7 +1994,7 @@ function renderInfo(): void {
       </div>
       <div class="section-title">The street</div>
       <div class="info-grid">
-        ${statTile("Other makers here", formatNumber(store.state.districtBusinesses), "Every one of them is a customer for something")}
+        ${statTile("Other Mercedonians here", formatNumber(store.state.districtBusinesses), "Every one of them is a customer for something")}
         ${statTile("Mercedonians", formatNumber(store.mercedonianPopulation?.() ?? store.dailyAudience()), "They walk in and buy what is on the shelf")}
         ${statTile("Confidence", `${store.consumerConfidenceIndex()}`, `Cycle: ${store.economicPhase()}`)}
         ${statTile("Price index", `${store.marketPriceIndex()}`, store.economyTrend())}
@@ -2182,7 +2193,7 @@ function renderWalletSlot(): void {
     node.innerHTML = `<button class="player-profile-card demo" data-action="profile-open"
       title="Open your demo profile. Nothing here is saved.">
       <span class="profile-avatar"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span>
-      <span class="profile-copy"><small>Lv ${level.level} · ${escapeMarkup(level.name)}</small><strong>Demo Maker</strong></span>
+      <span class="profile-copy"><small>Lv ${level.level} · ${escapeMarkup(level.name)}</small><strong>Demo Mercedonian</strong></span>
       <i class="profile-status" aria-label="Demo session"></i></button>`;
     return;
   }
@@ -2261,17 +2272,17 @@ function renderOnlinePill(): void {
   node.hidden = false;
   if (isDemo()) {
     node.className = "online-pill offline";
-    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>maker · private demo</small></span>`;
+    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>Mercedonian · private demo</small></span>`;
     return;
   }
   if (!realmLive) {
     node.className = "online-pill offline";
-    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>maker · local world</small></span>`;
+    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>Mercedonian · local world</small></span>`;
     return;
   }
   const total = peerCount + 1;
   node.className = `online-pill${peerCount > 0 ? " busy" : ""}`;
-  node.innerHTML = `<i aria-hidden="true"></i><span><b>${total}</b><small>${total === 1 ? "maker" : "makers"} nearby</small></span>`;
+  node.innerHTML = `<i aria-hidden="true"></i><span><b>${total}</b><small>${total === 1 ? "Mercedonian" : "Mercedonians"} nearby</small></span>`;
 }
 
 

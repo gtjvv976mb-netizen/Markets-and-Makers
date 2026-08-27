@@ -96,6 +96,26 @@ describe("business interiors", () => {
     }
   });
 
+  it("gives all 15 trades a distinct architecture and floor-production diagram", () => {
+    const architectures = licenses.map((license) => INTERIOR_ROOMS[license].architecture);
+    const floorPatterns = licenses.map((license) => INTERIOR_ROOMS[license].floorPattern);
+
+    expect(new Set(architectures).size).toBe(licenses.length);
+    expect(new Set(floorPatterns).size).toBe(licenses.length);
+  });
+
+  it("describes each room as a Mercedonian solarpunk production system", () => {
+    for (const license of licenses) {
+      const room = INTERIOR_ROOMS[license];
+      expect(room.displayName.length, `${license} needs a room identity`).toBeGreaterThan(8);
+      expect(room.description.length, `${license} needs a production story`).toBeGreaterThan(45);
+      expect(room.regenerativeSystem.length, `${license} needs a regenerative system`).toBeGreaterThan(18);
+      expect(room.accent).toBeGreaterThan(0);
+    }
+
+    expect(INTERIOR_EQUIPMENT_CATALOG.workshop.yield.name).toBe("MercSpec Calibrator");
+  });
+
   it("gives every trade a distinct floor kit", () => {
     const seen = new Map<string, LicenseKey>();
     for (const license of licenses) {

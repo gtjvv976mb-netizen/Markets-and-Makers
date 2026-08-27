@@ -1071,8 +1071,8 @@ export class GameStore {
     this.state.inventory[key] += quantity;
     this.state.todayExpenses += paid;
     this.state.daily.trades += quantity;
-    this.commit(`Bought ${quantity} ${RESOURCES[key].short} from another maker for ${paid} ${CURRENCY_CODE}.`, "success");
-    return this.result(true, "Bought from a maker.");
+    this.commit(`Bought ${quantity} ${RESOURCES[key].short} from another Mercedonian for ${paid} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Bought from a Mercedonian.");
   }
 
   /**
@@ -1087,8 +1087,8 @@ export class GameStore {
     this.state.lifetimeRevenue += received;
     this.state.todayRevenue += received;
     this.addContribution(received, "contract");
-    this.commit(`Another maker bought ${quantity} ${RESOURCES[key].short} for ${received} ${CURRENCY_CODE}.`, "success");
-    return this.result(true, "Sold to a maker.");
+    this.commit(`Another Mercedonian bought ${quantity} ${RESOURCES[key].short} for ${received} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Sold to a Mercedonian.");
   }
 
   sellResource(key: ResourceKey, quantity = 1): ActionResult {
@@ -1553,7 +1553,7 @@ export class GameStore {
         : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
       const goods = missing.some((entry) => !entry.includes(CURRENCY_CODE));
       return this.result(false, `This upgrade needs ${list}.`
-        + (goods ? " Buy what you are short of on the Market tab, or from another maker." : ""));
+        + (goods ? " Buy what you are short of on the Market tab, or from another Mercedonian." : ""));
     }
     if (this.state.installation) {
       const fitting = UPGRADE_NAMES[this.state.installation.key].name;

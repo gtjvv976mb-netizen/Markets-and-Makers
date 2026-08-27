@@ -96,7 +96,7 @@
             <strong>Signed in</strong>
             <ul>
               <li>Your city is saved to the realm</li>
-              <li>Trade with other makers</li>
+              <li>Trade with other Mercedonians</li>
               <li>Earn a share of the weekly $MM</li>
             </ul>
           </div>
@@ -132,7 +132,7 @@
         <div class="economy-strip">
           <div class="money"><img class="mm-coin" src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>Your money</small><strong id="walletValue">750 MERCS</strong></span></div>
           <div class="vital"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg><span><small>Net worth</small><strong id="worthValue">750</strong></span></div>
-          <div class="vital"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-rank" /></svg><span><small>Maker rank</small><strong id="careerValue">New Maker · Lv 1</strong><i class="vital-meter"><b id="careerMeter"></b></i></span></div>
+          <div class="vital"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-rank" /></svg><span><small>Mercedonian standing</small><strong id="careerValue">New Mercedonian · Lv 1</strong><i class="vital-meter"><b id="careerMeter"></b></i></span></div>
           <div class="vital"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM earned</small><strong id="mmValue">0</strong></span></div>
           <div class="quiet"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-network" /></svg><span><small>World status</small><strong class="status-local" id="networkValue">Local</strong></span></div>
         </div>
@@ -209,7 +209,7 @@
               <div id="hudWorld"></div><div id="quickBar" hidden></div><footer id="resourceDock"></footer>
               <div id="nextStep"><span id="nextLabel"></span><strong id="nextTitle"></strong><span id="nextHint"></span><em id="nextBecause"></em><button id="nextGo"></button><button id="nextDismiss" data-action="mayor-toggle"></button><span id="nextMeter"></span></div>
               <button id="mayorRecall" data-action="mayor-toggle" hidden></button>
-              <nav class="maker-nav" aria-label="Maker's Compass">
+              <nav class="maker-nav" aria-label="Mercedonian Compass">
                 <button data-tab="shop">Enterprise <kbd>⌥1</kbd></button><button data-tab="trade">Exchange <kbd>⌥2</kbd></button><button data-tab="world">World <kbd>⌥3</kbd></button>
               </nav>
             </div>
@@ -271,19 +271,23 @@
 
     </main>
 
-    <section class="modal interior-modal" id="interiorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="interiorTitle" inert>
+    <section class="modal interior-modal" id="interiorModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="interiorTitle" aria-describedby="interiorObjectiveCopy" inert>
       <div class="modal-shell interior-shell">
         <header>
-          <div><small>Inside your business</small><h2 id="interiorTitle">Your business</h2></div>
+          <div class="interior-identity">
+            <span class="interior-mark" aria-hidden="true"><i></i></span>
+            <div><small id="interiorEyebrow">Mercedonian enterprise interior</small><h2 id="interiorTitle">Your business</h2></div>
+          </div>
           <div class="interior-header-actions">
+            <span class="interior-system-chip"><i aria-hidden="true"></i><span><small>Regenerative system</small><strong id="interiorSystem">Local circular utilities</strong></span></span>
             <span id="interiorLevel">Equipment floor · Level 0</span>
-            <button class="close-button" id="closeInterior">Exit</button>
+            <button class="close-button" id="closeInterior" aria-label="Exit business interior"><span aria-hidden="true">↗</span>Exit</button>
           </div>
         </header>
         <div class="interior-grid">
           <div class="interior-stage" id="interiorStage">
             <canvas id="interiorCanvas" tabindex="0" aria-label="Walkable 3D business interior. Use W A S D or the arrow keys to move, and E to interact with equipment."></canvas>
-            <div class="interior-objective"><small>Workshop floor</small><strong>Walk to a machine</strong><span>Select equipment and press E to improve it.</span></div>
+            <div class="interior-objective"><small id="interiorRoomLabel">Mercedonian work floor</small><strong id="interiorObjectiveTitle">Explore the new interior</strong><span id="interiorObjectiveCopy">Walk to a purpose-built station and press E to inspect its equipment.</span></div>
             <div class="interior-help"><kbd>WASD</kbd><span>Move</span><kbd>E</kbd><span>Upgrade</span><kbd>Esc</kbd><span>Exit</span></div>
             <div class="interior-prompt" id="interiorPrompt" aria-live="polite">
               <i>⌁</i><span><small>Explore the room</small><strong>Move close to an equipment station</strong></span>
@@ -297,7 +301,7 @@
             </div>
           </div>
           <aside class="interior-console" id="interiorConsole" aria-live="polite">
-            <div class="interior-console-empty"><i>⚒</i><strong>Choose equipment in the room</strong><p>Walk up to one of the four illuminated stations to inspect its effect and installation cost.</p></div>
+            <div class="interior-console-empty"><i>⚒</i><strong>Shape your Mercedonian enterprise</strong><p>Walk up to one of the four illuminated stations to inspect its effect and installation cost.</p></div>
           </aside>
         </div>
       </div>
