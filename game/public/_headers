@@ -16,5 +16,20 @@
 /assets/brand/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
+# The entry document must never be held anywhere.
+#
+# Two things were wrong here and both mattered. It matched only `/index.html`, and the
+# path a player actually requests is `/` — so the root, which is the file that NAMES which
+# bundle to load, had no rule at all. And `max-age=0, must-revalidate` still lets an edge
+# keep a copy: measured `cf-cache-status: HIT` on the root while the hashed assets it
+# points at were MISS, which is precisely backwards.
+#
+# `no-store` is unambiguous. The file is 22KB and it is the one thing that must always be
+# current; everything expensive it references is hashed and cached for a year above.
+
+/
+  Cache-Control: no-store, must-revalidate
+  X-Robots-Tag: all
+
 /index.html
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-store, must-revalidate
