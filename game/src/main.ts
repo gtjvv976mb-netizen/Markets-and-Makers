@@ -1,13 +1,14 @@
 import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
-  worldRunsOnServer, fetchCityBooks, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
-  cancelMarketListing, type MarketListing } from "./realm";
+  worldRunsOnServer, fetchCityBooks, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
+  cancelMarketListing, type CityDispatch, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
 import { INTERIOR_EQUIPMENT_CATALOG, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
 import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
+import { BusinessTurntable } from "./businessTurntable";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
 import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer} from "./wallet";
 
@@ -34,6 +35,7 @@ const canvas = element<HTMLCanvasElement>("#worldCanvas");
 const interiorCanvas = element<HTMLCanvasElement>("#interiorCanvas");
 const interiorPromptNode = element<HTMLElement>("#interiorPrompt");
 const interiorInteractButton = element<HTMLButtonElement>("#interiorInteract");
+const businessTurntable = new BusinessTurntable(element<HTMLCanvasElement>("#businessTurntable"));
 
 let activeTab = "shop";
 let interiorOpen = false;
@@ -124,14 +126,84 @@ world.setPositionCheckpoint(() => store.savePosition());
 // ---------------------------------------------------------------------------
 const sheet = element<HTMLElement>("#sheet");
 const markerLayer = element<HTMLElement>("#worldMarkers");
+const utilityDrawer = element<HTMLElement>("#hudUtilityDrawer");
+const businessDrawer = element<HTMLElement>("#hudBusinessDrawer");
+const businessDrawerToggle = element<HTMLButtonElement>("#businessDrawerToggle");
+let utilityMode: "news" | "bank" = "news";
+let utilityReturnFocus: HTMLElement | null = null;
+let businessReturnFocus: HTMLElement | null = null;
+
+function isCompactHud(): boolean {
+  return window.matchMedia("(max-width: 860px), (max-height: 560px)").matches;
+}
+
+function setHudDrawerOpen(drawer: HTMLElement, open: boolean): void {
+  drawer.dataset.open = String(open);
+  drawer.setAttribute("aria-hidden", String(!open));
+  if (open) drawer.removeAttribute("inert");
+  else drawer.setAttribute("inert", "");
+  document.body.classList.toggle("hud-drawer-open",
+    utilityDrawer.dataset.open === "true" || businessDrawer.dataset.open === "true");
+}
+
+function closeUtilityDrawer(restoreFocus = true): void {
+  const focusWasInside = utilityDrawer.contains(document.activeElement);
+  setHudDrawerOpen(utilityDrawer, false);
+  document.querySelectorAll<HTMLButtonElement>("[data-action='utility-open']").forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
+    button.classList.remove("active");
+  });
+  if (restoreFocus && focusWasInside) (utilityReturnFocus?.isConnected ? utilityReturnFocus : canvas).focus({ preventScroll: true });
+}
+
+function openUtilityDrawer(mode: "news" | "bank", trigger?: HTMLElement): void {
+  utilityMode = mode;
+  utilityReturnFocus = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  closeSheet(false);
+  if (isCompactHud()) closeBusinessDrawer(false);
+  setHudDrawerOpen(utilityDrawer, true);
+  document.querySelectorAll<HTMLButtonElement>("[data-action='utility-open']").forEach((button) => {
+    const active = button.dataset.utility === mode;
+    button.setAttribute("aria-expanded", String(active));
+    button.classList.toggle("active", active);
+  });
+  renderUtilityDrawer();
+}
+
+function closeBusinessDrawer(restoreFocus = true): void {
+  const focusWasInside = businessDrawer.contains(document.activeElement);
+  setHudDrawerOpen(businessDrawer, false);
+  businessDrawerToggle.setAttribute("aria-expanded", "false");
+  businessDrawerToggle.classList.remove("active");
+  businessTurntable?.setVisible(false);
+  if (restoreFocus && focusWasInside) (businessReturnFocus?.isConnected ? businessReturnFocus : businessDrawerToggle).focus({ preventScroll: true });
+}
+
+function openBusinessDrawer(): void {
+  businessReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : businessDrawerToggle;
+  closeSheet(false);
+  if (isCompactHud()) closeUtilityDrawer(false);
+  setHudDrawerOpen(businessDrawer, true);
+  businessDrawerToggle.setAttribute("aria-expanded", "true");
+  businessDrawerToggle.classList.add("active");
+  businessTurntable?.setVisible(true);
+}
 
 function openSheet(): void {
-  if (sheet.dataset.open !== "true" && document.activeElement instanceof HTMLElement) {
-    sheetReturnFocus = document.activeElement;
-  }
+  const activeBeforeClose = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const returnTarget = activeBeforeClose && utilityDrawer.contains(activeBeforeClose)
+    ? utilityReturnFocus
+    : activeBeforeClose && businessDrawer.contains(activeBeforeClose)
+      ? businessReturnFocus
+      : activeBeforeClose;
+  if (sheet.dataset.open !== "true") sheetReturnFocus = returnTarget ?? canvas;
+  closeUtilityDrawer(false);
+  closeBusinessDrawer(false);
   sheet.removeAttribute("inert");
   sheet.dataset.open = "true";
   sheet.setAttribute("aria-hidden", "false");
+  document.querySelector<HTMLButtonElement>("[data-action='info-open']")
+    ?.setAttribute("aria-expanded", String(activeTab === "info"));
 }
 
 function closeSheet(restoreFocus = true): void {
@@ -139,12 +211,18 @@ function closeSheet(restoreFocus = true): void {
   sheet.dataset.open = "false";
   sheet.setAttribute("aria-hidden", "true");
   sheet.setAttribute("inert", "");
+  document.querySelector<HTMLButtonElement>("[data-action='info-open']")?.setAttribute("aria-expanded", "false");
   if (!restoreFocus || !focusWasInside) return;
   const target = sheetReturnFocus?.isConnected ? sheetReturnFocus : canvas;
   target.focus({ preventScroll: true });
 }
 element("#sheetClose").addEventListener("click", () => closeSheet());
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (businessDrawer.dataset.open === "true") closeBusinessDrawer();
+  else if (utilityDrawer.dataset.open === "true") closeUtilityDrawer();
+  else closeSheet();
+});
 
 /**
  * A wallet address, shortened to something a person can recognise across a street.
@@ -307,7 +385,8 @@ function positionMarkers(): void {
   // most of it matched nothing and pins were free to pile up under the business panel and
   // the two bars. Naming the ZONES instead means it cannot rot the next time something
   // moves house.
-  const reserved = [".hud-top", ".hud-business", ".hud-world", ".hud-guide", ".hud-rail",
+  const reserved = [".hud-top", ".wallet-slot", ".hud-utility-rail", ".business-edge-tab",
+                    ".hud-drawer[data-open='true']", ".hud-context-actions",
                     // The prompts belong here too. They were left out, so a "Press E"
                     // sitting at the top of the screen landed straight on the building
                     // signs — Sunspire City Hall printed twice, once as its own marker and
@@ -470,6 +549,14 @@ async function refreshCityBooks(): Promise<void> {
 void refreshCityBooks();
 window.setInterval(() => { void refreshCityBooks(); }, 60_000);
 
+async function refreshDispatch(): Promise<void> {
+  dispatches = await fetchDispatches(7);
+  dispatchLoaded = true;
+  if (utilityDrawer.dataset.open === "true" && utilityMode === "news") renderUtilityDrawer();
+}
+void refreshDispatch();
+window.setInterval(() => { void refreshDispatch(); }, 60_000);
+
 // Counter trade lands whenever a Mercedonian reaches the door, which on a busy street
 // is several times a second. The takings are already banked by then; this only decides
 // how often the number on screen catches up.
@@ -477,9 +564,14 @@ window.setInterval(() => {
   if (citizenTradeSinceRender === 0) return;
   citizenTradeSinceRender = 0;
   renderHeader();
+  renderVitals();
+  renderBusinessPanel();
+  renderAlerts();
+  if (utilityDrawer.dataset.open === "true" && utilityMode === "bank") renderUtilityDrawer();
 }, 1_500);
 
 let peerCount = 0;
+let realmLive = false;
 let districtBoard: DistrictQuote[] | null = null;
 let principal: Principal | null = null;
 let standing: EpochStanding | null = null;
@@ -519,8 +611,10 @@ function paintNetwork(label: string, healthy: boolean): void {
 
 const realm = new RealmConnection({
   onStatus: (status: RealmStatus, detail: string) => {
+    realmLive = status === "live";
     if (status !== "live") peerCount = 0;
     paintNetwork(detail, status === "live" || status === "disabled");
+    renderOnlinePill();
   },
   position: () => ({ x: store.state.player.x, z: store.state.player.z }),
   onPeers: (peers) => {
@@ -528,6 +622,7 @@ const realm = new RealmConnection({
     if (peers.length !== peerCount) {
       peerCount = peers.length;
       paintNetwork("Render authority", true);
+      renderOnlinePill();
     }
   },
 }, store.state.island);
@@ -605,6 +700,7 @@ window.setInterval(() => {
 window.addEventListener("beforeunload", () => {
   realm.dispose();
   interiorWorld.dispose();
+  businessTurntable.destroy();
 });
 
 function formatNumber(value: number): string {
@@ -1028,6 +1124,9 @@ function renderBusiness(): void {
 }
 
 function walletMarkup(): string {
+  if (isDemo()) {
+    return `<div class="wallet-connect"><p>This is a sealed demo. Nothing is saved or sent to the shared economy.</p><button data-action="gate-connect">Leave demo and sign in</button></div>`;
+  }
   if (principal && standing) {
     return `<div class="wallet-linked">
       <div class="wallet-head"><span class="wallet-dot"></span><div><strong>Linked wallet</strong><small>${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}</small></div>
@@ -1578,6 +1677,8 @@ let infoTab: "you" | "business" | "chain" | "district" | "city" | "ledger" = "yo
 
 /** The city's books, refreshed on a slow timer. Public data; no session needed. */
 let cityBooks: Awaited<ReturnType<typeof fetchCityBooks>> = { books: null, policy: null, cabinet: null };
+let dispatches: CityDispatch[] | null = null;
+let dispatchLoaded = false;
 
 /** "3m 20s" — the same shape the store uses when it tells you how long the fitters need. */
 function formatDuration(seconds: number): string {
@@ -1823,7 +1924,9 @@ function renderInfo(): void {
         ${statTile("Civic deeds", formatNumber(store.state.deeds), "Each one raises the ceiling by one")}
         ${statTile("Charter", store.state.chartered ? "Granted" : "Not yet", store.state.chartered ? "Equipment may reach the top level" : `${CHARTER_COST_MM} $MM at the bank`)}
         ${statTile("Specialisation", store.state.specialization ? SPECIALIZATIONS[store.state.specialization].name : "None chosen", "Shapes quality, cost and appeal")}
-      </div>`;
+      </div>
+      <div class="section-title">Account</div>
+      ${walletMarkup()}`;
     return;
   }
 
@@ -1913,6 +2016,81 @@ function renderInfo(): void {
 }
 
 
+// --- Edge desks ----------------------------------------------------------------------
+// News and banking are frequent checks, not full-screen destinations. They share one
+// compact left drawer and remain closed until asked for, leaving the city unobstructed.
+
+function dispatchTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Published recently";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function newsDeskMarkup(): string {
+  if (!dispatchLoaded) {
+    return `<div class="hud-drawer-empty"><i class="news-pulse" aria-hidden="true"></i><strong>Opening today's paper</strong><p>Asking the civic press room for the latest dispatch.</p></div>`;
+  }
+  if (dispatches === null) {
+    return `<div class="hud-drawer-empty"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-news" /></svg><strong>The press room is out of reach</strong><p>The shared city may be offline. Your business keeps running locally.</p><button data-action="dispatch-refresh">Try again</button></div>`;
+  }
+  if (dispatches.length === 0) {
+    return `<div class="hud-drawer-empty"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-news" /></svg><strong>No edition has been filed yet</strong><p>The Dispatch publishes only when the city ledger has a measured day to report.</p><button data-action="dispatch-refresh">Check again</button></div>`;
+  }
+  const [lead, ...older] = dispatches;
+  const snapshot = lead!.snapshot;
+  return `
+    <article class="dispatch-lead mood-${escapeMarkup(lead!.mood)}">
+      <div class="dispatch-dateline"><span>Mercedonia Dispatch</span><time datetime="${escapeMarkup(lead!.publishedAt)}">${escapeMarkup(dispatchTime(lead!.publishedAt))}</time></div>
+      <h2>${escapeMarkup(lead!.headline)}</h2>
+      <p>${escapeMarkup(lead!.body)}</p>
+      <div class="dispatch-figures" aria-label="Measured city figures behind this edition">
+        <span><small>Businesses</small><strong>${formatNumber(snapshot.businesses)}</strong></span>
+        <span><small>Sold today</small><strong>${formatNumber(snapshot.soldToday)}</strong></span>
+        <span><small>Trade value</small><strong>${formatNumber(snapshot.grossToday)} ${CURRENCY_CODE}</strong></span>
+      </div>
+      <small class="dispatch-source">AI-written from measured city ledger figures. It reports; it cannot move money or govern.</small>
+    </article>
+    ${older.length ? `<div class="drawer-section-label">Earlier editions</div><div class="dispatch-archive">${older.map((entry) => `
+      <details class="dispatch-brief mood-${escapeMarkup(entry.mood)}"><summary><span><small>${escapeMarkup(dispatchTime(entry.publishedAt))}</small><strong>${escapeMarkup(entry.headline)}</strong></span><b>+</b></summary><p>${escapeMarkup(entry.body)}</p></details>`).join("")}</div>` : ""}`;
+}
+
+function bankDeskMarkup(): string {
+  const capital = store.withdrawableCapitalMM();
+  const converted = store.mercDollarsForMM(100);
+  const returned = store.mmForMercDollars(1_000);
+  return `
+    <section class="hud-bank-card">
+      <div class="bank-balance-pair">
+        <span><small>MERCS</small><strong>${formatNumber(store.state.wallet)}</strong><em>in-game operating balance</em></span>
+        <span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong><em>internal prototype balance</em></span>
+      </div>
+      <div class="drawer-section-label">Treasury exchange</div>
+      <div class="bank-rate-card">
+        <span><small>Bring to the treasury</small><strong>100 $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
+      </div>
+      <div class="hud-bank-actions">
+        <button data-action="bank-in" ${store.state.mmHoldings < 100 || converted > store.issuanceHeadroom() ? "disabled" : ""}><span>Convert 100 $MM</span><small>${converted > store.issuanceHeadroom() ? "Treasury limit reached" : `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`}</small></button>
+        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1_000 || capital <= 0 || returned <= 0 ? "disabled" : ""}><span>Return 1,000 ${CURRENCY_CODE}</span><small>${capital > 0 ? `Up to ${formatNumber(capital)} $MM capital available` : "No deposited capital"}</small></button>
+      </div>
+      <div class="bank-mini-ledger">
+        <span><small>Your capital on deposit</small><strong>${formatNumber(capital)} $MM</strong></span>
+        <span><small>Issuance room</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></span>
+        <span><small>1,000 ${CURRENCY_CODE} returns</small><strong>${formatNumber(returned)} $MM</strong></span>
+      </div>
+      <p class="bank-boundary">Prototype exchange only: no blockchain transfer, withdrawal, guaranteed redemption, or promise of profit. The bank returns deposited capital; weekly contribution rewards are separate.</p>
+      <button class="drawer-link-button" data-action="tab" data-target="trade">Open the full Exchange <span aria-hidden="true">→</span></button>
+    </section>`;
+}
+
+function renderUtilityDrawer(): void {
+  const news = utilityMode === "news";
+  element("#utilityDrawerEmblem").innerHTML = `<svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-${news ? "news" : "bank"}" /></svg>`;
+  element("#utilityDrawerKicker").textContent = news ? "AI civic newsroom" : "Government Bank";
+  element("#utilityDrawerTitle").textContent = news ? "City Dispatch" : "Treasury exchange";
+  element("#hudUtilityContent").innerHTML = news ? newsDeskMarkup() : bankDeskMarkup();
+}
+
+
 // --- Alerts --------------------------------------------------------------------------
 //
 // Anno 1800's UI team put it plainly: keep the persistent HUD dark so it does not tire the
@@ -1968,6 +2146,13 @@ function renderAlerts(): void {
   const node = document.querySelector<HTMLElement>("#alertStack");
   if (!node) return;
   const alerts = currentAlerts();
+  const count = element<HTMLElement>("#businessAlertCount");
+  count.hidden = alerts.length === 0;
+  count.textContent = String(alerts.length);
+  businessDrawerToggle.classList.toggle("has-alert", alerts.some((alert) => alert.tone === "urgent" || alert.tone === "warn"));
+  businessDrawerToggle.setAttribute("aria-label", alerts.length
+    ? `Open business desk. ${alerts.length} ${alerts.length === 1 ? "alert" : "alerts"}.`
+    : "Open business desk");
   node.hidden = alerts.length === 0;
   node.innerHTML = alerts.map((alert) => `
     <div class="alert alert-${alert.tone}">
@@ -1991,27 +2176,34 @@ function renderAlerts(): void {
 function renderWalletSlot(): void {
   const node = document.querySelector<HTMLElement>("#walletSlot");
   if (!node) return;
+  const level = store.careerLevel();
 
   if (isDemo()) {
-    node.innerHTML = `<button class="wallet-pill demo" data-action="gate-connect"
-      title="You are in a demo. Nothing is saved and the shared market is closed.">
-      <span><small>Demo — nothing saved</small><strong>Sign in for real</strong></span></button>`;
+    node.innerHTML = `<button class="player-profile-card demo" data-action="profile-open"
+      title="Open your demo profile. Nothing here is saved.">
+      <span class="profile-avatar"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span>
+      <span class="profile-copy"><small>Lv ${level.level} · ${escapeMarkup(level.name)}</small><strong>Demo Maker</strong></span>
+      <i class="profile-status" aria-label="Demo session"></i></button>`;
     return;
   }
   if (principal) {
     const short = `${principal.walletAddress.slice(0, 4)}…${principal.walletAddress.slice(-4)}`;
-    node.innerHTML = `<button class="wallet-pill linked" data-action="wallet-disconnect" title="Signed in as ${escapeMarkup(principal.walletAddress)} — click to sign out">
-      <span class="wallet-dot" aria-hidden="true"></span><span><small>Signed in</small><strong>${escapeMarkup(short)}</strong></span></button>`;
+    node.innerHTML = `<button class="player-profile-card linked" data-action="profile-open" title="Open profile for ${escapeMarkup(principal.walletAddress)}">
+      <span class="profile-avatar"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span>
+      <span class="profile-copy"><small>Lv ${level.level} · ${escapeMarkup(level.name)}</small><strong>${escapeMarkup(short)}</strong></span>
+      <i class="profile-status" aria-label="Signed in"></i></button>`;
     return;
   }
   if (!walletAvailable()) {
-    node.innerHTML = `<a class="wallet-pill needs" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener"
+    node.innerHTML = `<a class="player-profile-card needs" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener"
       title="No Solana wallet was found in this browser">
-      <span><small>To play</small><strong>Get a wallet</strong></span></a>`;
+      <span class="profile-avatar"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-profile" /></svg></span>
+      <span class="profile-copy"><small>Guest profile</small><strong>Get a wallet</strong></span></a>`;
     return;
   }
-  node.innerHTML = `<button class="wallet-pill" data-action="wallet-connect">
-    <span><small>Play for real</small><strong>Connect wallet</strong></span></button>`;
+  node.innerHTML = `<button class="player-profile-card" data-action="wallet-connect" aria-label="Connect wallet and open player profile">
+    <span class="profile-avatar"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-profile" /></svg></span>
+    <span class="profile-copy"><small>Guest profile</small><strong>Connect wallet</strong></span></button>`;
 }
 
 
@@ -2066,18 +2258,20 @@ function closeBootGate(): void {
 function renderOnlinePill(): void {
   const node = document.querySelector<HTMLElement>("#onlinePill");
   if (!node) return;
+  node.hidden = false;
   if (isDemo()) {
-    node.hidden = false;
     node.className = "online-pill offline";
-    node.innerHTML = `<i aria-hidden="true"></i><span>Demo — not connected</span>`;
+    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>maker · private demo</small></span>`;
     return;
   }
-  const nearby = world.peerCount;
-  const total = Math.max(nearby, districtShopCount);
-  if (!isSynced() && nearby === 0) { node.hidden = true; return; }
-  node.hidden = false;
-  node.className = `online-pill${nearby > 0 ? " busy" : ""}`;
-  node.innerHTML = `<i aria-hidden="true"></i><span><b>${total || 1}</b> ${total === 1 ? "maker" : "makers"} here</span>`;
+  if (!realmLive) {
+    node.className = "online-pill offline";
+    node.innerHTML = `<i aria-hidden="true"></i><span><b>1</b><small>maker · local world</small></span>`;
+    return;
+  }
+  const total = peerCount + 1;
+  node.className = `online-pill${peerCount > 0 ? " busy" : ""}`;
+  node.innerHTML = `<i aria-hidden="true"></i><span><b>${total}</b><small>${total === 1 ? "maker" : "makers"} nearby</small></span>`;
 }
 
 
@@ -2125,25 +2319,17 @@ function renderQuickBar(): void {
 }
 
 
-/**
- * TOP — who you are and what you hold.
- *
- * Online, balance, level, worth: the four numbers a player checks without thinking, on one
- * line across the top where every management game puts them.
- */
+/** TOP — only presence and the two balances that change moment to moment. */
 function renderVitals(): void {
   const node = document.querySelector<HTMLElement>("#hudVitals");
   if (!node) return;
-  const level = store.careerLevel();
-  const next = store.nextCareerLevel();
-  const progress = store.careerProgress();
   node.innerHTML = `
-    <div class="vital"><small>Balance</small><strong>${formatNumber(store.state.wallet)}</strong><b>${CURRENCY_CODE}</b></div>
-    <div class="vital"><small>Worth</small><strong>${formatNumber(store.netWorth())}</strong></div>
-    <div class="vital vital-level" title="${next ? `${formatNumber(next.xp - store.state.experience)} XP to ${next.name}` : "Top of the ladder"}">
-      <small>Level ${level.level}</small><strong>${escapeMarkup(level.name)}</strong>
-      <i class="vital-bar"><b style="width:${progress}%"></b></i></div>
-    <div class="vital"><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong></div>`;
+    <div class="hud-balance-pill merc-balance" title="Merc Dollars — in-game operating balance">
+      <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>MERCS</small><strong>${formatNumber(store.state.wallet)}</strong></span>
+    </div>
+    <div class="hud-balance-pill mm-balance" title="$MM — internal prototype balance">
+      <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong></span>
+    </div>`;
 }
 
 /**
@@ -2157,8 +2343,18 @@ function renderBusinessPanel(): void {
   const node = document.querySelector<HTMLElement>("#hudBusiness");
   if (!node) return;
   const licence = store.state.license;
-  if (!licence || !store.state.buildingPlaced) { node.hidden = true; return; }
-  node.hidden = false;
+  if (!licence || !store.state.buildingPlaced) {
+    businessTurntable.setBusiness(null);
+    businessDrawerToggle.style.removeProperty("--business-accent");
+    element("#businessTabIcon").innerHTML = `<svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg>`;
+    element("#businessTabState").textContent = "Enterprise";
+    element("#businessTabName").textContent = "Set up a business";
+    element("#businessDrawerMeta").textContent = "Your enterprise";
+    element("#businessDrawerName").textContent = "Business desk";
+    node.className = "bp bp-empty";
+    node.innerHTML = `<div class="hud-drawer-empty"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg><strong>No business yet</strong><p>Lease a plot, choose a trade, and your live production desk will appear here.</p><button data-action="tab" data-target="shop">Open Enterprise</button></div>`;
+    return;
+  }
 
   const config = BUSINESS[licence];
   const economics = store.unitEconomics();
@@ -2166,67 +2362,97 @@ function renderBusinessPanel(): void {
   const seconds = store.jobDuration(licence, cycles);
   const perHour = seconds > 0 ? (3600 / seconds) : 0;
   const outputs = (Object.keys(config.output) as ResourceKey[]).filter((k) => (config.output[k] ?? 0) > 0);
-  const madePerHour = outputs.length > 0
-    ? Math.round(perHour * (config.output[outputs[0]!] ?? 0) * cycles)
-    : Math.round(perHour * cycles);
-  const rateUnit = outputs.length > 0 ? RESOURCES[outputs[0]!].short : "visits";
+  const yieldMultiplier = 1 + store.state.upgrades.yield * .12 + (store.state.specialization === "premium" ? .1 : 0);
+  const outputRates = outputs.map((key) => ({
+    key,
+    rate: Math.round(perHour * (config.output[key] ?? 0) * cycles * yieldMultiplier),
+  }));
+  const serviceRate = Math.round(perHour * (economics?.visitors ?? cycles));
+  const products = store.productsMade();
   const upgrades = (Object.keys(UPGRADE_NAMES) as UpgradeKey[]);
   const profit = economics ? Math.round(economics.expectedProfit) : 0;
-  const daily = store.dailyOverhead();
 
-  // The state of the line, folded in. It used to be a second card stacked under this one,
-  // repeating the name, the stock and today's takings — two layers saying the same thing.
-  const shift = store.state.lastShift;
-  const key = store.state.brokenDown ? "breakdown" : (store.state.job ? "running" : (shift?.halted ?? "idle"));
+  const builtBusinesses = store.ownedPlotIds().filter((plotId) => store.state.portfolio[plotId]?.buildingPlaced).length;
+  const lastHalt = builtBusinesses <= 1 ? store.state.lastShift?.halted : null;
+  const key = store.state.brokenDown
+    ? "breakdown"
+    : store.state.job
+      ? "running"
+      : store.state.suppliesCut
+        ? "funds"
+        : store.storageFull()
+          ? "storage"
+          : (lastHalt ?? "idle");
   const status = HALT_REASON[key] ?? HALT_REASON.idle!;
   const stock = store.storedUnits();
-  const capacity = store.storageCapacity();
   const condition = Math.round(store.state.condition);
+  const fitting = store.installation();
+
+  businessTurntable.setBusiness(licence);
+  businessTurntable.setVisible(businessDrawer.dataset.open === "true");
+  businessDrawerToggle.style.setProperty("--business-accent", config.color);
+  element("#businessTabIcon").textContent = config.icon;
+  element("#businessTabState").textContent = status.label;
+  element("#businessTabName").textContent = config.name;
+  element("#businessDrawerMeta").textContent = `${config.sector} · ${status.label}`;
+  element("#businessDrawerName").textContent = config.name;
 
   node.className = `bp tone-${status.tone}`;
   node.innerHTML = `
-    <div class="bp-head">
-      <span class="bp-model" style="--bp-color:${escapeMarkup(config.color)}" aria-hidden="true"><i>${escapeMarkup(config.icon)}</i></span>
-      <span class="bp-name"><strong>${escapeMarkup(config.name)}</strong><small>${escapeMarkup(config.sector)}</small></span>
-      <b class="bp-state">${escapeMarkup(status.label)}</b>
+    <div class="business-state-line">
+      <span class="business-status"><i aria-hidden="true"></i><strong>${escapeMarkup(status.label)}</strong></span>
+      <span><small>Condition</small><strong>${condition}%</strong></span>
+      <span title="Resources are shared across your company"><small>Shared stock</small><strong>${stock} units</strong></span>
     </div>
-    <p class="bp-why">${escapeMarkup(status.why)}</p>
-    <div class="bp-bars">
-      <span><small>Stock</small><strong>${stock}/${capacity}</strong>
-        <i class="bp-bar ${stock / Math.max(1, capacity) > 0.9 ? "full" : ""}"><b style="width:${Math.min(100, Math.round((stock / Math.max(1, capacity)) * 100))}%"></b></i></span>
-      <span><small>Condition</small><strong>${condition}%</strong>
-        <i class="bp-bar ${condition < 35 ? "full" : ""}"><b style="width:${condition}%"></b></i></span>
-    </div>
-    <div class="bp-rate">
-      <span><small>Making</small><strong>${madePerHour}</strong><b>${escapeMarkup(rateUnit)}/hr</b></span>
-      <span><small>Cycle</small><strong>${seconds}s</strong><b>${cycles} batch${cycles === 1 ? "" : "es"}</b></span>
-    </div>
-    <div class="bp-books">
-      <span class="${profit >= 0 ? "up" : "down"}"><small>Profit / cycle</small><strong>${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></span>
-      <span><small>Costs / cycle</small><strong>${economics ? formatNumber(economics.inputCost + economics.laborCost) : 0}</strong></span>
-      <span><small>Overheads / day</small><strong>${formatNumber(daily)}</strong></span>
-      <span class="${store.todayProfit() >= 0 ? "up" : "down"}"><small>Today</small><strong>${store.todayProfit() >= 0 ? "+" : ""}${formatNumber(store.todayProfit())}</strong></span>
-    </div>
-    ${(() => {
-      const fitting = store.installation();
-      if (!fitting) return "";
-      return `<div class="bp-fitting" title="One crew, one job">
-        <span><small>Fitting</small><strong>${escapeMarkup(UPGRADE_NAMES[fitting.key].name)} · level ${fitting.level}</strong></span>
-        <b>${formatDuration(fitting.secondsLeft)}</b>
-        <i class="bp-bar"><b style="width:${fitting.progress}%"></b></i>
-      </div>`;
-    })()}
-    <div class="bp-upgrades">
+    <p class="business-status-note">${escapeMarkup(status.why)}</p>
+
+    <section class="business-dossier-section">
+      <div class="business-section-heading"><span><small>Operations</small><strong>Production</strong></span><b>${seconds}s cycle</b></div>
+      <div class="production-rate-list">
+        ${config.servicePayout
+          ? `<span><i aria-hidden="true">◎</i><em>Customer visits</em><strong>${formatNumber(serviceRate)}<small>/hr estimated</small></strong></span>`
+          : outputRates.map(({ key: output, rate }) => `<span><i aria-hidden="true">${RESOURCES[output].icon}</i><em>${escapeMarkup(RESOURCES[output].name)}</em><strong>${formatNumber(rate)}<small>/hr estimated</small></strong></span>`).join("")}
+      </div>
+    </section>
+
+    <section class="business-dossier-section">
+      <div class="business-section-heading"><span><small>Supply</small><strong>Product inventory</strong></span><b>${products.reduce((total, product) => total + store.stockOf(product.id), 0)} finished</b></div>
+      ${outputs.length ? `<div class="output-stock-list">${outputs.map((output) => `<span><i>${RESOURCES[output].icon}</i><em>${escapeMarkup(RESOURCES[output].short)}</em><strong>${store.state.inventory[output]}</strong></span>`).join("")}</div>` : ""}
+      <div class="finished-product-list">
+        ${products.map((product) => `<span><em>${escapeMarkup(product.name)}</em><strong>${store.stockOf(product.id)}</strong><small>${formatNumber(product.price)} ${CURRENCY_CODE}</small></span>`).join("")}
+      </div>
+    </section>
+
+    <section class="business-dossier-section">
+      <div class="business-section-heading"><span><small>Finance</small><strong>Costs &amp; margin</strong></span><b>${CURRENCY_CODE}</b></div>
+      <div class="business-finance-grid">
+        <span><small>Inputs / cycle</small><strong>${formatNumber(economics?.inputCost ?? 0)}</strong></span>
+        <span><small>Labour / cycle</small><strong>${formatNumber(economics?.laborCost ?? 0)}</strong></span>
+        <span><small>Utilities / day</small><strong>${formatNumber(store.dailyUtilityBill())}</strong></span>
+        <span><small>Company payroll / day</small><strong>${formatNumber(store.dailyPayroll())}</strong></span>
+        <span><small>Expected revenue</small><strong>${formatNumber(Math.round(economics?.expectedRevenue ?? 0))}</strong></span>
+        <span class="${profit >= 0 ? "up" : "down"}"><small>Estimated cycle margin</small><strong>${profit >= 0 ? "+" : ""}${formatNumber(profit)}</strong></span>
+        <span class="business-net-today ${store.todayProfit() >= 0 ? "up" : "down"}"><small>Recorded company net today</small><strong>${store.todayProfit() >= 0 ? "+" : ""}${formatNumber(store.todayProfit())} ${CURRENCY_CODE}</strong></span>
+      </div>
+    </section>
+
+    <section class="business-dossier-section">
+      <div class="business-section-heading"><span><small>Workshop</small><strong>Upgrades</strong></span><b>${Object.values(store.state.upgrades).reduce((sum, level) => sum + level, 0)} installed</b></div>
+      ${fitting ? `<div class="business-fitting"><span><small>Installing now</small><strong>${escapeMarkup(UPGRADE_NAMES[fitting.key].name)} · level ${fitting.level}</strong></span><b>${formatDuration(fitting.secondsLeft)}</b><i><u style="width:${fitting.progress}%"></u></i></div>` : ""}
+      <div class="business-upgrade-list">
       ${upgrades.map((key) => {
         const level = store.state.upgrades[key];
         const ceiling = store.upgradeCeiling();
-        const beingFitted = store.installation()?.key === key;
-        return `<button class="${beingFitted ? "fitting" : ""}" data-action="tab" data-target="shop" title="${escapeMarkup(UPGRADE_NAMES[key].name)}: level ${level} of ${ceiling}${beingFitted ? " — being fitted now" : ""}">
-          <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i>
-          <em>${Array.from({ length: ceiling }, (_, i) => `<u class="${i < level ? "on" : ""}"></u>`).join("")}</em>
+        const beingFitted = fitting?.key === key;
+        return `<button class="${beingFitted ? "fitting" : ""}" data-action="tab" data-target="shop" title="Open ${escapeMarkup(UPGRADE_NAMES[key].name)} in Enterprise">
+          <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(UPGRADE_NAMES[key].name)}</strong><small>Level ${level} of ${ceiling}</small></span>
+          <em>${Array.from({ length: ceiling }, (_, i) => `<u class="${i < level ? "on" : ""}"></u>`).join("")}</em><b>›</b>
         </button>`;
       }).join("")}
-    </div>`;
+      </div>
+    </section>
+
+    <div class="business-drawer-actions"><button data-action="tab" data-target="shop">Open Enterprise</button><button class="secondary" data-action="interior">Enter equipment floor</button></div>`;
 }
 
 /**
@@ -2413,6 +2639,7 @@ function renderAll(): void {
   renderMap();
   renderAlerts();
   renderInfo();
+  if (utilityDrawer.dataset.open === "true") renderUtilityDrawer();
   renderQuickBar();
   renderResources();
   renderInterior();
@@ -2455,8 +2682,12 @@ function openInterior(): void {
   interiorSelection = null;
   interiorPrompt = null;
   interiorConsoleSignature = "";
+  const entryFocus = document.activeElement instanceof HTMLElement ? document.activeElement : element<HTMLElement>("#enterAction");
+  interiorReturnFocus = businessDrawer.contains(entryFocus) ? businessDrawerToggle
+    : utilityDrawer.contains(entryFocus) ? (utilityReturnFocus ?? canvas) : entryFocus;
   closeSheet();
-  interiorReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : element("#enterAction");
+  closeUtilityDrawer(false);
+  closeBusinessDrawer(false);
   world.setInputEnabled(false);
   element<HTMLElement>(".app-shell").setAttribute("inert", "");
   interiorModal.removeAttribute("inert");
@@ -2652,6 +2883,15 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy-charter") report(store.purchaseCharter());
   else if (action === "bank-in") report(store.exchangeMMForMercDollars(100));
   else if (action === "bank-out") report(store.exchangeMercDollarsForMM(1000));
+  else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);
+  else if (action === "utility-close") closeUtilityDrawer();
+  else if (action === "business-drawer-toggle") {
+    if (businessDrawer.dataset.open === "true") closeBusinessDrawer(); else openBusinessDrawer();
+  }
+  else if (action === "business-drawer-close") closeBusinessDrawer();
+  else if (action === "info-open") { infoTab = "you"; switchTab("info"); renderInfo(); }
+  else if (action === "profile-open") { infoTab = "you"; switchTab("info"); renderInfo(); }
+  else if (action === "dispatch-refresh") { dispatchLoaded = false; renderUtilityDrawer(); void refreshDispatch(); }
   else if (action === "repair") report(store.repairBreakdown());
   else if (action === "restore-supply") report(store.restoreSupply());
   else if (action === "hire") report(store.hireStaff());

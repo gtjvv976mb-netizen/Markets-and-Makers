@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import html from "../index.html?raw";
 import main from "../src/main.ts?raw";
 import interior from "../src/interiorWorld.ts?raw";
-import styles from "../src/style.css?raw";
+import styles from "../src/style.css?inline";
+import turntable from "../src/businessTurntable.ts?raw";
 
 describe("markup contract", () => {
   it("every element() selector main.ts requires actually exists in index.html", () => {
@@ -66,6 +67,65 @@ describe("markup contract", () => {
     expect(main).toContain('sheet.removeAttribute("inert")');
     expect(main).toContain("trapFocusWithin(interiorModal, event)");
     expect(main).toContain("trapFocusWithin(sheet, event)");
+  });
+
+  it("keeps the minimalist HUD closed, labelled, and clear of the mobile playfield", () => {
+    const rail = html.match(/<nav class="hud-utility-rail"[\s\S]*?<\/nav>/)?.[0] ?? "";
+    expect(rail.match(/<button/g) ?? []).toHaveLength(3);
+    expect(rail).toContain('data-utility="news" aria-label="News"');
+    expect(rail).toContain('data-utility="bank" aria-label="Bank"');
+    expect(rail).toContain('data-action="info-open" aria-label="Info"');
+
+    expect(html).toContain('id="hudUtilityDrawer" data-open="false" aria-hidden="true" inert');
+    expect(html).toContain('id="hudBusinessDrawer" data-open="false" aria-hidden="true" inert');
+    expect(html).toContain('aria-controls="hudUtilityDrawer"');
+    expect(html).toContain('aria-controls="hudBusinessDrawer"');
+    expect(html).toContain('id="onlinePill"');
+    expect(html).toContain('id="hudVitals"');
+    expect(html).toContain('id="walletSlot"');
+
+    expect(main).toContain('drawer.removeAttribute("inert")');
+    expect(main).toContain('drawer.setAttribute("inert", "")');
+    expect(main).toContain("const activeBeforeClose = document.activeElement");
+    expect(main).toContain('document.body.classList.toggle("hud-drawer-open"');
+  });
+
+  it("exposes live balances, an exact-model business dossier, civic news, and the bank", () => {
+    expect(main).toContain("const total = peerCount + 1");
+    expect(main).not.toContain("districtShopCount + 1");
+    expect(main).toContain("<small>MERCS</small>");
+    expect(main).toContain("<small>$MM</small>");
+
+    for (const label of [
+      "Production",
+      "Product inventory",
+      "Inputs / cycle",
+      "Labour / cycle",
+      "Utilities / day",
+      "Company payroll / day",
+      "Expected revenue",
+      "Estimated cycle margin",
+      "Recorded company net today",
+      "Upgrades",
+    ]) expect(main).toContain(label);
+
+    expect(main).toContain("store.productsMade()");
+    expect(main).toContain("store.dailyUtilityBill()");
+    expect(main).toContain("store.dailyPayroll()");
+    expect(main).toContain("store.todayProfit()");
+    expect(html).toContain('id="businessTurntable"');
+    expect(main).toContain("businessTurntable.setBusiness(licence)");
+    expect(turntable).toContain("proceduralSceneFor(config.model)");
+    expect(turntable).toContain('powerPreference: "low-power"');
+    expect(turntable).toContain("private license: LicenseKey | null | undefined");
+
+    expect(main).toContain("dispatches = await fetchDispatches(7)");
+    expect(main).toContain("escapeMarkup(lead!.headline)");
+    expect(main).toContain("escapeMarkup(lead!.body)");
+    expect(main).toContain("AI-written from measured city ledger figures");
+    expect(main).toContain("exchangeMMForMercDollars(100)");
+    expect(main).toContain("exchangeMercDollarsForMM(1000)");
+    expect(main).toContain('action === "info-open"');
   });
 
   it("renders accessible, branded building banners above visible roofs", () => {

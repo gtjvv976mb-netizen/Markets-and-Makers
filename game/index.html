@@ -50,6 +50,21 @@
       <symbol id="mm-icon-network" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="2.2"/><path d="M12 4.2a7.8 7.8 0 0 1 7.8 7.8M12 19.8A7.8 7.8 0 0 1 4.2 12"/><path d="M12 7.6a4.4 4.4 0 0 1 4.4 4.4M12 16.4A4.4 4.4 0 0 1 7.6 12"/>
       </symbol>
+      <symbol id="mm-icon-news" viewBox="0 0 24 24">
+        <path d="M5 4.2h12.4v15.6H5z"/><path d="M17.4 7.2h2.1v10.4a2.2 2.2 0 0 1-2.1 2.2"/><path d="M8 8h6.3M8 11.3h6.3M8 14.6h4.1"/><circle cx="8.3" cy="5.8" r=".7"/>
+      </symbol>
+      <symbol id="mm-icon-bank" viewBox="0 0 24 24">
+        <path d="m3.8 9 8.2-5 8.2 5z"/><path d="M5.2 10.2h13.6M6.3 10.2v7.1M10.1 10.2v7.1M13.9 10.2v7.1M17.7 10.2v7.1M4.3 19.7h15.4"/>
+      </symbol>
+      <symbol id="mm-icon-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.5"/><path d="M12 10.7v5.5"/><circle cx="12" cy="7.6" r=".8"/>
+      </symbol>
+      <symbol id="mm-icon-profile" viewBox="0 0 24 24">
+        <circle cx="12" cy="8.3" r="3.5"/><path d="M5.3 20c.7-4 3.1-6.1 6.7-6.1s6 2.1 6.7 6.1"/>
+      </symbol>
+      <symbol id="mm-icon-business" viewBox="0 0 24 24">
+        <path d="M4 20V9.7l8-5.2 8 5.2V20z"/><path d="M8 20v-5h4v5M15.5 11.5h1.8M15.5 14.7h1.8"/><path d="M4 10h16"/>
+      </symbol>
     </svg>
 
     <div class="loading-screen" id="loadingScreen">
@@ -127,94 +142,78 @@
       <section class="game-layout">
         <div class="world-frame">
           <canvas id="worldCanvas" tabindex="0" aria-label="3D Mercedonia game world"></canvas>
-          <!-- ============================================================
-               THE HUD GRID.
-               Everything on the play screen lives in one of four zones and is
-               laid out by grid, not by hand-measured offsets. The previous
-               arrangement positioned each element absolutely against numbers
-               kept in sync by a comment ("dock 78, actions 48, pill 64, quest
-               66"), so every new element had to be deconflicted by hand — and
-               twice was not: the quest card ran under the money strip, and the
-               alert stack overlapped the business card by 14px.
-               ============================================================ -->
-          <div class="hud-grid">
-            <!-- TOP: who you are and what you have. Online, balance, level, worth. -->
-            <div class="hud-zone hud-top">
+          <!-- Minimal HUD: persistent controls stay as small edge tabs. The two detailed
+               surfaces are closed by default, so the world remains the dominant layer. -->
+          <div class="hud-grid" id="gameHud">
+            <div class="hud-top" aria-label="Presence and balances">
               <div class="online-pill" id="onlinePill" hidden></div>
-              <div class="world-label">
-                <small id="districtLabel">Civic heart</small>
-                <strong id="islandLabel">Hearthmarket</strong>
-                <span id="islandEconomy" hidden></span>
-              </div>
               <div class="hud-vitals" id="hudVitals"></div>
-              <div class="daylight-chip"><i></i><span>Sun</span><strong>09:42</strong></div>
-              <div class="wallet-slot" id="walletSlot"></div>
             </div>
-            <!-- RIGHT: your business, permanently. Model, rate, costs, profit, upgrades. -->
-            <div class="hud-zone hud-business">
-              <div id="hudBusiness"></div>
-              <!-- Sign-in, top-right, where accounts live in every application on the web.
-              It was previously reachable only from the BOTTOM of the Exchange panel,
-              under the orders board, the maker market, the bank and the contribution
-              board: the first thing a new player must do was the hardest thing in the
-              game to find. The top bar is not an option — it is collapsed to zero
-              width on the play screen. -->
-              <!-- Proof the realm is shared: a number that moves because somebody else
-              walked in. It was buried inside a status sentence nobody reads. -->
-              <div class="alert-stack" id="alertStack" role="status" hidden></div>
-            </div>
-            <!-- BOTTOM: the world. Economy, status, government contracts. -->
-            <div class="hud-zone hud-world">
-              <div class="world-strip" id="hudWorld"></div>
-              <div class="quick-bar" id="quickBar" hidden></div>
-              <footer class="resource-dock" id="resourceDock"></footer>
-            </div>
-            <div class="hud-zone hud-guide">
-            <div class="next-step world-next mayor-card" id="nextStep" aria-live="polite">
-            <div class="mayor-portrait" aria-hidden="true">
-              <svg viewBox="0 0 44 44" class="mayor-face">
-                <circle cx="22" cy="22" r="22" fill="#17484c"/>
-                <circle cx="22" cy="17" r="7.5" fill="#f4d77b"/>
-                <path d="M7 41c1.6-8.4 7.7-13 15-13s13.4 4.6 15 13z" fill="#f4d77b"/>
-                <path d="M22 4.5c6 0 9.6 3.2 9.6 7.3 0 1.6-.5 2.6-1.3 3.4-.6-3.9-3.9-5.4-8.3-5.4s-7.7 1.5-8.3 5.4c-.8-.8-1.3-1.8-1.3-3.4 0-4.1 3.6-7.3 9.6-7.3z" fill="#2f6f5f"/>
-              </svg>
-            </div>
-            <div class="next-copy">
-              <small id="nextLabel">Step 1 of 9</small>
-              <strong id="nextTitle">Explore Hearthmarket</strong>
-              <span id="nextHint">Click the ground to walk.</span>
-              <em class="mayor-because" id="nextBecause"></em>
-            </div>
-            <div class="mayor-actions">
-              <button class="next-go" id="nextGo" data-action="walk-plaza">Show me</button>
-              <button class="mayor-dismiss" id="nextDismiss" data-action="mayor-toggle" title="Hide the Mayor">Hide</button>
-            </div>
-            <div class="next-meter"><span id="nextMeter"></span></div>
-          </div>
-            <button class="mayor-recall" id="mayorRecall" data-action="mayor-toggle" hidden>
-              <span aria-hidden="true">🏛</span> Ask the Mayor
+
+            <div class="wallet-slot" id="walletSlot"><span class="profile-loading" aria-hidden="true"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span></div>
+
+            <nav class="hud-utility-rail" aria-label="City desks">
+              <button data-action="utility-open" data-utility="news" aria-label="News" aria-controls="hudUtilityDrawer" aria-expanded="false">
+                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-news" /></svg><span>News</span>
+              </button>
+              <button data-action="utility-open" data-utility="bank" aria-label="Bank" aria-controls="hudUtilityDrawer" aria-expanded="false">
+                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-bank" /></svg><span>Bank</span>
+              </button>
+              <button data-action="info-open" aria-label="Info" aria-controls="sheet" aria-expanded="false">
+                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-info" /></svg><span>Info</span>
+              </button>
+            </nav>
+
+            <button class="business-edge-tab" id="businessDrawerToggle" data-action="business-drawer-toggle"
+              aria-controls="hudBusinessDrawer" aria-expanded="false">
+              <span class="business-edge-icon" id="businessTabIcon"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg></span>
+              <span class="business-edge-copy"><small id="businessTabState">Enterprise</small><strong id="businessTabName">Set up a business</strong></span>
+              <b class="business-alert-count" id="businessAlertCount" hidden>0</b>
             </button>
-              <div class="world-actions">
+
+            <aside class="hud-drawer utility-drawer" id="hudUtilityDrawer" data-open="false" aria-hidden="true" inert>
+              <header class="hud-drawer-head">
+                <span class="hud-drawer-emblem" id="utilityDrawerEmblem"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-news" /></svg></span>
+                <span><small id="utilityDrawerKicker">Mercedonia civic desk</small><strong id="utilityDrawerTitle">City Dispatch</strong></span>
+                <button data-action="utility-close" aria-label="Close city desk"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-close" /></svg></button>
+              </header>
+              <div class="hud-drawer-scroll" id="hudUtilityContent"></div>
+            </aside>
+
+            <aside class="hud-drawer business-drawer" id="hudBusinessDrawer" data-open="false" aria-hidden="true" inert>
+              <header class="hud-drawer-head business-drawer-head">
+                <span class="hud-drawer-emblem"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg></span>
+                <span><small id="businessDrawerMeta">Your enterprise</small><strong id="businessDrawerName">Business desk</strong></span>
+                <button data-action="business-drawer-close" aria-label="Close business desk"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-close" /></svg></button>
+              </header>
+              <div class="business-turntable-shell" id="businessTurntableShell">
+                <canvas id="businessTurntable" aria-label="Rotating 3D model of your business"></canvas>
+                <span class="turntable-hint">Drag to rotate</span>
+              </div>
+              <div class="hud-drawer-scroll business-drawer-scroll">
+                <div id="hudBusiness"></div>
+                <div class="alert-stack" id="alertStack" role="status" hidden></div>
+              </div>
+            </aside>
+
+            <div class="hud-context-actions" aria-label="Current world action">
               <button class="world-action primary" id="leaseAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg></i><span><small>Property</small><strong>Lease plot</strong></span></button>
               <button class="world-action" id="buildAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-build" /></svg></i><span><small>Enterprise</small><strong>Build business</strong></span></button>
               <button class="world-action" id="enterAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enter" /></svg></i><span><small>Workspace</small><strong>Enter business</strong></span></button>
-              </div>
             </div>
-          <!-- The state of your line, without opening anything. A business sim that hides
-               whether the machines are running is asking the player to go and look. -->
-          <!-- One column, so alerts always sit below the business card however tall it
-               grows. Pixel offsets between two separately-positioned boxes drift apart the
-               moment either one's content changes — they had already overlapped by 14px. -->
-            <!-- The desks live on a rail, not in the bottom stack: four rows of controls
-                 along the bottom edge covered nearly half a short window. -->
-            <div class="hud-zone hud-rail">
+
+            <!-- Existing renderers still write these values for the full information
+                 sheet. They are deliberately not part of the persistent HUD. -->
+            <div class="hud-internal-data" aria-hidden="true">
+              <span id="districtLabel">Civic heart</span><span id="islandLabel">Hearthmarket</span><span id="islandEconomy"></span>
+              <div id="hudWorld"></div><div id="quickBar" hidden></div><footer id="resourceDock"></footer>
+              <div id="nextStep"><span id="nextLabel"></span><strong id="nextTitle"></strong><span id="nextHint"></span><em id="nextBecause"></em><button id="nextGo"></button><button id="nextDismiss" data-action="mayor-toggle"></button><span id="nextMeter"></span></div>
+              <button id="mayorRecall" data-action="mayor-toggle" hidden></button>
               <nav class="maker-nav" aria-label="Maker's Compass">
-              <div class="maker-nav-title"><img src="/assets/brand/mm-maker-crest.svg" alt="" /><span><small>Maker's Compass</small><strong>Choose your desk</strong></span></div>
-              <button class="active" data-tab="shop" aria-current="page" aria-pressed="true"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enterprise" /></svg></i><span><strong>Enterprise</strong><small>Build &amp; operate</small></span><kbd>⌥1</kbd></button>
-              <button data-tab="trade" aria-pressed="false"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg></i><span><strong>Exchange</strong><small>Trade &amp; orders</small></span><kbd>⌥2</kbd></button>
-              <button data-tab="world" aria-pressed="false"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-world" /></svg></i><span><strong>World</strong><small>Map &amp; journey</small></span><kbd>⌥3</kbd></button>
+                <button data-tab="shop">Enterprise <kbd>⌥1</kbd></button><button data-tab="trade">Exchange <kbd>⌥2</kbd></button><button data-tab="world">World <kbd>⌥3</kbd></button>
               </nav>
             </div>
+          </div>
           <!-- Walk up to a building and it offers its counter. See renderCounterPrompt. -->
           <div class="counter-prompt" id="counterPrompt" hidden></div>
           <div class="counter-panel" id="counterPanel" role="dialog" hidden></div>
@@ -226,8 +225,6 @@
           <div class="selected-card" id="selectedCard">
             <div><small>Selected plot</small><strong id="selectedPlotName">Garden Row Plot</strong></div>
             <span id="selectedPlotStatus">Available · 120 MERCS</span>
-          </div>
-              <!-- What a player does every session, one tap away. See renderQuickBar. -->
           </div>
         </div>
 

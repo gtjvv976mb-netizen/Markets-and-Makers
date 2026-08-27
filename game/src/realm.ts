@@ -343,6 +343,48 @@ export interface CabinetDirective {
   decidedAt: string | null;
 }
 
+export interface CityDispatchSnapshot {
+  businesses: number;
+  districts: string[];
+  treasury: number;
+  citizensPurse: number;
+  makersHolding: number;
+  wagesPaidToday: number;
+  payrollToday: number;
+  worksSpendToday: number;
+  worksOutput: Record<string, number>;
+  soldToday: number;
+  grossToday: number;
+  busiestTrade: string | null;
+  quietestShelf: string | null;
+}
+
+/** A published civic bulletin. The prose is AI-written from the attached measured snapshot. */
+export interface CityDispatch {
+  headline: string;
+  body: string;
+  mood: "thriving" | "steady" | "strained" | "austere" | string;
+  publishedAt: string;
+  snapshot: CityDispatchSnapshot;
+}
+
+/** Public like a newspaper: reading the Dispatch never needs a wallet session. */
+export async function fetchDispatches(limit = 7): Promise<CityDispatch[] | null> {
+  const base = serverBase();
+  if (!base || isDemo()) return null;
+  try {
+    const capped = Math.min(30, Math.max(1, Math.floor(limit)));
+    const response = await fetch(`${base}/api/world/dispatch?limit=${capped}`, {
+      headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { dispatches?: CityDispatch[] };
+    return Array.isArray(payload.dispatches) ? payload.dispatches : [];
+  } catch {
+    return null;
+  }
+}
+
 /** Public, all of them: the city's accounts are not a secret from the people in it. */
 export async function fetchCityBooks(): Promise<{ books: CityBooks | null; policy: CityPolicy | null; cabinet: CityCabinet | null }> {
   const base = serverBase();
