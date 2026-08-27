@@ -7,7 +7,9 @@ import { closeDatabase, databaseHealth, recordHeliusEvents } from "./database.js
 import { clientMessageSchema, validateMove, type PositionSample } from "./protocol.js";
 import { districtBusinesses, makerHoldings, registerBusiness, releaseBusiness, seedPlots, WorldError } from "./world.js";
 import { runWorldTick } from "./tick.js";
-import { runMinds } from "./minds.js";
+import { governmentBriefing, runMinds } from "./minds.js";
+import { cabinetAvailable, convene, readDirective, recentDirectives, CABINET_INTERVAL_HOURS, WAGE_FACTOR, WORKS_FACTOR } from "./cabinet.js";
+import { STATE_INDUSTRIES } from "./minds.js";
 import { dispatchAvailable, readEconomy, recentDispatches, writeDispatch } from "./bulletin.js";
 import { advisorAvailable, consultAdvisor, recentProposals, REQUIRED_HISTORY } from "./advisor.js";
 import { DIALS, readPolicy, resetPolicy } from "./policy.js";
@@ -284,6 +286,20 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // The cabinet's record. Public for the same reason policy is: a government that
+    // decides by judgement rather than by formula owes players the judgement in writing.
+    if (req.method === "GET" && url.pathname === "/api/world/cabinet") {
+      json(res, 200, {
+        realmName: REALM_NAME,
+        cabinetAvailable: cabinetAvailable(),
+        intervalHours: CABINET_INTERVAL_HOURS,
+        bounds: { wageFactor: WAGE_FACTOR, worksFactor: WORKS_FACTOR },
+        standing: await readDirective(undefined, Object.keys(STATE_INDUSTRIES)),
+        directives: await recentDirectives(Number(url.searchParams.get("limit") ?? 14)),
+      });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/world/policy") {
       json(res, 200, {
         realmName: REALM_NAME,
@@ -491,13 +507,29 @@ server.listen(config.port, "0.0.0.0", async () => {
       running = true;
       // The minds run first: wages are what the Mercedonians spend in the shops the tick
       // is about to open, and the state's works are where those shops restock from.
-      void runMinds()
+      // The cabinet sits first, so today's directive governs today's payroll rather than
+      // tomorrow's. Safe to offer every minute: it refuses on its own until a day has
+      // passed, and every failure path returns a usable directive — the standing one, or
+      // the neutral one that reproduces the original formula. The government pays wages
+      // whether or not a model answered.
+      void (async () => {
+        const briefing = await governmentBriefing();
+        if (!briefing) return;
+        const seated = await convene(briefing, Object.keys(STATE_INDUSTRIES));
+        if (seated.status === "decided") {
+          console.log(`cabinet: ${seated.directive.stance} — wages x${seated.directive.wageFactor}, `
+            + `works x${seated.directive.worksFactor}. ${seated.directive.reason}`);
+        }
+      })()
+        .catch((error) => console.warn("cabinet failed to sit", (error as Error).message))
+        .then(() => runMinds())
         .then((minds) => {
           if (minds.government.wagesPaid > 0 || minds.government.productionCost > 0) {
             const made = Object.entries(minds.government.produced).map(([k, v]) => `${v} ${k}`).join(", ");
             console.log(`government: paid ${minds.government.wagesPaid} in wages to ${minds.government.population} households`
               + (made ? `, works made ${made}` : "")
-              + (minds.government.austerity ? " (austerity)" : ""));
+              + (minds.government.austerity ? " (austerity: the cap bound)" : "")
+              + (minds.government.restraint ? ` (restraint: ${minds.government.directive.stance})` : ""));
           }
           return runWorldTick();
         })

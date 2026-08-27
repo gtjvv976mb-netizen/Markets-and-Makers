@@ -316,16 +316,45 @@ export interface CityPolicy {
   }>;
 }
 
-/** Public, both of them: the city's accounts are not a secret from the people in it. */
-export async function fetchCityBooks(): Promise<{ books: CityBooks | null; policy: CityPolicy | null }> {
+/**
+ * The government's own decision for the day, and the record of the ones before it.
+ *
+ * The advisor turns dials once a week; the cabinet decides what the state actually does
+ * today within them. Published for the same reason policy is — a government that governs
+ * by judgement rather than by formula owes the people the judgement in writing.
+ */
+export interface CityCabinet {
+  cabinetAvailable: boolean;
+  intervalHours: number;
+  bounds: { wageFactor: { min: number; max: number }; worksFactor: { min: number; max: number } };
+  standing: CabinetDirective;
+  directives: CabinetDirective[];
+}
+
+export interface CabinetDirective {
+  stance: "expand" | "steady" | "restrain";
+  wageFactor: number;
+  worksFactor: number;
+  priority: string[];
+  reason: string;
+  address: string;
+  decidedAt: string | null;
+}
+
+/** Public, all of them: the city's accounts are not a secret from the people in it. */
+export async function fetchCityBooks(): Promise<{ books: CityBooks | null; policy: CityPolicy | null; cabinet: CityCabinet | null }> {
   const base = serverBase();
-  if (!base || isDemo()) return { books: null, policy: null };
+  if (!base || isDemo()) return { books: null, policy: null, cabinet: null };
   const get = async <T,>(path: string): Promise<T | null> => {
     try {
       const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(6000) });
       return response.ok ? await response.json() as T : null;
     } catch { return null; }
   };
-  const [books, policy] = await Promise.all([get<CityBooks>("/api/world/economy"), get<CityPolicy>("/api/world/policy")]);
-  return { books, policy };
+  const [books, policy, cabinet] = await Promise.all([
+    get<CityBooks>("/api/world/economy"),
+    get<CityPolicy>("/api/world/policy"),
+    get<CityCabinet>("/api/world/cabinet"),
+  ]);
+  return { books, policy, cabinet };
 }

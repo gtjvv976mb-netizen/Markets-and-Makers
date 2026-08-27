@@ -24,6 +24,7 @@ import { pool } from "./database.js";
 import { moveCurrency } from "./market.js";
 import { RESOURCES } from "./catalogue.js";
 import { readPolicy } from "./policy.js";
+import { type Directive, NEUTRAL, readDirective } from "./cabinet.js";
 
 const REALM = "sunwoven-1";
 
@@ -55,12 +56,47 @@ export const STATE_INDUSTRIES: Record<string, { target: number; costPerUnit: num
   timber: { target: 20_000, costPerUnit: 2 },
 };
 
+/**
+ * What the state pays today, and why it is not more.
+ *
+ * Pure, exported, and called by runGovernmentMind — not reimplemented by it. The limits
+ * below are the only thing standing between a language model's directive and the
+ * treasury, so they are tested directly rather than through a simulation that could
+ * agree with a copy of the rule while the real one drifts.
+ *
+ * The order is the guarantee: the cabinet's factor scales the BILL, and the cap is applied
+ * to the result. No factor, however large or however it got into the row, can lift payment
+ * past `spendable * cap` — and `spendable` is already the treasury less its floor, so the
+ * floor cannot be crossed either.
+ */
+export function settlePayroll(
+  wageBill: number, spendable: number, payrollCap: number, wageFactor: number,
+): { paid: number; ceiling: number; austerity: boolean; restraint: boolean } {
+  const safeBill = Number.isFinite(wageBill) ? Math.max(0, wageBill) : 0;
+  const safeSpendable = Number.isFinite(spendable) ? Math.max(0, spendable) : 0;
+  const factor = Number.isFinite(wageFactor) ? Math.max(0, wageFactor) : 1;
+
+  const intent = Math.floor(safeBill * factor);
+  const ceiling = Math.floor(safeSpendable * Math.max(0, payrollCap));
+  const paid = Math.max(0, Math.min(intent, ceiling));
+  return {
+    paid, ceiling,
+    austerity: paid < safeBill && ceiling < safeBill,
+    restraint: paid < safeBill && ceiling >= safeBill,
+  };
+}
+
 export interface GovernmentReport {
   elapsedHours: number;
   population: number;
   wageBill: number;
   wagesPaid: number;
+  /** The payroll cap bound: the state could not pay the full bill. */
   austerity: boolean;
+  /** The cabinet CHOSE to pay less than it could. Not the same thing as austerity. */
+  restraint: boolean;
+  /** The directive today was executed under. NEUTRAL when no cabinet has sat. */
+  directive: Directive;
   produced: Record<string, number>;
   productionCost: number;
   treasury: number;
@@ -124,7 +160,8 @@ function keyFor(...parts: string[]): string {
 export async function runGovernmentMind(now = Date.now()): Promise<GovernmentReport> {
   const empty: GovernmentReport = {
     elapsedHours: 0, population: 0, wageBill: 0, wagesPaid: 0,
-    austerity: false, produced: {}, productionCost: 0, treasury: 0,
+    austerity: false, restraint: false, directive: NEUTRAL,
+    produced: {}, productionCost: 0, treasury: 0,
   };
   if (!pool) return empty;
 
@@ -140,6 +177,11 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     const dailyWage = policy.civicDailyWage ?? CIVIC_DAILY_WAGE;
     const payrollCap = policy.payrollShareCap ?? PAYROLL_SHARE_CAP;
 
+    // Today's directive, read inside this transaction so a cabinet that sits between the
+    // read and the payment cannot have its factors applied to a bill computed without them.
+    // NEUTRAL when no cabinet has sat, which reproduces the original formula exactly.
+    const directive = await readDirective(client, Object.keys(STATE_INDUSTRIES));
+
     const counted = await client.query<{ n: string }>(
       "select count(*)::text as n from business b join plot p on p.id=b.plot_id where p.realm_id=$1", [REALM]);
     const population = BASE_POPULATION + Number(counted.rows[0]!.n) * POPULATION_PER_BUSINESS;
@@ -149,7 +191,13 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
 
     // --- payroll ------------------------------------------------------------
     const wageBill = Math.floor(population * dailyWage * (hours / 24));
-    const wagesPaid = Math.max(0, Math.min(wageBill, Math.floor(spendable * payrollCap)));
+
+    // The cabinet decides what share of the bill to pay; the cap decides the most it may.
+    // Order matters: the factor is applied to the BILL, then the cap is applied to the
+    // result. A wageFactor above 1 can therefore never lift payment past the cap — it can
+    // only close the gap to it on a day the cap was not already binding.
+    const settled = settlePayroll(wageBill, spendable, payrollCap, directive.wageFactor);
+    const wagesPaid = settled.paid;
     if (wagesPaid > 0) {
       await moveCurrency(client, REALM, keyFor("payroll", String(Math.floor(now / 1000))), wagesPaid,
         { type: "government", id: "treasury" }, { type: "player", id: "citizens" }, "government.payroll");
@@ -160,7 +208,15 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     let productionCost = 0;
     let budget = Math.max(0, spendable - wagesPaid);
 
-    for (const [itemKey, plan] of Object.entries(STATE_INDUSTRIES)) {
+    // The cabinet's funding order, then anything it did not name, in declared order. A
+    // directive that names nothing leaves the order exactly as it was.
+    const ordered = [
+      ...directive.priority.filter((key) => key in STATE_INDUSTRIES),
+      ...Object.keys(STATE_INDUSTRIES).filter((key) => !directive.priority.includes(key)),
+    ];
+
+    for (const itemKey of ordered) {
+      const plan = STATE_INDUSTRIES[itemKey]!;
       if (!RESOURCES[itemKey] || budget <= 0) continue;
       const target = policy[`${itemKey}Target`] ?? plan.target;
       const stocked = await client.query<{ quantity: string }>(
@@ -171,7 +227,7 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
       if (have >= target) continue;
 
       // A works produces at a rate, not instantly: a day's run closes a quarter of the gap.
-      const wanted = Math.floor((target - have) * Math.min(1, hours / 24) * 0.25);
+      const wanted = Math.floor((target - have) * Math.min(1, hours / 24) * 0.25 * directive.worksFactor);
       const affordable = Math.floor(budget / plan.costPerUnit);
       const made = Math.max(0, Math.min(wanted, affordable));
       if (made <= 0) continue;
@@ -195,8 +251,12 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     await bank(client, "government");
     await client.query("commit");
     return {
-      elapsedHours: hours, population, wageBill, wagesPaid,
-      austerity: wagesPaid < wageBill,
+      elapsedHours: hours, population, wageBill, wagesPaid, directive,
+      // Two different failures, told apart. The cap binding means the state could not pay;
+      // restraint means it chose not to. Reporting both as "austerity" would hide a
+      // cabinet quietly underpaying a treasury that was never actually thin.
+      austerity: settled.austerity,
+      restraint: settled.restraint,
       produced, productionCost,
       treasury: treasuryBefore - wagesPaid - productionCost,
     };
@@ -260,4 +320,68 @@ export async function runMinds(now = Date.now()): Promise<{ government: Governme
   const government = await runGovernmentMind(now);
   const citizens = await runCitizenMind(now);
   return { government, citizens };
+}
+
+/**
+ * The books the cabinet decides on.
+ *
+ * Read-only and outside any transaction — no FOR UPDATE — because this runs before the
+ * cabinet sits, not during the payroll it informs. The figures it reports are the same
+ * ones runGovernmentMind will recompute under lock a moment later; a directive decided on
+ * a treasury that moved slightly since is fine, because every limit is re-enforced at
+ * payment time against the locked balance, not against this snapshot.
+ */
+export async function governmentBriefing(): Promise<import("./cabinet.js").CabinetBriefing | null> {
+  if (!pool) return null;
+  const policy = await readPolicy(REALM);
+  const dailyWage = policy.civicDailyWage ?? CIVIC_DAILY_WAGE;
+  const payrollCap = policy.payrollShareCap ?? PAYROLL_SHARE_CAP;
+
+  const [counted, purses, stock, ledger, history] = await Promise.all([
+    pool.query<{ n: string }>(
+      "select count(*)::text as n from business b join plot p on p.id=b.plot_id where p.realm_id=$1", [REALM]),
+    pool.query<{ owner_type: string; owner_id: string; balance: string }>(
+      `select owner_type, owner_id, balance from currency_account
+        where realm_id=$1 and currency_code='MERCS'
+          and ((owner_type='government' and owner_id='treasury') or (owner_type='player' and owner_id='citizens'))`, [REALM]),
+    pool.query<{ item_key: string; quantity: string }>(
+      `select item_key, quantity from item_balance
+        where realm_id=$1 and owner_type='government' and owner_id='supply'`, [REALM]),
+    pool.query<{ reason: string; total: string }>(
+      `select reason, coalesce(sum(amount),0)::text as total from currency_ledger
+        where realm_id=$1 and created_at > now() - interval '24 hours'
+          and reason in ('government.payroll','market.sale') group by reason`, [REALM]),
+    pool.query<{ treasury: string }>(
+      `select distinct on (published_at::date) (snapshot->>'treasury') as treasury
+         from bulletin where realm_id=$1
+        order by published_at::date desc, published_at desc limit 7`, [REALM]),
+  ]);
+
+  const balance = (type: string, id: string): number =>
+    Number(purses.rows.find((row) => row.owner_type === type && row.owner_id === id)?.balance ?? 0);
+  const total = (reason: string): number =>
+    Math.abs(Number(ledger.rows.find((row) => row.reason === reason)?.total ?? 0));
+
+  const treasury = balance("government", "treasury");
+  const spendable = Math.max(0, treasury - TREASURY_FLOOR);
+  const population = BASE_POPULATION + Number(counted.rows[0]!.n) * POPULATION_PER_BUSINESS;
+
+  return {
+    treasury,
+    treasuryFloor: TREASURY_FLOOR,
+    spendable,
+    population,
+    dailyWageBill: Math.floor(population * dailyWage),
+    maximumPayableToday: Math.floor(spendable * payrollCap),
+    citizensPurse: balance("player", "citizens"),
+    wagesPaidYesterday: total("government.payroll"),
+    soldYesterday: total("market.sale"),
+    stock: Object.entries(STATE_INDUSTRIES).map(([item, plan]) => ({
+      item,
+      have: Number(stock.rows.find((row) => row.item_key === item)?.quantity ?? 0),
+      target: policy[`${item}Target`] ?? plan.target,
+      costPerUnit: plan.costPerUnit,
+    })),
+    recentTreasury: history.rows.map((row) => Number(row.treasury ?? 0)).reverse(),
+  };
 }

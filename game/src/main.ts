@@ -1577,7 +1577,7 @@ const HALT_REASON: Record<string, { tone: string; label: string; why: string }> 
 let infoTab: "you" | "business" | "chain" | "district" | "city" | "ledger" = "you";
 
 /** The city's books, refreshed on a slow timer. Public data; no session needed. */
-let cityBooks: Awaited<ReturnType<typeof fetchCityBooks>> = { books: null, policy: null };
+let cityBooks: Awaited<ReturnType<typeof fetchCityBooks>> = { books: null, policy: null, cabinet: null };
 
 /** "3m 20s" — the same shape the store uses when it tells you how long the fitters need. */
 function formatDuration(seconds: number): string {
@@ -1669,7 +1669,7 @@ function renderChain(): string {
  * this is sustainable.
  */
 function renderCity(): string {
-  const { books, policy } = cityBooks;
+  const { books, policy, cabinet } = cityBooks;
   if (!books) {
     return `<div class="empty-state"><i>\u25C8</i><strong>The city's books are not open from here</strong>
       <p>${isDemo() ? "A demo runs its own private city. Sign in to see the real one." : "The authority could not be reached. The books are public — try again in a moment."}</p></div>`;
@@ -1700,6 +1700,32 @@ function renderCity(): string {
       ${statTile("Busiest trade", books.busiestTrade ? String(books.busiestTrade) : "Nothing sold yet")}
       ${statTile("Quietest shelf", books.quietestShelf ? String(books.quietestShelf) : "—", "Nobody has touched it")}
     </div>
+
+    ${cabinet ? `
+      <div class="section-title">Today's word from the Exchequer</div>
+      <div class="cabinet-card cabinet-${escapeMarkup(cabinet.standing.stance)}">
+        <div class="cabinet-head">
+          <strong>${cabinet.standing.stance === "expand" ? "Expanding"
+            : cabinet.standing.stance === "restrain" ? "Restraining" : "Holding steady"}</strong>
+          <span>${cabinet.standing.decidedAt
+            ? `decided ${new Date(cabinet.standing.decidedAt).toLocaleString()}`
+            : "no cabinet has sat — the standing formula applies"}</span>
+        </div>
+        <p class="cabinet-address">${escapeMarkup(cabinet.standing.address)}</p>
+        <div class="info-grid">
+          ${statTile("Wages today", `${Math.round(cabinet.standing.wageFactor * 100)}%`, "of the standing bill")}
+          ${statTile("Civic works", `${Math.round(cabinet.standing.worksFactor * 100)}%`, cabinet.standing.worksFactor === 0 ? "halted for the day" : "of the standing rate")}
+        </div>
+        <small class="cabinet-reason">${escapeMarkup(cabinet.standing.reason)}</small>
+      </div>
+      <p class="model-note">The government decides each day what share of the wage bill to pay and how hard the civic works run. It cannot move a coin itself: the treasury floor and the payroll cap are enforced in code, and a directive can only choose where to sit beneath them${cabinet.cabinetAvailable ? "" : ". No cabinet is configured on this realm, so the standing formula runs untouched"}.</p>
+      ${cabinet.directives.length > 1 ? `
+        <div class="section-title">The cabinet's record</div>
+        <ul class="advisor-log">${cabinet.directives.slice(0, 6).map((entry) => `<li class="advisor-${escapeMarkup(entry.stance)}">
+          <strong>${escapeMarkup(entry.stance)} — wages ${Math.round(entry.wageFactor * 100)}%, works ${Math.round(entry.worksFactor * 100)}%</strong>
+          <em>${entry.decidedAt ? new Date(entry.decidedAt).toLocaleDateString() : ""}</em>
+          <small>${escapeMarkup(entry.reason)}</small></li>`).join("")}</ul>` : ""}
+    ` : ""}
 
     ${policy ? `
       <div class="section-title">What the government is set to</div>

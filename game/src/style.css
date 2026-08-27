@@ -2487,6 +2487,29 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .advisor-rejected, .advisor-unknown-key { border-left: 3px solid #b0503a; }
 .advisor-rejected em, .advisor-unknown-key em { color: #a04532; }
 
+/* The cabinet's word for the day. Stance is carried by the left edge and the accent only —
+   the card must stay legible in the one-layer HUD, and a full colour wash at this size
+   fights the stat tiles inside it. */
+.cabinet-card { border: 1px solid rgba(23,72,76,.14); border-left-width: 3px; border-radius: 13px;
+  padding: 11px 12px; background: rgba(255,255,255,.7); display: grid; gap: 8px; }
+.cabinet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cabinet-head strong { font-size: 13.5px; letter-spacing: .01em; }
+.cabinet-head span { font-size: 10.5px; color: var(--muted); text-align: right; }
+.cabinet-address { margin: 0; font-size: 12.5px; line-height: 1.45; }
+.cabinet-reason { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.cabinet-card .info-grid { gap: 6px; }
+.cabinet-steady { border-left-color: #4eaeb7; }
+.cabinet-steady .cabinet-head strong { color: #2b7f88; }
+.cabinet-expand { border-left-color: #2f9e6f; }
+.cabinet-expand .cabinet-head strong { color: #2f7d5f; }
+.cabinet-restrain { border-left-color: #d09a3a; }
+.cabinet-restrain .cabinet-head strong { color: #9a6a1a; }
+/* The record below reuses .advisor-log, whose modifiers are statuses; these are stances. */
+.advisor-steady { border-left: 3px solid #4eaeb7; }
+.advisor-expand { border-left: 3px solid #2f9e6f; }
+.advisor-restrain { border-left: 3px solid #d09a3a; }
+.advisor-steady em, .advisor-expand em, .advisor-restrain em { color: var(--muted); }
+
 /* Hailing a cab. The fare sits on the right of each stop because that is the number a
    person actually decides on. */
 .taxi-prompt { border-color: rgba(78,174,183,.5); }
