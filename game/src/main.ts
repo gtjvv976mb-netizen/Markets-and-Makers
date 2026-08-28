@@ -1214,7 +1214,7 @@ function renderMarket(): void {
         <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></div>
         <div><small>Issued this epoch</small><strong>${formatNumber(store.state.epochIssued)} ${CURRENCY_CODE}</strong></div>
         <div><small>Rate</small><strong>$1 = ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}</strong></div>
-        <div><small>Economy worth</small><strong>$${formatNumber(Math.round(store.economyValueUsd()))}</strong></div>
+        <div><small>Treasury depth</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
         <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
       </div>
       <div class="reserve-actions">
@@ -1229,8 +1229,8 @@ function renderMarket(): void {
         <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${CURRENCY_CODE}</strong></div>
         <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${CURRENCY_CODE}</strong></div>
       </div>
-      <small class="city-note">Mercedonia pays Mercedonians every day from what it collects, and issues against these reserves when collections fall short — so wages, and therefore your customers, stay funded as the world grows. Roughly nine in ten Merc Dollars of wages end up in player tills.</small>
-      <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Mercedonians are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${CURRENCY_CODE} out of nothing.</small>
+      <small class="city-note">Mercedonia pays every household a civic wage each day, and that money becomes the custom in your shop. When collections fall short the city pays less — austerity is a real state here, which is why a healthy treasury matters to you.</small>
+      <small class="reserve-boundary">This bank is a mechanic inside the game. Moving $MM here converts it to ${CURRENCY_CODE} for use in the city, and the conversion runs in both directions while the treasury has room — but nothing here leaves the game, and none of it is a deposit, a claim, or a promise of anything outside Mercedonia. The one economic guarantee is arithmetic: no in-game activity creates ${CURRENCY_CODE} out of nothing.</small>
     </section>
 
     ${withdrawalDesk ? `
@@ -1247,7 +1247,7 @@ function renderMarket(): void {
           <button data-action="withdraw-chain" ${withdrawalDesk.withdrawable < withdrawalDesk.minimum ? "disabled" : ""}>
             Withdraw ${formatNumber(withdrawalDesk.withdrawable)} $MM <small>on-chain, to your wallet</small></button>
         </div>`
-      : `<p>Withdrawals are not switched on yet. Your earned $MM is recorded by the authority — ${formatNumber(withdrawalDesk.withdrawable)} $MM withdrawable — and this desk opens when the treasury goes live.</p>`}
+      : `<p>Withdrawals are closed. Your contribution is recorded by the city — ${formatNumber(withdrawalDesk.withdrawable)} $MM to your name — but $MM cannot currently leave Mercedonia, and whether it ever does is undecided. Treat everything here as part of the game.</p>`}
       ${withdrawalDesk.payouts.length ? `<ul class="advisor-log">${withdrawalDesk.payouts.slice(0, 4).map((row) => `<li class="payout-${escapeMarkup(row.state)}">
         <strong>${formatNumber(row.units)} $MM</strong><em>${escapeMarkup(row.state)}</em>
         ${row.signature ? `<small>tx ${escapeMarkup(row.signature.slice(0, 20))}…</small>` : row.error ? `<small>${escapeMarkup(row.error)}</small>` : ""}</li>`).join("")}</ul>` : ""}
@@ -2185,7 +2185,7 @@ function bankDeskMarkup(): string {
         <span><small>Issuance room</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></span>
         <span><small>1,000 ${CURRENCY_CODE} returns</small><strong>${formatNumber(returned)} $MM</strong></span>
       </div>
-      <p class="bank-boundary">Prototype exchange only: no blockchain transfer, withdrawal, guaranteed redemption, or promise of profit. The bank returns deposited capital; weekly contribution rewards are separate.</p>
+      <p class="bank-boundary">Prototype exchange only: no blockchain transfer, no withdrawal, no redemption, and no promise of profit. Every balance on this screen is part of the game and stays inside it.</p>
       <button class="drawer-link-button" data-action="tab" data-target="trade">Open the full Exchange <span aria-hidden="true">→</span></button>
     </section>`;
 }

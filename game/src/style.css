@@ -3477,3 +3477,18 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 /* "18 of 20 listings open" — the rule stated before it is enforced. */
 .maker-cap-note { display: block; margin-top: 6px; text-align: center;
   font-size: 11px; color: var(--hud-muted, #7b8a72); font-variant-numeric: tabular-nums; }
+
+/* The boot-screen terms. Collapsed by default so it does not bury the two choices, but
+   present before sign-in rather than on a page nobody opens. */
+.boot-terms { margin-top: 14px; text-align: left; border-top: 1px solid rgba(255,255,255,.16); padding-top: 12px; }
+.boot-terms summary { cursor: pointer; font-size: 12.5px; opacity: .82; list-style: none;
+  display: flex; align-items: center; gap: 7px; }
+.boot-terms summary::-webkit-details-marker { display: none; }
+.boot-terms summary::before { content: "▸"; font-size: 10px; transition: transform .15s ease; }
+.boot-terms[open] summary::before { transform: rotate(90deg); }
+.boot-terms summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 3px; }
+.boot-terms-body { margin-top: 10px; max-height: 190px; overflow-y: auto; padding-right: 8px; }
+.boot-terms-body p { margin: 0 0 9px; font-size: 12px; line-height: 1.5; opacity: .78; }
+.boot-terms-body p:last-child { margin-bottom: 0; }
+.boot-terms-body strong { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .boot-terms summary::before { transition: none; } }
