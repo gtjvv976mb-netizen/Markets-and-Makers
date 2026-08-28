@@ -11,9 +11,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_EQUIPMENT_TILES, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE, FLOOR_WALKWAY_COLUMN,
-  PLOTS, SAVE_KEY, tileIsBuildable, tileToWorld, worldToTile, type LicenseKey,
+  PLOTS, SAVE_KEY, tileIsBuildable, tileToWorld, worldToTile, type LicenseKey, type UpgradeKey,
 } from "../src/data";
-import { createFreshState, GameStore, type UpgradeKey } from "../src/state";
+import { createFreshState, GameStore } from "../src/state";
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>();
