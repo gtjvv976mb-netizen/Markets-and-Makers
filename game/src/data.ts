@@ -751,6 +751,37 @@ export const COUNTER_SERVICES: Record<string, CounterService[]> = {
   ],
 };
 
+/**
+ * Where a piece of business is actually done.
+ *
+ * The exchange used to settle everything from a menu: a maker could buy materials, ship
+ * goods and file a delivery without their Mercedonian moving a step, which made the city
+ * scenery rather than somewhere you work. Each kind of business now has a desk, and the
+ * errand is only finished when you are standing at it.
+ *
+ * The pairings are meant to read without explanation — you collect materials from the
+ * works depot, goods leave through the transit hall, and a delivery is filed at the city
+ * hall, because that is where those things would happen in a real city.
+ */
+export type ErrandKind = "buy" | "sell" | "market-buy" | "market-list" | "contract";
+
+export const ERRAND_DESK: Record<ErrandKind, string> = {
+  buy: "works",
+  sell: "transit",
+  "market-buy": "transit",
+  "market-list": "transit",
+  contract: "cityhall",
+};
+
+/** What the errand pill and the desk call each kind of job. */
+export const ERRAND_VERB: Record<ErrandKind, { going: string; atDesk: string }> = {
+  buy: { going: "Collect", atDesk: "Take delivery" },
+  sell: { going: "Ship", atDesk: "Hand it over" },
+  "market-buy": { going: "Collect", atDesk: "Take delivery" },
+  "market-list": { going: "Consign", atDesk: "Put it on the market" },
+  contract: { going: "Deliver", atDesk: "File the delivery" },
+};
+
 export const CIVIC_BUILDINGS: CivicBuilding[] = [
   { id: "cityhall", name: "Sunspire City Hall", role: "Government, licences and civic records", island: "hearth",
     x: -1, z: -25, bannerY: 13.4, icon: "\u2302", color: "#c9a24a", supplies: [], opens: "world" },

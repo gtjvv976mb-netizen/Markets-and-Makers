@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey } from "./data";
+import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchCityBooks, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -484,7 +484,35 @@ function positionMarkers(): void {
 }
 
 let lastMarkerSync = 0;
+let lastProximitySync = 0;
+let proximitySignature = "";
 world.setFrameCallback(() => {
+  // Anything that depends on WHERE THE PLAYER IS has to be recomputed as they walk. Both
+  // of these were only redrawn when something else happened to trigger a render, so the
+  // counter prompt appeared late and the errand's distance sat frozen at whatever it read
+  // when the job was accepted — a countdown that does not count down.
+  //
+  // Four times a second is plenty for a walking pace and costs a handful of distance
+  // calculations; doing it every frame would rebuild the same markup sixty times a second
+  // for a number that changes at walking speed.
+  const proximityNow = performance.now();
+  if (proximityNow - lastProximitySync >= 250) {
+    lastProximitySync = proximityNow;
+    const near = nearbyCounter();
+    const errand = store.errand();
+    const desk = errand ? CIVIC_BUILDINGS.find((site) => site.id === errand.desk) : null;
+    // Distance to the nearest whole metre: the pill counts down, so it must be part of
+    // the signature, but rounding stops a sub-pixel drift from redrawing every pass.
+    const range = desk && desk.island === store.state.island
+      ? Math.round(Math.hypot(store.state.player.x - desk.x, store.state.player.z - desk.z)) : -1;
+    const signature = `${near?.id ?? ""}:${counterOpenFor ?? ""}:${errand?.label ?? ""}:${range}:${nearbyTaxi()?.id ?? ""}`;
+    if (signature !== proximitySignature) {
+      proximitySignature = signature;
+      renderCounterPrompt();
+      renderErrandPill();
+      renderTaxi();
+    }
+  }
   // What a marker SAYS can lag; where it IS cannot. Rebuilding the markup is the
   // expensive half and stays on a throttle; moving them is cheap and happens every frame,
   // so a nameplate stays glued to the maker wearing it.
@@ -1297,7 +1325,7 @@ function renderMarket(): void {
         const resource = RESOURCES[key];
         const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
         const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
-        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="buy" data-resource="${key}">Buy 1</button><span class="market-auto" title="Mercedonians and the trades below you buy this as they need it">bought by demand</span></div></div>`;
+        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="errand-buy" data-resource="${key}" ${store.errand() ? "disabled" : ""}>${store.errand() ? "Hands full" : "Order 1"}</button><span class="market-auto" title="Mercedonians and the trades below you buy this as they need it">bought by demand</span></div></div>`;
       }).join("")}
       ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
     </div>
@@ -1495,28 +1523,32 @@ function renderMakerMarket(): void {
  * confirms. A refusal is shown as-is — it is the shared market talking, and inventing a
  * local fallback would let a browser believe it sold something the ledger never moved.
  */
-async function withMarket(work: () => Promise<boolean>): Promise<void> {
-  if (marketBusy) return;
+async function withMarket(work: () => Promise<boolean>): Promise<boolean> {
+  if (marketBusy) return false;
   marketBusy = true;
   renderMakerMarket();
+  let settled = false;
   try {
-    if (await work()) await refreshMakerMarket();
+    settled = await work();
+    if (settled) await refreshMakerMarket();
   } finally {
     marketBusy = false;
     renderAll();
     void refreshMakerMarket();
   }
+  // Whether the authority actually settled it — an errand must not clear on a refusal.
+  return settled;
 }
 
-async function placeMakerListing(): Promise<void> {
+async function placeMakerListing(): Promise<boolean> {
   const item = listingDraft.item;
-  if (!item) return;
+  if (!item) return false;
   const held = makerHoldings[item] ?? 0;
   const quantity = Math.max(1, Math.min(listingDraft.quantity, held));
   const unitPrice = draftUnitPrice();
-  if (quantity <= 0 || unitPrice <= 0) return;
+  if (quantity <= 0 || unitPrice <= 0) return false;
 
-  await withMarket(async () => {
+  return withMarket(async () => {
     const outcome = await listOnMarket(store.state.island, item, quantity, unitPrice);
     if (outcome.status === "ok") { report(store.applyMarketListing(item, quantity, unitPrice)); return true; }
     if (outcome.status === "refused") toast(outcome.message);
@@ -1525,9 +1557,9 @@ async function placeMakerListing(): Promise<void> {
   });
 }
 
-async function takeMakerListing(listingId: string): Promise<void> {
+async function takeMakerListing(listingId: string): Promise<boolean> {
   const listing = makerListings.find((entry) => entry.id === listingId);
-  if (!listing) return;
+  if (!listing) return false;
 
   // First click arms and shows the total; only the second spends. Nothing is sent to the
   // authority on the arming click, so an accidental tap costs nothing at all.
@@ -1537,10 +1569,10 @@ async function takeMakerListing(listingId: string): Promise<void> {
     window.setTimeout(() => {
       if (armedPurchase?.id === listingId) { armedPurchase = null; renderMakerMarket(); }
     }, PURCHASE_ARM_MS);
-    return;
+    return false;   // armed, not settled
   }
   armedPurchase = null;
-  await withMarket(async () => {
+  return withMarket(async () => {
     const outcome = await buyMarketListing(listingId);
     if (outcome.status === "ok") {
       report(store.applyMarketPurchase(listing.itemKey as ResourceKey, outcome.value.quantity, outcome.value.paid));
@@ -1552,10 +1584,12 @@ async function takeMakerListing(listingId: string): Promise<void> {
   });
 }
 
-async function withdrawMakerListing(listingId: string): Promise<void> {
+async function withdrawMakerListing(listingId: string): Promise<boolean> {
   const listing = makerListings.find((entry) => entry.id === listingId);
-  if (!listing) return;
-  await withMarket(async () => {
+  if (!listing) return false;
+  // Withdrawing is not an errand: taking your own goods back off the shelf costs nothing
+  // and stranding them behind a walk would only punish a change of mind.
+  return withMarket(async () => {
     const outcome = await cancelMarketListing(listingId);
     if (outcome.status === "ok") {
       report(store.applyMarketCancel(listing.itemKey as ResourceKey, outcome.value.returned));
@@ -1971,6 +2005,65 @@ async function withdrawToWallet(): Promise<void> {
   const result = await requestWithdrawal(desk.withdrawable, crypto.randomUUID());
   report({ ok: result.ok, message: result.message });
   withdrawalDesk = await fetchWithdrawals();
+  renderAll();
+}
+
+/**
+ * Carry out the job in hand, at the desk it belongs to.
+ *
+ * Refuses anywhere else. The whole point of an errand is that it is finished in a place,
+ * so this checks proximity rather than trusting the button — the counter panel only draws
+ * the button when you are there, but a stale panel must not be a way to settle from across
+ * the city.
+ *
+ * The errand is cleared ONLY on success. A purchase the city refuses (no stock, no money)
+ * leaves the job in hand rather than swallowing it, which would cost the player the walk
+ * and give them nothing.
+ */
+async function settleErrand(): Promise<void> {
+  const errand = store.errand();
+  if (!errand) return;
+  const near = nearbyCounter();
+  if (!near || near.id !== errand.desk) {
+    toast("You are not at the right desk for that.");
+    return;
+  }
+
+  let done = false;
+  if (errand.kind === "buy") {
+    const key = errand.payload.resource as ResourceKey;
+    const quantity = errand.payload.quantity ?? 1;
+    const handled = await tradeThroughRealm("buy", key, quantity);
+    if (handled) done = true;
+    else {
+      const outcome = store.buyResource(key, quantity);
+      report(outcome);
+      done = outcome.ok;
+    }
+  } else if (errand.kind === "sell") {
+    const key = errand.payload.resource as ResourceKey;
+    const quantity = errand.payload.quantity ?? 1;
+    const handled = await tradeThroughRealm("sell", key, quantity);
+    if (handled) done = true;
+    else {
+      const outcome = store.sellResource(key, quantity);
+      report(outcome);
+      done = outcome.ok;
+    }
+  } else if (errand.kind === "market-buy") {
+    done = await takeMakerListing(errand.payload.listingId ?? "");
+  } else if (errand.kind === "market-list") {
+    done = await placeMakerListing();
+  } else if (errand.kind === "contract") {
+    const outcome = store.fulfillContract();
+    report(outcome);
+    done = outcome.ok;
+  }
+
+  if (done) {
+    store.completeErrand();
+    toast(`Done: ${errand.label}.`);
+  }
   renderAll();
 }
 
@@ -2612,6 +2705,38 @@ function nearbyCounter(): { id: string; name: string; role: string; icon: string
   return best;
 }
 
+/**
+ * The job in hand, and how far away the desk is.
+ *
+ * A player who accepts an errand and then forgets where it goes has been given a chore
+ * rather than a task, so the pill names the desk and counts down the distance to it. It
+ * turns green on arrival, which is also the moment the counter offers the button.
+ */
+function renderErrandPill(): void {
+  const pill = document.querySelector<HTMLElement>("#errandPill");
+  if (!pill) return;
+  const errand = store.errand();
+  pill.hidden = !errand;
+  if (!errand) return;
+
+  const desk = CIVIC_BUILDINGS.find((site) => site.id === errand.desk);
+  const here = desk && desk.island === store.state.island;
+  const metres = here && desk
+    ? Math.round(Math.hypot(store.state.player.x - desk.x, store.state.player.z - desk.z))
+    : null;
+  const arrived = metres !== null && metres <= COUNTER_RANGE;
+
+  pill.classList.toggle("arrived", arrived);
+  pill.innerHTML = `
+    <i aria-hidden="true">${escapeMarkup(desk?.icon ?? "\u25C8")}</i>
+    <span><small>${escapeMarkup(ERRAND_VERB[errand.kind].going)}</small>
+      <strong>${escapeMarkup(errand.label)}</strong>
+      <em>${arrived ? `At the ${escapeMarkup(desk!.name)} — press E`
+        : here && metres !== null ? `${escapeMarkup(desk!.name)} · ${metres}m`
+        : `${escapeMarkup(desk?.name ?? "another district")} · another district`}</em></span>
+    <button data-action="errand-drop" aria-label="Drop this errand">\u2715</button>`;
+}
+
 function renderCounterPrompt(): void {
   const prompt = document.querySelector<HTMLElement>("#counterPrompt");
   const panel = document.querySelector<HTMLElement>("#counterPanel");
@@ -2629,12 +2754,24 @@ function renderCounterPrompt(): void {
   panel.hidden = counterOpenFor === null;
   if (!counterOpenFor || !near) return;
   const services = COUNTER_SERVICES[counterOpenFor] ?? [];
+  const errand = store.errand();
+  // The job in hand comes first, and only at the desk that handles it. Everywhere else
+  // the counter looks exactly as it did.
+  const errandBlock = errand && errand.desk === counterOpenFor
+    ? `<div class="counter-errand">
+        <small>${escapeMarkup(ERRAND_VERB[errand.kind].going)}</small>
+        <strong>${escapeMarkup(errand.label)}</strong>
+        <span>${escapeMarkup(errand.detail)}</span>
+        <button data-action="errand-settle">${escapeMarkup(ERRAND_VERB[errand.kind].atDesk)}</button>
+      </div>`
+    : "";
   panel.innerHTML = `
     <div class="counter-head" style="--counter-color:${escapeMarkup(near.color)}">
       <i aria-hidden="true">${escapeMarkup(near.icon)}</i>
       <span><strong>${escapeMarkup(near.name)}</strong><small>${escapeMarkup(near.role)}</small></span>
       <button class="counter-close" data-action="counter-close" aria-label="Leave the counter">✕</button>
     </div>
+    ${errandBlock}
     <ul class="counter-services">
       ${services.map((service) => `<li><button data-action="${escapeMarkup(service.action)}"${service.target ? ` data-target="${escapeMarkup(service.target)}"` : ""}>
         <strong>${escapeMarkup(service.label)}</strong><small>${escapeMarkup(service.detail)}</small></button></li>`).join("")}
@@ -2651,6 +2788,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     counterOpenFor = counterOpenFor ? null : near?.id ?? null;
     renderCounterPrompt();
+    renderErrandPill();
     return;
   }
   // No counter here — is there a cab?
@@ -2735,6 +2873,7 @@ function renderAll(): void {
   renderBusinessPanel();
   renderWorldStrip();
   renderCounterPrompt();
+  renderErrandPill();
   renderTaxi();
   renderOnlinePill();
   renderTutorial();
@@ -2975,6 +3114,15 @@ document.body.addEventListener("click", (event) => {
   else if (action === "collect-job") report(store.collectJob());
   else if (action === "maintain") report(store.maintainBusiness());
   else if (action === "quick-buy") report(store.buyResource(button.dataset.resource as ResourceKey, Number(button.dataset.quantity ?? 1)));
+  else if (action === "errand-buy") {
+    const key = button.dataset.resource as ResourceKey;
+    const spec = RESOURCES[key];
+    report(store.acceptErrand("buy", `Collect 1 ${spec.short}`,
+      `${store.marketBuyPrice(key)} ${CURRENCY_CODE} on collection at the Civic Works Depot`,
+      { resource: key, quantity: 1 }));
+  }
+  else if (action === "errand-drop") report(store.abandonErrand());
+  else if (action === "errand-settle") void settleErrand();
   else if (action === "buy") {
     const key = button.dataset.resource as ResourceKey;
     void tradeThroughRealm("buy", key, 1).then((handled) => { if (!handled) report(store.buyResource(key)); });
@@ -3018,7 +3166,7 @@ document.body.addEventListener("click", (event) => {
     report(result);
     if (result.ok) { hailedTaxi = null; world.teleportToState(store.state); renderAll(); }
   }
-  else if (action === "counter-close") { counterOpenFor = null; renderCounterPrompt(); }
+  else if (action === "counter-close") { counterOpenFor = null; renderCounterPrompt(); renderErrandPill(); }
   else if (action === "ride") report(store.rideTo(button.dataset.to ?? "treasury"));
   else if (action === "info-tab") { infoTab = (button.dataset.info as typeof infoTab) ?? "you"; renderInfo(); }
   else if (action === "mayor-toggle") { store.setMayorHidden(!store.state.mayorHidden); renderAll(); }

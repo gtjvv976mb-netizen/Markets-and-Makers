@@ -12,7 +12,7 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
-  CURRENCY_CODE, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
+  CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, productsOf, type Product } from "./products";
@@ -62,7 +62,29 @@ export interface ShiftReport {
 export interface ProcurementLedger { date: string; used: Record<ResourceKey, number>; }
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
+/**
+ * A piece of business the maker has taken on, waiting to be done somewhere.
+ *
+ * Exactly one may be open at a time. That is the point of it: the exchange used to let a
+ * player queue a dozen instant transactions from a menu, so the only skill it asked for
+ * was clicking. One errand at a time makes each one a decision — what is worth the walk
+ * right now — and it is why the desk is a place rather than a button.
+ */
+export interface Errand {
+  kind: ErrandKind;
+  /** The desk it must be finished at. A civic building id. */
+  desk: string;
+  /** What the pill says, in the player's own terms. */
+  label: string;
+  detail: string;
+  /** Enough to replay the original action when they arrive, and nothing more. */
+  payload: { resource?: string; quantity?: number; listingId?: string; unitPrice?: number; product?: string };
+  acceptedAt: number;
+}
+
 export interface GameState {
+  /** The one job in hand, or nothing. */
+  errand: Errand | null;
   productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
@@ -146,6 +168,7 @@ export function createFreshState(): GameState {
   const today = utcDay();
   return {
     franchiseBids: {},
+    errand: null,
     productStock: {}, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
@@ -1491,6 +1514,48 @@ export class GameStore {
    * which is the worst arrangement of the two — the player reads the true figure and is
    * handed a different one.
    */
+  // ---------------------------------------------------------------------
+  // Errands: business that has to be done somewhere
+  // ---------------------------------------------------------------------
+
+  /** The job in hand, or null. */
+  errand(): Errand | null { return this.state.errand; }
+
+  /**
+   * Take on a piece of business. Refused while another is open — one at a time is the
+   * whole mechanic, not a limitation to be worked around.
+   */
+  acceptErrand(kind: ErrandKind, label: string, detail: string, payload: Errand["payload"], now = Date.now()): ActionResult {
+    if (this.state.errand) {
+      return this.result(false, `You are already ${ERRAND_VERB[this.state.errand.kind].going.toLowerCase()}ing something. Finish it or drop it first.`);
+    }
+    const desk = ERRAND_DESK[kind];
+    if (!desk) return this.result(false, "Nobody in the city handles that.");
+    this.state.errand = { kind, desk, label, detail, payload, acceptedAt: now };
+    this.commit(`${label} — take it to the ${desk === "works" ? "Civic Works Depot" : desk === "transit" ? "Tidegate Transit Hall" : "Sunspire City Hall"}.`, "success");
+    return this.result(true, "Errand accepted.");
+  }
+
+  /** Give it up. No penalty: a maker may change their mind about a walk. */
+  abandonErrand(): ActionResult {
+    if (!this.state.errand) return this.result(false, "You have nothing in hand.");
+    const label = this.state.errand.label;
+    this.state.errand = null;
+    this.commit(`Dropped: ${label}.`, "normal");
+    return this.result(true, "Errand dropped.");
+  }
+
+  /**
+   * Clear the errand because it has been carried out.
+   *
+   * The caller performs the actual trade and only clears the errand if it succeeded —
+   * a refused purchase must leave the job in hand rather than swallowing it.
+   */
+  completeErrand(): void {
+    this.state.errand = null;
+    this.commit();
+  }
+
   claimEpochRewards(now = Date.now(), authoritative?: number, lifetime?: number): ActionResult {
     this.rollCalendar(now);
     if (this.state.epoch.claimed) return this.result(false, "This epoch's distribution is already claimed.");

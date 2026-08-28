@@ -3492,3 +3492,34 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .boot-terms-body p:last-child { margin-bottom: 0; }
 .boot-terms-body strong { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .boot-terms summary::before { transition: none; } }
+
+/* The job in hand. Sits under the counter prompt so the two read as one column, and turns
+   green on arrival — the same moment the counter offers the button. */
+.errand-pill { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px;
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 12px; z-index: 6;
+  background: var(--hud-glass, rgba(7,35,37,.92)); color: var(--hud-text, #f8f5df);
+  border: 1px solid var(--hud-line, rgba(231,222,158,.22));
+  box-shadow: 0 8px 24px rgba(3,18,20,.35); max-width: min(92vw, 460px); }
+.errand-pill i { font-size: 17px; font-style: normal; opacity: .9; }
+.errand-pill small { display: block; font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; opacity: .6; }
+.errand-pill strong { display: block; font-size: 13px; line-height: 1.25; }
+.errand-pill em { display: block; font-style: normal; font-size: 11px;
+  opacity: .72; font-variant-numeric: tabular-nums; }
+.errand-pill button { background: none; border: 0; color: inherit; opacity: .5;
+  cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+.errand-pill button:hover, .errand-pill button:focus-visible { opacity: 1; background: rgba(255,255,255,.1); }
+.errand-pill.arrived { border-color: var(--hud-leaf, #8ecb69); }
+.errand-pill.arrived em { color: var(--hud-leaf, #8ecb69); opacity: 1; }
+
+/* The errand as it appears at its own desk, above that desk's usual services. */
+.counter-errand { display: grid; gap: 4px; padding: 11px 12px; margin-bottom: 9px;
+  border-radius: 11px; border: 1px solid var(--hud-leaf, #8ecb69);
+  background: rgba(142,203,105,.1); }
+.counter-errand small { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
+.counter-errand strong { font-size: 14px; }
+.counter-errand span { font-size: 11.5px; opacity: .75; }
+.counter-errand button { margin-top: 6px; padding: 8px 12px; border-radius: 9px;
+  border: 0; cursor: pointer; font-weight: 800; font-size: 12.5px;
+  background: var(--hud-leaf, #8ecb69); color: #10240f; }

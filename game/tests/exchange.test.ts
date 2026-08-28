@@ -38,8 +38,10 @@ describe("a purchase takes two deliberate clicks", () => {
     expect(armIndex, "the arming branch must exist").toBeGreaterThan(-1);
     expect(buyIndex, "and the purchase call must exist").toBeGreaterThan(-1);
     expect(armIndex, "arming must come BEFORE any call to the authority").toBeLessThan(buyIndex);
+    // `return false` since the helper now reports whether it settled — an errand must
+    // only clear when the trade actually happened, and an arming click has not.
     expect(body.slice(armIndex, buyIndex), "and the first click must return early")
-      .toMatch(/return;/);
+      .toMatch(/return(\s+false)?;/);
   });
 
   it("expires the arming so a stale row cannot be triggered later", () => {
