@@ -1,11 +1,18 @@
 import * as THREE from "three";
 import { dampWrappedYaw, headingYaw, planarSpeed, walkAnimationRate } from "./characterRig";
-import { BUSINESS, MAX_UPGRADE_LEVEL } from "./data";
+import {
+  BUSINESS, DEFAULT_EQUIPMENT_TILES, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE, MAX_UPGRADE_LEVEL,
+  tileIsBuildable, tileToWorld, worldToTile,
+} from "./data";
 import type { BusinessConfig, LicenseKey, UpgradeKey } from "./data";
 import { createPlayerMercedonian } from "./mercedonianAvatar";
 
 export interface InteriorEnterOptions {
   business: BusinessConfig;
+  /** Where this owner has put each machine. Authored defaults if they never moved one. */
+  tiles?: Record<string, { column: number; row: number }>;
+  /** Called when a placement drag ends on a tile. The store decides whether it sticks. */
+  onPlace?: (key: UpgradeKey, column: number, row: number) => boolean;
   /** Recommended when several custom configs share a display name. Inferred otherwise. */
   license?: LicenseKey;
   upgrades: Record<UpgradeKey, number>;
@@ -406,6 +413,21 @@ export class InteriorWorld {
   /** A drag past this many pixels is a look, not a click. */
   private static readonly DRAG_SLOP = 6;
   private dragging: { id: number; x: number; y: number; moved: boolean } | null = null;
+
+  /**
+   * The machine currently being carried, if any.
+   *
+   * Placement takes over the pointer entirely: while something is in hand a drag moves the
+   * ghost rather than the camera, because a player aiming a machine at a tile and having
+   * the room swing away instead would be fighting the controls at the exact moment
+   * precision matters.
+   */
+  private carrying: UpgradeKey | null = null;
+  private ghost: THREE.Group | null = null;
+  private ghostTile: { column: number; row: number } | null = null;
+  private gridHelper: THREE.Group | null = null;
+  private tiles: Record<string, { column: number; row: number }> = {};
+  private onPlace: ((key: UpgradeKey, column: number, row: number) => boolean) | null = null;
   private pinchDistance = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
   private readonly obstacles: Array<{ x: number; z: number; radius: number }> = [];
@@ -474,6 +496,128 @@ export class InteriorWorld {
     this.keys.clear();
   };
 
+  // ---------------------------------------------------------------------
+  // Laying out the floor
+  // ---------------------------------------------------------------------
+
+  /** Pick a machine up. Shows the grid and a ghost that follows the cursor. */
+  beginPlacement(key: UpgradeKey): void {
+    if (!this.active) return;
+    this.carrying = key;
+    this.ghostTile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key] ?? { column: 1, row: 1 };
+    this.showGrid(true);
+    this.buildGhost(key);
+    this.updateGhost();
+    this.canvas.style.cursor = "grabbing";
+  }
+
+  /** Put it down, wherever the ghost is. The store has the final say. */
+  endPlacement(commit: boolean): void {
+    const key = this.carrying;
+    const tile = this.ghostTile;
+    this.carrying = null;
+    this.showGrid(false);
+    this.clearGhost();
+    this.canvas.style.cursor = "grab";
+    if (!commit || !key || !tile) return;
+    // The store owns the rules — the walkway, what is already on a tile. A refusal here
+    // simply leaves the machine where it was.
+    if (this.onPlace?.(key, tile.column, tile.row)) {
+      this.tiles = { ...this.tiles, [key]: tile };
+      this.layoutStations();
+    }
+  }
+
+  get isPlacing(): boolean { return this.carrying !== null; }
+
+  /** Move every station to the tile its owner put it on. */
+  private layoutStations(): void {
+    for (const [key, station] of this.stations) {
+      const tile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key];
+      if (!tile) continue;
+      const world = tileToWorld(tile.column, tile.row);
+      station.root.position.set(world.x, 0, world.z);
+      // The approach is where a Mercedonian stands to use it: one tile toward the centre
+      // walkway, so it is always reachable no matter where the machine was put.
+      const toCentre = new THREE.Vector3(-world.x, 0, -world.z).normalize();
+      station.approach.set(world.x, 0, world.z).addScaledVector(toCentre, 1.55);
+    }
+  }
+
+  /** The tile grid, drawn only while something is in hand. */
+  private showGrid(visible: boolean): void {
+    if (visible && !this.gridHelper) {
+      const group = new THREE.Group();
+      const line = new THREE.MeshBasicMaterial({ color: 0x8ecb69, transparent: true, opacity: 0.24, depthWrite: false });
+      const blocked = new THREE.MeshBasicMaterial({ color: 0xb0503a, transparent: true, opacity: 0.16, depthWrite: false });
+      for (let row = 0; row < FLOOR_ROWS; row += 1) {
+        for (let column = 0; column < FLOOR_COLUMNS; column += 1) {
+          const world = tileToWorld(column, row);
+          const pad = new THREE.Mesh(
+            new THREE.PlaneGeometry(FLOOR_TILE * 0.9, FLOOR_TILE * 0.9),
+            tileIsBuildable(column, row) ? line : blocked,
+          );
+          pad.rotation.x = -Math.PI / 2;
+          pad.position.set(world.x, 0.03, world.z);
+          group.add(pad);
+        }
+      }
+      this.gridHelper = group;
+      this.content.add(group);
+    }
+    if (this.gridHelper) this.gridHelper.visible = visible;
+  }
+
+  /** A translucent stand-in for the machine being carried. */
+  private buildGhost(key: UpgradeKey): void {
+    this.clearGhost();
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.15, 1.5, 1.15),
+      new THREE.MeshBasicMaterial({ color: 0x8ecb69, transparent: true, opacity: 0.42, depthWrite: false }),
+    );
+    body.position.y = 0.75;
+    group.add(body);
+    this.ghost = group;
+    this.content.add(group);
+    void key;
+  }
+
+  private clearGhost(): void {
+    if (!this.ghost) return;
+    this.content.remove(this.ghost);
+    this.ghost.traverse((node) => {
+      if (node instanceof THREE.Mesh) node.geometry.dispose();
+    });
+    this.ghost = null;
+  }
+
+  /** Snap the ghost to its tile and colour it by whether the drop would be allowed. */
+  private updateGhost(): void {
+    if (!this.ghost || !this.ghostTile || !this.carrying) return;
+    const { column, row } = this.ghostTile;
+    const world = tileToWorld(column, row);
+    this.ghost.position.set(world.x, 0, world.z);
+    const occupied = Object.entries(this.tiles)
+      .some(([key, tile]) => key !== this.carrying && tile.column === column && tile.row === row);
+    const allowed = tileIsBuildable(column, row) && !occupied;
+    this.ghost.traverse((node) => {
+      if (node instanceof THREE.Mesh && node.material instanceof THREE.MeshBasicMaterial) {
+        node.material.color.set(allowed ? 0x8ecb69 : 0xb0503a);
+      }
+    });
+  }
+
+  /** Aim the ghost at whatever tile the pointer is over. */
+  private aimGhost(): void {
+    if (!this.floor || !this.carrying) return;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster.intersectObject(this.floor, false)[0];
+    if (!hit) return;
+    this.ghostTile = worldToTile(hit.point.x, hit.point.z);
+    this.updateGhost();
+  }
+
   /** Place the camera from yaw, pitch and zoom, keeping the room's centre framed. */
   private applyCameraOrbit(): void {
     const radius = 21.5;
@@ -525,6 +669,12 @@ export class InteriorWorld {
       this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     }
 
+    if (this.carrying) {
+      this.setPointer(event);
+      this.aimGhost();
+      return;
+    }
+
     // Pinch beats everything else while two fingers are down.
     if (this.activePointers.size === 2) {
       const [a, b] = [...this.activePointers.values()];
@@ -556,6 +706,11 @@ export class InteriorWorld {
 
   private readonly onPointerUp = (event: PointerEvent): void => {
     this.activePointers.delete(event.pointerId);
+    if (this.carrying) {
+      this.canvas.releasePointerCapture?.(event.pointerId);
+      this.endPlacement(true);
+      return;
+    }
     if (this.activePointers.size < 2) this.pinchDistance = 0;
     this.canvas.releasePointerCapture?.(event.pointerId);
 
@@ -585,6 +740,15 @@ export class InteriorWorld {
     this.canvas.focus({ preventScroll: true });
     this.canvas.setPointerCapture?.(event.pointerId);
     this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    // Carrying a machine takes the pointer over completely: a player aiming at a tile who
+    // instead swung the camera would be fighting the controls at the one moment precision
+    // matters. Press to aim, release to drop.
+    if (this.carrying) {
+      this.setPointer(event);
+      this.aimGhost();
+      return;
+    }
 
     // Two fingers is a pinch, never a walk.
     if (this.activePointers.size === 2) {
@@ -683,6 +847,11 @@ export class InteriorWorld {
     this.dragging = null;
     this.activePointers.clear();
     this.pinchDistance = 0;
+    this.carrying = null;
+    this.clearGhost();
+    this.showGrid(false);
+    this.tiles = { ...DEFAULT_EQUIPMENT_TILES, ...(options.tiles ?? {}) };
+    this.onPlace = options.onPlace ?? null;
     this.applyCameraOrbit();
     this.business = options.business;
     this.license = options.license ?? (Object.keys(BUSINESS) as LicenseKey[]).find((key) =>
@@ -711,6 +880,8 @@ export class InteriorWorld {
     if (active) {
       this.resize();
       this.clock.start();
+      // Whatever the room author laid out, the OWNER's arrangement wins.
+      this.layoutStations();
       this.refreshSelection(true);
       this.animationFrame = requestAnimationFrame(this.animate);
     } else {

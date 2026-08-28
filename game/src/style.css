@@ -491,7 +491,20 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .interior-shell > header { min-height: 68px; background: linear-gradient(110deg, #123f43, #1c6968); }
 .interior-header-actions { display: flex; align-items: center; gap: 10px; }
 .interior-header-actions > span { padding: 7px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #ffe29a; background: rgba(255,255,255,.08); font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
-.interior-grid { display: grid; height: calc(100% - 68px); grid-template-columns: minmax(0,1fr) 370px; overflow: hidden; }
+.interior-grid { display: grid; height: calc(100% - 68px);
+  grid-template-columns: minmax(0,1fr) var(--interior-aside, 312px); overflow: hidden;
+  transition: grid-template-columns .2s ease; }
+/* Folded away, the room runs edge to edge and the panel becomes a rail you can pull back.
+   The interior is the thing worth looking at; the readout should be able to get out of
+   its way without leaving the room. */
+.interior-grid.aside-folded { --interior-aside: 0px; }
+.interior-grid.aside-folded > aside, .interior-grid.aside-folded > .interior-aside { opacity: 0; pointer-events: none; }
+.interior-aside-toggle { position: absolute; z-index: 6; top: 50%; right: 0; transform: translateY(-50%);
+  width: 22px; height: 62px; border: 1px solid var(--hud-line, rgba(231,222,158,.22)); border-right: 0;
+  border-radius: 9px 0 0 9px; background: var(--hud-glass, rgba(7,35,37,.92));
+  color: var(--hud-text, #f8f5df); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; }
+.interior-aside-toggle:hover, .interior-aside-toggle:focus-visible { color: var(--hud-gold, #f0c75e); }
+@media (prefers-reduced-motion: reduce) { .interior-grid { transition: none; } }
 .interior-stage { position: relative; min-height: 0; overflow: hidden; padding: 0; background: radial-gradient(circle at 50% 20%, #7ac5b0, #174f55 74%); isolation: isolate; }
 #interiorCanvas { position: absolute; z-index: 0; inset: 0; display: block; width: 100%; height: 100%; outline: 0; touch-action: none; cursor: crosshair; }
 #interiorCanvas:focus-visible { box-shadow: inset 0 0 0 4px #ffd96e; }
@@ -3523,3 +3536,15 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .counter-errand button { margin-top: 6px; padding: 8px 12px; border-radius: 9px;
   border: 0; cursor: pointer; font-weight: 800; font-size: 12.5px;
   background: var(--hud-leaf, #8ecb69); color: #10240f; }
+
+/* Each station in the interior list gets a move handle beside it. The handle is quiet
+   until hovered: rearranging the floor is deliberate, not something to trip over while
+   walking between machines. */
+.interior-station-row { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: stretch; }
+.interior-move { border: 1px solid var(--hud-line, rgba(231,222,158,.22)); border-radius: 9px;
+  background: transparent; color: var(--hud-muted, #7b8a72); cursor: grab;
+  font-size: 14px; padding: 0 10px; opacity: .55; transition: opacity .14s ease, color .14s ease; }
+.interior-station-row:hover .interior-move { opacity: 1; }
+.interior-move:hover, .interior-move:focus-visible { color: var(--hud-leaf, #8ecb69);
+  border-color: var(--hud-leaf, #8ecb69); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .interior-move { transition: none; } }

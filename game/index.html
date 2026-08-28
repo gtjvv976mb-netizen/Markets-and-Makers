@@ -297,7 +297,8 @@
             <button class="close-button" id="closeInterior" aria-label="Exit business interior"><span aria-hidden="true">↗</span>Exit</button>
           </div>
         </header>
-        <div class="interior-grid">
+        <div class="interior-grid" id="interiorGrid">
+          <button class="interior-aside-toggle" data-action="interior-aside" aria-label="Hide the equipment panel">&rsaquo;</button>
           <div class="interior-stage" id="interiorStage">
             <canvas id="interiorCanvas" tabindex="0" aria-label="Walkable 3D business interior. Use W A S D or the arrow keys to move, and E to interact with equipment."></canvas>
             <div class="interior-objective"><small id="interiorRoomLabel">Mercedonian work floor</small><strong id="interiorObjectiveTitle">Explore the new interior</strong><span id="interiorObjectiveCopy">Walk to a purpose-built station and press E to inspect its equipment.</span></div>

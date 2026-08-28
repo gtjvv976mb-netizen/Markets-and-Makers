@@ -1677,7 +1677,7 @@ function equipmentSelectorMarkup(license: LicenseKey, selectedKey: UpgradeKey | 
     const design = INTERIOR_EQUIPMENT_CATALOG[license][key];
     const level = store.state.upgrades[key];
     const status = level === 0 ? "Not installed" : `Level ${level}`;
-    return `<button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button>`;
+    return `<div class="interior-station-row"><button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button><button class="interior-move" data-action="interior-move" data-upgrade="${key}" title="Move ${escapeMarkup(design.name)}" aria-label="Move ${escapeMarkup(design.name)} to another tile">\u2725</button></div>`;
   }).join("")}</div>`;
 }
 
@@ -2926,6 +2926,14 @@ function openInterior(): void {
       license,
       upgrades: store.state.upgrades,
       upgradeCeiling: store.upgradeCeiling(),
+      tiles: store.state.equipmentTiles,
+      // The store owns the rules — the walkway, what already stands on a tile. The room
+      // only asks; a refusal leaves the machine where it was.
+      onPlace: (key, column, row) => {
+        const outcome = store.placeEquipment(key, column, row);
+        if (!outcome.ok) toast(outcome.message);
+        return outcome.ok;
+      },
     });
     interiorCanvas.focus({ preventScroll: true });
   });
@@ -3127,6 +3135,21 @@ document.body.addEventListener("click", (event) => {
     report(store.acceptErrand("product", `Ship ${made ? made.name : "goods"}`,
       `${made ? formatNumber(made.price) : ""} ${CURRENCY_CODE} on loading at the Tidegate Transit Hall`,
       { product: id }));
+  }
+  else if (action === "interior-aside") {
+    // Fold the readout away so the room runs edge to edge. The state is remembered, since
+    // a player who wants the space usually wants it every time.
+    const grid = element("#interiorGrid");
+    const folded = grid.classList.toggle("aside-folded");
+    try { localStorage.setItem("mm-interior-aside", folded ? "folded" : "open"); } catch { /* private mode */ }
+    button.textContent = folded ? "\u2039" : "\u203A";
+    button.setAttribute("aria-label", folded ? "Show the equipment panel" : "Hide the equipment panel");
+    if (interiorOpen) interiorWorld.resize();
+  }
+  else if (action === "interior-move") {
+    const key = button.dataset.upgrade as UpgradeKey;
+    interiorWorld.beginPlacement(key);
+    toast(`Drag ${UPGRADE_NAMES[key].name} onto a tile, then release.`);
   }
   else if (action === "errand-drop") report(store.abandonErrand());
   else if (action === "errand-settle") void settleErrand();
