@@ -535,6 +535,58 @@ export const COHORT_CONTRIBUTION_BASE = 45_000;
  * behind it. Three orders is what a lone maker sees; every third neighbour adds another,
  * to a ceiling — a board nobody can read is not a reward.
  */
+/**
+ * The production floor as a grid a maker can arrange.
+ *
+ * Equipment used to sit at four authored positions, identical in every business in the
+ * city — so a floor was something you filled rather than something you laid out, and two
+ * greenhouses were the same room twice. The floor is now tiles, and where a machine goes
+ * is the owner's decision.
+ *
+ * The grid is deliberately smaller than the room: the back wall carries the production
+ * centrepiece, the front edge is the cutaway the camera looks through, and the centre
+ * lane has to stay walkable or a maker can wall themselves away from their own equipment.
+ */
+export const FLOOR_TILE = 1.6;
+export const FLOOR_COLUMNS = 9;
+export const FLOOR_ROWS = 5;
+/** Tiles kept clear: the walkway from the door to the back of the room. */
+export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
+
+/** World position of a tile's centre. */
+export function tileToWorld(column: number, row: number): { x: number; z: number } {
+  return {
+    x: (column - (FLOOR_COLUMNS - 1) / 2) * FLOOR_TILE,
+    z: (row - (FLOOR_ROWS - 1) / 2) * FLOOR_TILE + 1.1,
+  };
+}
+
+/** The tile a world position falls in, clamped to the floor. */
+export function worldToTile(x: number, z: number): { column: number; row: number } {
+  const column = Math.round(x / FLOOR_TILE + (FLOOR_COLUMNS - 1) / 2);
+  const row = Math.round((z - 1.1) / FLOOR_TILE + (FLOOR_ROWS - 1) / 2);
+  return {
+    column: Math.min(FLOOR_COLUMNS - 1, Math.max(0, column)),
+    row: Math.min(FLOOR_ROWS - 1, Math.max(0, row)),
+  };
+}
+
+/** Whether a tile may hold equipment at all, before asking what is already there. */
+export function tileIsBuildable(column: number, row: number): boolean {
+  if (column < 0 || column >= FLOOR_COLUMNS || row < 0 || row >= FLOOR_ROWS) return false;
+  // The walkway stays open from the door to the back wall, or a maker can seal themselves
+  // off from their own machines with a well-placed press.
+  return column !== FLOOR_WALKWAY_COLUMN;
+}
+
+/** Where the four stations stand before an owner moves them. */
+export const DEFAULT_EQUIPMENT_TILES: Record<string, { column: number; row: number }> = {
+  yield: { column: 1, row: 1 },
+  capacity: { column: 7, row: 1 },
+  speed: { column: 1, row: 3 },
+  appeal: { column: 7, row: 3 },
+};
+
 export const CIVIC_BOARD_BASE = 3;
 export const CIVIC_BOARD_PER_MAKER = 3;
 export const CIVIC_BOARD_MAX = 6;

@@ -384,6 +384,30 @@ export class InteriorWorld {
   private readonly player = new THREE.Group();
   private playerFallback: THREE.Group | null = null;
   private readonly cameraLookAt = new THREE.Vector3(0, 0.85, -0.5);
+
+  /**
+   * Where the camera sits, in polar terms around the room's centre.
+   *
+   * The interior was one fixed isometric angle, which meant half of every machine faced
+   * away from the player permanently — you could buy a piece of equipment and never see
+   * the side the detail was on. Orbit makes the room a place you can look around rather
+   * than a diorama photographed once.
+   *
+   * Pitch is clamped well clear of both poles: overhead loses the silhouette that tells
+   * one machine from another, and ground level puts the floor across the whole frame.
+   */
+  private cameraYaw = Math.atan2(10.5, 15.5);
+  private cameraPitch = 0.72;
+  private cameraZoom = 1;
+  private static readonly PITCH_MIN = 0.28;
+  private static readonly PITCH_MAX = 1.24;
+  private static readonly ZOOM_MIN = 0.62;
+  private static readonly ZOOM_MAX = 1.9;
+  /** A drag past this many pixels is a look, not a click. */
+  private static readonly DRAG_SLOP = 6;
+  private dragging: { id: number; x: number; y: number; moved: boolean } | null = null;
+  private pinchDistance = 0;
+  private readonly activePointers = new Map<number, { x: number; y: number }>();
   private readonly obstacles: Array<{ x: number; z: number; radius: number }> = [];
   private readonly ambientObjects: Array<{
     object: THREE.Object3D;
@@ -450,13 +474,103 @@ export class InteriorWorld {
     this.keys.clear();
   };
 
+  /** Place the camera from yaw, pitch and zoom, keeping the room's centre framed. */
+  private applyCameraOrbit(): void {
+    const radius = 21.5;
+    const horizontal = Math.cos(this.cameraPitch) * radius;
+    this.camera.position.set(
+      this.cameraLookAt.x + Math.sin(this.cameraYaw) * horizontal,
+      this.cameraLookAt.y + Math.sin(this.cameraPitch) * radius,
+      this.cameraLookAt.z + Math.cos(this.cameraYaw) * horizontal,
+    );
+    this.camera.lookAt(this.cameraLookAt);
+  }
+
+  /** Re-frame for the current canvas size and zoom. Does not touch the renderer. */
+  private applyCameraProjection(width: number, height: number): void {
+    const ratio = width / height;
+    let viewHeight = 13.4 * this.cameraZoom;
+    let viewWidth = viewHeight * ratio;
+    const minWidth = 18.2 * this.cameraZoom;
+    if (viewWidth < minWidth) {
+      viewWidth = minWidth;
+      viewHeight = viewWidth / ratio;
+    }
+    this.camera.left = -viewWidth / 2;
+    this.camera.right = viewWidth / 2;
+    this.camera.top = viewHeight / 2;
+    this.camera.bottom = -viewHeight / 2;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** Orbit by a drag, in pixels. */
+  private orbitBy(dx: number, dy: number): void {
+    this.cameraYaw -= dx * 0.006;
+    this.cameraPitch = Math.min(InteriorWorld.PITCH_MAX,
+      Math.max(InteriorWorld.PITCH_MIN, this.cameraPitch + dy * 0.005));
+    this.applyCameraOrbit();
+  }
+
+  /** Zoom by a factor. Orthographic, so this scales the view box rather than moving in. */
+  private zoomBy(factor: number): void {
+    this.cameraZoom = Math.min(InteriorWorld.ZOOM_MAX,
+      Math.max(InteriorWorld.ZOOM_MIN, this.cameraZoom * factor));
+    this.applyCameraProjection(this.canvas.clientWidth || 1, this.canvas.clientHeight || 1);
+  }
+
   private readonly onPointerMove = (event: PointerEvent): void => {
     if (!this.active) return;
+
+    if (this.activePointers.has(event.pointerId)) {
+      this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    // Pinch beats everything else while two fingers are down.
+    if (this.activePointers.size === 2) {
+      const [a, b] = [...this.activePointers.values()];
+      const spread = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      if (this.pinchDistance > 0 && spread > 0) this.zoomBy(this.pinchDistance / spread);
+      this.pinchDistance = spread;
+      return;
+    }
+
+    const drag = this.dragging;
+    if (drag && drag.id === event.pointerId) {
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < InteriorWorld.DRAG_SLOP) return;
+      drag.moved = true;
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      this.orbitBy(dx, dy);
+      this.canvas.style.cursor = "grabbing";
+      return;
+    }
+
     this.setPointer(event);
     const target = this.pickTarget();
     this.hoverTarget = target;
     this.canvas.style.cursor = target ? "pointer" : "crosshair";
     this.refreshSelection();
+  };
+
+  private readonly onPointerUp = (event: PointerEvent): void => {
+    this.activePointers.delete(event.pointerId);
+    if (this.activePointers.size < 2) this.pinchDistance = 0;
+    this.canvas.releasePointerCapture?.(event.pointerId);
+
+    const drag = this.dragging;
+    this.dragging = null;
+    if (!this.active || !drag || drag.id !== event.pointerId) return;
+    this.canvas.style.cursor = "grab";
+    // A press that never travelled is a click: walk there, or select what was under it.
+    if (!drag.moved) this.commitClick(event);
+  };
+
+  private readonly onWheel = (event: WheelEvent): void => {
+    if (!this.active) return;
+    event.preventDefault();
+    this.zoomBy(event.deltaY > 0 ? 1.1 : 1 / 1.1);
   };
 
   private readonly onPointerLeave = (): void => {
@@ -469,6 +583,25 @@ export class InteriorWorld {
     if (!this.active || event.button > 0) return;
     event.preventDefault();
     this.canvas.focus({ preventScroll: true });
+    this.canvas.setPointerCapture?.(event.pointerId);
+    this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    // Two fingers is a pinch, never a walk.
+    if (this.activePointers.size === 2) {
+      const [a, b] = [...this.activePointers.values()];
+      this.pinchDistance = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      this.dragging = null;
+      return;
+    }
+
+    // One pointer is AMBIGUOUS until it moves: a press that stays put is a click on the
+    // floor or a station, and a press that travels is a look around the room. Deciding at
+    // pointerup rather than pointerdown is what lets both live on the same button.
+    this.dragging = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  };
+
+  /** The click half of a press, run only once we know it was not a drag. */
+  private commitClick(event: PointerEvent): void {
     this.setPointer(event);
     const target = this.pickTarget();
     if (target) {
@@ -520,14 +653,14 @@ export class InteriorWorld {
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "Business interior. Move with W A S D or arrow keys, click the floor to walk, press E near equipment to interact, and Escape to leave.",
+      "Business interior. Move with W A S D or arrow keys, click the floor to walk, drag to look around, "
+      + "scroll or pinch to zoom, press E near equipment to interact, and Escape to leave.",
     );
     canvas.style.touchAction = "none";
 
     this.scene.background = new THREE.Color(0x123e42);
     this.scene.fog = new THREE.Fog(0xcde9d6, 18, 36);
-    this.camera.position.set(10.5, 13.5, 15.5);
-    this.camera.lookAt(this.cameraLookAt);
+    this.applyCameraOrbit();
 
     this.setupLighting();
     this.setupPlayer();
@@ -542,6 +675,15 @@ export class InteriorWorld {
 
   enter(options: InteriorEnterOptions): void {
     if (this.disposed) return;
+    // Every room opens from the same angle. Inheriting the last room's rotation would mean
+    // walking into a greenhouse already facing its back wall.
+    this.cameraYaw = Math.atan2(10.5, 15.5);
+    this.cameraPitch = 0.72;
+    this.cameraZoom = 1;
+    this.dragging = null;
+    this.activePointers.clear();
+    this.pinchDistance = 0;
+    this.applyCameraOrbit();
     this.business = options.business;
     this.license = options.license ?? (Object.keys(BUSINESS) as LicenseKey[]).find((key) =>
       BUSINESS[key] === options.business || BUSINESS[key].name === options.business.name,
@@ -640,18 +782,7 @@ export class InteriorWorld {
     if (this.disposed) return;
     const nextWidth = Math.max(1, Math.floor(width ?? this.canvas.clientWidth ?? this.canvas.width));
     const nextHeight = Math.max(1, Math.floor(height ?? this.canvas.clientHeight ?? this.canvas.height));
-    const ratio = nextWidth / nextHeight;
-    let viewHeight = 13.4;
-    let viewWidth = viewHeight * ratio;
-    if (viewWidth < 18.2) {
-      viewWidth = 18.2;
-      viewHeight = viewWidth / ratio;
-    }
-    this.camera.left = -viewWidth / 2;
-    this.camera.right = viewWidth / 2;
-    this.camera.top = viewHeight / 2;
-    this.camera.bottom = -viewHeight / 2;
-    this.camera.updateProjectionMatrix();
+    this.applyCameraProjection(nextWidth, nextHeight);
     const compactViewport = nextWidth < 900 || nextHeight < 620
       || (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
     this.renderer.setPixelRatio(pixelRatio ?? Math.min(window.devicePixelRatio || 1, compactViewport ? 1.2 : 1.6));
@@ -668,6 +799,9 @@ export class InteriorWorld {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("wheel", this.onWheel);
     disposeObject(this.content);
     disposeObject(this.player);
     for (const texture of this.textures) texture.dispose();
@@ -678,6 +812,20 @@ export class InteriorWorld {
 
   private readonly animate = (): void => {
     if (!this.active || this.disposed) return;
+    // Self-heal the drawing buffer.
+    //
+    // resize() reads the canvas's laid-out size, and the interior panel animates in — so
+    // the first call can land while the canvas is still zero-width and pin the buffer at
+    // 1x1 forever. The ResizeObserver does not save it either: it is gated on the panel
+    // being open, so an early fire is a no-op and the stage never changes size again.
+    // Checking here costs two property reads a frame and cannot be raced.
+    const wantWidth = this.canvas.clientWidth;
+    const wantHeight = this.canvas.clientHeight;
+    if (wantWidth > 1 && wantHeight > 1
+      && (this.canvas.width !== Math.floor(wantWidth * this.renderer.getPixelRatio())
+        || this.canvas.height !== Math.floor(wantHeight * this.renderer.getPixelRatio()))) {
+      this.resize(wantWidth, wantHeight);
+    }
     const delta = Math.min(0.05, this.clock.getDelta());
     this.elapsed += delta;
     this.updateMovement(delta);
@@ -695,6 +843,9 @@ export class InteriorWorld {
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    this.canvas.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerUp);
+    this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
   }
 
   /**

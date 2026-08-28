@@ -12,6 +12,7 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
+  DEFAULT_EQUIPMENT_TILES, tileIsBuildable,
   CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
@@ -86,6 +87,8 @@ export interface Errand {
 export interface GameState {
   /** The one job in hand, or nothing. */
   errand: Errand | null;
+  /** Where this maker has put each machine on their own production floor. */
+  equipmentTiles: Record<string, { column: number; row: number }>;
   productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
@@ -164,12 +167,34 @@ function blankProcurement(): Record<ResourceKey, number> {
   return Object.fromEntries(resourceKeys.map((key) => [key, 0])) as Record<ResourceKey, number>;
 }
 
+/**
+ * Read a saved floor layout, discarding anything that would put a machine off the grid or
+ * in the walkway — a hand-edited save must not be able to strand equipment somewhere the
+ * owner can never reach it.
+ */
+function sanitiseEquipmentTiles(raw: unknown): Record<string, { column: number; row: number }> {
+  const source = (raw ?? {}) as Record<string, { column?: unknown; row?: unknown }>;
+  const out: Record<string, { column: number; row: number }> = { ...DEFAULT_EQUIPMENT_TILES };
+  const taken = new Set<string>();
+  for (const key of Object.keys(DEFAULT_EQUIPMENT_TILES)) {
+    const column = Math.floor(Number(source[key]?.column));
+    const row = Math.floor(Number(source[key]?.row));
+    const spot = Number.isFinite(column) && Number.isFinite(row) && tileIsBuildable(column, row)
+      && !taken.has(`${column}:${row}`)
+      ? { column, row } : DEFAULT_EQUIPMENT_TILES[key]!;
+    out[key] = spot;
+    taken.add(`${spot.column}:${spot.row}`);
+  }
+  return out;
+}
+
 export function createFreshState(): GameState {
   const tutorial = Object.fromEntries(TUTORIAL.map(([key]) => [key, false])) as GameState["tutorial"];
   const today = utcDay();
   return {
     franchiseBids: {},
     errand: null,
+    equipmentTiles: { ...DEFAULT_EQUIPMENT_TILES },
     productStock: {}, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
@@ -392,6 +417,8 @@ export function loadState(): GameState {
       reputation: Math.floor(finite(saved.reputation, 0)), inventory, marketPressure,
       marketLastUpdated: finite(saved.marketLastUpdated, Date.now()), servicePriceIndex: finite(saved.servicePriceIndex, 1, .85, 1.3),
       districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
+      // A save from before the floor was a grid has no layout; give it the authored one.
+      equipmentTiles: sanitiseEquipmentTiles(saved.equipmentTiles),
       mayorHidden: Boolean(saved.mayorHidden),
       installation: saved.installation && typeof saved.installation === "object"
         ? {
@@ -1521,6 +1548,50 @@ export class GameStore {
 
   /** The job in hand, or null. */
   errand(): Errand | null { return this.state.errand; }
+
+  // ---------------------------------------------------------------------
+  // The production floor, as a grid the owner arranges
+  // ---------------------------------------------------------------------
+
+  /** Where a machine currently stands. Falls back to its authored spot. */
+  equipmentTile(key: UpgradeKey): { column: number; row: number } {
+    return this.state.equipmentTiles?.[key] ?? DEFAULT_EQUIPMENT_TILES[key] ?? { column: 1, row: 1 };
+  }
+
+  /** The machine standing on a tile, if any. */
+  equipmentAt(column: number, row: number): UpgradeKey | null {
+    for (const key of Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[]) {
+      const tile = this.equipmentTile(key);
+      if (tile.column === column && tile.row === row) return key;
+    }
+    return null;
+  }
+
+  /**
+   * Whether `key` may stand on this tile.
+   *
+   * A machine may always be dropped back where it already is — otherwise picking one up
+   * and changing your mind would be a move you could not undo.
+   */
+  canPlaceEquipment(key: UpgradeKey, column: number, row: number): boolean {
+    if (!tileIsBuildable(column, row)) return false;
+    const occupant = this.equipmentAt(column, row);
+    return occupant === null || occupant === key;
+  }
+
+  /** Put a machine on a tile. */
+  placeEquipment(key: UpgradeKey, column: number, row: number): ActionResult {
+    if (!tileIsBuildable(column, row)) {
+      return this.result(false, "That is the walkway — leave a way through to the back.");
+    }
+    const occupant = this.equipmentAt(column, row);
+    if (occupant !== null && occupant !== key) {
+      return this.result(false, `${UPGRADE_NAMES[occupant].name} already stands there.`);
+    }
+    this.state.equipmentTiles = { ...this.state.equipmentTiles, [key]: { column, row } };
+    this.commit(`${UPGRADE_NAMES[key].name} moved.`, "success");
+    return this.result(true, "Placed.");
+  }
 
   /**
    * Take on a piece of business. Refused while another is open — one at a time is the
