@@ -89,6 +89,13 @@ suite("the world ticks without anybody watching", () => {
        values ($1,'player','citizens','MERCS',2000000)
        on conflict (realm_id, owner_type, owner_id, currency_code)
        do update set balance = 2000000`, [REALM]);
+    // The founder's advance is moved from the treasury rather than minted, so a realm
+    // with an empty treasury cannot advance a new maker anything.
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'government','treasury','MERCS',5000000)
+       on conflict (realm_id, owner_type, owner_id, currency_code)
+       do update set balance = 5000000`, [REALM]);
     for (const item of ["supply", "food", "water", "power", "part", "material", "crate", "produce", "waste"]) {
       await stockCivicSupply(item, 1_000_000);
     }
@@ -349,6 +356,13 @@ suite("a business the authority can keep running", () => {
       `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
        values ($1,'player','citizens','MERCS',5000000)
        on conflict (realm_id, owner_type, owner_id, currency_code) do update set balance = 5000000`, [REALM]);
+    // The founder's advance is moved from the treasury rather than minted, so a realm
+    // with an empty treasury cannot advance a new maker anything.
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'government','treasury','MERCS',5000000)
+       on conflict (realm_id, owner_type, owner_id, currency_code)
+       do update set balance = 5000000`, [REALM]);
     for (const item of ["supply", "food", "water", "power", "part", "material", "crate", "waste", "ore", "timber"]) {
       await stockCivicSupply(item, 1_000_000);
     }

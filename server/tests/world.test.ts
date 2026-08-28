@@ -2,7 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { closeDatabase, pool } from "../src/database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID } from "../src/plots.js";
 import {
-  allBusinesses, districtBusinesses, registerBusiness, releaseBusiness, seedPlots, WorldError,
+  allBusinesses, districtBusinesses, FOUNDERS_ADVANCE, MAX_UPGRADE_LEVEL, registerBusiness,
+  releaseBusiness, seedPlots, UPGRADE_COST_MERCS, WorldError,
 } from "../src/world.js";
 import { live as liveDatabase } from "./live-database.js";
 
@@ -11,6 +12,7 @@ import { live as liveDatabase } from "./live-database.js";
 const live = liveDatabase;
 const suite = live ? describe : describe.skip;
 const REALM = "sunwoven-1";
+const TREASURY_FLOAT = 8_000_000;
 
 async function player(name: string): Promise<string> {
   const r = await pool!.query<{ id: string }>(
@@ -18,6 +20,49 @@ async function player(name: string): Promise<string> {
     [name, `Wallet${name}${Math.random().toString(36).slice(2, 10)}`],
   );
   return r.rows[0]!.id;
+}
+
+async function balance(ownerType: string, ownerId: string): Promise<number> {
+  const r = await pool!.query<{ balance: string }>(
+    `select balance::text as balance from currency_account
+      where realm_id = $1 and owner_type = $2 and owner_id = $3 and currency_code = 'MERCS'`,
+    [REALM, ownerType, ownerId],
+  );
+  return Number(r.rows[0]?.balance ?? 0);
+}
+
+async function totalCurrency(): Promise<number> {
+  const r = await pool!.query<{ total: string }>(
+    "select coalesce(sum(balance),0)::text as total from currency_account where realm_id = $1", [REALM]);
+  return Number(r.rows[0]!.total);
+}
+
+/**
+ * Give a maker spending money the way the realm does: by MOVING it out of the treasury.
+ * A fixture that inserted a balance would mint, which is the very thing registerBusiness
+ * stopped doing — no test in here should be the one putting money into the world.
+ */
+async function fundFromTreasury(playerId: string, amount: number): Promise<void> {
+  await pool!.query(
+    `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+     values ($1,'player',$2,'MERCS',0)
+     on conflict (realm_id, owner_type, owner_id, currency_code) do nothing`,
+    [REALM, playerId]);
+  await pool!.query(
+    `update currency_account set balance = balance - $2
+      where realm_id = $1 and owner_type = 'government' and owner_id = 'treasury' and currency_code = 'MERCS'`,
+    [REALM, amount]);
+  await pool!.query(
+    `update currency_account set balance = balance + $3
+      where realm_id = $1 and owner_type = 'player' and owner_id = $2 and currency_code = 'MERCS'`,
+    [REALM, playerId, amount]);
+}
+
+/** What the equipment ladder costs to climb from one level to another, per the server's table. */
+function ladderCost(from: number, to: number): number {
+  let owed = 0;
+  for (let level = from + 1; level <= to; level += 1) owed += UPGRADE_COST_MERCS[level] ?? 0;
+  return owed;
 }
 
 /** The exported layout is generated, so these hold with or without a database. */
@@ -50,6 +95,17 @@ suite("the world registry", () => {
   beforeEach(async () => {
     await pool!.query("delete from business");
     await pool!.query("update plot set owner_player_id = null, license = null");
+    // The founder's advance is MOVED out of the government treasury now instead of being
+    // minted, and equipment is bought out of a maker's own balance, so this suite needs a
+    // solvent realm to register into. Emptying the ledger as well keeps the realm-wide 24h
+    // advance cap from carrying between cases.
+    await pool!.query("delete from currency_ledger");
+    await pool!.query("delete from currency_account");
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'government','treasury','MERCS',$2)
+       on conflict (realm_id, owner_type, owner_id, currency_code) do update set balance = excluded.balance`,
+      [REALM, TREASURY_FLOAT]);
     await seedPlots(REALM);
   });
 
@@ -80,9 +136,48 @@ suite("the world registry", () => {
     expect(saved.plotId).toBe("GX072");
     expect(saved.license).toBe("shop");
     expect(saved.condition).toBe(96);
-    expect(saved.upgrades.appeal).toBe(3);
+    // CHANGED: equipment is paid for now. A business that did not exist a moment ago opens
+    // at level 0 whatever the client asserts, so the appeal:3 above buys nothing — it used
+    // to be recorded free, and the tick settles real output against these very numbers.
+    // Levels are bought one at a time on a later registration; see the re-license case.
+    expect(saved.upgrades).toEqual({ yield: 0, capacity: 0, speed: 0, appeal: 0 });
     expect(saved.footfall).toBeGreaterThan(0);
     expect(saved.mine).toBe(true);
+  });
+
+  it("advances the founder out of the treasury rather than minting the money", async () => {
+    // CHANGED: the 750 used to be a bare insert into currency_account — no debit, no ledger
+    // row. It minted, and identities here are free, so every new wallet inflated the supply.
+    // It is a transfer from government/treasury now, which is what these three assert.
+    const supplyBefore = await totalCurrency();
+    const alice = await player("alice");
+    await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
+      condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
+
+    expect(await balance("player", alice)).toBe(FOUNDERS_ADVANCE);
+    expect(await balance("government", "treasury")).toBe(TREASURY_FLOAT - FOUNDERS_ADVANCE);
+    expect(await totalCurrency()).toBe(supplyBefore);
+
+    // And it is in the ledger, so the money can be traced rather than merely appearing.
+    const posted = await pool!.query<{ amount: string }>(
+      "select amount::text as amount from currency_ledger where realm_id = $1 and reason = 'world.advance'", [REALM]);
+    expect(posted.rows.map((row) => Number(row.amount))).toEqual([FOUNDERS_ADVANCE]);
+  });
+
+  it("still opens the business when the treasury cannot fund the advance", async () => {
+    // The advance is best effort: a thin treasury must not turn into a closed door for new
+    // players. They register anyway and simply open at zero.
+    await pool!.query(
+      `update currency_account set balance = 0
+        where realm_id = $1 and owner_type = 'government' and owner_id = 'treasury'`, [REALM]);
+    const alice = await player("alice");
+    const saved = await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
+      condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
+
+    expect(saved.plotId).toBe("GX072");
+    expect(saved.mine).toBe(true);
+    expect(await balance("player", alice)).toBe(0);
+    expect(await balance("government", "treasury")).toBe(0);
   });
 
   it("refuses a plot another maker already holds", async () => {
@@ -106,13 +201,48 @@ suite("the world registry", () => {
     const alice = await player("alice");
     await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
       condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
+    // CHANGED: upgrades are bought now, one level at a time, out of the maker's own balance
+    // and into the treasury. The founder's advance alone does not cover this order, so the
+    // fixture tops Alice up first — from the treasury, not out of nowhere.
+    await fundFromTreasury(alice, 10_000);
+    const purseBefore = await balance("player", alice);
+    const treasuryBefore = await balance("government", "treasury");
+
     const again = await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "restaurant",
       condition: 80, upgrades: { yield: 4, capacity: 2, speed: 1, appeal: 5 } });
     expect(again.license).toBe("restaurant");
     expect(again.upgrades.yield).toBe(4);
+    expect(again.upgrades.capacity).toBe(2);
+    expect(again.upgrades.speed).toBe(1);
+    // appeal:5 is above the client's own cost table, so it is clamped rather than sold.
+    expect(again.upgrades.appeal).toBe(MAX_UPGRADE_LEVEL);
+
+    const cost = ladderCost(0, 4) + ladderCost(0, 2) + ladderCost(0, 1) + ladderCost(0, MAX_UPGRADE_LEVEL);
+    expect(cost, `the ladder 0→4/2/1/${MAX_UPGRADE_LEVEL} costs ${cost}`).toBe(2330);
+    expect(await balance("player", alice)).toBe(purseBefore - cost);
+    expect(await balance("government", "treasury")).toBe(treasuryBefore + cost);
 
     const rows = await pool!.query<{ revision: string }>("select revision::text from business where plot_id = $1", ["GX072"]);
     expect(Number(rows.rows[0]!.revision)).toBeGreaterThan(1);
+  });
+
+  it("records no upgrade the owner could not pay for", async () => {
+    // The payment and the row are one transaction: if the balance will not cover the
+    // equipment, the whole registration rolls back rather than banking free levels.
+    const alice = await player("alice");
+    await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
+      condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
+    const purse = await balance("player", alice);
+    expect(purse).toBeLessThan(ladderCost(0, MAX_UPGRADE_LEVEL));
+
+    await expect(registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "restaurant",
+      condition: 80, upgrades: { yield: MAX_UPGRADE_LEVEL, capacity: 0, speed: 0, appeal: 0 } }))
+      .rejects.toThrow(/insufficient|Not enough/i);
+
+    const [held] = await districtBusinesses(REALM, "hearth", alice);
+    expect(held!.license).toBe("shop");
+    expect(held!.upgrades.yield).toBe(0);
+    expect(await balance("player", alice)).toBe(purse);
   });
 
   it("clamps anything a client sends rather than trusting it", async () => {
@@ -123,9 +253,28 @@ suite("the world registry", () => {
       upgrades: { yield: 99, capacity: -5, speed: 3, appeal: 2 } as never,
     });
     expect(saved.condition).toBe(100);
-    expect(saved.upgrades.yield).toBe(10);
-    expect(saved.upgrades.capacity).toBe(0);
-    expect(saved.upgrades.speed).toBe(3);
+    // CHANGED: a first registration cannot assert its way onto equipment at all now — it
+    // opens at zero and buys from there. The old expectation (yield clamped to 10, speed
+    // taken at 3, free) let the very first call claim roughly eleven times the throughput.
+    expect(saved.upgrades).toEqual({ yield: 0, capacity: 0, speed: 0, appeal: 0 });
+
+    // The clamp itself still holds on the paid path: 99 is sold as MAX_UPGRADE_LEVEL, and
+    // a negative level is floored at 0 rather than refunding or corrupting the column.
+    await fundFromTreasury(alice, 10_000);
+    const purseBefore = await balance("player", alice);
+    const again = await registerBusiness({
+      realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
+      condition: 500,
+      upgrades: { yield: 99, capacity: -5, speed: 3, appeal: 2 } as never,
+    });
+    expect(again.upgrades.yield).toBe(MAX_UPGRADE_LEVEL);
+    expect(again.upgrades.capacity).toBe(0);
+    expect(again.upgrades.speed).toBe(3);
+    expect(again.upgrades.appeal).toBe(2);
+    // Charged for exactly the levels it recorded, not for the 99 it asked for.
+    const cost = ladderCost(0, MAX_UPGRADE_LEVEL) + ladderCost(0, 3) + ladderCost(0, 2);
+    expect(cost, `the clamped ladder costs ${cost}`).toBe(1740);
+    expect(await balance("player", alice)).toBe(purseBefore - cost);
   });
 
   it("refuses a plot that does not exist in this world", async () => {

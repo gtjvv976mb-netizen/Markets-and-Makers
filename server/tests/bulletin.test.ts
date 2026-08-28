@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { closeDatabase, pool } from "../src/database.js";
 import { dispatchAvailable, readEconomy, recentDispatches, writeDispatch } from "../src/bulletin.js";
 import { runGovernmentMind } from "../src/minds.js";
-import { registerBusiness, seedPlots } from "../src/world.js";
+import { FOUNDERS_ADVANCE, registerBusiness, seedPlots } from "../src/world.js";
 import { live as liveDatabase } from "./live-database.js";
 
 // See live-database.ts: these suites EMPTY their tables, so they refuse to run
@@ -49,6 +49,11 @@ suite("the Mercedonia Dispatch", () => {
 
   describe("what it is told", () => {
     it("reads the district's real figures from the ledger", async () => {
+      // The founder's advance is now MOVED from the government treasury rather than minted,
+      // so registering a business leaves the treasury exactly FOUNDERS_ADVANCE lighter and
+      // the realm's total supply untouched. The Dispatch must report the fallen figure —
+      // reading back the pre-registration 8,000,000 would mean it had missed the payment.
+      const supplyBefore = await totalCurrency();
       const alice = await player("alice");
       await registerBusiness({ realmId: REALM, playerId: alice, plotId: "GX072", license: "shop",
         condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
@@ -56,8 +61,10 @@ suite("the Mercedonia Dispatch", () => {
       const snapshot = await readEconomy();
       expect(snapshot.businesses).toBe(1);
       expect(snapshot.districts).toContain("hearth");
-      expect(snapshot.treasury).toBe(8_000_000);
+      expect(snapshot.treasury).toBe(8_000_000 - FOUNDERS_ADVANCE);
       expect(snapshot.citizensPurse).toBe(2_000_000);
+      // Moved, not minted: what the treasury lost, the founder holds.
+      expect(await totalCurrency()).toBe(supplyBefore);
     });
 
     it("reports an empty district as empty rather than guessing", async () => {

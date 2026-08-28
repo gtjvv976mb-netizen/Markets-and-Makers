@@ -5,7 +5,7 @@
 // counting an address that identified Render's proxy rather than any player.
 
 import { describe, expect, it } from "vitest";
-import { clientAddress, secretMatches } from "../src/index.js";
+import { clientAddress, secretMatches, upgradeAllowed, MAX_SOCKETS_PER_ADDRESS } from "../src/index.js";
 
 const req = (headers: Record<string, string | string[]>, socket = "10.0.0.1") =>
   ({ headers, socket: { remoteAddress: socket } }) as never;
@@ -56,5 +56,45 @@ describe("an operator route is closed unless a key is configured", () => {
   it("does not leak length through an early return", () => {
     // Lengths differ, so it must answer false without comparing byte by byte.
     expect(secretMatches("short", "a-much-longer-admin-key")).toBe(false);
+  });
+});
+
+describe("the room does not admit everyone", () => {
+  // The realtime socket was the one entry point with no authentication AND no throttle:
+  // Node stops emitting `request` for an upgrade once an `upgrade` listener exists, so it
+  // never reached the HTTP rate limiter at all.
+  const ours = new Set(["https://www.markets-makers.com"]);
+  const ask = (over: Partial<Parameters<typeof upgradeAllowed>[0]> = {}) => upgradeAllowed({
+    pathname: "/room", origin: "https://www.markets-makers.com", allowedOrigins: ours,
+    withinRate: true, openForAddress: 0, ...over,
+  });
+
+  it("admits a browser from our own origin", () => {
+    expect(ask()).toBe(true);
+  });
+
+  it("refuses a caller that sends NO origin", () => {
+    // The hole: `origin && !allowed.has(origin)` passed anything without the header.
+    // Browsers always send one, so only non-browsers benefited.
+    expect(ask({ origin: undefined })).toBe(false);
+  });
+
+  it("refuses another site's origin", () => {
+    expect(ask({ origin: "https://not-us.example" })).toBe(false);
+  });
+
+  it("refuses any path but the room", () => {
+    expect(ask({ pathname: "/" })).toBe(false);
+    expect(ask({ pathname: "/room/../admin" })).toBe(false);
+  });
+
+  it("refuses a caller over the rate limit", () => {
+    expect(ask({ withinRate: false })).toBe(false);
+  });
+
+  it("caps how many sockets one address may hold open", () => {
+    expect(ask({ openForAddress: MAX_SOCKETS_PER_ADDRESS - 1 })).toBe(true);
+    expect(ask({ openForAddress: MAX_SOCKETS_PER_ADDRESS })).toBe(false);
+    expect(ask({ openForAddress: 5_000 })).toBe(false);
   });
 });

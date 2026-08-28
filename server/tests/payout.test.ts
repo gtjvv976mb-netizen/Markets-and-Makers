@@ -45,9 +45,10 @@ afterAll(async () => {
   // payout_request.player_id is ON DELETE RESTRICT — deliberately, so a payout outlives
   // the account until an operator settles it. That means rows left here would block every
   // later suite's `delete from player`, so this file clears its own.
-  for (const table of ["payout_request", "command_receipt", "contribution_epoch"]) {
-    await pool!.query(`delete from ${table}`);
-  }
+  for (const t of ["market_listing", "payout_request", "contribution_epoch", "command_receipt", "currency_ledger", "item_ledger", "item_balance", "business", "currency_account"]) {
+      await pool!.query(`delete from ${t}`);
+    }
+    await pool!.query("update plot set owner_player_id = null, license = null");
   await pool!.query(`delete from player`);
   await closeDatabase();
 });
@@ -75,10 +76,10 @@ function chain(overrides?: Partial<Parameters<typeof runPayoutWorker>[0]>): NonN
 suite("the payout ledger", () => {
   beforeEach(async () => {
     (config as { payoutsEnabled: boolean }).payoutsEnabled = true;
-    for (const table of ["market_listing", "auth_session", "payout_request", "contribution_epoch",
-                         "reserve_funding", "command_receipt", "business"]) {
-      await pool!.query(`delete from ${table}`);
+    for (const t of ["market_listing", "payout_request", "contribution_epoch", "command_receipt", "currency_ledger", "item_ledger", "item_balance", "business", "currency_account"]) {
+      await pool!.query(`delete from ${t}`);
     }
+    await pool!.query("update plot set owner_player_id = null, license = null");
     await pool!.query(`delete from player`);
   });
 
@@ -178,10 +179,10 @@ suite("the payout ledger", () => {
 suite("the payout worker", () => {
   beforeEach(async () => {
     (config as { payoutsEnabled: boolean }).payoutsEnabled = true;
-    for (const table of ["market_listing", "auth_session", "payout_request", "contribution_epoch",
-                         "reserve_funding", "command_receipt", "business"]) {
-      await pool!.query(`delete from ${table}`);
+    for (const t of ["market_listing", "payout_request", "contribution_epoch", "command_receipt", "currency_ledger", "item_ledger", "item_balance", "business", "currency_account"]) {
+      await pool!.query(`delete from ${t}`);
     }
+    await pool!.query("update plot set owner_player_id = null, license = null");
     await pool!.query(`delete from player`);
   });
 

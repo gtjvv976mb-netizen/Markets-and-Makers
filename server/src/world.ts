@@ -9,10 +9,18 @@
 // what has been built and where, and answers "what is in this district". Settling trade
 // against it is the next stage and lives elsewhere, so that a bug here cannot move money.
 
+import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID, type PlotSpec } from "./plots.js";
 import { TRADES } from "./trades.js";
+import { MarketError, moveCurrency } from "./market.js";
+
+/** A stable command id, so a retried registration settles once rather than twice. */
+function keyFor(...parts: string[]): string {
+  return createHash("sha1").update(parts.join(":")).digest("hex").slice(0, 32)
+    .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");
+}
 
 export class WorldError extends Error {
   constructor(public code: string, message: string) {
@@ -47,6 +55,29 @@ const UPGRADE_KEYS = ["yield", "capacity", "speed", "appeal"] as const;
 
 /** What a maker opens with, matching the client's own starting wallet. */
 export const FOUNDERS_ADVANCE = 750;
+
+/**
+ * The most the realm will advance to new makers in any 24 hours.
+ *
+ * Identities are free — sign-in needs only an off-chain signature — so the per-player
+ * "once, never topped up" rule bounds nothing on its own: a thousand wallets is a thousand
+ * advances. This caps the realm's exposure to a day's worth while leaving genuine new
+ * players unaffected, and the advance now comes OUT of the treasury, so the treasury floor
+ * is a second bound underneath it.
+ */
+export const ADVANCE_DAILY_CAP = 20 * FOUNDERS_ADVANCE;
+
+/**
+ * Equipment levels the authority will recognise, and what each one costs.
+ *
+ * Mirrors the client's UPGRADE_COSTS. The server used to clamp to 0..10 and accept
+ * whatever a client asserted inside that — while the tick pays out on those very numbers:
+ * capacity multiplies parallel cycles, speed shortens them, yield adds 12% each. Level 10
+ * across the board is roughly eleven times the throughput at more than double the quality,
+ * for nothing, settled by the authority. The client's own table stops at 4.
+ */
+export const UPGRADE_COST_MERCS = [0, 70, 150, 280, 520] as const;
+export const MAX_UPGRADE_LEVEL = UPGRADE_COST_MERCS.length - 1;
 /** Cycles' worth of inputs handed over so a new business can start turning. */
 const STARTER_CYCLES = 12;
 
@@ -56,7 +87,7 @@ function sanitiseUpgrades(raw: unknown): BusinessUpsert["upgrades"] {
   const out = { yield: 0, capacity: 0, speed: 0, appeal: 0 };
   for (const key of UPGRADE_KEYS) {
     const value = Math.floor(Number(source[key] ?? 0));
-    out[key] = Number.isFinite(value) ? Math.min(10, Math.max(0, value)) : 0;
+    out[key] = Number.isFinite(value) ? Math.min(MAX_UPGRADE_LEVEL, Math.max(0, value)) : 0;
   }
   return out;
 }
@@ -124,6 +155,82 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
       throw new WorldError("plot-taken", "Another maker already holds that plot.");
     }
 
+    // What the authority already recognises for this plot, read BEFORE the upsert
+    // overwrites it. The tick settles real output against these numbers.
+    const standing = await client.query<{ upgrades: BusinessUpsert["upgrades"] }>(
+      "select upgrades from business where plot_id = $1", [input.plotId]);
+
+    // A maker who has never traded in the shared world has no account and no shelves, so
+    // the authority's tick would find an empty business and do nothing forever. Both are
+    // granted once, on the first registration, and never topped up.
+    //
+    // The advance is MOVED from the treasury, never minted.
+    //
+    // It used to be an insert with no debit and no ledger row — every new wallet added 750
+    // MERCS to the money supply out of nothing, which is the one thing this economy claims
+    // it never does. With free identities that is an unbounded mint, and it would have
+    // falsified the conservation property on the very first sybil.
+    //
+    // Now it is a transfer, so it appears in the ledger, it is bounded by what the treasury
+    // holds, and the realm's daily cap bounds it again.
+    const existing = await client.query(
+      `select 1 from currency_account
+        where realm_id=$1 and owner_type='player' and owner_id=$2 and currency_code='MERCS'`,
+      [input.realmId, input.playerId]);
+    if (!existing.rowCount) {
+      const advancedToday = await client.query<{ total: string }>(
+        `select coalesce(sum(amount),0) as total from currency_ledger
+          where realm_id=$1 and reason='world.advance' and created_at > now() - interval '24 hours'`,
+        [input.realmId]);
+      if (Number(advancedToday.rows[0]!.total) + FOUNDERS_ADVANCE > ADVANCE_DAILY_CAP) {
+        throw new WorldError("advance-exhausted",
+          "The city has advanced all it can to new makers today. Try again tomorrow.");
+      }
+      await client.query(
+        `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+         values ($1, 'player', $2, 'MERCS', 0)
+         on conflict (realm_id, owner_type, owner_id, currency_code) do nothing`,
+        [input.realmId, input.playerId]);
+      // Best effort, deliberately. The advance is a courtesy from a solvent city, not a
+      // precondition for joining one: refusing to register a business because the treasury
+      // is thin would turn a bad week for Mercedonia into a closed door for every new
+      // player, which is the worst possible moment to lose them. They open at zero and
+      // trade their way up instead.
+      try {
+        await moveCurrency(client, input.realmId, keyFor("advance", input.playerId), FOUNDERS_ADVANCE,
+          { type: "government", id: "treasury" }, { type: "player", id: input.playerId }, "world.advance");
+      } catch (error) {
+        if (!(error instanceof MarketError)) throw error;
+      }
+    }
+    // Equipment, priced. This runs AFTER the advance so a new maker can spend it, and
+    // after the ownership check so it can never charge someone for another's plot.
+    //
+    // A business that did not exist a moment ago opens at level 0 — nobody is born with
+    // equipment, and pinning it here means the very first registration cannot assert its
+    // way to eleven times the throughput. Everything above 0 is bought, one level at a
+    // time, out of the maker's own balance and into the treasury through the ledger.
+    const priorUpgrades = standing.rows[0]?.upgrades;
+    if (!priorUpgrades) {
+      for (const key of UPGRADE_KEYS) upgrades[key] = 0;
+    } else {
+      let owed = 0;
+      for (const key of UPGRADE_KEYS) {
+        const from = Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(priorUpgrades[key] ?? 0))));
+        for (let level = from + 1; level <= upgrades[key]; level += 1) owed += UPGRADE_COST_MERCS[level] ?? 0;
+        // Reporting a level BELOW what is held is allowed and not refunded: a client that
+        // has fallen behind may send an older state without paying to catch up.
+        if (upgrades[key] < from) upgrades[key] = from;
+      }
+      if (owed > 0) {
+        // Insufficient funds throws, rolling the whole registration back — an upgrade
+        // nobody paid for is never recorded.
+        await moveCurrency(client, input.realmId, keyFor("upgrade", input.plotId, String(upgrades.yield),
+          String(upgrades.capacity), String(upgrades.speed), String(upgrades.appeal)), owed,
+          { type: "player", id: input.playerId }, { type: "government", id: "treasury" }, "business.upgrade");
+      }
+    }
+
     await client.query(
       `insert into business (plot_id, owner_player_id, license, condition, upgrades, revision, updated_at)
        values ($1, $2, $3, $4, $5::jsonb, 1, now())
@@ -140,16 +247,6 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
       [input.plotId, input.playerId, input.license],
     );
 
-    // A maker who has never traded in the shared world has no account and no shelves, so
-    // the authority's tick would find an empty business and do nothing forever. Both are
-    // granted once, on the first registration, and never topped up: `do nothing` on
-    // conflict is what keeps re-licensing from being a way to print an advance.
-    await client.query(
-      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
-       values ($1, 'player', $2, 'MERCS', $3)
-       on conflict (realm_id, owner_type, owner_id, currency_code) do nothing`,
-      [input.realmId, input.playerId, FOUNDERS_ADVANCE],
-    );
     const trade = TRADES[input.license];
     if (trade) {
       for (const [itemKey, perCycle] of Object.entries(trade.inputs)) {

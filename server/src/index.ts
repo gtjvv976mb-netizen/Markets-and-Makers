@@ -510,11 +510,48 @@ const server = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 
+/** Open sockets per client address, so one machine cannot hold the room open a thousand times. */
+const socketsPerAddress = new Map<string, number>();
+export const MAX_SOCKETS_PER_ADDRESS = 8;
+
+/**
+ * Whether a socket upgrade may proceed. Exported so the decision can be tested without
+ * standing up a real WebSocket: every clause here is a hole the audit found open.
+ */
+export function upgradeAllowed(input: {
+  pathname: string; origin: string | undefined; allowedOrigins: Set<string>;
+  withinRate: boolean; openForAddress: number;
+}): boolean {
+  if (input.pathname !== "/room") return false;
+  // An ABSENT origin used to pass. Browsers always send one, so the only callers that
+  // benefit are the ones that are not browsers — the population this guard exists for.
+  if (!input.origin || !input.allowedOrigins.has(input.origin)) return false;
+  if (!input.withinRate) return false;
+  if (input.openForAddress >= MAX_SOCKETS_PER_ADDRESS) return false;
+  return true;
+}
+
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const origin = req.headers.origin;
-  if (url.pathname !== "/room" || (origin && !config.clientOrigins.has(origin))) { socket.destroy(); return; }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  const address = clientAddress(req);
+  // Node does not emit `request` for an upgrade once an `upgrade` listener is registered,
+  // so this path never reached the HTTP rate limiter at all: the one entry point with no
+  // authentication was also the one with no throttle.
+  if (!upgradeAllowed({
+    pathname: url.pathname, origin, allowedOrigins: config.clientOrigins,
+    withinRate: rateAllowed(req), openForAddress: socketsPerAddress.get(address) ?? 0,
+  })) { socket.destroy(); return; }
+
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    socketsPerAddress.set(address, (socketsPerAddress.get(address) ?? 0) + 1);
+    ws.once("close", () => {
+      const left = (socketsPerAddress.get(address) ?? 1) - 1;
+      if (left > 0) socketsPerAddress.set(address, left);
+      else socketsPerAddress.delete(address);
+    });
+    wss.emit("connection", ws, req);
+  });
 });
 
 wss.on("connection", (socket) => {
