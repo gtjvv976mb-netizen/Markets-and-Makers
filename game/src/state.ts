@@ -12,6 +12,7 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
+  CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
@@ -2465,7 +2466,17 @@ export class GameStore {
     const candidates = [...new Set([...preferred, ...fallback])];
     const offers: ContractOffer[] = [];
     const level = this.careerLevel().level;
-    for (let index = 0; index < 3; index += 1) {
+    // A busier district has more business to place and more money to place it with.
+    //
+    // The board used to be three orders whatever the city looked like, so a district that
+    // filled up around you changed your input prices and nothing else — the neighbours
+    // were a number in a formula rather than something you could see on the wall at the
+    // City Hall. Both the COUNT and the PREMIUM now scale with who else is trading here,
+    // which is the same relationship the district multiplier already pays out on, made
+    // visible as work.
+    const neighbours = this.districtNeighbours();
+    const boardSize = Math.min(CIVIC_BOARD_MAX, CIVIC_BOARD_BASE + Math.floor(neighbours / CIVIC_BOARD_PER_MAKER));
+    for (let index = 0; index < boardSize; index += 1) {
       const position = (this.state.contractSequence * 2 + index) % candidates.length;
       const resource = candidates[position];
       // Orders have to be worth crossing the room for. A flat ten-unit cap made a contract
@@ -2481,7 +2492,10 @@ export class GameStore {
       const steps = 2 + ((this.state.contractSequence + index) % 3) + Math.floor(level / 2);
       // Never ask for more than the shelf can hold, or the order cannot be filled at all.
       const quantity = Math.max(2, Math.min(this.storageCapacity(), batch * steps));
-      const bonusPercent = 10 + Math.min(15, level * 2 + index * 2);
+      // Rank and position still matter; the district adds to both, capped so a crowded
+      // city cannot turn the board into free money.
+      const districtPremium = Math.min(CIVIC_DISTRICT_BONUS_MAX, neighbours * CIVIC_DISTRICT_BONUS_PER_MAKER);
+      const bonusPercent = 10 + Math.min(15, level * 2 + index * 2) + districtPremium;
       const unit = this.marketSellPrice(resource);
       const grossReward = Math.max(quantity, Math.ceil(quantity * unit * (1 + bonusPercent / 100)));
       const buyer = RESOURCES[resource].buyer;

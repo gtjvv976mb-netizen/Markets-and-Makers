@@ -18,7 +18,7 @@ import styles from "../src/style.css?raw";
 
 describe("spam is refused before the form is filled", () => {
   it("disables the List button at the cap and when the listing is dust", () => {
-    const button = main.match(/data-action="market-list"[^>]*/)?.[0] ?? "";
+    const button = main.match(/data-action="errand-market-list"[^>]*/)?.[0] ?? "";
     expect(button, "the cap must gate the button").toContain("atListingCap");
     expect(button, "and so must the dust floor").toContain("tooSmall");
   });
@@ -29,34 +29,26 @@ describe("spam is refused before the form is filled", () => {
   });
 });
 
-describe("a purchase takes two deliberate clicks", () => {
-  it("arms on the first click and returns before spending anything", () => {
-    const fn = main.slice(main.indexOf("async function takeMakerListing"));
-    const body = fn.slice(0, fn.indexOf("\n}"));
-    const armIndex = body.indexOf("armedPurchase = { id: listingId");
-    const buyIndex = body.indexOf("buyMarketListing");
-    expect(armIndex, "the arming branch must exist").toBeGreaterThan(-1);
-    expect(buyIndex, "and the purchase call must exist").toBeGreaterThan(-1);
-    expect(armIndex, "arming must come BEFORE any call to the authority").toBeLessThan(buyIndex);
-    // `return false` since the helper now reports whether it settled — an errand must
-    // only clear when the trade actually happened, and an arming click has not.
-    expect(body.slice(armIndex, buyIndex), "and the first click must return early")
-      .toMatch(/return(\s+false)?;/);
+describe("a purchase cannot be made by one careless click", () => {
+  // This used to be click-arming: the first click armed the row, the second spent. Buying
+  // is now an errand — you order the listing and carry it to the Tidegate Transit Hall —
+  // so the journey is the confirmation, and a considerably higher bar than a second click.
+  // The protection did not go away; it moved into the world.
+
+  it("orders rather than buying on the spot", () => {
+    expect(main).toMatch(/data-action="errand-market-buy"/);
+    expect(main, "no direct buy button remains on a listing").not.toMatch(/data-action="market-buy"/);
   });
 
-  it("expires the arming so a stale row cannot be triggered later", () => {
-    expect(main).toMatch(/PURCHASE_ARM_MS/);
-    expect(main).toMatch(/Date\.now\(\) - armedPurchase\.at < PURCHASE_ARM_MS/);
+  it("closes the market to a maker who already has a job in hand", () => {
+    const button = main.match(/data-action="errand-market-buy"[^>]*/)?.[0] ?? "";
+    expect(button).toMatch(/store\.errand\(\)/);
   });
 
-  it("labels the armed state with the actual total, not a generic word", () => {
-    // "Confirm 1,240" is a number the player can check against their purse; "Confirm?" is
-    // a dialog they will learn to dismiss.
-    expect(main).toMatch(/Confirm \$\{formatNumber\(entry\.total\)\}/);
-  });
-
-  it("styles the armed button so it cannot be mistaken for the first click", () => {
-    expect(styles).toMatch(/\.market-armed/);
-    expect(styles, "and honours reduced motion").toMatch(/prefers-reduced-motion/);
+  it("no longer carries the click-arming it replaced", () => {
+    // Leaving both would mean two confirmations for one purchase, one of which the player
+    // has already answered by walking across the district.
+    expect(main).not.toMatch(/purchaseArmed/);
+    expect(main).not.toMatch(/PURCHASE_ARM_MS/);
   });
 });

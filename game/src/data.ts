@@ -528,6 +528,20 @@ export const COHORT_CONTRIBUTION_BASE = 45_000;
  * earns because their business traded, and a plot with nothing built on it earns
  * nothing at all.
  */
+/**
+ * How the City Hall board grows with the district.
+ *
+ * More makers trading here means more business the city needs placing, and more money
+ * behind it. Three orders is what a lone maker sees; every third neighbour adds another,
+ * to a ceiling — a board nobody can read is not a reward.
+ */
+export const CIVIC_BOARD_BASE = 3;
+export const CIVIC_BOARD_PER_MAKER = 3;
+export const CIVIC_BOARD_MAX = 6;
+/** Extra premium per neighbour, and the most the district may add. */
+export const CIVIC_DISTRICT_BONUS_PER_MAKER = 1.5;
+export const CIVIC_DISTRICT_BONUS_MAX = 18;
+
 export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, idle: 0.18, civic: 0.1, auto: 0.05 } as const;
 
 // --- Footfall. A corner's busyness comes from the district's geography, not from where
@@ -763,7 +777,7 @@ export const COUNTER_SERVICES: Record<string, CounterService[]> = {
  * works depot, goods leave through the transit hall, and a delivery is filed at the city
  * hall, because that is where those things would happen in a real city.
  */
-export type ErrandKind = "buy" | "sell" | "market-buy" | "market-list" | "contract";
+export type ErrandKind = "buy" | "sell" | "market-buy" | "market-list" | "contract" | "product";
 
 export const ERRAND_DESK: Record<ErrandKind, string> = {
   buy: "works",
@@ -771,6 +785,7 @@ export const ERRAND_DESK: Record<ErrandKind, string> = {
   "market-buy": "transit",
   "market-list": "transit",
   contract: "cityhall",
+  product: "transit",
 };
 
 /** What the errand pill and the desk call each kind of job. */
@@ -780,6 +795,7 @@ export const ERRAND_VERB: Record<ErrandKind, { going: string; atDesk: string }> 
   "market-buy": { going: "Collect", atDesk: "Take delivery" },
   "market-list": { going: "Consign", atDesk: "Put it on the market" },
   contract: { going: "Deliver", atDesk: "File the delivery" },
+  product: { going: "Ship", atDesk: "Load it out" },
 };
 
 export const CIVIC_BUILDINGS: CivicBuilding[] = [

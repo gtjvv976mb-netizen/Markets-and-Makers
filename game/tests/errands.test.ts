@@ -10,7 +10,9 @@
 // and gets nothing).
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { ERRAND_DESK, ERRAND_VERB, CIVIC_BUILDINGS, PLOTS, SAVE_KEY, type LicenseKey } from "../src/data";
+import { CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX,
+  CIVIC_DISTRICT_BONUS_PER_MAKER, ERRAND_DESK, ERRAND_VERB, CIVIC_BUILDINGS, PLOTS, SAVE_KEY,
+  type LicenseKey } from "../src/data";
 import { createFreshState, GameStore } from "../src/state";
 import MAIN_SOURCE from "../src/main.ts?raw";
 
@@ -170,5 +172,53 @@ describe("the exchange hands out work rather than settling it", () => {
     expect(main).toMatch(/lastProximitySync/);
     expect(main).toMatch(/proximitySignature/);
     expect(main).toMatch(/if \(signature !== proximitySignature\)/);
+  });
+});
+
+describe("a busier district has more work on the wall", () => {
+  // The point of the change: neighbours used to be a number inside a pricing formula, so
+  // a district filling up around you moved your input costs and nothing you could see.
+  // The City Hall board now grows with the city, which is the same relationship the
+  // district multiplier already pays out on — made visible as work.
+  const board = (neighbours: number) => {
+    const store = maker();
+    store.state.districtBusinesses = neighbours;
+    return store.contractOffers();
+  };
+
+  it("gives a lone maker the base board", () => {
+    expect(board(0)).toHaveLength(CIVIC_BOARD_BASE);
+  });
+
+  it("adds an order for every few makers who join", () => {
+    expect(board(CIVIC_BOARD_PER_MAKER).length).toBe(CIVIC_BOARD_BASE + 1);
+    expect(board(CIVIC_BOARD_PER_MAKER * 2).length).toBe(CIVIC_BOARD_BASE + 2);
+  });
+
+  it("stops growing at a board a person can still read", () => {
+    expect(board(500).length).toBe(CIVIC_BOARD_MAX);
+  });
+
+  it("pays a better premium in a busy district", () => {
+    const quiet = board(0)[0]!;
+    const busy = board(10)[0]!;
+    expect(busy.bonusPercent, "a crowded city bids up its own work")
+      .toBeGreaterThan(quiet.bonusPercent);
+  });
+
+  it("caps the district premium so a crowd is not free money", () => {
+    const huge = board(10_000)[0]!;
+    const modest = board(Math.ceil(CIVIC_DISTRICT_BONUS_MAX / CIVIC_DISTRICT_BONUS_PER_MAKER))[0]!;
+    expect(huge.bonusPercent).toBe(modest.bonusPercent);
+  });
+
+  it("still pays more than it asks for, at every district size", () => {
+    // A contract that pays less than the goods are worth is a trap, not a reward.
+    for (const neighbours of [0, 3, 12, 400]) {
+      for (const offer of board(neighbours)) {
+        expect(offer.grossReward, `${neighbours} neighbours, ${offer.resource}`)
+          .toBeGreaterThanOrEqual(offer.quantity);
+      }
+    }
   });
 });

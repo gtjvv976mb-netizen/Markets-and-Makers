@@ -1066,7 +1066,7 @@ function productionMarkup(): string {
             : `<div class="product-needs"><span class="have">Raw production</span></div>`}
           <div class="product-actions">
             <button data-action="make-product" data-product="${product.id}" ${store.canMake(product) ? "" : "disabled"}>Make · ${product.labour} ${CURRENCY_CODE}</button>
-            <button class="secondary" data-action="sell-product" data-product="${product.id}" ${stock > 0 ? "" : "disabled"}>Sell · ${product.price}</button>
+            <button class="secondary" data-action="errand-sell-product" data-product="${product.id}" ${stock > 0 && !store.errand() ? "" : "disabled"}>${store.errand() ? "Hands full" : `Ship · ${product.price}`}</button>
           </div>
           ${missing.length ? `<small class="product-hint">Buy ${missing.map((m) => `${m.short} ${m.product.name}`).join(", ")} from ${[...new Set(missing.map((m) => BUSINESS[m.product.business].name))].join(" or ")}.</small>` : ""}
         </article>`;
@@ -1371,25 +1371,6 @@ function purse(): number {
 }
 let myPlayerId: string | null = null;
 let marketBusy = false;
-/**
- * The listing a buy click has ARMED, and when it was armed.
- *
- * A single click used to settle a purchase outright: money left the purse and goods
- * arrived with no step in between. On a book anyone can fill with cheap rows, that turns
- * a mis-click into a real loss, and there is no undo on a settled trade. The first click
- * now arms the row and shows the total; the second, within the window, actually buys.
- *
- * The arming EXPIRES so a stale armed row cannot be triggered by a later, unrelated click
- * after the book has been refreshed and the rows have moved under the cursor.
- */
-let armedPurchase: { id: string; at: number } | null = null;
-const PURCHASE_ARM_MS = 5_000;
-
-function purchaseArmed(id: string): boolean {
-  return armedPurchase !== null
-    && armedPurchase.id === id
-    && Date.now() - armedPurchase.at < PURCHASE_ARM_MS;
-}
 const listingDraft: ListingDraft = { item: null, quantity: 10, markup: 0 };
 /**
  * The authority's limits on a maker's own listings, mirrored for the UI only.
@@ -1472,10 +1453,10 @@ function renderMakerMarket(): void {
       <span class="maker-listing-total">${formatNumber(entry.total)} ${CURRENCY_CODE}</span>
       ${ours
         ? `<button class="secondary" data-action="market-cancel" data-listing="${entry.id}" ${marketBusy ? "disabled" : ""}>Withdraw</button>`
-        : `<button class="${purchaseArmed(entry.id) ? "market-armed" : ""}" data-action="market-buy" data-listing="${entry.id}" ${marketBusy || purse() < entry.total ? "disabled" : ""}>${
-            purse() < entry.total ? "Too dear"
-            : purchaseArmed(entry.id) ? `Confirm ${formatNumber(entry.total)}`
-            : "Buy"}</button>`}
+        : `<button data-action="errand-market-buy" data-listing="${entry.id}" ${marketBusy || purse() < entry.total || store.errand() ? "disabled" : ""}>${
+            store.errand() ? "Hands full"
+            : purse() < entry.total ? "Too dear"
+            : "Order"}</button>`}
     </li>`;
   };
 
@@ -1505,8 +1486,9 @@ function renderMakerMarket(): void {
           ${MARKUP_STEPS.map((step) => `<button class="${listingDraft.markup === step.markup ? "active" : ""}" data-action="market-markup" data-markup="${step.markup}">
             ${step.label} <small>${listingDraft.item ? Math.max(1, Math.round(referencePrice(listingDraft.item) * (1 + step.markup))) : 0} ${CURRENCY_CODE}</small></button>`).join("")}
         </div>
-        <button class="interior-buy" data-action="market-list" ${marketBusy || !listingDraft.item || held <= 0 || atListingCap || tooSmall ? "disabled" : ""}>
+        <button class="interior-buy" data-action="errand-market-list" ${marketBusy || !listingDraft.item || held <= 0 || atListingCap || tooSmall || store.errand() ? "disabled" : ""}>
           ${!listingDraft.item ? "Nothing to list"
+            : store.errand() ? "Hands full"
             : atListingCap ? `All ${MAX_OPEN_LISTINGS} of your listings are open`
             : tooSmall ? `Worth ${formatNumber(quantity * unitPrice)} — the book takes ${MIN_LISTING_VALUE} and up`
             : `List ${quantity} ${escapeMarkup(RESOURCES[listingDraft.item].short)} · ${formatNumber(quantity * unitPrice)} ${CURRENCY_CODE} if it all sells`}
@@ -1561,17 +1543,9 @@ async function takeMakerListing(listingId: string): Promise<boolean> {
   const listing = makerListings.find((entry) => entry.id === listingId);
   if (!listing) return false;
 
-  // First click arms and shows the total; only the second spends. Nothing is sent to the
-  // authority on the arming click, so an accidental tap costs nothing at all.
-  if (!purchaseArmed(listingId)) {
-    armedPurchase = { id: listingId, at: Date.now() };
-    renderMakerMarket();
-    window.setTimeout(() => {
-      if (armedPurchase?.id === listingId) { armedPurchase = null; renderMakerMarket(); }
-    }, PURCHASE_ARM_MS);
-    return false;   // armed, not settled
-  }
-  armedPurchase = null;
+  // No click-arming any more: this is only ever reached from settleErrand, which means the
+  // player already ordered the listing and then walked it to the transit hall. The journey
+  // is the confirmation, and a far more deliberate one than a second click.
   return withMarket(async () => {
     const outcome = await buyMarketListing(listingId);
     if (outcome.status === "ok") {
@@ -1614,7 +1588,7 @@ function renderContracts(): void {
       <div class="contract-head"><i>${activeResource.icon}</i><div><small>${active.buyer === "citizens" ? "Household demand" : "Institutional procurement"}</small><strong>${active.buyerName}</strong><span>${active.quantity} ${activeResource.short} · ${active.grossReward} ${CURRENCY_CODE} gross</span></div><b>+${active.bonusPercent}%</b></div>
       <div class="contract-progress"><div><span>Inventory ready</span><strong>${Math.min(store.state.inventory[active.resource], active.quantity)} / ${active.quantity}</strong></div><div class="meter"><span style="width:${Math.min(100, (store.state.inventory[active.resource] / active.quantity) * 100)}%"></span></div></div>
       ${shortfall ? `<button class="contract-supply" data-action="quick-buy" data-resource="${active.resource}" data-quantity="${shortfall}">Buy ${shortfall} missing ${activeResource.short} · ${shortfall * store.marketBuyPrice(active.resource)} ${CURRENCY_CODE}</button>` : ""}
-      <div class="contract-actions"><button data-action="fulfill-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${CURRENCY_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
+      <div class="contract-actions"><button data-action="errand-contract" ${shortfall ? "disabled" : ""}>Deliver order · earn ${active.grossReward - Math.floor(active.grossReward * .05)} ${CURRENCY_CODE}</button><button class="secondary" data-action="release-contract">Release · −1 reputation</button></div>
     </article>` : ""}
     <div class="section-title">Verified offers</div>
     <div class="contract-list">${offers.map((offer) => { const resource = RESOURCES[offer.resource]; const held = store.state.inventory[offer.resource]; return `<article class="contract-card" style="--contract-color:${resource.color}">
@@ -2054,6 +2028,10 @@ async function settleErrand(): Promise<void> {
     done = await takeMakerListing(errand.payload.listingId ?? "");
   } else if (errand.kind === "market-list") {
     done = await placeMakerListing();
+  } else if (errand.kind === "product") {
+    const outcome = store.sellProduct(errand.payload.product ?? "");
+    report(outcome);
+    done = outcome.ok;
   } else if (errand.kind === "contract") {
     const outcome = store.fulfillContract();
     report(outcome);
@@ -3120,6 +3098,35 @@ document.body.addEventListener("click", (event) => {
     report(store.acceptErrand("buy", `Collect 1 ${spec.short}`,
       `${store.marketBuyPrice(key)} ${CURRENCY_CODE} on collection at the Civic Works Depot`,
       { resource: key, quantity: 1 }));
+  }
+  else if (action === "errand-contract") {
+    const contract = store.state.activeContract;
+    if (!contract) report({ ok: false, message: "You have no order in hand." });
+    else report(store.acceptErrand("contract", `Deliver ${contract.quantity} ${RESOURCES[contract.resource as ResourceKey].short}`,
+      `${formatNumber(contract.grossReward)} ${CURRENCY_CODE} filed at Sunspire City Hall`, {}));
+  }
+  else if (action === "errand-market-buy") {
+    const listing = makerListings.find((entry) => entry.id === button.dataset.listing);
+    if (listing) {
+      const spec = RESOURCES[listing.itemKey as ResourceKey];
+      report(store.acceptErrand("market-buy", `Collect ${listing.quantity} ${spec.short}`,
+        `${formatNumber(listing.total)} ${CURRENCY_CODE} on collection at the Tidegate Transit Hall`,
+        { listingId: listing.id }));
+    }
+  }
+  else if (action === "errand-market-list") {
+    const item = listingDraft.item;
+    if (item) {
+      report(store.acceptErrand("market-list", `Consign ${listingDraft.quantity} ${RESOURCES[item].short}`,
+        `Onto the shared market, from the Tidegate Transit Hall`, { resource: item }));
+    }
+  }
+  else if (action === "errand-sell-product") {
+    const id = button.dataset.product ?? "";
+    const made = store.productsMade().find((entry) => entry.id === id);
+    report(store.acceptErrand("product", `Ship ${made ? made.name : "goods"}`,
+      `${made ? formatNumber(made.price) : ""} ${CURRENCY_CODE} on loading at the Tidegate Transit Hall`,
+      { product: id }));
   }
   else if (action === "errand-drop") report(store.abandonErrand());
   else if (action === "errand-settle") void settleErrand();
