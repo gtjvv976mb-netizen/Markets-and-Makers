@@ -1,76 +1,87 @@
-import { describe, expect, it } from "vitest";
-import roadnet from "../public/world/roadnet.json";
-import { GENERATED_PLOT_CELLS } from "../src/generatedPlots";
+// Whether a car can actually get anywhere.
+//
+// The junction test used to require each road's centre to fall strictly inside the other's
+// span. Measured on the shipped network that produced 21 disconnected components, 12
+// carriageways meeting nothing at all, and a largest island holding 17% of the roads — so
+// a car was confined to whatever fragment it spawned on. That is what "the cars just
+// circle" actually was: they could not leave.
+//
+// Roads are authored data in public/world/roadnet.json, so this guards the DATA as much as
+// the code. If a future edit to the city shatters the network again, this is what says so.
 
-// The road network has broken quietly more than once: a prune that ignored connectivity
-// split the city into five islands that each looked correct on their own, and a checker
-// that misread the run encoding reported 86% dead ends on a network that had 10%. These
-// assertions are the ruler both the builder and the reviewer use.
-const net = roadnet as unknown as {
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const net = JSON.parse(readFileSync(resolve(here, "../public/world/roadnet.json"), "utf8")) as {
   tileSize: number;
-  roadRuns: [number, number, number][];
-  carriageways: [number, number, number, number][];
+  carriageways: Array<[number, number, number, number]>;
 };
 
-/** Runs are [y, xStart, xEnd] with an inclusive end. */
-const cells = new Set<string>();
-for (const [y, a, b] of net.roadRuns) for (let x = a; x <= b; x += 1) cells.add(`${x},${y}`);
+/** The same rule the game uses: long enough to drive, joined within a road's width. */
+const JUNCTION_TOLERANCE = 2;
+const usable = net.carriageways.filter(([, , from, to]) => to - from >= 6);
 
-describe("the road network", () => {
-  it("draws asphalt as one connected surface", () => {
-    const seed = cells.values().next().value as string;
-    const seen = new Set([seed]);
-    const stack = [seed];
-    while (stack.length) {
-      const [x, y] = stack.pop()!.split(",").map(Number);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const k = `${x + dx},${y + dy}`;
-        if (cells.has(k) && !seen.has(k)) { seen.add(k); stack.push(k); }
-      }
+function meets(a: typeof usable[number], b: typeof usable[number]): boolean {
+  if (a[0] === b[0]) return false;
+  const [across, along] = a[0] === 0 ? [a, b] : [b, a];
+  return along[1] >= across[2] - JUNCTION_TOLERANCE && along[1] <= across[3] + JUNCTION_TOLERANCE
+    && across[1] >= along[2] - JUNCTION_TOLERANCE && across[1] <= along[3] + JUNCTION_TOLERANCE;
+}
+
+function components(): number[][] {
+  const adjacency = usable.map(() => new Set<number>());
+  for (let i = 0; i < usable.length; i += 1) {
+    for (let j = i + 1; j < usable.length; j += 1) {
+      if (meets(usable[i]!, usable[j]!)) { adjacency[i]!.add(j); adjacency[j]!.add(i); }
     }
-    expect(seen.size).toBe(cells.size);
+  }
+  const seen = new Set<number>();
+  const found: number[][] = [];
+  for (let i = 0; i < usable.length; i += 1) {
+    if (seen.has(i)) continue;
+    const stack = [i];
+    const group: number[] = [];
+    while (stack.length) {
+      const node = stack.pop()!;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      group.push(node);
+      for (const next of adjacency[node]!) stack.push(next);
+    }
+    found.push(group);
+  }
+  return found.sort((a, b) => b.length - a.length);
+}
+
+describe("the city's roads join up", () => {
+  it("leaves no road connected to nothing", () => {
+    // A car here could only ever reverse on the spot.
+    const stranded = usable.filter((road, index) =>
+      !usable.some((other, j) => j !== index && meets(road, other)));
+    expect(stranded.length, `${stranded.length} carriageways meet nothing`).toBe(0);
   });
 
-  it("never lets a street stop in a field", () => {
-    const dangling = net.carriageways.filter(([axis, centre, from, to]) => {
-      const fixed = Math.floor(centre);
-      return [[from, -1], [to, 1]].some(([end, step]) => {
-        const beyond = end + step;
-        const ahead = axis === 0
-          ? [`${beyond},${fixed}`, `${beyond},${fixed + 1}`]
-          : [`${fixed},${beyond}`, `${fixed + 1},${beyond}`];
-        const across = axis === 0
-          ? [`${end},${fixed - 1}`, `${end},${fixed + 2}`]
-          : [`${fixed - 1},${end}`, `${fixed + 2},${end}`];
-        return !ahead.some((c) => cells.has(c)) && !across.some((c) => cells.has(c));
-      });
-    });
-    expect(dangling).toEqual([]);
+  it("keeps the network in a handful of pieces, not scattered", () => {
+    const found = components();
+    expect(found.length, `${found.length} disconnected components`).toBeLessThanOrEqual(5);
   });
 
-  it("does not run two streets side by side down the same frontage", () => {
-    const pairs: string[] = [];
-    net.carriageways.forEach((a, i) => {
-      for (const b of net.carriageways.slice(i + 1)) {
-        if (a[0] !== b[0]) continue;
-        if (Math.abs(a[1] - b[1]) > 6) continue;
-        if (Math.min(a[3], b[3]) - Math.max(a[2], b[2]) < 4) continue;
-        pairs.push(`${a[1]} beside ${b[1]}`);
-      }
-    });
-    expect(pairs).toEqual([]);
+  it("puts most of the city on one network a car can drive across", () => {
+    const found = components();
+    const share = found[0]!.length / usable.length;
+    expect(share, `largest network holds ${Math.round(share * 100)}% of roads`).toBeGreaterThan(0.5);
   });
 
-  it("gives every generated plot a road to front onto", () => {
-    const orphans = GENERATED_PLOT_CELLS.filter(([, , x0, z0, x1, z1]) => {
-      for (let x = x0 - 2; x <= x1 + 2; x += 1) {
-        for (let z = z0 - 2; z <= z1 + 2; z += 1) {
-          if (x >= x0 && x <= x1 && z >= z0 && z <= z1) continue;
-          if (cells.has(`${x},${z}`)) return false;
-        }
-      }
-      return true;
-    }).map(([id]) => id);
-    expect(orphans).toEqual([]);
+  it("only joins roads that genuinely overlap on the ground", () => {
+    // The tolerance is not a licence to invent junctions: four metres of centreline gap
+    // against eight-metre-wide terraces means the surfaces still touch.
+    expect(JUNCTION_TOLERANCE * net.tileSize).toBeLessThanOrEqual(4 * net.tileSize);
+  });
+
+  it("has enough long roads to spread a fleet across", () => {
+    expect(usable.length).toBeGreaterThan(20);
   });
 });

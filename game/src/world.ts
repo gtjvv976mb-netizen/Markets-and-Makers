@@ -619,8 +619,11 @@ export class World3D {
       if (!this.inputEnabled) return;
       if (["INPUT", "TEXTAREA", "SELECT"].includes((event.target as HTMLElement | null)?.tagName ?? "")) return;
       this.keys.add(event.code);
-      if (event.code === "KeyQ") this.cameraYaw -= Math.PI / 2;
-      if (event.code === "KeyE") this.cameraYaw += Math.PI / 2;
+      // Q and E used to swing the camera a quarter turn. E is ALSO the key that opens the
+      // counter you are standing at, so walking up to the Treasury and pressing E to talk
+      // to it spun the whole city ninety degrees at the same moment — the interaction and
+      // the view fighting over one key. The city now has one view, which also means north
+      // is always north: a player can learn where things are.
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     });
     window.addEventListener("keyup", (event) => this.keys.delete(event.code));

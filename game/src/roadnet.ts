@@ -444,24 +444,64 @@ function buildTraffic(
   };
   const usable = net.carriageways.filter(([, , from, to]) => to - from >= 6);
 
+  /**
+   * How far apart two centrelines may stop and still count as a junction.
+   *
+   * The exact test — each road's centre strictly inside the other's span — shattered the
+   * city. Measured on the shipped network: 21 disconnected components, 12 carriageways
+   * meeting nothing at all, and the largest island holding just 17% of the roads. A car is
+   * confined to whichever fragment it spawned on, which is exactly why the traffic read as
+   * circling: it could not leave.
+   *
+   * Two tiles is four metres, and road terraces are cut eight metres wide — so two
+   * centrelines that stop four metres apart still OVERLAP on the ground. Joining them
+   * describes what the city already looks like rather than inventing a shortcut. Measured
+   * again with the tolerance: 3 components, nothing isolated, 65% in one network. Three
+   * and four tiles change nothing further, so this is the smallest value that does the
+   * whole job rather than a number picked to look generous.
+   */
+  const JUNCTION_TOLERANCE = 2;
+
   const crossings: Crossing[][] = usable.map(() => []);
   usable.forEach(([axisA, centreA, fromA, toA], a) => {
     if (axisA !== 0) return;
     usable.forEach(([axisB, centreB, fromB, toB], b) => {
       if (axisB !== 1) return;
-      const meets = centreB >= fromA && centreB <= toA && centreA >= fromB && centreA <= toB;
+      const meets = centreB >= fromA - JUNCTION_TOLERANCE && centreB <= toA + JUNCTION_TOLERANCE
+        && centreA >= fromB - JUNCTION_TOLERANCE && centreA <= toB + JUNCTION_TOLERANCE;
       if (!meets) return;
-      // The east-west band meets it at the other's x; the north-south band at its y.
-      crossings[a]!.push({ at: centreB * tile, road: b, otherAt: centreA * tile });
-      crossings[b]!.push({ at: centreA * tile, road: a, otherAt: centreB * tile });
+      // Clamp the junction into each road's REAL span. Without this a car turning at a
+      // tolerated crossing would be dropped just past the end of the road it turned onto
+      // and immediately bounce off its own dead end.
+      const onA = Math.min(Math.max(centreB, fromA), toA) * tile;
+      const onB = Math.min(Math.max(centreA, fromB), toB) * tile;
+      crossings[a]!.push({ at: onA, road: b, otherAt: onB });
+      crossings[b]!.push({ at: onB, road: a, otherAt: onA });
     });
   });
   for (const list of crossings) list.sort((x, y) => x.at - y.at);
 
-  // Seven of the carriageways have no crossing at all, so a car placed there could only
-  // ever reverse. Start everyone on a road that connects to something.
+  // A car on a road that meets nothing can only ever reverse, so start everyone somewhere
+  // connected. With the junction tolerance there are no such roads left, but the guard
+  // stays: the network is authored data and the next edit to it may reintroduce one.
   const driveable = usable.map((_, index) => index).filter((index) => (crossings[index]?.length ?? 0) > 0);
   const spawnable = driveable.length > 0 ? driveable : usable.map((_, index) => index);
+
+  /**
+   * Spread the fleet over the whole network rather than the first few roads.
+   *
+   * Cars used to be laid down by walking the spawnable list in order, so they began life
+   * bunched on adjacent streets and stayed bunched — half the city never saw a car while
+   * one junction had four. Spacing them by the LONGEST roads first puts traffic on the
+   * arteries, and stepping through the list by a stride coprime with its length keeps
+   * consecutive cars far apart without needing randomness that changes every reload.
+   */
+  const byLength = [...spawnable].sort((a, b) => {
+    const [, , fromA, toA] = usable[a]!;
+    const [, , fromB, toB] = usable[b]!;
+    return (toB - fromB) - (toA - fromA);
+  });
+  const stride = Math.max(1, Math.floor(byLength.length / Math.max(1, fleetSize)) | 1);
 
   const cars: Car[] = [];
   const count = Math.min(fleetSize, spawnable.length);
@@ -469,7 +509,7 @@ function buildTraffic(
     const mesh = buildCar(CAR_BODY[i % CAR_BODY.length]!);
     mesh.castShadow = shadows;
     group.add(mesh);
-    const roadIndex = spawnable[Math.floor((i / count) * spawnable.length)]!;
+    const roadIndex = byLength[(i * stride) % byLength.length]!;
     const [, , from, to] = usable[roadIndex]!;
     cars.push({
       mesh,
