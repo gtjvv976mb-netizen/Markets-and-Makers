@@ -531,6 +531,19 @@ export function upgradeAllowed(input: {
   return true;
 }
 
+/**
+ * Refuse an upgrade with an answer rather than a slammed door.
+ *
+ * A bare socket.destroy() reaches the client — and Render's edge — as a connection that
+ * died mid-handshake, which is reported as a 500. That reads as "the authority broke"
+ * when what happened is "you were not allowed in", and it would send someone hunting a
+ * server fault that does not exist.
+ */
+function refuseUpgrade(socket: import("node:stream").Duplex): void {
+  socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+  socket.destroy();
+}
+
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const origin = req.headers.origin;
@@ -541,7 +554,7 @@ server.on("upgrade", (req, socket, head) => {
   if (!upgradeAllowed({
     pathname: url.pathname, origin, allowedOrigins: config.clientOrigins,
     withinRate: rateAllowed(req), openForAddress: socketsPerAddress.get(address) ?? 0,
-  })) { socket.destroy(); return; }
+  })) { refuseUpgrade(socket); return; }
 
   wss.handleUpgrade(req, socket, head, (ws) => {
     socketsPerAddress.set(address, (socketsPerAddress.get(address) ?? 0) + 1);
