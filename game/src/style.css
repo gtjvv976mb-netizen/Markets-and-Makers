@@ -3563,3 +3563,21 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .interior-move:hover, .interior-move:focus-visible { color: var(--hud-leaf, #8ecb69);
   border-color: var(--hud-leaf, #8ecb69); opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .interior-move { transition: none; } }
+
+/* Fittings in the interior column. State is carried by the left edge — green when it is
+   working, amber when it is owned but standing somewhere it does nothing, which is the
+   distinction the whole mechanic turns on. */
+.fitting-list { display: grid; gap: 4px; margin-top: 6px; }
+.fitting-note { margin: 4px 0 0; opacity: .55; }
+.fitting { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;
+  padding: 6px 8px; border: 1px solid var(--hud-line, rgba(231,222,158,.16));
+  border-left-width: 3px; border-left-color: transparent; border-radius: 8px;
+  background: transparent; color: inherit; text-align: left; cursor: grab; }
+.fitting i { font-style: normal; font-size: 13px; opacity: .8; }
+.fitting strong { display: block; font-size: 12px; }
+.fitting small { display: block; font-size: 10px; opacity: .6; }
+.fitting.live { border-left-color: var(--hud-leaf, #8ecb69); }
+.fitting.live small { color: var(--hud-leaf, #8ecb69); opacity: .95; }
+.fitting.idle { border-left-color: #d09a3a; }
+.fitting.idle small { color: #d09a3a; opacity: .95; }
+.fitting:disabled { opacity: .38; cursor: not-allowed; }

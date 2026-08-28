@@ -1,4 +1,4 @@
-import { BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
+import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchCityBooks, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -1678,7 +1678,21 @@ function equipmentSelectorMarkup(license: LicenseKey, selectedKey: UpgradeKey | 
     const level = store.state.upgrades[key];
     const status = level === 0 ? "Not installed" : `Level ${level}`;
     return `<div class="interior-station-row"><button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button><button class="interior-move" data-action="interior-move" data-upgrade="${key}" title="Move ${escapeMarkup(design.name)}" aria-label="Move ${escapeMarkup(design.name)} to another tile">\u2725</button></div>`;
-  }).join("")}</div>`;
+  }).join("")}</div>
+    <div class="interior-aside-title">Fittings</div>
+    <p class="fitting-note">Each one only works standing beside the machine it serves.</p>
+    <div class="fitting-list">${(Object.keys(FITTINGS) as FittingKey[]).map((key) => {
+      const spec = FITTINGS[key];
+      const owned = !!store.state.fittings?.[key];
+      const live = store.activeFittings().includes(key);
+      const afford = purse() >= spec.cost;
+      return `<button class="fitting ${live ? "live" : owned ? "idle" : ""}" data-action="fitting-place" data-fitting="${key}"
+        ${!owned && !afford ? "disabled" : ""}
+        title="${escapeMarkup(spec.detail)} — serves the ${escapeMarkup(UPGRADE_NAMES[spec.serves].name)}">
+        <i aria-hidden="true">${spec.icon}</i>
+        <span><strong>${escapeMarkup(spec.name)}</strong><small>${owned ? (live ? "working" : "not beside its machine") : `${formatNumber(spec.cost)} ${CURRENCY_CODE}`}</small></span>
+      </button>`;
+    }).join("")}</div>`;
 }
 
 function renderInterior(): void {
@@ -2929,8 +2943,15 @@ function openInterior(): void {
       tiles: store.state.equipmentTiles,
       // The store owns the rules — the walkway, what already stands on a tile. The room
       // only asks; a refusal leaves the machine where it was.
-      onPlace: (key, column, row) => {
-        const outcome = store.placeEquipment(key, column, row);
+      // The room asks; the store decides. Stations move, fittings are bought the first
+      // time and moved thereafter — all three rules (walkway, occupancy, affordability)
+      // live in the store with their tests rather than being restated here.
+      onPlace: (key, column, row, kind) => {
+        const outcome = kind === "fitting"
+          ? (store.state.fittings?.[key as FittingKey]
+            ? store.moveFitting(key as FittingKey, column, row)
+            : store.installFitting(key as FittingKey, column, row))
+          : store.placeEquipment(key as UpgradeKey, column, row);
         if (!outcome.ok) toast(outcome.message);
         return outcome.ok;
       },
@@ -3148,8 +3169,14 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "interior-move") {
     const key = button.dataset.upgrade as UpgradeKey;
-    interiorWorld.beginPlacement(key);
+    interiorWorld.beginPlacement(key, "station");
     toast(`Drag ${UPGRADE_NAMES[key].name} onto a tile, then release.`);
+  }
+  else if (action === "fitting-place") {
+    const key = button.dataset.fitting as FittingKey;
+    const spec = FITTINGS[key];
+    interiorWorld.beginPlacement(key, "fitting");
+    toast(`Drop the ${spec.name} beside your ${UPGRADE_NAMES[spec.serves].name} — anywhere else and it does nothing.`);
   }
   else if (action === "errand-drop") report(store.abandonErrand());
   else if (action === "errand-settle") void settleErrand();

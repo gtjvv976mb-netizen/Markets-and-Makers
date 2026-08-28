@@ -12,6 +12,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FITTINGS, FLOOR_COLUMNS, FLOOR_ROWS, PLOTS, tileIsBuildable, type FittingKey, type LicenseKey } from "../src/data";
 import { createFreshState, GameStore } from "../src/state";
+import MAIN_SOURCE from "../src/main.ts?raw";
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>();
@@ -183,5 +184,34 @@ describe("no arrangement can break the line", () => {
       expect(Object.keys(spec.effect).length, `${key} actually does something`).toBeGreaterThan(0);
       expect(spec.cost, `${key} costs something`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the panel offers them, and says which are working", () => {
+  const main = MAIN_SOURCE;
+
+  it("lists every fitting as something you drag onto the floor", () => {
+    expect(main).toMatch(/data-action="fitting-place"/);
+    expect(main, "driven from the data, not a hand-written list").toMatch(/Object\.keys\(FITTINGS\)/);
+  });
+
+  it("distinguishes working from merely owned", () => {
+    // The whole mechanic turns on that difference, so the panel has to show it. A player
+    // who cannot tell an idle fitting from a live one has been sold a decoration.
+    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
+    expect(list).toMatch(/activeFittings\(\)\.includes\(key\)/);
+    expect(list).toMatch(/not beside its machine/);
+    expect(list).toMatch(/working/);
+  });
+
+  it("says what a fitting serves before you buy it", () => {
+    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
+    expect(list).toMatch(/serves the/);
+    expect(list).toMatch(/spec\.detail/);
+  });
+
+  it("closes the button when the purse cannot cover it", () => {
+    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
+    expect(list).toMatch(/purse\(\) >= spec\.cost/);
   });
 });

@@ -13,7 +13,7 @@ export interface InteriorEnterOptions {
   /** Where this owner has put each machine. Authored defaults if they never moved one. */
   tiles?: Record<string, { column: number; row: number }>;
   /** Called when a placement drag ends on a tile. The store decides whether it sticks. */
-  onPlace?: (key: UpgradeKey, column: number, row: number) => boolean;
+  onPlace?: (key: string, column: number, row: number, kind: "station" | "fitting") => boolean;
   /** Recommended when several custom configs share a display name. Inferred otherwise. */
   license?: LicenseKey;
   upgrades: Record<UpgradeKey, number>;
@@ -423,12 +423,12 @@ export class InteriorWorld {
    * the room swing away instead would be fighting the controls at the exact moment
    * precision matters.
    */
-  private carrying: UpgradeKey | null = null;
+  private carrying: { kind: "station" | "fitting"; key: string } | null = null;
   private ghost: THREE.Group | null = null;
   private ghostTile: { column: number; row: number } | null = null;
   private gridHelper: THREE.Group | null = null;
   private tiles: Record<string, { column: number; row: number }> = {};
-  private onPlace: ((key: UpgradeKey, column: number, row: number) => boolean) | null = null;
+  private onPlace: ((key: string, column: number, row: number, kind: "station" | "fitting") => boolean) | null = null;
   private pinchDistance = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
   private readonly obstacles: Array<{ x: number; z: number; radius: number }> = [];
@@ -502,30 +502,32 @@ export class InteriorWorld {
   // ---------------------------------------------------------------------
 
   /** Pick a machine up. Shows the grid and a ghost that follows the cursor. */
-  beginPlacement(key: UpgradeKey): void {
+  beginPlacement(key: string, kind: "station" | "fitting" = "station"): void {
     if (!this.active) return;
-    this.carrying = key;
+    this.carrying = { kind, key };
     this.ghostTile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key] ?? { column: 1, row: 1 };
     this.showGrid(true);
-    this.buildGhost(key);
+    this.buildGhost(kind);
     this.updateGhost();
     this.canvas.style.cursor = "grabbing";
   }
 
   /** Put it down, wherever the ghost is. The store has the final say. */
   endPlacement(commit: boolean): void {
-    const key = this.carrying;
+    const held = this.carrying;
     const tile = this.ghostTile;
     this.carrying = null;
     this.showGrid(false);
     this.clearGhost();
     this.canvas.style.cursor = "grab";
-    if (!commit || !key || !tile) return;
+    if (!commit || !held || !tile) return;
     // The store owns the rules — the walkway, what is already on a tile. A refusal here
     // simply leaves the machine where it was.
-    if (this.onPlace?.(key, tile.column, tile.row)) {
-      this.tiles = { ...this.tiles, [key]: tile };
-      this.layoutStations();
+    if (this.onPlace?.(held.key, tile.column, tile.row, held.kind)) {
+      if (held.kind === "station") {
+        this.tiles = { ...this.tiles, [held.key]: tile };
+        this.layoutStations();
+      }
     }
   }
 
@@ -570,18 +572,18 @@ export class InteriorWorld {
   }
 
   /** A translucent stand-in for the machine being carried. */
-  private buildGhost(key: UpgradeKey): void {
+  private buildGhost(kind: "station" | "fitting"): void {
     this.clearGhost();
     const group = new THREE.Group();
+    const size = kind === "fitting" ? 0.8 : 1.15;
     const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 1.5, 1.15),
+      new THREE.BoxGeometry(size, kind === "fitting" ? 0.9 : 1.5, size),
       new THREE.MeshBasicMaterial({ color: 0x8ecb69, transparent: true, opacity: 0.42, depthWrite: false }),
     );
-    body.position.y = 0.75;
+    body.position.y = kind === "fitting" ? 0.45 : 0.75;
     group.add(body);
     this.ghost = group;
     this.content.add(group);
-    void key;
   }
 
   private clearGhost(): void {
@@ -599,8 +601,10 @@ export class InteriorWorld {
     const { column, row } = this.ghostTile;
     const world = tileToWorld(column, row);
     this.ghost.position.set(world.x, 0, world.z);
+    const held = this.carrying;
     const occupied = Object.entries(this.tiles)
-      .some(([key, tile]) => key !== this.carrying && tile.column === column && tile.row === row);
+      .some(([key, tile]) => !(held.kind === "station" && key === held.key)
+        && tile.column === column && tile.row === row);
     const allowed = tileIsBuildable(column, row) && !occupied;
     this.ghost.traverse((node) => {
       if (node instanceof THREE.Mesh && node.material instanceof THREE.MeshBasicMaterial) {
