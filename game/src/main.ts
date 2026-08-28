@@ -1324,7 +1324,35 @@ let makerListings: MarketListing[] = [];
 let makerHoldings: Record<string, number> = {};
 let myPlayerId: string | null = null;
 let marketBusy = false;
+/**
+ * The listing a buy click has ARMED, and when it was armed.
+ *
+ * A single click used to settle a purchase outright: money left the purse and goods
+ * arrived with no step in between. On a book anyone can fill with cheap rows, that turns
+ * a mis-click into a real loss, and there is no undo on a settled trade. The first click
+ * now arms the row and shows the total; the second, within the window, actually buys.
+ *
+ * The arming EXPIRES so a stale armed row cannot be triggered by a later, unrelated click
+ * after the book has been refreshed and the rows have moved under the cursor.
+ */
+let armedPurchase: { id: string; at: number } | null = null;
+const PURCHASE_ARM_MS = 5_000;
+
+function purchaseArmed(id: string): boolean {
+  return armedPurchase !== null
+    && armedPurchase.id === id
+    && Date.now() - armedPurchase.at < PURCHASE_ARM_MS;
+}
 const listingDraft: ListingDraft = { item: null, quantity: 10, markup: 0 };
+/**
+ * The authority's limits on a maker's own listings, mirrored for the UI only.
+ *
+ * The server is the authority on both — these exist so the panel can say "18 of 20" and
+ * refuse a dust listing before the player fills in a form, rather than letting them press
+ * List and read a toast about a rule nobody told them.
+ */
+const MAX_OPEN_LISTINGS = 20;
+const MIN_LISTING_VALUE = 25;
 
 const MARKUP_STEPS: Array<{ markup: number; label: string }> = [
   { markup: -0.15, label: "Undercut" },
@@ -1382,6 +1410,8 @@ function renderMakerMarket(): void {
 
   const mine = makerListings.filter((entry) => entry.sellerPlayerId === myPlayerId);
   const theirs = makerListings.filter((entry) => entry.sellerPlayerId !== myPlayerId);
+  const atListingCap = mine.length >= MAX_OPEN_LISTINGS;
+  const tooSmall = quantity * unitPrice < MIN_LISTING_VALUE;
 
   const row = (entry: MarketListing, ours: boolean): string => {
     const spec = RESOURCES[entry.itemKey as ResourceKey];
@@ -1395,7 +1425,10 @@ function renderMakerMarket(): void {
       <span class="maker-listing-total">${formatNumber(entry.total)} ${CURRENCY_CODE}</span>
       ${ours
         ? `<button class="secondary" data-action="market-cancel" data-listing="${entry.id}" ${marketBusy ? "disabled" : ""}>Withdraw</button>`
-        : `<button data-action="market-buy" data-listing="${entry.id}" ${marketBusy || store.state.wallet < entry.total ? "disabled" : ""}>${store.state.wallet < entry.total ? "Too dear" : "Buy"}</button>`}
+        : `<button class="${purchaseArmed(entry.id) ? "market-armed" : ""}" data-action="market-buy" data-listing="${entry.id}" ${marketBusy || store.state.wallet < entry.total ? "disabled" : ""}>${
+            store.state.wallet < entry.total ? "Too dear"
+            : purchaseArmed(entry.id) ? `Confirm ${formatNumber(entry.total)}`
+            : "Buy"}</button>`}
     </li>`;
   };
 
@@ -1425,11 +1458,13 @@ function renderMakerMarket(): void {
           ${MARKUP_STEPS.map((step) => `<button class="${listingDraft.markup === step.markup ? "active" : ""}" data-action="market-markup" data-markup="${step.markup}">
             ${step.label} <small>${listingDraft.item ? Math.max(1, Math.round(referencePrice(listingDraft.item) * (1 + step.markup))) : 0} ${CURRENCY_CODE}</small></button>`).join("")}
         </div>
-        <button class="interior-buy" data-action="market-list" ${marketBusy || !listingDraft.item || held <= 0 ? "disabled" : ""}>
-          ${listingDraft.item
-            ? `List ${quantity} ${escapeMarkup(RESOURCES[listingDraft.item].short)} · ${formatNumber(quantity * unitPrice)} ${CURRENCY_CODE} if it all sells`
-            : "Nothing to list"}
+        <button class="interior-buy" data-action="market-list" ${marketBusy || !listingDraft.item || held <= 0 || atListingCap || tooSmall ? "disabled" : ""}>
+          ${!listingDraft.item ? "Nothing to list"
+            : atListingCap ? `All ${MAX_OPEN_LISTINGS} of your listings are open`
+            : tooSmall ? `Worth ${formatNumber(quantity * unitPrice)} — the book takes ${MIN_LISTING_VALUE} and up`
+            : `List ${quantity} ${escapeMarkup(RESOURCES[listingDraft.item].short)} · ${formatNumber(quantity * unitPrice)} ${CURRENCY_CODE} if it all sells`}
         </button>
+        <small class="maker-cap-note">${mine.length} of ${MAX_OPEN_LISTINGS} listings open${atListingCap ? " — withdraw one to list again" : ""}</small>
       </div>`
       : `<div class="empty-state"><i>▤</i><strong>Nothing in the warehouse</strong><p>The authority holds no goods for you yet. Produce something, and it can be listed here.</p></div>`}
   `;
@@ -1474,6 +1509,18 @@ async function placeMakerListing(): Promise<void> {
 async function takeMakerListing(listingId: string): Promise<void> {
   const listing = makerListings.find((entry) => entry.id === listingId);
   if (!listing) return;
+
+  // First click arms and shows the total; only the second spends. Nothing is sent to the
+  // authority on the arming click, so an accidental tap costs nothing at all.
+  if (!purchaseArmed(listingId)) {
+    armedPurchase = { id: listingId, at: Date.now() };
+    renderMakerMarket();
+    window.setTimeout(() => {
+      if (armedPurchase?.id === listingId) { armedPurchase = null; renderMakerMarket(); }
+    }, PURCHASE_ARM_MS);
+    return;
+  }
+  armedPurchase = null;
   await withMarket(async () => {
     const outcome = await buyMarketListing(listingId);
     if (outcome.status === "ok") {

@@ -3461,3 +3461,19 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .payout-failed em { color: #a04532; }
 .withdraw-desk .reserve-heading span { text-transform: uppercase; font-size: 10px;
   letter-spacing: .07em; font-weight: 900; }
+
+/* An armed purchase: the second click settles it, so it must not look like the first. */
+.maker-listing button.market-armed { background: var(--hud-gold, #f0c75e); color: #24240c;
+  border-color: rgba(0,0,0,.25); font-weight: 900; font-variant-numeric: tabular-nums;
+  animation: market-arm-pulse 1.2s ease-in-out infinite; }
+@keyframes market-arm-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,199,94,.55); }
+  50%      { box-shadow: 0 0 0 5px rgba(240,199,94,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .maker-listing button.market-armed { animation: none; }
+}
+
+/* "18 of 20 listings open" — the rule stated before it is enforced. */
+.maker-cap-note { display: block; margin-top: 6px; text-align: center;
+  font-size: 11px; color: var(--hud-muted, #7b8a72); font-variant-numeric: tabular-nums; }

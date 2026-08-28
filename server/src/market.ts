@@ -8,6 +8,28 @@ export interface ListingRow {
   quantity: number; unitPrice: number; total: number; createdAt: string;
 }
 
+/**
+ * How many listings one maker may hold open at once.
+ *
+ * Listing is free and escrow only asks that you own the goods, so nothing stopped a maker
+ * holding 500 units from opening 500 one-unit rows — or churning list/cancel forever. The
+ * IP limiter allows 120 requests a minute, which is 7,200 rows an hour from one machine,
+ * and the client's `marketBusy` flag is a button state that a scripted call ignores.
+ *
+ * A cap is the honest fix: it bounds the book without taxing ordinary trade. Twenty is
+ * comfortably above what a real maker uses (a full catalogue is fifteen goods) and far
+ * below what makes a book unreadable.
+ */
+export const MAX_OPEN_LISTINGS = 20;
+
+/**
+ * The smallest listing worth a line in the book.
+ *
+ * A one-unit, one-Merc row costs the seller nothing and costs every reader a line. This
+ * is a floor on TOTAL value, not on price, so cheap goods stay listable in bulk.
+ */
+export const MIN_LISTING_VALUE = 25;
+
 export class MarketError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
@@ -125,8 +147,26 @@ export async function listItem(input: {
 }): Promise<{ listingId: string; escrowed: number }> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new MarketError("bad-quantity", "Quantity must be a positive whole number.");
   if (!Number.isInteger(input.unitPrice) || input.unitPrice <= 0) throw new MarketError("bad-price", "Unit price must be a positive whole number.");
+  if (input.quantity * input.unitPrice < MIN_LISTING_VALUE) {
+    throw new MarketError("listing-too-small",
+      `A listing must be worth at least ${MIN_LISTING_VALUE} to take a line in the book.`);
+  }
 
   return command(input.idempotencyKey, "market.list", input.sellerPlayerId, async (client) => {
+    // Serialise this maker's listing attempts, so counting open rows and inserting the
+    // next one cannot interleave. Without it, forty simultaneous requests each read the
+    // same pre-cap count and all forty pass — which is exactly how a spammer would do it.
+    await client.query("select pg_advisory_xact_lock(hashtext($1))",
+      [`${input.realmId}:listings:${input.sellerPlayerId}`]);
+    const open = await client.query<{ n: string }>(
+      `select count(*)::text as n from market_listing
+        where realm_id=$1 and seller_player_id=$2 and status='open'`,
+      [input.realmId, input.sellerPlayerId]);
+    if (Number(open.rows[0]!.n) >= MAX_OPEN_LISTINGS) {
+      throw new MarketError("too-many-listings",
+        `You already have ${MAX_OPEN_LISTINGS} listings open. Withdraw or sell one first.`);
+    }
+
     const created = await client.query<{ id: string }>(
       `insert into market_listing (realm_id, island_id, seller_player_id, item_key, quantity, unit_price, status)
        values ($1,$2,$3,$4,$5,$6,'open') returning id`,
