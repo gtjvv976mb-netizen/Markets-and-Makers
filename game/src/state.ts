@@ -12,7 +12,7 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
-  DEFAULT_EQUIPMENT_TILES, tileIsBuildable,
+  DEFAULT_EQUIPMENT_TILES, FITTINGS, tileIsBuildable, type FittingKey,
   CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
@@ -89,6 +89,8 @@ export interface GameState {
   errand: Errand | null;
   /** Where this maker has put each machine on their own production floor. */
   equipmentTiles: Record<string, { column: number; row: number }>;
+  /** Fittings they have bought, and the tile each stands on. */
+  fittings: Partial<Record<FittingKey, { column: number; row: number }>>;
   productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
@@ -188,6 +190,20 @@ function sanitiseEquipmentTiles(raw: unknown): Record<string, { column: number; 
   return out;
 }
 
+/** Keep only fittings that exist and sit somewhere buildable. */
+function sanitiseFittings(raw: unknown): GameState["fittings"] {
+  const source = (raw ?? {}) as Record<string, { column?: unknown; row?: unknown }>;
+  const out: GameState["fittings"] = {};
+  for (const key of Object.keys(FITTINGS) as FittingKey[]) {
+    const column = Math.floor(Number(source[key]?.column));
+    const row = Math.floor(Number(source[key]?.row));
+    if (Number.isFinite(column) && Number.isFinite(row) && tileIsBuildable(column, row)) {
+      out[key] = { column, row };
+    }
+  }
+  return out;
+}
+
 export function createFreshState(): GameState {
   const tutorial = Object.fromEntries(TUTORIAL.map(([key]) => [key, false])) as GameState["tutorial"];
   const today = utcDay();
@@ -195,6 +211,7 @@ export function createFreshState(): GameState {
     franchiseBids: {},
     errand: null,
     equipmentTiles: { ...DEFAULT_EQUIPMENT_TILES },
+    fittings: {},
     productStock: {}, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
@@ -419,6 +436,7 @@ export function loadState(): GameState {
       districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
       // A save from before the floor was a grid has no layout; give it the authored one.
       equipmentTiles: sanitiseEquipmentTiles(saved.equipmentTiles),
+      fittings: sanitiseFittings(saved.fittings),
       mayorHidden: Boolean(saved.mayorHidden),
       installation: saved.installation && typeof saved.installation === "object"
         ? {
@@ -862,8 +880,10 @@ export class GameStore {
     const appeal = 1 + this.state.upgrades.appeal * .05;
     const stabilizer = RESOURCES[key].buyer === "government" ? this.stabilizerMultiplier() : 1;
     const quality = this.state.specialization === "premium" ? 1.08 : 1;
+    // A kiln or a trade counter beside its station lifts what the goods fetch.
     const asked = Math.round(RESOURCES[key].procurementPrice * this.state.marketPressure[key]
-      * appeal * stabilizer * quality * this.chainPremium(key) * this.eventMultiplier(key));
+      * appeal * stabilizer * quality * this.chainPremium(key) * this.eventMultiplier(key)
+      * this.fittingEffects().price);
     // The spread is not decoration: the civic supplier must never sell a good for less than
     // the district pays for it, or buying from the counter and selling it straight back is
     // free money. The chain premium is real but it stops at the counter price — caught by
@@ -892,7 +912,11 @@ export class GameStore {
   jobDuration(license: LicenseKey, cycles = this.inputMultiplier()): number {
     const config = BUSINESS[license];
     const operations = this.state.specialization === "efficient" ? .9 : 1;
-    const speed = Math.max(.52, (1 - this.state.upgrades.speed * .12) * operations);
+    // A governor beside the speed station shortens the cycle. The floor is clamped at the
+    // same .52 as everything else, so no arrangement of fittings can run a line
+    // instantaneously — they move you along the curve, they do not leave it.
+    const speed = Math.max(.52,
+      (1 - this.state.upgrades.speed * .12) * operations * this.fittingEffects().speed);
     const batchLoad = 1 + CAPACITY_DURATION_STEP * (cycles - 1);
     const opening = this.state.jobsCompleted < OPENING_JOBS;
     const scale = opening ? PRODUCTION_TIME_SCALE * OPENING_TIME_SCALE : PRODUCTION_TIME_SCALE;
@@ -912,11 +936,11 @@ export class GameStore {
     const laborMultiplier = this.state.specialization === "community" ? 1.1 : 1;
     const laborCost = Math.ceil(config.laborCost * cycles * laborMultiplier);
     for (const key of resourceKeys) {
-      const required = (config.inputs[key] ?? 0) * cycles;
+      const required = this.inputCost(config.inputs[key] ?? 0, cycles);
       if (this.state.inventory[key] < required) return this.result(false, `Buy ${required} ${RESOURCES[key].short} to run this job.`);
     }
     if (this.state.wallet < laborCost) return this.result(false, `Payroll needs ${laborCost} ${CURRENCY_CODE}.`);
-    for (const key of resourceKeys) this.state.inventory[key] -= (config.inputs[key] ?? 0) * cycles;
+    for (const key of resourceKeys) this.state.inventory[key] -= this.inputCost(config.inputs[key] ?? 0, cycles);
     this.state.wallet -= laborCost; this.state.citizenPool += laborCost; this.state.laborPaid += laborCost;
     const duration = this.jobDuration(this.state.license, cycles);
     this.state.job = { license: this.state.license, startedAt: now, completeAt: now + duration * 1000, cycles, laborCost };
@@ -1579,6 +1603,90 @@ export class GameStore {
     return occupant === null || occupant === key;
   }
 
+  // ---------------------------------------------------------------------
+  // Fittings: what the maker chooses to put beside which machine
+  // ---------------------------------------------------------------------
+
+  /** Whether a tile touches the station this fitting serves, including diagonally. */
+  fittingIsConnected(key: FittingKey, column: number, row: number): boolean {
+    const station = this.equipmentTile(FITTINGS[key].serves);
+    return Math.abs(station.column - column) <= 1 && Math.abs(station.row - row) <= 1
+      && !(station.column === column && station.row === row);
+  }
+
+  /** The fittings that are both bought AND standing where they can do their work. */
+  activeFittings(): FittingKey[] {
+    return (Object.keys(this.state.fittings ?? {}) as FittingKey[])
+      .filter((key) => {
+        const tile = this.state.fittings?.[key];
+        return !!tile && this.fittingIsConnected(key, tile.column, tile.row);
+      });
+  }
+
+  /**
+   * What the floor as arranged is worth, as multipliers.
+   *
+   * A fitting standing away from its station contributes NOTHING — it is bought and it is
+   * on the floor and it does nothing, which is the whole point: the decision is where the
+   * space goes, not whether you own the thing.
+   */
+  fittingEffects(): { output: number; speed: number; inputThrift: number; storage: number; price: number } {
+    const total = { output: 1, speed: 1, inputThrift: 1, storage: 1, price: 1 };
+    for (const key of this.activeFittings()) {
+      const effect = FITTINGS[key].effect;
+      total.output *= effect.output ?? 1;
+      total.speed *= effect.speed ?? 1;
+      total.inputThrift *= effect.inputThrift ?? 1;
+      total.storage *= effect.storage ?? 1;
+      total.price *= effect.price ?? 1;
+    }
+    return total;
+  }
+
+  /** Buy a fitting and set it down. Refused if it is already owned or unaffordable. */
+  installFitting(key: FittingKey, column: number, row: number): ActionResult {
+    const spec = FITTINGS[key];
+    if (!spec) return this.result(false, "No such fitting.");
+    if (this.state.fittings?.[key]) return this.result(false, `${spec.name} is already on your floor.`);
+    if (!tileIsBuildable(column, row)) return this.result(false, "That is the walkway — leave a way through.");
+    if (this.equipmentAt(column, row) !== null || this.fittingAt(column, row) !== null) {
+      return this.result(false, "Something already stands there.");
+    }
+    if (this.state.wallet < spec.cost) {
+      return this.result(false, `${spec.name} costs ${spec.cost} ${CURRENCY_CODE}.`);
+    }
+    this.state.wallet -= spec.cost;
+    this.state.todayExpenses += spec.cost;
+    this.state.fittings = { ...this.state.fittings, [key]: { column, row } };
+    const connected = this.fittingIsConnected(key, column, row);
+    this.commit(connected
+      ? `${spec.name} fitted beside the ${UPGRADE_NAMES[spec.serves].name}.`
+      : `${spec.name} placed, but it does nothing until it stands beside the ${UPGRADE_NAMES[spec.serves].name}.`,
+      connected ? "success" : "warning");
+    return this.result(true, "Fitted.");
+  }
+
+  /** Move a fitting already on the floor. */
+  moveFitting(key: FittingKey, column: number, row: number): ActionResult {
+    if (!this.state.fittings?.[key]) return this.result(false, "You do not own that fitting.");
+    if (!tileIsBuildable(column, row)) return this.result(false, "That is the walkway — leave a way through.");
+    const occupant = this.fittingAt(column, row);
+    if (this.equipmentAt(column, row) !== null || (occupant !== null && occupant !== key)) {
+      return this.result(false, "Something already stands there.");
+    }
+    this.state.fittings = { ...this.state.fittings, [key]: { column, row } };
+    this.commit(`${FITTINGS[key].name} moved.`, "success");
+    return this.result(true, "Moved.");
+  }
+
+  /** The fitting on a tile, if any. */
+  fittingAt(column: number, row: number): FittingKey | null {
+    for (const [key, tile] of Object.entries(this.state.fittings ?? {}) as Array<[FittingKey, { column: number; row: number }]>) {
+      if (tile.column === column && tile.row === row) return key;
+    }
+    return null;
+  }
+
   /** Put a machine on a tile. */
   placeEquipment(key: UpgradeKey, column: number, row: number): ActionResult {
     if (!tileIsBuildable(column, row)) {
@@ -1808,9 +1916,17 @@ export class GameStore {
    * rounds to four. The player paid for the upgrade, watched the number not move, and was
    * right. Carrying the remainder means a 12% bonus delivers 12% however small the batch.
    */
+  /** Inputs a run consumes, after any reclaim sorter on the floor. Never below one. */
+  inputCost(perCycle: number, cycles: number): number {
+    if (perCycle <= 0) return 0;
+    return Math.max(1, Math.ceil(perCycle * cycles * this.fittingEffects().inputThrift));
+  }
+
   private yieldOf(key: ResourceKey, base: number, quality = 0): number {
     if (base <= 0) return 0;
-    const exact = base * (1 + this.state.upgrades.yield * .12 + quality);
+    // Fittings standing beside the yield station push volume; ones standing away from it
+    // contribute nothing, which is exactly what makes where they go a decision.
+    const exact = base * (1 + this.state.upgrades.yield * .12 + quality) * this.fittingEffects().output;
     const carried = exact + (this.state.yieldCarry[key] ?? 0);
     const made = Math.floor(carried);
     this.state.yieldCarry[key] = carried - made;
@@ -1973,7 +2089,8 @@ export class GameStore {
   }
 
   storageCapacity(): number {
-    return STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
+    const base = STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
+    return Math.floor(base * this.fittingEffects().storage);
   }
 
   storedUnits(): number {
@@ -2222,7 +2339,7 @@ export class GameStore {
       const laborEstimate = Math.ceil(config.laborCost * cycles * (this.state.specialization === "community" ? 1.1 : 1));
       let inputEstimate = 0;
       for (const key of resourceKeys) {
-        const need = (config.inputs[key] ?? 0) * cycles;
+        const need = this.inputCost(config.inputs[key] ?? 0, cycles);
         if (need > 0) inputEstimate += need * Math.round(this.marketBuyPrice(key) * (1 + AUTO_BUY_PREMIUM));
       }
       let revenueEstimate = 0;

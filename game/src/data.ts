@@ -547,6 +547,60 @@ export const COHORT_CONTRIBUTION_BASE = 45_000;
  * centrepiece, the front edge is the cutaway the camera looks through, and the centre
  * lane has to stay walkable or a maker can wall themselves away from their own equipment.
  */
+/**
+ * Fittings: the equipment a maker chooses, as opposed to the four they are given.
+ *
+ * The four upgrade stations are the same in every business and they only go up. Nothing
+ * about them is a decision — you buy the next level when you can afford it. Fittings are
+ * the opposite: there are more of them than will fit, each pulls the line in a different
+ * direction, and a fitting only works if it stands NEXT TO the station it serves. A
+ * station has at most eight neighbouring tiles and usually fewer, so floor space beside
+ * the machine that matters is the scarce thing, and choosing what goes there is the game.
+ *
+ * Every effect is a multiplier on something the business already does, so a fitting can
+ * never invent output out of nothing — it moves the line toward volume, or speed, or
+ * thrift, at the cost of the space another fitting wanted.
+ */
+export type FittingKey = "hopper" | "governor" | "sorter" | "rack" | "counter" | "kiln";
+
+export interface FittingSpec {
+  name: string;
+  detail: string;
+  icon: string;
+  /** Which station it must stand beside to do anything. */
+  serves: UpgradeKey;
+  cost: number;
+  /** What it multiplies. Exactly one, so its purpose is legible at a glance. */
+  effect: { output?: number; speed?: number; inputThrift?: number; storage?: number; price?: number };
+}
+
+export const FITTINGS: Record<FittingKey, FittingSpec> = {
+  hopper: {
+    name: "Feed Hopper", detail: "+18% output, but it eats inputs faster", icon: "\u25A4",
+    serves: "yield", cost: 240, effect: { output: 1.18 },
+  },
+  kiln: {
+    name: "Finishing Kiln", detail: "+12% on what each unit sells for", icon: "\u25C9",
+    serves: "yield", cost: 320, effect: { price: 1.12 },
+  },
+  governor: {
+    name: "Cycle Governor", detail: "Cycles run 15% shorter", icon: "\u2699",
+    serves: "speed", cost: 280, effect: { speed: 0.85 },
+  },
+  sorter: {
+    name: "Reclaim Sorter", detail: "Uses 20% fewer inputs per cycle", icon: "\u25F3",
+    serves: "speed", cost: 300, effect: { inputThrift: 0.8 },
+  },
+  rack: {
+    name: "Stacking Rack", detail: "+40% shelf space", icon: "\u2261",
+    serves: "capacity", cost: 200, effect: { storage: 1.4 },
+  },
+  counter: {
+    name: "Trade Counter", detail: "+10% output and +6% price, if you can spare the room", icon: "\u25A0",
+    serves: "appeal", cost: 360, effect: { output: 1.1, price: 1.06 },
+  },
+};
+
 export const FLOOR_TILE = 1.6;
 export const FLOOR_COLUMNS = 9;
 export const FLOOR_ROWS = 5;

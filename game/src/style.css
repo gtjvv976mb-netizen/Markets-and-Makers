@@ -487,13 +487,28 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .modal-shell header small { color: #bfe5d6; font-size: 12.5px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .modal-shell h2 { margin: 2px 0 0; font-size: 23px; }
 .close-button { padding: 9px 12px; border: 1px solid rgba(255,255,255,.24); border-radius: 10px; color: white; background: rgba(255,255,255,.1); font-size: 13.5px; font-weight: 900; }
-.interior-shell { width: min(1420px, 100%); height: min(900px, calc(100svh - 30px)); max-height: none; }
+/* The interior takes the whole screen. It was a 1420x900 card floating on a backdrop,
+   which spent the frame's edges on nothing and made the production floor feel like a
+   dialog about a room rather than the room. */
+.interior-shell { width: 100vw; height: 100svh; max-width: none; max-height: none;
+  border-radius: 0; border: 0; }
 .interior-shell > header { min-height: 68px; background: linear-gradient(110deg, #123f43, #1c6968); }
 .interior-header-actions { display: flex; align-items: center; gap: 10px; }
 .interior-header-actions > span { padding: 7px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #ffe29a; background: rgba(255,255,255,.08); font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
 .interior-grid { display: grid; height: calc(100% - 68px);
-  grid-template-columns: minmax(0,1fr) var(--interior-aside, 312px); overflow: hidden;
+  grid-template-columns: minmax(0,1fr) var(--interior-aside, 236px); overflow: hidden;
   transition: grid-template-columns .2s ease; }
+/* The room is the screen. The readout is a narrow column of names and levels laid over the
+   far edge of it, not a second panel competing for the frame — at 236px it holds a station
+   name and its level pips and nothing else. */
+.interior-grid > aside, .interior-grid > .interior-aside {
+  background: rgba(9,38,40,.82); backdrop-filter: blur(6px); border-left: 1px solid rgba(231,222,158,.14); }
+.interior-aside .interior-station-row button { padding: 7px 9px; font-size: 12px; }
+.interior-aside .interior-station-row button strong { font-size: 12.5px; }
+.interior-aside .interior-station-row button small { font-size: 10px; opacity: .62; }
+.interior-aside h3, .interior-aside .interior-aside-title { font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; opacity: .6; }
+.interior-aside p { font-size: 11.5px; line-height: 1.45; }
 /* Folded away, the room runs edge to edge and the panel becomes a rail you can pull back.
    The interior is the thing worth looking at; the readout should be able to get out of
    its way without leaving the room. */
