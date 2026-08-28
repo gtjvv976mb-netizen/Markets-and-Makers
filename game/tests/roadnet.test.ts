@@ -9,13 +9,12 @@
 // Roads are authored data in public/world/roadnet.json, so this guards the DATA as much as
 // the code. If a future edit to the city shatters the network again, this is what says so.
 
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+// Vite's ?raw, not node:fs — this is the browser package and it has no @types/node, so a
+// node import type-checks in vitest and then fails the build. That has bitten twice.
+import roadnetRaw from "../public/world/roadnet.json?raw";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const net = JSON.parse(readFileSync(resolve(here, "../public/world/roadnet.json"), "utf8")) as {
+const net = JSON.parse(roadnetRaw) as {
   tileSize: number;
   carriageways: Array<[number, number, number, number]>;
 };
