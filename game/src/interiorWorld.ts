@@ -6,6 +6,7 @@ import {
 } from "./data";
 import type { BusinessConfig, LicenseKey, UpgradeKey } from "./data";
 import { createPlayerMercedonian } from "./mercedonianAvatar";
+import { surfaceTile } from "./tileTextures";
 
 export interface InteriorEnterOptions {
   business: BusinessConfig;
@@ -1195,9 +1196,28 @@ export class InteriorWorld {
     const design = INTERIOR_ROOMS[this.license];
     this.scene.background = new THREE.Color(design.sky);
     this.scene.fog = new THREE.Fog(new THREE.Color(design.sky).lerp(new THREE.Color(design.floor), 0.42), 18, 36);
+    // Surfaces are drawn from the same generator the city outside uses: a flat palette
+    // base, one motif on a fixed lattice, and a darker keyline on all four edges. The
+    // interiors were plain coloured materials while the world outside is tiled, so
+    // stepping through a door changed visual language entirely.
+    //
+    // The keyline is stronger indoors than out on purpose. Outside, a border repeated
+    // across 512 metres becomes a net; a room is a dozen tiles across, so the edge can be
+    // what it is in the world's own art — drawn, not hinted at.
+    const tiled = (colour: number, motif: Parameters<typeof surfaceTile>[0], repeat: number) => {
+      const texture = surfaceTile(motif, new THREE.Color(colour)).clone();
+      texture.needsUpdate = true;
+      texture.repeat.set(repeat, repeat);
+      return texture;
+    };
+
     const cream = new THREE.MeshStandardMaterial({ color: 0xe9d9b4, roughness: 0.9 });
-    const stone = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.88 });
-    const timber = new THREE.MeshStandardMaterial({ color: design.trim, roughness: 0.82 });
+    const stone = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.88, map: tiled(design.wall, "flagstone", 5),
+    });
+    const timber = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.82, map: tiled(design.trim, "planks", 4),
+    });
     const teal = new THREE.MeshStandardMaterial({ color: 0x1c6667, roughness: 0.72 });
     const accentMaterial = new THREE.MeshStandardMaterial({
       color: design.accent,
@@ -1206,7 +1226,17 @@ export class InteriorWorld {
       emissive: new THREE.Color(design.accent).multiplyScalar(0.12),
       emissiveIntensity: 0.4,
     });
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: design.floor, roughness: 0.94 });
+    // The floor carries the room's own motif — a workshop is planked, a mine is
+    // flagstone, a greenhouse is worked ground — at a repeat that lands one tile per
+    // metre, matching the scale the city outside is drawn at.
+    const floorMotif: Parameters<typeof surfaceTile>[0] =
+      design.architecture === "canopy-biome" || design.architecture === "living-water-gallery" ? "speckle"
+      : design.architecture === "regrowth-timber-hall" || design.architecture === "sawtooth-atelier" ? "planks"
+      : "flagstone";
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.94,
+      map: tiled(design.floor, floorMotif, Math.round(ROOM_HALF_WIDTH)),
+    });
     const glass = new THREE.MeshPhysicalMaterial({
       color: design.glass,
       transmission: 0.35,
@@ -1221,12 +1251,8 @@ export class InteriorWorld {
     this.floor.receiveShadow = true;
     this.content.add(this.floor);
 
-    const grid = new THREE.GridHelper(12, 12, design.trim, design.path);
-    grid.scale.x = 4 / 3;
-    grid.position.y = 0.012;
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.18;
-    this.content.add(grid);
+    // No GridHelper any more: it was a wireframe standing in for tiled ground, and laid
+    // over a surface that now draws its own borders it read as a second, misaligned grid.
 
     this.createRoomShell(design, stone, timber, teal, glass, accentMaterial);
     this.createFloorStory(design);
@@ -1477,7 +1503,15 @@ export class InteriorWorld {
   private createFloorStory(design: RoomDesign): void {
     const path = new THREE.Mesh(
       new THREE.PlaneGeometry(2.35, 10.5),
-      new THREE.MeshStandardMaterial({ color: design.path, roughness: 0.92 }),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff, roughness: 0.92,
+        map: (() => {
+          const t = surfaceTile("road", new THREE.Color(design.path)).clone();
+          t.needsUpdate = true;
+          t.repeat.set(2, 8);
+          return t;
+        })(),
+      }),
     );
     path.rotation.x = -Math.PI / 2;
     path.position.set(0, 0.018, 0.35);
@@ -1934,7 +1968,8 @@ export class InteriorWorld {
       1024,
       256,
     );
-    const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture, transparent: true, depthWrite: false }));
+    const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture, transparent: true, depthWrite: false, depthTest: false }));
+    sign.renderOrder = 10;
     sign.scale.set(6.9, 1.72, 1);
     sign.position.set(0, 3.72, -5.55);
     this.content.add(sign);
@@ -1962,7 +1997,8 @@ export class InteriorWorld {
     root.add(handle);
 
     const texture = this.createSignTexture("RETURN OUTSIDE", "E  EXIT BUSINESS", `#${accent.getHexString()}`, 640, 180);
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
+    label.renderOrder = 10;
     label.scale.set(3.0, 0.84, 1);
     label.position.set(0, 3.55, 0.2);
     root.add(label);
@@ -2067,7 +2103,8 @@ export class InteriorWorld {
     }
 
     const labelTexture = this.createStationTexture(definition, design, this.upgrades[definition.key], accent);
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false }));
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false, depthTest: false }));
+    label.renderOrder = 10;
     label.scale.set(3.25, 0.92, 1);
     label.position.set(0, 3.05, 0);
     root.add(label);
@@ -7799,17 +7836,24 @@ export class InteriorWorld {
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas 2D is required for interior signs.");
+    // The plate is drawn the way the city outside draws everything: a flat fill, a hard
+    // dark border, no gradient and no glow. The old one was a soft-shadowed rounded card
+    // with a coloured stroke — a UI chip floating in a world that has no soft edges
+    // anywhere else in it.
     context.clearRect(0, 0, width, height);
-    context.shadowColor = "rgba(5, 31, 34, .42)";
-    context.shadowBlur = Math.round(height * 0.06);
-    context.shadowOffsetY = Math.round(height * 0.035);
-    this.roundedRect(context, 18, 18, width - 36, height - 36, height * 0.18);
-    context.fillStyle = "#123e42";
+    const inset = Math.round(height * 0.09);
+    const radius = Math.round(height * 0.12);
+    // The dark border first, as a slightly larger plate underneath.
+    this.roundedRect(context, inset - 6, inset - 6, width - (inset - 6) * 2, height - (inset - 6) * 2, radius + 4);
+    context.fillStyle = "#0d2426";
     context.fill();
-    context.shadowColor = "transparent";
-    context.lineWidth = Math.max(6, height * 0.045);
-    context.strokeStyle = accent;
-    context.stroke();
+    // Then the face, in the accent, leaving the dark showing as a drawn edge.
+    this.roundedRect(context, inset, inset, width - inset * 2, height - inset * 2, radius);
+    context.fillStyle = "#12494c";
+    context.fill();
+    // A solid accent bar down the left, the way the world's own plaques are keyed.
+    context.fillStyle = accent;
+    context.fillRect(inset, inset + radius * 0.4, Math.round(width * 0.018), height - inset * 2 - radius * 0.8);
     context.fillStyle = "#f8eccd";
     context.textAlign = "center";
     context.textBaseline = "middle";

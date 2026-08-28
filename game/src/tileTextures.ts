@@ -157,6 +157,59 @@ const drawPlanks = (context: CanvasRenderingContext2D, base: THREE.Color): void 
 const cache = new Map<string, THREE.CanvasTexture>();
 
 /**
+ * A tile for any surface, in the world's own idiom: a flat palette base, one motif on a
+ * fixed lattice, and a darker keyline on all four edges.
+ *
+ * The interiors were built with plain coloured materials while the city outside is drawn
+ * from these tiles, so stepping through a door changed visual language entirely. Same
+ * generator, same motifs, same borders — the room now looks like it belongs to the city
+ * it stands in.
+ */
+export function surfaceTile(
+  motif: Motif,
+  colour: THREE.Color,
+  options: { keyline?: boolean; border?: number } = {},
+): THREE.CanvasTexture {
+  const border = options.border ?? -0.22;
+  const key = `surface:${motif}:${colour.getHexString()}:${border}:${options.keyline !== false}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const context = canvas.getContext("2d")!;
+  shade(context, colour, 0);
+  context.fillRect(0, 0, SIZE, SIZE);
+  if (motif === "blades") drawBlades(context, colour);
+  else if (motif === "speckle") drawSpeckle(context, colour);
+  else if (motif === "flagstone") drawFlagstone(context, colour);
+  else if (motif === "planks") drawPlanks(context, colour);
+  else if (motif === "road") drawRoad(context, colour);
+  else if (motif === "plaza") drawPlaza(context, colour);
+
+  // The dark keyline is the whole point indoors. Outside it is subtle, because a keyline
+  // repeated across 512 metres becomes a net; a room is a dozen tiles across, so the
+  // border can be what it looks like in the world's own art — a drawn edge, not a hint.
+  if (options.keyline !== false) {
+    shade(context, colour, border, 0.9);
+    context.fillRect(0, 0, SIZE, 3);
+    context.fillRect(0, SIZE - 3, SIZE, 3);
+    context.fillRect(0, 0, 3, SIZE);
+    context.fillRect(SIZE - 3, 0, 3, SIZE);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.name = `TEX_SURFACE_${motif}`;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  cache.set(key, texture);
+  return texture;
+}
+
+/**
  * A clean tile texture for a named terrain material, or null when that material is not
  * one this module dresses (water, glass and building materials keep their own art).
  */
