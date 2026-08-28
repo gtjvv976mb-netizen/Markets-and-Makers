@@ -58,6 +58,16 @@ services:
         value: 1
       - key: MM_WORLD_TICK_SECONDS
         value: 60
+      # --- On-chain payouts: OFF. Going live is a deliberate, three-part dashboard act:
+      #   1. set PAYOUT_TREASURY_SECRET in the dashboard (never in this file, never in git)
+      #   2. MM_PAYOUTS=1
+      #   3. MM_PAYOUTS_MAINNET=1   (payouts refuse mainnet without this second flag)
+      # Fund the treasury wallet with $MM AND enough SOL for fees first. Rehearse on
+      # devnet with server/scripts/payout-rehearsal.ts before ever flipping these.
+      - key: MM_PAYOUTS
+        value: 0
+      - key: MM_PAYOUTS_MAINNET
+        value: 0
 
 databases:
   - name: markets-and-makers-db

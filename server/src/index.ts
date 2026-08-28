@@ -15,6 +15,9 @@ import { advisorAvailable, consultAdvisor, recentProposals, REQUIRED_HISTORY } f
 import { DIALS, readPolicy, resetPolicy } from "./policy.js";
 import { buyListing, cancelListing, listItem, readBook, MarketError } from "./market.js";
 import { claimEpoch, epochStanding, islandBoard, EconomyError } from "./economy.js";
+import { PayoutError, payoutsOf, requestPayout, runPayoutWorker, withdrawableOf } from "./payout.js";
+import { redact } from "./treasury.js";
+import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
 import { CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, REALM_NAME } from "./catalogue.js";
@@ -219,6 +222,38 @@ const server = createServer(async (req, res) => {
       const key = typeof payload?.idempotencyKey === "string" ? payload.idempotencyKey : null;
       if (!key) { json(res, 400, { error: "idempotencyKey required" }); return; }
       json(res, 200, await claimEpoch(REALM_ID, who.playerId, key));
+      return;
+    }
+
+    // Withdrawals. The destination is the SESSION's wallet — the one the player proved
+    // with a signature at sign-in — and never anything from the request body. The body
+    // carries the amount and an idempotency key, nothing else.
+    if (req.method === "POST" && url.pathname === "/api/economy/withdraw") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const payload = (await body(req, 2_000)) as { units?: unknown; idempotencyKey?: unknown } | null;
+      const key = typeof payload?.idempotencyKey === "string" ? payload.idempotencyKey : null;
+      const units = typeof payload?.units === "number" ? payload.units : NaN;
+      if (!key) { json(res, 400, { error: "idempotencyKey required" }); return; }
+      try {
+        json(res, 200, await requestPayout(REALM_ID, who.playerId, who.walletAddress, units, key));
+      } catch (error) {
+        if (error instanceof PayoutError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/economy/withdrawals") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      json(res, 200, {
+        enabled: config.payoutsEnabled,
+        network: config.solanaNetwork,
+        minimum: config.payoutMin,
+        withdrawable: pool ? await withdrawableOf(pool, REALM_ID, who.playerId) : 0,
+        payouts: await payoutsOf(REALM_ID, who.playerId),
+      });
       return;
     }
 
@@ -512,6 +547,31 @@ server.listen(config.port, "0.0.0.0", async () => {
   // The district runs itself from here. Passes never overlap: a slow one delays the next
   // rather than stacking on top of it, because two concurrent passes over the same
   // business would both read the same elapsed window.
+  if (config.payoutsEnabled && config.databaseUrl) {
+    // The payout worker: settle in-flight transfers, then sign new ones. Guarded by its
+    // own running flag — a pass that waits on a slow RPC must not be joined by a second
+    // pass signing the same rows (SKIP LOCKED protects correctness; this protects load).
+    console.log(`payouts: enabled on ${config.solanaNetwork}, every ${config.payoutIntervalSeconds}s`);
+    let paying = false;
+    payoutTimer = setInterval(() => {
+      if (paying) return;
+      paying = true;
+      void runPayoutWorker()
+        .then((report) => {
+          if (report.starved) console.warn("payouts: treasury SOL below the fee floor — signing paused");
+          const moved = [...report.submitted, ...report.confirmed, ...report.requeued, ...report.failed];
+          if (moved.length) {
+            console.log(`payouts: ${report.submitted.length} submitted, ${report.confirmed.length} confirmed, `
+              + `${report.requeued.length} requeued, ${report.failed.length} failed`);
+          }
+        })
+        // redact: the RPC URL carries ?api-key=… and web3.js quotes the endpoint in its
+        // network errors, so an unredacted log would print the Helius key every tick.
+        .catch((error) => console.error("payout worker failed", redact((error as Error).message)))
+        .finally(() => { paying = false; });
+    }, config.payoutIntervalSeconds * 1_000);
+  }
+
   if (config.worldTick && config.databaseUrl) {
     console.log(`world: ticking every ${config.worldTickSeconds}s`);
     let running = false;
@@ -583,10 +643,12 @@ server.listen(config.port, "0.0.0.0", async () => {
 });
 
 let worldTickTimer: NodeJS.Timeout | null = null;
+let payoutTimer: NodeJS.Timeout | null = null;
 
 async function shutdown(): Promise<void> {
   clearInterval(broadcast);
   if (worldTickTimer) clearInterval(worldTickTimer);
+  if (payoutTimer) clearInterval(payoutTimer);
   for (const socket of presence.keys()) socket.close(1012, "server-restart");
   wss.close();
   server.close();

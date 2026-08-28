@@ -3451,3 +3451,13 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .interior-console-empty { padding: 12px 4px 8px; }
   .equipment-selector { grid-template-columns: 1fr; }
 }
+
+/* The withdrawal desk's payout states reuse the advisor-log list shape. */
+.payout-confirmed { border-left: 3px solid #2f9e6f; }
+.payout-confirmed em { color: #2f7d5f; }
+.payout-queued, .payout-submitted { border-left: 3px solid #d09a3a; }
+.payout-queued em, .payout-submitted em { color: #9a6a1a; }
+.payout-failed { border-left: 3px solid #b0503a; }
+.payout-failed em { color: #a04532; }
+.withdraw-desk .reserve-heading span { text-transform: uppercase; font-size: 10px;
+  letter-spacing: .07em; font-weight: 900; }

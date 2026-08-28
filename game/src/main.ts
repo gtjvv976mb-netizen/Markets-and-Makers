@@ -10,7 +10,7 @@ import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
-import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer} from "./wallet";
+import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -575,10 +575,12 @@ let realmLive = false;
 let districtBoard: DistrictQuote[] | null = null;
 let principal: Principal | null = null;
 let standing: EpochStanding | null = null;
+let withdrawalDesk: Awaited<ReturnType<typeof fetchWithdrawals>> = null;
 
 async function refreshWallet(): Promise<void> {
   principal = await currentPrincipal();
   standing = principal ? await fetchStanding() : null;
+  withdrawalDesk = principal ? await fetchWithdrawals() : null;
   renderAll();
 }
 void refreshWallet();
@@ -1231,6 +1233,26 @@ function renderMarket(): void {
       <small class="reserve-boundary">The bank returns <strong>capital</strong> — what you brought in, whenever you want it back. <strong>Profit</strong> is paid out in the weekly distribution instead, which rewards serving real buyers rather than grinding. Mercedonians are paid from this treasury, so a deeper treasury means richer customers. The bank issues only against reserves, and only a slice of its limit each week — no in-game activity can create ${CURRENCY_CODE} out of nothing.</small>
     </section>
 
+    ${withdrawalDesk ? `
+    <section class="bank-desk withdraw-desk">
+      <div class="reserve-heading"><div><small>On-chain</small><strong>Withdraw to your wallet</strong></div>
+        <span>${withdrawalDesk.enabled ? escapeMarkup(withdrawalDesk.network) : "not open yet"}</span></div>
+      ${withdrawalDesk.enabled ? `
+        <p>Your earned $MM can leave the game: the treasury signs a real transfer to the wallet you signed in with. Withdrawals start at ${formatNumber(withdrawalDesk.minimum)} $MM and land within a minute.</p>
+        <div class="reserve-balance">
+          <div><small>Withdrawable</small><strong>${formatNumber(withdrawalDesk.withdrawable)} $MM</strong></div>
+          <div><small>Destination</small><strong>your signed-in wallet</strong></div>
+        </div>
+        <div class="reserve-actions">
+          <button data-action="withdraw-chain" ${withdrawalDesk.withdrawable < withdrawalDesk.minimum ? "disabled" : ""}>
+            Withdraw ${formatNumber(withdrawalDesk.withdrawable)} $MM <small>on-chain, to your wallet</small></button>
+        </div>`
+      : `<p>Withdrawals are not switched on yet. Your earned $MM is recorded by the authority — ${formatNumber(withdrawalDesk.withdrawable)} $MM withdrawable — and this desk opens when the treasury goes live.</p>`}
+      ${withdrawalDesk.payouts.length ? `<ul class="advisor-log">${withdrawalDesk.payouts.slice(0, 4).map((row) => `<li class="payout-${escapeMarkup(row.state)}">
+        <strong>${formatNumber(row.units)} $MM</strong><em>${escapeMarkup(row.state)}</em>
+        ${row.signature ? `<small>tx ${escapeMarkup(row.signature.slice(0, 20))}…</small>` : row.error ? `<small>${escapeMarkup(row.error)}</small>` : ""}</li>`).join("")}</ul>` : ""}
+    </section>` : ""}
+
     <section class="reserve-desk">
       <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(store.epochBudget())} $MM this week</span></div>
       <p>$MM is <strong>earned, never bought</strong>. Each week the rewards pool pays out a share of itself, split by how much you contributed — so it shrinks slowly instead of running out.</p>
@@ -1877,6 +1899,15 @@ function renderCity(): string {
  * a maker because a fetch failed is worse than paying an approximate figure — but the
  * button already said "estimate" in that state, so nobody was promised otherwise.
  */
+async function withdrawToWallet(): Promise<void> {
+  const desk = withdrawalDesk;
+  if (!desk || !desk.enabled || desk.withdrawable < desk.minimum) return;
+  const result = await requestWithdrawal(desk.withdrawable, crypto.randomUUID());
+  report({ ok: result.ok, message: result.message });
+  withdrawalDesk = await fetchWithdrawals();
+  renderAll();
+}
+
 async function claimEpoch(): Promise<void> {
   if (isSynced()) {
     const settled = await claimEpochOnServer(crypto.randomUUID());
@@ -2889,6 +2920,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
   else if (action === "claim-epoch") void claimEpoch();
+  else if (action === "withdraw-chain") void withdrawToWallet();
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());

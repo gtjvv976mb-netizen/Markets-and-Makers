@@ -32,7 +32,8 @@ const claimedUnits = async (id: string): Promise<number> => Number((await pool!.
 
 suite("the epoch claim", () => {
   beforeEach(async () => {
-    for (const table of ["contribution_epoch", "reserve_funding", "command_receipt", "currency_ledger"]) {
+    for (const table of ["market_listing", "auth_session", "payout_request", "contribution_epoch",
+                         "reserve_funding", "command_receipt", "currency_ledger", "business"]) {
       await pool!.query(`delete from ${table}`);
     }
     await pool!.query(`delete from player`);

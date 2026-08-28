@@ -141,6 +141,48 @@ export async function claimEpochOnServer(idempotencyKey: string): Promise<EpochC
   } catch { return null; }
 }
 
+export interface WithdrawalDesk {
+  enabled: boolean;
+  network: string;
+  minimum: number;
+  withdrawable: number;
+  payouts: Array<{
+    id: string; units: number; state: string; signature: string | null;
+    error: string | null; createdAt: string; confirmedAt: string | null;
+  }>;
+}
+
+export async function fetchWithdrawals(): Promise<WithdrawalDesk | null> {
+  const base = serverBase();
+  const headers = authHeaders();
+  if (!base || !headers) return null;
+  try {
+    const response = await fetch(`${base}/api/economy/withdrawals`, { headers, signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    return await response.json() as WithdrawalDesk;
+  } catch { return null; }
+}
+
+/**
+ * Ask the authority to queue a withdrawal to the SESSION's wallet. The server decides
+ * everything else; a failure comes back as {error, message} with a 409.
+ */
+export async function requestWithdrawal(units: number, idempotencyKey: string): Promise<{ ok: boolean; message: string }> {
+  const base = serverBase();
+  const headers = authHeaders();
+  if (!base || !headers) return { ok: false, message: "Sign in with your wallet to withdraw." };
+  try {
+    const response = await fetch(`${base}/api/economy/withdraw`, {
+      method: "POST", headers,
+      body: JSON.stringify({ units, idempotencyKey }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const payload = await response.json() as { message?: string; units?: number };
+    if (!response.ok) return { ok: false, message: payload.message ?? "The authority refused the withdrawal." };
+    return { ok: true, message: `Withdrawal of ${payload.units} $MM queued. It lands on-chain within a minute.` };
+  } catch { return { ok: false, message: "The authority could not be reached." }; }
+}
+
 export async function signOut(): Promise<void> {
   const base = serverBase();
   const token = sessionToken();

@@ -13,7 +13,17 @@ const schema = z.object({
   // so they are safe to serve. The flag remains as an operational circuit breaker.
   MM_MARKET_ROUTES: z.coerce.number().int().min(0).max(1).default(1),
   MM_WORLD_TICK: z.coerce.number().int().min(0).max(1).default(0),
-  MM_WORLD_TICK_SECONDS: z.coerce.number().int().min(15).max(3600).default(60)
+  MM_WORLD_TICK_SECONDS: z.coerce.number().int().min(15).max(3600).default(60),
+  // On-chain payouts. Two flags, both required for mainnet, because "the payout code is
+  // deployed" and "the payout code may move the real token" must be separate decisions.
+  MM_PAYOUTS: z.coerce.number().int().min(0).max(1).default(0),
+  MM_PAYOUTS_MAINNET: z.coerce.number().int().min(0).max(1).default(0),
+  // The treasury signing key, base58 or a JSON byte array. Lives in the host's env and
+  // nowhere else; the code that reads it never logs it and never sends it anywhere.
+  PAYOUT_TREASURY_SECRET: z.string().optional().default(""),
+  MM_PAYOUT_MIN: z.coerce.number().int().min(1).default(100),
+  MM_PAYOUT_DAILY_CAP: z.coerce.number().int().min(1).default(50_000),
+  MM_PAYOUT_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(3600).default(30)
 });
 
 const env = schema.parse(process.env);
@@ -49,7 +59,16 @@ export const config = {
   // The world tick runs the district itself. Off by default so a deploy has to opt in:
   // it is the one loop that moves money without a player asking it to.
   worldTick: env.MM_WORLD_TICK === 1,
-  worldTickSeconds: env.MM_WORLD_TICK_SECONDS
+  worldTickSeconds: env.MM_WORLD_TICK_SECONDS,
+  // Payouts are OFF by default everywhere, and on mainnet they additionally demand the
+  // second flag. Devnet rehearsals therefore cannot be repurposed into a live drain by
+  // copying an env block: the mainnet flag would still be missing.
+  payoutsEnabled: env.MM_PAYOUTS === 1
+    && (env.SOLANA_NETWORK !== "mainnet" || env.MM_PAYOUTS_MAINNET === 1),
+  payoutTreasurySecret: env.PAYOUT_TREASURY_SECRET,
+  payoutMin: env.MM_PAYOUT_MIN,
+  payoutDailyCap: env.MM_PAYOUT_DAILY_CAP,
+  payoutIntervalSeconds: env.MM_PAYOUT_INTERVAL_SECONDS
 };
 
 export function heliusRpcUrl(): string {

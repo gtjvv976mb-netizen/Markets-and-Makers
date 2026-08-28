@@ -27,8 +27,15 @@ export async function command<T>(
 ): Promise<T> {
   const client = await db().connect();
   try {
+    // Scoped to the player and the command type, not the key alone. The key is chosen by
+    // the client: two players can pick the same one (or the same player can reuse one
+    // across different commands), and an unscoped lookup would hand back the OTHER
+    // party's stored response as if it were this caller's own result.
     const seen = await client.query<{ response: T }>(
-      "select response from command_receipt where idempotency_key = $1", [key]);
+      `select response from command_receipt
+        where idempotency_key = $1
+          and command_type = $2
+          and player_id is not distinct from $3`, [key, type, playerId]);
     const receipt = seen.rows[0];
     if (receipt) return receipt.response;
 
