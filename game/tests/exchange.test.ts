@@ -11,9 +11,6 @@
 
 import { describe, expect, it } from "vitest";
 import main from "../src/main.ts?raw";
-// ?raw, not ?inline: ?inline resolves to an empty string here, and an empty haystack
-// makes every "the style exists" assertion pass for the wrong reason.
-import styles from "../src/style.css?raw";
 
 
 describe("spam is refused before the form is filled", () => {
