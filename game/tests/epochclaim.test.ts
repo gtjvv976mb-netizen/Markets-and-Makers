@@ -116,9 +116,14 @@ describe("a claim cannot be taken twice", () => {
     expect(store.state.mmHoldings, "no second payment").toBe(held);
   });
 
-  it("refuses a maker who contributed nothing", () => {
+  it("refuses a maker who contributed nothing AND has no authority backing", () => {
+    // This test used to pass an authoritative figure of 15,000 and still expect refusal —
+    // it encoded the blocker. When the server supplies a figure it has already checked the
+    // contribution against its own ledger and committed the claim; refusing then burns the
+    // epoch and pays nothing. Unvouched is the case that must still be refused.
     const store = earning(0);
-    expect(store.claimEpochRewards(Date.now(), 15_000).ok).toBe(false);
+    expect(store.claimEpochRewards(Date.now()).ok).toBe(false);
+    expect(store.state.epoch.claimed, "and a refused claim must not burn the epoch").toBe(false);
   });
 });
 
@@ -144,5 +149,37 @@ describe("the authority's lifetime total wins", () => {
     store.state.lifetimeMMEarned = 5_000;
     store.claimEpochRewards(Date.now(), 1_000, -1);
     expect(store.state.lifetimeMMEarned).toBe(6_000);
+  });
+});
+
+describe("the shared-world loop actually earns the weekly reward", () => {
+  // The blocker the audit found: applyServerSale was the only revenue path in state.ts
+  // that never recorded contribution, so a maker trading in the shared district reached
+  // the claim with a local tally of zero — and the client refused a reward the SERVER had
+  // already committed and marked claimed. The player got a red error and nothing else.
+  it("counts a district sale toward the epoch", () => {
+    const store = earning(0);
+    expect(store.state.epoch.contribution).toBe(0);
+    for (let i = 0; i < 5; i += 1) store.applyServerSale("part", 1, 90, 100);
+    expect(store.state.epoch.contribution, "server sales must contribute").toBeGreaterThan(0);
+  });
+
+  it("pays a maker whose contribution the AUTHORITY vouched for", () => {
+    // Even with a local tally of zero — a cleared browser, a second device, or a client
+    // that simply did not see the sale — the server's word settles it.
+    const store = earning(0);
+    store.state.epoch.contribution = 0;
+    const before = store.state.mmHoldings;
+    const result = store.claimEpochRewards(Date.now(), 15_000, 15_000);
+    expect(result.ok, "the authority already committed this claim").toBe(true);
+    expect(store.state.mmHoldings - before).toBe(15_000);
+  });
+
+  it("still refuses a claim nobody vouched for", () => {
+    // The guard must not become a hole: with no authoritative figure, a maker who has
+    // contributed nothing is still refused.
+    const store = earning(0);
+    store.state.epoch.contribution = 0;
+    expect(store.claimEpochRewards(Date.now()).ok).toBe(false);
   });
 });

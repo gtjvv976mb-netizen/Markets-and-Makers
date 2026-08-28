@@ -783,7 +783,7 @@ function renderHeader(): void {
   const state = store.state;
   // Treasury, citizens and the $MM vault moved into World > Realm figures: a new player
   // cannot act on them, so they were noise in the permanent header.
-  element("#walletValue").textContent = `${formatNumber(state.wallet)} ${CURRENCY_CODE}`;
+  element("#walletValue").textContent = `${formatNumber(purse())} ${CURRENCY_CODE}`;
   element("#careerValue").textContent = `Lv ${store.careerLevel().level} · ${store.careerLevel().name}`;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0];
   element("#districtLabel").textContent = island.district;
@@ -1219,7 +1219,7 @@ function renderMarket(): void {
       </div>
       <div class="reserve-actions">
         <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mercDollarsForMM(100))} ${CURRENCY_CODE}</small></button>
-        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
+        <button class="secondary" data-action="bank-out" ${purse() < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
       </div>
       <div class="city-strip">
         <div><small>Mercedonians</small><strong>${formatNumber(store.mercedonianPopulation())}</strong></div>
@@ -1322,6 +1322,25 @@ interface ListingDraft { item: ResourceKey | null; quantity: number; markup: num
 
 let makerListings: MarketListing[] = [];
 let makerHoldings: Record<string, number> = {};
+/**
+ * The authority's balance for this player, or null when nobody is signed in.
+ *
+ * On a server world this is the ONLY balance that means anything: it is what
+ * `economy.buy`, `market.list` and `market.buy` actually debit, and it is the balance
+ * that refuses with "Not enough MERCS to settle". The local `state.wallet` is the offline
+ * simulation's own bookkeeping, and on a server world the two drift apart in both
+ * directions at once — the tick spends from the server purse without telling the client,
+ * while local production credits the client purse for work the authority already did.
+ *
+ * Showing one number and spending another is how a player watches a purchase fail with
+ * thousands on screen.
+ */
+let serverWallet: number | null = null;
+
+/** The purse to display and to gate every affordability check on. */
+function purse(): number {
+  return serverWallet ?? store.state.wallet;
+}
 let myPlayerId: string | null = null;
 let marketBusy = false;
 /**
@@ -1381,7 +1400,7 @@ async function refreshMakerMarket(): Promise<void> {
     fetchHoldings(),
   ]);
   if (book) makerListings = book;
-  if (holdings) makerHoldings = holdings.inventory;
+  if (holdings) { makerHoldings = holdings.inventory; serverWallet = holdings.wallet; }
   if (myPlayerId === null) myPlayerId = (await fetchIdentity())?.playerId ?? null;
   renderMakerMarket();
 }
@@ -1425,8 +1444,8 @@ function renderMakerMarket(): void {
       <span class="maker-listing-total">${formatNumber(entry.total)} ${CURRENCY_CODE}</span>
       ${ours
         ? `<button class="secondary" data-action="market-cancel" data-listing="${entry.id}" ${marketBusy ? "disabled" : ""}>Withdraw</button>`
-        : `<button class="${purchaseArmed(entry.id) ? "market-armed" : ""}" data-action="market-buy" data-listing="${entry.id}" ${marketBusy || store.state.wallet < entry.total ? "disabled" : ""}>${
-            store.state.wallet < entry.total ? "Too dear"
+        : `<button class="${purchaseArmed(entry.id) ? "market-armed" : ""}" data-action="market-buy" data-listing="${entry.id}" ${marketBusy || purse() < entry.total ? "disabled" : ""}>${
+            purse() < entry.total ? "Too dear"
             : purchaseArmed(entry.id) ? `Confirm ${formatNumber(entry.total)}`
             : "Buy"}</button>`}
     </li>`;
@@ -1681,7 +1700,7 @@ function renderInterior(): void {
     selectedKey ?? "none",
     interiorSelection?.nearby ?? false,
     ceiling,
-    store.state.wallet,
+    purse(),   // the displayed balance: the console must redraw when it changes
     ...Object.values(store.state.upgrades),
     ...Object.values(store.state.inventory),
   ].join(":");
@@ -2002,7 +2021,7 @@ function renderInfo(): void {
       </div>
       <div class="section-title">Purse</div>
       <div class="info-grid">
-        ${statTile("Merc Dollars", `${formatNumber(store.state.wallet)} ${CURRENCY_CODE}`, "Spendable now")}
+        ${statTile("Merc Dollars", `${formatNumber(purse())} ${CURRENCY_CODE}`, "Spendable now")}
         ${statTile("Net worth", `${formatNumber(store.netWorth())} ${CURRENCY_CODE}`, "Cash plus stock at market")}
         ${statTile("$MM held", formatNumber(store.state.mmHoldings), `${formatNumber(store.state.lifetimeMMEarned)} earned in total`)}
         ${statTile("This epoch", formatNumber(Math.round(store.state.epoch.contribution)), `${((standing ? standing.share : store.epochShare()) * 100).toFixed(2)}% share · ${formatNumber(epochProjection().units)} $MM projected`)}
@@ -2099,7 +2118,7 @@ function renderInfo(): void {
     <div class="info-grid">
       ${statTile("Civic treasury", `${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}`)}
       ${statTile("Household purses", `${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}`, "What your customers can afford")}
-      ${statTile("Your purse", `${formatNumber(store.state.wallet)} ${CURRENCY_CODE}`)}
+      ${statTile("Your purse", `${formatNumber(purse())} ${CURRENCY_CODE}`)}
       ${statTile("Money supply", `${formatNumber(store.totalMoneySupply())} ${CURRENCY_CODE}`, "Never created, only moved")}
     </div>`;
 }
@@ -2150,7 +2169,7 @@ function bankDeskMarkup(): string {
   return `
     <section class="hud-bank-card">
       <div class="bank-balance-pair">
-        <span><small>MERCS</small><strong>${formatNumber(store.state.wallet)}</strong><em>in-game operating balance</em></span>
+        <span><small>MERCS</small><strong>${formatNumber(purse())}</strong><em>in-game operating balance</em></span>
         <span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong><em>internal prototype balance</em></span>
       </div>
       <div class="drawer-section-label">Treasury exchange</div>
@@ -2159,7 +2178,7 @@ function bankDeskMarkup(): string {
       </div>
       <div class="hud-bank-actions">
         <button data-action="bank-in" ${store.state.mmHoldings < 100 || converted > store.issuanceHeadroom() ? "disabled" : ""}><span>Convert 100 $MM</span><small>${converted > store.issuanceHeadroom() ? "Treasury limit reached" : `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`}</small></button>
-        <button class="secondary" data-action="bank-out" ${store.state.wallet < 1_000 || capital <= 0 || returned <= 0 ? "disabled" : ""}><span>Return 1,000 ${CURRENCY_CODE}</span><small>${capital > 0 ? `Up to ${formatNumber(capital)} $MM capital available` : "No deposited capital"}</small></button>
+        <button class="secondary" data-action="bank-out" ${purse() < 1_000 || capital <= 0 || returned <= 0 ? "disabled" : ""}><span>Return 1,000 ${CURRENCY_CODE}</span><small>${capital > 0 ? `Up to ${formatNumber(capital)} $MM capital available` : "No deposited capital"}</small></button>
       </div>
       <div class="bank-mini-ledger">
         <span><small>Your capital on deposit</small><strong>${formatNumber(capital)} $MM</strong></span>
@@ -2414,7 +2433,7 @@ function renderVitals(): void {
   if (!node) return;
   node.innerHTML = `
     <div class="hud-balance-pill merc-balance" title="Merc Dollars — in-game operating balance">
-      <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>MERCS</small><strong>${formatNumber(store.state.wallet)}</strong></span>
+      <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>MERCS</small><strong>${formatNumber(purse())}</strong></span>
     </div>
     <div class="hud-balance-pill mm-balance" title="$MM — internal prototype balance">
       <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong></span>
@@ -2703,7 +2722,7 @@ function renderTaxi(): void {
     ${stops.length === 0
       ? `<div class="empty-state"><i>▸</i><strong>Everything is within a short walk</strong><p>No fare worth paying from here.</p></div>`
       : `<ul class="counter-services">${stops.map((stop) => `<li><button data-action="taxi-go" data-to="${escapeMarkup(stop.id)}"
-          ${store.state.wallet < stop.fare ? "disabled" : ""}>
+          ${purse() < stop.fare ? "disabled" : ""}>
           <strong>${escapeMarkup(stop.name)}</strong>
           <small>${escapeMarkup(stop.role)}</small>
           <b class="taxi-fare">${stop.fare} ${CURRENCY_CODE}</b></button></li>`).join("")}</ul>`}`;
@@ -3022,7 +3041,7 @@ document.body.addEventListener("click", (event) => {
     switchTab(store.state.portfolio[plotId]?.buildingPlaced ? "shop" : "shop");
     openSheet();
   }
-  else if (action === "gate-demo") { store.startDemoSession(); closeBootGate(); toast("Demo: nothing here is saved, and the shared market is closed."); }
+  else if (action === "gate-demo") { serverWallet = null; store.startDemoSession(); closeBootGate(); toast("Demo: nothing here is saved, and the shared market is closed."); }
   else if (action === "gate-connect") {
     // A demo is never promoted in place. Signing in from one would carry the demo's city
     // into the real account — a player would "keep" a city that was never theirs, and the
@@ -3037,7 +3056,7 @@ document.body.addEventListener("click", (event) => {
       .catch((error: Error) => toast(error.message));
   }
   else if (action === "wallet-disconnect") {
-    void signOut().then(() => { principal = null; standing = null; toast("Wallet unlinked."); renderAll(); });
+    void signOut().then(() => { principal = null; standing = null; serverWallet = null; withdrawalDesk = null; makerHoldings = {}; toast("Wallet unlinked."); renderAll(); });
   }
   else if (action === "operation") {
     const key = button.dataset.operation as "autoProduce" | "autoBuy" | "autoSell";

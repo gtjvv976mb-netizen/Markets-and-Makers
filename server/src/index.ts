@@ -59,8 +59,27 @@ function json(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value));
 }
 
+/**
+ * The client's own address, not the proxy's.
+ *
+ * Render terminates TLS and forwards, so req.socket.remoteAddress is the PROXY for every
+ * request — which put every player on Earth in one shared bucket. The limiter either
+ * throttled the whole game at once or, with the bucket reset by whichever request came
+ * first, throttled nobody. Neither is a rate limit.
+ *
+ * The LAST entry in X-Forwarded-For is the one the trusted proxy appended; earlier
+ * entries are client-supplied and trivially spoofed, so taking the first would let anyone
+ * mint a fresh bucket per request by sending a header.
+ */
+export function clientAddress(req: IncomingMessage): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  const chain = Array.isArray(forwarded) ? forwarded.join(",") : forwarded ?? "";
+  const hops = chain.split(",").map((hop) => hop.trim()).filter(Boolean);
+  return hops.length ? hops[hops.length - 1]! : (req.socket.remoteAddress ?? "unknown");
+}
+
 function rateAllowed(req: IncomingMessage): boolean {
-  const key = req.socket.remoteAddress ?? "unknown";
+  const key = clientAddress(req);
   const now = Date.now();
   const bucket = rateBuckets.get(key);
   if (!bucket || now >= bucket.resetAt) {
@@ -80,7 +99,7 @@ async function body(req: IncomingMessage, limit = 1_000_000): Promise<unknown> {
   return text ? JSON.parse(text) : null;
 }
 
-function secretMatches(received: string | undefined, expected: string): boolean {
+export function secretMatches(received: string | undefined, expected: string): boolean {
   if (!received || !expected) return false;
   const left = Buffer.from(received);
   const right = Buffer.from(expected);
@@ -372,8 +391,19 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/api/world/policy/reset") {
       // The kill switch: every dial back to the value shipped in the code.
-      const who = await authenticate(bearerFrom(req.headers.authorization));
-      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      //
+      // This used to require only that you were SIGNED IN — and signing in needs nothing
+      // but a wallet and an off-chain signature, both free. Any player could reset the
+      // whole realm's economic policy: the civic wage, the payroll cap, the spend rate,
+      // wiping every change the advisor had reasoned its way to. Authentication answers
+      // "who are you"; it was standing in for "may you", which is a different question.
+      //
+      // secretMatches returns false on an empty expected value, so an unconfigured
+      // MM_ADMIN_KEY leaves this route closed rather than open to everyone.
+      if (!secretMatches(req.headers["x-admin-key"] as string | undefined, config.adminKey)) {
+        json(res, 403, { error: "forbidden" });
+        return;
+      }
       await resetPolicy(REALM_ID);
       json(res, 200, { reset: true, current: await readPolicy(REALM_ID) });
       return;

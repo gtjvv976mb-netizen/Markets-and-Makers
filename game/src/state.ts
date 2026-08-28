@@ -1033,6 +1033,12 @@ export class GameStore {
     this.state.wallet += net;
     this.state.lifetimeRevenue += gross;
     this.state.todayRevenue += net;
+    // A district sale is contribution, exactly like every other revenue path in this file.
+    // It was the ONE that never recorded it, which meant a player whose epoch revenue came
+    // from the shared world — the canonical loop on a server realm — reached the weekly
+    // claim with a local contribution of zero and was refused a reward the authority had
+    // already spent.
+    this.addContribution(gross, "contract");
     this.commit(`The district bought ${quantity} ${RESOURCES[key].short} for ${gross} ${CURRENCY_CODE}.`, "success");
     return this.result(true, "Sold into the shared market.");
   }
@@ -1488,7 +1494,14 @@ export class GameStore {
   claimEpochRewards(now = Date.now(), authoritative?: number, lifetime?: number): ActionResult {
     this.rollCalendar(now);
     if (this.state.epoch.claimed) return this.result(false, "This epoch's distribution is already claimed.");
-    if (this.state.epoch.contribution <= 0) return this.result(false, "Fulfil an order or supply the district to earn a contribution share.");
+    // The local tally is only evidence when nobody better has spoken. When the authority
+    // supplies a figure it has ALREADY checked the contribution against its own ledger and
+    // committed the claim, so refusing here would burn an epoch the server considers paid
+    // and hand the player nothing.
+    const vouched = Number.isFinite(authoritative) && (authoritative ?? 0) > 0;
+    if (!vouched && this.state.epoch.contribution <= 0) {
+      return this.result(false, "Fulfil an order or supply the district to earn a contribution share.");
+    }
     const owed = Number.isFinite(authoritative) && (authoritative ?? 0) > 0
       ? Math.floor(authoritative!) : this.projectedEpochMM();
     // The reserve still binds. $MM paid out has to come from somewhere the client can
@@ -1965,6 +1978,19 @@ export class GameStore {
     const report: ShiftReport = { hours: 0, jobs: 0, produced: 0, sold: 0, revenue: 0, spent: 0, wages: 0, halted: "idle" };
     const license = this.state.license;
     if (!license || !this.state.buildingPlaced) { this.state.lastTickAt = now; return report; }
+
+    // On a server world the authority already ran this absence — it produces, sells and
+    // pays wages whether or not this browser was ever open. settleOfflineFootfall has
+    // always known that; the rest of the shift did not, so production, wages and broker
+    // sales were credited a SECOND time on return for work the ledger had already done.
+    //
+    // The clock still advances: skipping without moving lastTickAt would make the next
+    // catch-up re-read the same absence, so the double-count would simply arrive later.
+    if (worldRunsOnServer()) {
+      this.state.lastTickAt = now;
+      this.state.lastShift = report;
+      return report;
+    }
 
     const config = BUSINESS[license];
     const budget = Math.min(now - this.state.lastTickAt, OFFLINE_MAX_HOURS * 3_600_000);

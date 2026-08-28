@@ -21,6 +21,9 @@ const schema = z.object({
   // The treasury signing key, base58 or a JSON byte array. Lives in the host's env and
   // nowhere else; the code that reads it never logs it and never sends it anywhere.
   PAYOUT_TREASURY_SECRET: z.string().optional().default(""),
+  // Operator-only routes. Unset means those routes are CLOSED, not open — a missing
+  // secret must never read as "no check required".
+  MM_ADMIN_KEY: z.string().optional().default(""),
   MM_PAYOUT_MIN: z.coerce.number().int().min(1).default(100),
   MM_PAYOUT_DAILY_CAP: z.coerce.number().int().min(1).default(50_000),
   MM_PAYOUT_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(3600).default(30)
@@ -66,6 +69,7 @@ export const config = {
   payoutsEnabled: env.MM_PAYOUTS === 1
     && (env.SOLANA_NETWORK !== "mainnet" || env.MM_PAYOUTS_MAINNET === 1),
   payoutTreasurySecret: env.PAYOUT_TREASURY_SECRET,
+  adminKey: env.MM_ADMIN_KEY,
   payoutMin: env.MM_PAYOUT_MIN,
   payoutDailyCap: env.MM_PAYOUT_DAILY_CAP,
   payoutIntervalSeconds: env.MM_PAYOUT_INTERVAL_SECONDS
