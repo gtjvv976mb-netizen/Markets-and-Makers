@@ -121,10 +121,14 @@ describe("business interiors", () => {
     for (const license of licenses) {
       const kit = INTERIOR_ROOMS[license].props;
       expect(kit.length, `${license} has no floor kit`).toBeGreaterThan(0);
-      expect(kit.length).toBeLessThanOrEqual(PROP_SLOTS.length);
-      const clash = seen.get(kit.join(","));
-      expect(clash, `${license} has the same kit as ${clash}`).toBeUndefined();
-      seen.set(kit.join(","), license);
+      // The floor was cleared: a room places only as many pieces as it has slots, and the
+      // authored kit is longer than that on purpose so the ordering still says which piece
+      // matters most. What has to stay true is that the pieces a player actually SEES
+      // differ from trade to trade — the rest of the list is preference, not placement.
+      const placed = kit.slice(0, PROP_SLOTS.length).join(",");
+      const clash = seen.get(placed);
+      expect(clash, `${license} shows the same kit as ${clash}`).toBeUndefined();
+      seen.set(placed, license);
     }
   });
 

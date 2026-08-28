@@ -182,12 +182,10 @@ export const INTERIOR_EQUIPMENT_CATALOG: Record<LicenseKey, Record<UpgradeKey, I
 
 /** Where floor kit may stand: [x, z, facing]. Clear of stations, door and walkway. */
 export const PROP_SLOTS: ReadonlyArray<readonly [number, number, number]> = [
-  // Four low support-kit bays sit along the cutaway front edge. The rear wall is now
-  // reserved for each business's authored production centerpiece and living system.
-  [-3.4, 4.8, Math.PI],
-  [3.4, 4.8, Math.PI],
-  [-6.6, 4.85, Math.PI],
-  [6.6, 4.85, Math.PI],
+  // Two bays, pushed out to the far corners of the widened floor so they dress the room
+  // without standing on ground a maker might want to build on.
+  [-9.4, 6.6, Math.PI],
+  [9.4, 6.6, Math.PI],
 ];
 
 export type PropKind =
@@ -304,8 +302,12 @@ export const INTERIOR_ROOMS: Record<LicenseKey, RoomDesign> = {
 
 type TargetId = UpgradeKey | "exit";
 
-export const ROOM_HALF_WIDTH = 8;
-export const ROOM_HALF_DEPTH = 6;
+// A bigger floor. The room was 16x12 with four fixed ports and a floor kit filling the
+// space between them; now that equipment goes where its owner puts it, the useful thing is
+// open ground to put it on. 22x16 is enough that a full grid of machines and fittings
+// still leaves room to walk between them.
+export const ROOM_HALF_WIDTH = 11;
+export const ROOM_HALF_DEPTH = 8;
 const PLAYER_RADIUS = 0.38;
 const WALK_SPEED = 4.25;
 
@@ -1263,7 +1265,7 @@ export class InteriorWorld {
 
     this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
-    for (const definition of STATIONS) this.createStation(definition, cream, teal, timber);
+    for (const definition of STATIONS) this.createStation(definition, cream, timber);
     this.createSignatureSystem(design, cream, timber, teal, accentMaterial, glass);
     this.dressRoom(design);
 
@@ -1323,18 +1325,22 @@ export class InteriorWorld {
       this.content.add(mesh);
       return mesh;
     };
-    const sideRails = (material: THREE.Material, height = 4.55): void => {
-      for (const x of [-7.55, 7.55]) {
-        box([0.2, height, 0.3], [x, height / 2, -5.72], material);
-        box([0.15, 0.16, 11.8], [x, height, 0], material);
-      }
-    };
+    /**
+     * Nothing. Kept as a no-op so the fifteen architecture cases below still read as a
+     * set rather than fourteen calls and one gap.
+     *
+     * It used to hang a post and an eleven-metre rail down each side at head height. On
+     * the old narrow floor they framed the room; on the widened one they ran straight
+     * through ground a maker is meant to build on, and they were the main thing making an
+     * interior feel like scaffolding rather than a workshop.
+     */
+    const sideRails = (_material: THREE.Material, _height = 4.55): void => {};
 
     // Low, non-negotiable plinths tell the collision boundary without enclosing the
     // camera. Everything above them is business-specific.
-    box([16.5, 0.44, 0.5], [0, 0.2, -6.05], stone);
-    box([0.5, 0.44, 12.4], [-8.05, 0.2, 0], stone);
-    box([0.5, 0.44, 12.4], [8.05, 0.2, 0], stone);
+    box([ROOM_HALF_WIDTH * 2 + 0.5, 0.44, 0.5], [0, 0.2, -(ROOM_HALF_DEPTH + 0.05)], stone);
+    box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [-(ROOM_HALF_WIDTH + 0.05), 0.2, 0], stone);
+    box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [ROOM_HALF_WIDTH + 0.05, 0.2, 0], stone);
 
     switch (design.architecture) {
       case "living-water-gallery": {
@@ -2028,7 +2034,6 @@ export class InteriorWorld {
   private createStation(
     definition: StationDefinition,
     cream: THREE.MeshStandardMaterial,
-    teal: THREE.MeshStandardMaterial,
     timber: THREE.MeshStandardMaterial,
   ): void {
     const [x, z] = definition.position;
@@ -2058,15 +2063,11 @@ export class InteriorWorld {
     const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x28575a, roughness: 0.7, metalness: 0.15 });
     const highlightMaterials = [activeMaterial, secondaryMaterial];
 
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.16, 1.3, 0.32, 12), teal);
-    base.position.y = 0.16;
-    base.receiveShadow = true;
-    base.castShadow = true;
-    root.add(base);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.18, 12), activeMaterial);
-    top.position.y = 0.4;
-    top.castShadow = true;
-    root.add(top);
+    // No plinth. Each station used to stand on a two-part cylinder with a glowing ring
+    // round it — a docking port, which made sense when equipment lived in four fixed
+    // slots and nowhere else. Now that a machine goes wherever its owner drags it, a port
+    // drawn under it is a hole in the floor that follows it about. The machines sit on the
+    // tiles like everything else in the world does.
 
     const machineRoot = new THREE.Group();
     machineRoot.name = `${design.form}-installed`;
@@ -2084,12 +2085,15 @@ export class InteriorWorld {
     const blueprint = this.createBlueprint(definition.key, design, accent);
     root.add(blueprint);
 
+    // The halo is kept but only as SELECTION feedback — it is hidden until a station is
+    // hovered or chosen, rather than burning a permanent ring into the floor.
     const halo = new THREE.Mesh(
-      new THREE.RingGeometry(1.25, 1.48, 32),
-      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.RingGeometry(1.05, 1.22, 28),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
     );
     halo.rotation.x = -Math.PI / 2;
     halo.position.y = 0.025;
+    halo.visible = false;
     root.add(halo);
 
     const lamps: InteriorStation["lamps"] = [];
@@ -7292,7 +7296,11 @@ export class InteriorWorld {
    * an obstacle, so the kit is as solid indoors as the buildings are outdoors.
    */
   private dressRoom(design: RoomDesign): void {
-    design.props.forEach((kind, index) => {
+    // Only the first two pieces of floor kit are laid out now, and both hug the cutaway
+    // front edge. The room used to open with four of them plus four equipment ports, so a
+    // maker arrived to a floor that was already full and a grid they could not really use.
+    // The kit is scene-setting; the space is the point.
+    design.props.slice(0, 2).forEach((kind, index) => {
       const slot = PROP_SLOTS[index];
       if (!slot) return;
       const [x, z, facing] = slot;
@@ -7719,8 +7727,12 @@ export class InteriorWorld {
     const targetId: TargetId | null = selection?.kind === "upgrade" ? selection.key : selection ? "exit" : null;
     for (const station of this.stations.values()) {
       const highlighted = station.definition.key === targetId;
-      station.halo.material.opacity = highlighted ? (selection?.nearby ? 0.72 : 0.48) : 0.18;
-      station.halo.scale.setScalar(highlighted ? 1.08 : 1);
+      // Shown only when this station is the one being pointed at or walked to. An
+      // always-on ring is a port; a ring that appears when you reach for something is
+      // feedback.
+      station.halo.visible = highlighted;
+      station.halo.material.opacity = selection?.nearby ? 0.62 : 0.34;
+      station.halo.scale.setScalar(highlighted ? 1.06 : 1);
       for (const material of station.highlightMaterials) material.emissiveIntensity = highlighted ? 1.05 : 0.4;
     }
     if (this.exitHalo) this.exitHalo.material.opacity = targetId === "exit" ? (selection?.nearby ? 0.76 : 0.5) : 0.28;

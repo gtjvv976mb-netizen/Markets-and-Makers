@@ -602,8 +602,8 @@ export const FITTINGS: Record<FittingKey, FittingSpec> = {
 };
 
 export const FLOOR_TILE = 1.6;
-export const FLOOR_COLUMNS = 9;
-export const FLOOR_ROWS = 5;
+export const FLOOR_COLUMNS = 13;
+export const FLOOR_ROWS = 7;
 /** Tiles kept clear: the walkway from the door to the back of the room. */
 export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
 
@@ -635,10 +635,10 @@ export function tileIsBuildable(column: number, row: number): boolean {
 
 /** Where the four stations stand before an owner moves them. */
 export const DEFAULT_EQUIPMENT_TILES: Record<string, { column: number; row: number }> = {
-  yield: { column: 1, row: 1 },
-  capacity: { column: 7, row: 1 },
-  speed: { column: 1, row: 3 },
-  appeal: { column: 7, row: 3 },
+  yield: { column: 2, row: 2 },
+  capacity: { column: 10, row: 2 },
+  speed: { column: 2, row: 4 },
+  appeal: { column: 10, row: 4 },
 };
 
 export const CIVIC_BOARD_BASE = 3;
