@@ -183,6 +183,16 @@ export interface SalePricing { gross: number; firstUnit: number; lastUnit: numbe
 export interface SaleInput {
   realmId: string; islandId: string; itemKey: string; quantity: number;
   playerId: string; contributionWeight: number; at?: number;
+  /**
+   * What the seller's own floor adds to the asking price — a finishing kiln, a trade counter,
+   * a working face on the aisle. Defaults to 1.
+   *
+   * The district's demand curve is untouched by it: the unit price still falls as the day's
+   * appetite is consumed, and the SAME number of units is taken out of that appetite. This
+   * lifts what one seller is paid, not what the district will absorb, so it cannot be used to
+   * mine the demand pool.
+   */
+  floorPrice?: number;
 }
 
 /**
@@ -207,9 +217,12 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
       [input.realmId, input.islandId, input.itemKey, day]);
     let sold = Number(soldRow.rows[0]?.units ?? 0);
 
+    // Clamped, and never below 1: this arrives from a derived floor, and a bad multiplier
+    // here would be money. A floor can lift an ask, never discount it.
+    const floorPrice = Math.min(2, Math.max(1, Number(input.floorPrice) || 1));
     let gross = 0, firstUnit = 0, lastUnit = 0;
     for (let i = 0; i < input.quantity; i += 1) {
-      const price = unitPriceAt(input.itemKey, pressure, sold, neighbours);
+      const price = Math.round(unitPriceAt(input.itemKey, pressure, sold, neighbours) * floorPrice);
       if (i === 0) firstUnit = price;
       lastUnit = price;
       gross += price;

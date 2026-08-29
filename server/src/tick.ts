@@ -19,6 +19,7 @@ import { pool } from "./database.js";
 import { applyPurchaseWithin, applySaleWithin, EconomyError } from "./economy.js";
 import { command, moveCurrency, takeItems, MarketError } from "./market.js";
 import { PLOTS_BY_ID } from "./plots.js";
+import { floorEffects, type FloorLayout } from "./floor.js";
 import { TRADES } from "./trades.js";
 
 const REALM = "sunwoven-1";
@@ -88,7 +89,27 @@ export interface TickReport {
 interface BusinessRow {
   plot_id: string; island_id: string; license: string; owner_player_id: string;
   upgrades: { yield: number; capacity: number; speed: number; appeal: number };
+  /** Raw layout as the owner arranged it. Its worth is derived here, never sent by a client. */
+  floor: { tiles?: unknown; facings?: unknown; fittings?: unknown } | null;
   broken: boolean; elapsed_seconds: string;
+}
+
+/**
+ * What this business's floor is worth, by the authority's own reckoning.
+ *
+ * Until this existed the tick priced production from upgrade levels alone, so every fitting a
+ * maker had bought and every layout decision they had made counted for nothing the moment they
+ * closed the tab — the browser showed one number and the authority paid another. The rule is
+ * server/src/floor.ts, held identical to the browser's copy by shared/floor-fixtures.json.
+ */
+function floorOf(row: BusinessRow): ReturnType<typeof floorEffects> {
+  const raw = row.floor ?? {};
+  return floorEffects({
+    tiles: (raw.tiles ?? {}) as FloorLayout["tiles"],
+    facings: (raw.facings ?? {}) as FloorLayout["facings"],
+    fittings: (raw.fittings ?? {}) as FloorLayout["fittings"],
+    upgrades: row.upgrades,
+  });
 }
 
 /**
@@ -212,8 +233,16 @@ async function produce(
   const trade = TRADES[row.license];
   if (!trade || trade.durationSeconds <= 0) return 0;
 
-  // Speed shortens a cycle, capacity runs more of them at once. Same curve as the client.
-  const seconds = trade.durationSeconds * Math.max(0.25, 1 - row.upgrades.speed * 0.12);
+  const floor = floorOf(row);
+  // Speed shortens a cycle, capacity runs more of them at once.
+  //
+  // The floor is .52 and it is NOT decoration here: a level-4 speed station reaches exactly
+  // .52 unaided, so without a governor the clamp never binds — but a governor multiplies
+  // below it, and the browser clamps at .52 too. This said 0.25 with a comment claiming it
+  // was "the same curve as the client", which was true only while the server ignored fittings
+  // entirely. It no longer does, so the two clamps now have to be the same number.
+  const seconds = trade.durationSeconds
+    * Math.max(0.52, (1 - row.upgrades.speed * 0.12) * floor.speed);
   const parallel = 1 + row.upgrades.capacity;
   const possible = Math.floor((elapsedHours * 3_600) / seconds) * parallel;
   if (possible <= 0) return 0;
@@ -224,17 +253,26 @@ async function produce(
   // Cut the run to what the shelves can actually feed.
   for (const [itemKey, perCycle] of inputs) {
     if (perCycle <= 0) continue;
-    cycles = Math.min(cycles, Math.floor(await held(client, row.owner_player_id, itemKey) / perCycle));
+    // Thrift applies to the RUN, not to each cycle.
+    //
+    // Ceiling per cycle and then multiplying by cycles rounds the saving away every single
+    // time: at 0.8 thrift a 1-per-cycle input is ceil(0.8) = 1, so a Reclaim Sorter saved
+    // exactly nothing offline while the browser (state.ts inputCost, which ceils
+    // perCycle * cycles * thrift once) showed it saving 20%. Same expression on both sides
+    // now, so the number the maker is shown is the number they are charged.
+    const held0 = await held(client, row.owner_player_id, itemKey);
+    while (cycles > 0 && Math.max(1, Math.ceil(perCycle * cycles * floor.inputThrift)) > held0) cycles -= 1;
   }
   if (cycles <= 0) return 0;
 
   for (const [itemKey, perCycle] of inputs) {
     if (perCycle <= 0) continue;
-    await takeItems(client, REALM, keyFor(commandId, "in", itemKey), itemKey, perCycle * cycles,
+    await takeItems(client, REALM, keyFor(commandId, "in", itemKey), itemKey,
+      Math.max(1, Math.ceil(perCycle * cycles * floor.inputThrift)),
       { type: "player", id: row.owner_player_id }, { type: "government", id: "consumed" }, "tick.produce");
   }
 
-  const qualityBonus = 1 + row.upgrades.yield * 0.12;
+  const qualityBonus = (1 + row.upgrades.yield * 0.12 * floor.clearance.yield) * floor.output;
   for (const [itemKey, perCycle] of Object.entries(trade.output)) {
     if (perCycle <= 0) continue;
     const made = Math.max(perCycle * cycles, Math.round(perCycle * cycles * qualityBonus));
@@ -261,7 +299,8 @@ async function serveCounter(
   const trade = TRADES[row.license];
   if (!trade) return { units: 0, gross: 0, net: 0 };
 
-  const appeal = 1 + row.upgrades.appeal * 0.15;
+  const floor = floorOf(row);
+  const appeal = 1 + row.upgrades.appeal * 0.15 * floor.clearance.appeal;
   const wanted = Math.min(MAX_VISITS_PER_PASS, Math.floor(footfall * VISITS_PER_HOUR * appeal * elapsedHours));
   if (wanted <= 0) return { units: 0, gross: 0, net: 0 };
 
@@ -276,6 +315,10 @@ async function serveCounter(
   const priced = await applySaleWithin(client, {
     realmId: REALM, islandId: row.island_id, itemKey, quantity: units,
     playerId: row.owner_player_id, contributionWeight: IDLE_CONTRIBUTION_WEIGHT,
+    // The kiln, the counter and every aisle-facing machine finally pay while nobody is
+    // watching. Both engines computed this and only the browser applied it, so a purchased
+    // finishing kiln — whose ONLY effect is price — was worth exactly zero offline.
+    floorPrice: floor.price,
   });
   const tax = Math.floor(priced.gross * TAX_RATE);
   const net = priced.gross - tax;
@@ -304,7 +347,7 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
   if (!pool) return report;
 
   const due = await pool.query<BusinessRow>(
-    `select b.plot_id, p.island_id, b.license, b.owner_player_id, b.upgrades,
+    `select b.plot_id, p.island_id, b.license, b.owner_player_id, b.upgrades, b.floor,
             (b.condition <= 0) as broken,
             extract(epoch from (now() - b.last_tick_at))::text as elapsed_seconds
        from business b join plot p on p.id = b.plot_id

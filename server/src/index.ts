@@ -422,6 +422,11 @@ const server = createServer(async (req, res) => {
           license: String(payload.license ?? ""),
           condition: Number(payload.condition ?? 100),
           upgrades: payload.upgrades as never,
+          // Without this line the whole floor feature is inert AND every upsert wipes the
+          // column: registerBusiness would sanitise `undefined` to an empty layout and write
+          // it over whatever was there. Both ends were built and the route between them was
+          // never checked.
+          floor: payload.floor,
         });
         json(res, 200, saved);
       } catch (error) {

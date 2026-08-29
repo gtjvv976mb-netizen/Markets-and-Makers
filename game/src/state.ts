@@ -12,13 +12,14 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX, PRODUCT_DAILY_TRANCHE, PRODUCT_SATURATION_FLOOR,
-  APRON_MIN_CLEARANCE, apronTiles, CIVIC_PRODUCT_MARKUP, DEFAULT_EQUIPMENT_TILES, FACINGS, FITTINGS,
+  apronTiles, CIVIC_PRODUCT_MARKUP, DEFAULT_EQUIPMENT_TILES, FACINGS, FITTINGS,
   FLOOR_WALKWAY_COLUMN, servicedTiles, type Facing,
   tileIsBuildable, type FittingKey,
   CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
+import { floorEffects, type FloorLayout } from "./floorEffects";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, productChainDepth, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 import { worldRunsOnServer } from "./realm";
@@ -1848,7 +1849,13 @@ export class GameStore {
   canPlaceEquipment(key: UpgradeKey, column: number, row: number): boolean {
     if (!tileIsBuildable(column, row)) return false;
     const occupant = this.equipmentAt(column, row);
-    return occupant === null || occupant === key;
+    if (occupant !== null && occupant !== key) return false;
+    // A machine may not be parked on a fitting. installFitting and moveFitting both refuse a
+    // tile holding either kind, but this checked only for other MACHINES — so a station could
+    // be dropped straight onto a fitting. The authority's sanitiseFloor seats stations first
+    // and then drops any fitting whose tile is taken, so the two engines would have been
+    // pricing DIFFERENT floors: the browser still crediting a fitting the server had binned.
+    return this.fittingAt(column, row) === null;
   }
 
   // ---------------------------------------------------------------------
@@ -1926,47 +1933,23 @@ export class GameStore {
    * 4.6s against a 5s limit before any of this, and the naive version pushed it to 6.2s.
    */
   private computeAllClearances(): void {
-    const keys = Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[];
-    const aprons = new Map<UpgradeKey, Array<{ column: number; row: number }>>();
-    const claims = new Map<string, number>();
-    for (const key of keys) {
-      const apron = this.apronOf(key);
-      aprons.set(key, apron);
-      for (const tile of apron) {
-        if (!tileIsBuildable(tile.column, tile.row)) continue;
-        const id = `${tile.column}:${tile.row}`;
-        claims.set(id, (claims.get(id) ?? 0) + 1);
-      }
+    // The rule itself lives in floorEffects.ts, which the authority also runs. Keeping a
+    // second copy here is exactly how two engines drift apart in a way nobody notices until
+    // it shows up in somebody's balance.
+    const effects = floorEffects(this.floorLayout());
+    for (const key of Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[]) {
+      this.clearanceCache.set(key, effects.clearance[key] ?? 1);
     }
-    const stationAt = new Map<string, UpgradeKey>();
-    for (const key of keys) {
-      const tile = this.equipmentTile(key);
-      stationAt.set(`${tile.column}:${tile.row}`, key);
-    }
-    const fittingServes = new Map<string, UpgradeKey>();
-    for (const [fitting, tile] of Object.entries(this.state.fittings ?? {}) as Array<[FittingKey, { column: number; row: number }]>) {
-      if (tile) fittingServes.set(`${tile.column}:${tile.row}`, FITTINGS[fitting].serves);
-    }
+  }
 
-    for (const key of keys) {
-      const apron = aprons.get(key)!;
-      if (!apron.length) { this.clearanceCache.set(key, 1); continue; }
-      if (apron.length < 3) { this.clearanceCache.set(key, APRON_MIN_CLEARANCE); continue; }
-      let clutter = 0;
-      for (const tile of apron) {
-        const id = `${tile.column}:${tile.row}`;
-        const station = stationAt.get(id);
-        if (station && station !== key) { clutter += 1; continue; }
-        const serves = fittingServes.get(id);
-        // A fitting that serves THIS machine belongs on its apron and costs nothing.
-        if (serves !== undefined && serves !== key) { clutter += 1; continue; }
-        // Two machines cannot both work the same patch of floor. Only the bay is contestable;
-        // the aisle and the shop beyond it are open ground.
-        if ((claims.get(id) ?? 0) > 1) clutter += 1;
-      }
-      this.clearanceCache.set(key,
-        Math.max(APRON_MIN_CLEARANCE, 1 - (1 - APRON_MIN_CLEARANCE) * (clutter / apron.length)));
-    }
+  /** This business's floor, in the shape the shared rule takes. */
+  floorLayout(): FloorLayout {
+    return {
+      tiles: this.state.equipmentTiles as FloorLayout["tiles"],
+      facings: this.state.equipmentFacing ?? {},
+      fittings: this.state.fittings ?? {},
+      upgrades: this.state.upgrades,
+    };
   }
 
   fittingIsConnected(key: FittingKey, column: number, row: number): boolean {
@@ -1983,11 +1966,7 @@ export class GameStore {
 
   /** The fittings that are both bought AND standing where they can do their work. */
   activeFittings(): FittingKey[] {
-    return (Object.keys(this.state.fittings ?? {}) as FittingKey[])
-      .filter((key) => {
-        const tile = this.state.fittings?.[key];
-        return !!tile && this.fittingIsConnected(key, tile.column, tile.row);
-      });
+    return floorEffects(this.floorLayout()).connected;
   }
 
   /**
@@ -1998,16 +1977,8 @@ export class GameStore {
    * space goes, not whether you own the thing.
    */
   fittingEffects(): { output: number; speed: number; inputThrift: number; storage: number; price: number } {
-    const total = { output: 1, speed: 1, inputThrift: 1, storage: 1, price: 1 };
-    for (const key of this.activeFittings()) {
-      const effect = FITTINGS[key].effect;
-      total.output *= effect.output ?? 1;
-      total.speed *= effect.speed ?? 1;
-      total.inputThrift *= effect.inputThrift ?? 1;
-      total.storage *= effect.storage ?? 1;
-      total.price *= effect.price ?? 1;
-    }
-    return total;
+    const { output, speed, inputThrift, storage, price } = floorEffects(this.floorLayout());
+    return { output, speed, inputThrift, storage, price };
   }
 
   /** Buy a fitting and set it down. Refused if it is already owned or unaffordable. */

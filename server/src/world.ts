@@ -10,6 +10,7 @@
 // against it is the next stage and lives elsewhere, so that a bug here cannot move money.
 
 import { createHash } from "node:crypto";
+import { FITTINGS, tileIsBuildable } from "./floor.js";
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID, type PlotSpec } from "./plots.js";
@@ -36,6 +37,8 @@ export interface BusinessUpsert {
   license: string;
   condition: number;
   upgrades: { yield: number; capacity: number; speed: number; appeal: number };
+  /** Raw equipment layout. Multipliers are DERIVED here, never accepted from a client. */
+  floor?: unknown;
 }
 
 export interface DistrictBusiness {
@@ -93,6 +96,53 @@ function sanitiseUpgrades(raw: unknown): BusinessUpsert["upgrades"] {
 }
 
 /**
+ * Clamp a floor layout a client sent before it reaches a column.
+ *
+ * Only tiles, facings and fitting positions are kept — never a multiplier. A client that sends
+ * its own "output: 4.2" is sending money, so the shape simply has nowhere to put one. Every
+ * coordinate is bounds-checked and every facing must be one of the four; anything else is
+ * dropped rather than corrected, so a malformed floor is a bare floor and never a crash in the
+ * tick that has to price it.
+ */
+function sanitiseFloor(raw: unknown): { tiles: Record<string, { column: number; row: number }>;
+                                        facings: Record<string, string>;
+                                        fittings: Record<string, { column: number; row: number }> } {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const tile = (value: unknown): { column: number; row: number } | null => {
+    const entry = (value ?? {}) as Record<string, unknown>;
+    const column = Math.floor(Number(entry.column));
+    const row = Math.floor(Number(entry.row));
+    if (!Number.isFinite(column) || !Number.isFinite(row)) return null;
+    if (!tileIsBuildable(column, row)) return null;
+    return { column, row };
+  };
+  const tiles: Record<string, { column: number; row: number }> = {};
+  const facings: Record<string, string> = {};
+  const fittings: Record<string, { column: number; row: number }> = {};
+  const rawTiles = (source.tiles ?? {}) as Record<string, unknown>;
+  const rawFacings = (source.facings ?? {}) as Record<string, unknown>;
+  const rawFittings = (source.fittings ?? {}) as Record<string, unknown>;
+  const taken = new Set<string>();
+  for (const key of UPGRADE_KEYS) {
+    const spot = tile(rawTiles[key]);
+    if (spot && !taken.has(`${spot.column}:${spot.row}`)) {
+      tiles[key] = spot;
+      taken.add(`${spot.column}:${spot.row}`);
+    }
+    const facing = rawFacings[key];
+    if (typeof facing === "string" && ["N", "E", "S", "W"].includes(facing)) facings[key] = facing;
+  }
+  for (const key of Object.keys(FITTINGS)) {
+    const spot = tile(rawFittings[key]);
+    if (spot && !taken.has(`${spot.column}:${spot.row}`)) {
+      fittings[key] = spot;
+      taken.add(`${spot.column}:${spot.row}`);
+    }
+  }
+  return { tiles, facings, fittings };
+}
+
+/**
  * Put the world's plots in the database.
  *
  * Generated from the client's own layout by scripts/export-plots.ts, so the two cannot
@@ -137,6 +187,7 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
 
   const upgrades = sanitiseUpgrades(input.upgrades);
   const condition = Math.min(100, Math.max(0, Math.floor(Number(input.condition) || 0)));
+  const floor = sanitiseFloor(input.floor);
 
   const client = await pool.connect();
   try {
@@ -157,8 +208,8 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
 
     // What the authority already recognises for this plot, read BEFORE the upsert
     // overwrites it. The tick settles real output against these numbers.
-    const standing = await client.query<{ upgrades: BusinessUpsert["upgrades"] }>(
-      "select upgrades from business where plot_id = $1", [input.plotId]);
+    const standing = await client.query<{ upgrades: BusinessUpsert["upgrades"]; floor: { fittings?: Record<string, unknown> } | null }>(
+      "select upgrades, floor from business where plot_id = $1", [input.plotId]);
 
     // A maker who has never traded in the shared world has no account and no shelves, so
     // the authority's tick would find an empty business and do nothing forever. Both are
@@ -231,16 +282,37 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
       }
     }
 
+    // Fittings are PURCHASES, and the authority had no record of them: sanitiseFloor checked
+    // where one stood and never whether it had been bought. Once the route forwards a floor
+    // that is 1,700 $MM of multipliers for the asking. Charged here on exactly the pattern
+    // the upgrade ladder above uses — the difference against what was already recorded, paid
+    // through the ledger, insufficient funds throwing and rolling the registration back.
+    const priorFloor = (standing.rows[0] as { floor?: { fittings?: Record<string, unknown> } } | undefined)?.floor;
+    const alreadyHeld = new Set(Object.keys(priorFloor?.fittings ?? {}));
+    let fittingsOwed = 0;
+    const bought: string[] = [];
+    for (const key of Object.keys(floor.fittings)) {
+      if (alreadyHeld.has(key)) continue;
+      fittingsOwed += FITTINGS[key as keyof typeof FITTINGS]?.cost ?? 0;
+      bought.push(key);
+    }
+    if (fittingsOwed > 0) {
+      await moveCurrency(client, input.realmId, keyFor("fitting", input.plotId, ...bought.sort()),
+        fittingsOwed, { type: "player", id: input.playerId },
+        { type: "government", id: "treasury" }, "business.fitting");
+    }
+
     await client.query(
-      `insert into business (plot_id, owner_player_id, license, condition, upgrades, revision, updated_at)
-       values ($1, $2, $3, $4, $5::jsonb, 1, now())
+      `insert into business (plot_id, owner_player_id, license, condition, upgrades, floor, revision, updated_at)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 1, now())
        on conflict (plot_id) do update
          set license = excluded.license,
              condition = excluded.condition,
              upgrades = excluded.upgrades,
+             floor = excluded.floor,
              revision = business.revision + 1,
              updated_at = now()`,
-      [input.plotId, input.playerId, input.license, condition, JSON.stringify(upgrades)],
+      [input.plotId, input.playerId, input.license, condition, JSON.stringify(upgrades), JSON.stringify(floor)],
     );
     await client.query(
       "update plot set owner_player_id = $2, license = $3, updated_at = now() where id = $1",

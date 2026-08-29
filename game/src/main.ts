@@ -94,6 +94,14 @@ function publishBusiness(): void {
     plotId, license,
     condition: Math.round(store.state.condition),
     upgrades: { ...store.state.upgrades },
+    // Send the LAYOUT, never what it is worth. Until this went in, every fitting a maker had
+    // bought and every layout decision they had made counted for nothing the moment they
+    // closed the tab: the tick priced production from upgrade levels alone.
+    floor: {
+      tiles: store.state.equipmentTiles,
+      facings: store.state.equipmentFacing ?? {},
+      fittings: store.state.fittings ?? {},
+    },
   }).then((outcome) => {
     if (outcome.status === "refused") console.warn(`registry refused ${plotId}: ${outcome.message}`);
   });
@@ -2975,6 +2983,11 @@ function openInterior(): void {
             : store.installFitting(key as FittingKey, column, row))
           : store.placeEquipment(key as UpgradeKey, column, row);
         if (!outcome.ok) toast(outcome.message);
+        // Tell the authority. publishBusiness fired on boot, on build and on an upgrade, and
+        // on nothing else — so moving a machine, turning it, or dropping a fitting never
+        // reached the server, and it priced the whole session against the layout the player
+        // had when they arrived. The one mechanic they touch was the one it never heard.
+        if (outcome.ok) publishBusiness();
         return outcome.ok;
       },
     });
@@ -3095,6 +3108,7 @@ window.addEventListener("keydown", (event) => {
       event.preventDefault();
       report(store.rotateEquipment(key));
       interiorWorld.setFacings(store.state.equipmentFacing);
+      publishBusiness();
       renderInterior();
     }
   }
@@ -3226,6 +3240,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "interior-turn") {
     report(store.rotateEquipment(button.dataset.upgrade as UpgradeKey));
     interiorWorld.setFacings(store.state.equipmentFacing);
+    publishBusiness();
     renderInterior();
   }
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));

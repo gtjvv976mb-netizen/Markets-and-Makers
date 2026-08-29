@@ -150,6 +150,14 @@ export interface RegisteredBusiness {
 export async function registerBusiness(input: {
   plotId: string; license: string; condition: number;
   upgrades: { yield: number; capacity: number; speed: number; appeal: number };
+  /**
+   * The floor as arranged: tiles, facings and fitting positions, and NOTHING derived.
+   *
+   * The authority computes what a layout is worth with its own copy of the rule. Sending it
+   * the multipliers instead would be sending it a number that turns into money, and it has
+   * no way to check one. It re-derives, and it clamps every coordinate before storing it.
+   */
+  floor?: { tiles: unknown; facings: unknown; fittings: unknown };
 }): Promise<RealmOutcome<RegisteredBusiness>> {
   const headers = authHeaders();
   const base = serverBase();
