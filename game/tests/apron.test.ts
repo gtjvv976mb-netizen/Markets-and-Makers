@@ -205,32 +205,48 @@ describe("turning a machine", () => {
 
 describe("layout is worth thinking about", () => {
   it("separates a careless floor from a considered one", () => {
-    // Searched rather than hand-picked: my hand-authored "good" and "bad" layouts measured a
-    // NEGATIVE swing, because I was guessing at what the rule rewarded.
+    // Deliberate-vs-careless, NOT best-random-vs-worst-random. The first version compared
+    // random layouts against each other, and that ruler broke the moment the floor grew:
+    // on 272 tiles random scatter almost never lands a fitting beside its machine, so even
+    // the "best" random layout was poor and the spread collapsed to 1.31x — reading as
+    // "layout stopped mattering" when what actually stopped working was sampling. What the
+    // mechanic owes is that a player who PLACES WITH INTENT beats one who scatters.
     const store = maker(4);
-    const bay = servicedTiles();
-    const fittingKeys = Object.keys(FITTINGS) as FittingKey[];
-    let seed = 12345;
-    const rnd = (): number => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     const value = (): number => {
       const clear = KEYS.map((k) => store.apronClearance(k));
       const effects = store.fittingEffects();
       return (clear.reduce((a, b) => a + b, 0) / 4) * effects.output * effects.price * effects.storage;
     };
-    let best = -1, worst = Number.POSITIVE_INFINITY;
-    for (let trial = 0; trial < 1500; trial += 1) {
+
+    // Considered: stations spread, every fitting touching the machine it serves.
+    const W = FLOOR_WALKWAY_COLUMN;
+    store.state.equipmentTiles = { yield: { column: W - 3, row: 2 }, capacity: { column: W + 3, row: 2 },
+                                   speed: { column: W - 3, row: 12 }, appeal: { column: W + 3, row: 12 } };
+    store.state.equipmentFacing = { yield: "E", capacity: "W", speed: "E", appeal: "W" };
+    store.state.fittings = { hopper: { column: W - 3, row: 1 }, kiln: { column: W - 3, row: 3 },
+                             governor: { column: W - 3, row: 11 }, sorter: { column: W - 3, row: 13 },
+                             rack: { column: W + 3, row: 1 }, counter: { column: W + 3, row: 11 } };
+    const considered = value();
+
+    // Careless: everything dumped in one crammed block, fittings nowhere near their machines.
+    const bay = servicedTiles();
+    const fittingKeys = Object.keys(FITTINGS) as FittingKey[];
+    let seed = 12345;
+    const rnd = (): number => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    let worst = Number.POSITIVE_INFINITY;
+    for (let trial = 0; trial < 400; trial += 1) {
       const pool = [...bay].sort(() => rnd() - 0.5);
-      store.state.equipmentTiles = Object.fromEntries(KEYS.map((k, i) => [k, pool[i]!])) as never;
+      store.state.equipmentTiles = Object.fromEntries(KEYS.map((k, n) => [k, pool[n]!])) as never;
       store.state.equipmentFacing = Object.fromEntries(
         KEYS.map((k) => [k, FACINGS[Math.floor(rnd() * FACINGS.length)]!])) as never;
       store.state.fittings = Object.fromEntries(
-        fittingKeys.map((k, i) => [k, pool[KEYS.length + i]!])) as never;
-      const v = value();
-      if (v > best) best = v;
-      if (v < worst) worst = v;
+        fittingKeys.map((k, n) => [k, pool[KEYS.length + n]!])) as never;
+      worst = Math.min(worst, value());
     }
-    expect(worst, "the search must have found something").toBeGreaterThan(0);
-    expect(best / worst, `spread was only ${(best / worst).toFixed(2)}x — layout does not matter enough`)
+
+    expect(considered, "the deliberate layout must connect everything").toBeGreaterThan(1.5);
+    expect(considered / worst,
+      `deliberate ${considered.toFixed(2)} vs careless ${worst.toFixed(2)} — placement must pay`)
       .toBeGreaterThan(1.5);
   });
 

@@ -17,16 +17,16 @@ export type FittingKey = "hopper" | "kiln" | "governor" | "sorter" | "rack" | "c
 export type Facing = "N" | "E" | "S" | "W";
 
 export const FLOOR_COLUMNS = 17;
-export const FLOOR_ROWS = 11;
+export const FLOOR_ROWS = 17;
 export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
 export const APRON_DEPTH: readonly number[] = [0, 1, 1, 2, 2];
 export const APRON_MIN_CLEARANCE = 0.7;
 
 export const DEFAULT_EQUIPMENT_TILES: Record<UpgradeKey, { column: number; row: number }> = {
-  yield: { column: 5, row: 2 },
-  capacity: { column: 11, row: 2 },
-  speed: { column: 5, row: 8 },
-  appeal: { column: 11, row: 8 },
+  yield: { column: 5, row: 3 },
+  capacity: { column: 11, row: 3 },
+  speed: { column: 5, row: 13 },
+  appeal: { column: 11, row: 13 },
 };
 
 export const FITTINGS: Record<FittingKey, {

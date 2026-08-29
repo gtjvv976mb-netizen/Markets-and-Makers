@@ -163,11 +163,11 @@
     },
     "speed": {
      "column": 5,
-     "row": 7
+     "row": 9
     },
     "appeal": {
      "column": 11,
-     "row": 7
+     "row": 9
     }
    },
    "facings": {
@@ -187,11 +187,11 @@
     },
     "governor": {
      "column": 5,
-     "row": 6
+     "row": 8
     },
     "sorter": {
      "column": 5,
-     "row": 8
+     "row": 10
     },
     "rack": {
      "column": 11,
@@ -199,7 +199,7 @@
     },
     "counter": {
      "column": 11,
-     "row": 8
+     "row": 10
     }
    },
    "upgrades": {
@@ -241,7 +241,7 @@
    "fittings": {
     "hopper": {
      "column": 5,
-     "row": 1
+     "row": 2
     }
    },
    "upgrades": {
@@ -278,7 +278,7 @@
    "fittings": {
     "kiln": {
      "column": 5,
-     "row": 1
+     "row": 2
     }
    },
    "upgrades": {
@@ -315,7 +315,7 @@
    "fittings": {
     "governor": {
      "column": 5,
-     "row": 7
+     "row": 12
     }
    },
    "upgrades": {
@@ -352,7 +352,7 @@
    "fittings": {
     "sorter": {
      "column": 5,
-     "row": 7
+     "row": 12
     }
    },
    "upgrades": {
@@ -389,7 +389,7 @@
    "fittings": {
     "rack": {
      "column": 11,
-     "row": 1
+     "row": 2
     }
    },
    "upgrades": {
@@ -426,7 +426,7 @@
    "fittings": {
     "counter": {
      "column": 11,
-     "row": 7
+     "row": 12
     }
    },
    "upgrades": {
@@ -465,15 +465,15 @@
     },
     "capacity": {
      "column": 7,
-     "row": 3
+     "row": 5
     },
     "speed": {
      "column": 7,
-     "row": 6
+     "row": 10
     },
     "appeal": {
      "column": 7,
-     "row": 9
+     "row": 15
     }
    },
    "facings": {
@@ -517,7 +517,7 @@
     },
     "capacity": {
      "column": 7,
-     "row": 4
+     "row": 5
     },
     "speed": {
      "column": 9,
@@ -525,7 +525,7 @@
     },
     "appeal": {
      "column": 9,
-     "row": 4
+     "row": 5
     }
    },
    "facings": {
@@ -662,11 +662,11 @@
     },
     "speed": {
      "column": 0,
-     "row": 10
+     "row": 16
     },
     "appeal": {
      "column": 16,
-     "row": 10
+     "row": 16
     }
    },
    "facings": {
@@ -705,138 +705,55 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 15,
-     "row": 5
+     "column": 16,
+     "row": 9
     },
     "capacity": {
-     "column": 10,
-     "row": 8
+     "column": 2,
+     "row": 15
     },
     "speed": {
-     "column": 15,
-     "row": 2
+     "column": 3,
+     "row": 10
     },
     "appeal": {
-     "column": 16,
-     "row": 2
+     "column": 0,
+     "row": 16
     }
    },
    "facings": {
     "yield": "E",
-    "capacity": "N",
-    "speed": "E",
-    "appeal": "W"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 6,
-     "row": 7
-    },
-    "kiln": {
-     "column": 15,
-     "row": 3
-    },
-    "governor": {
-     "column": 14,
-     "row": 2
-    },
-    "sorter": {
-     "column": 11,
-     "row": 8
-    },
-    "rack": {
-     "column": 13,
-     "row": 10
-    }
-   },
-   "upgrades": {
-    "yield": 2,
-    "capacity": 2,
-    "speed": 2,
-    "appeal": 3
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 1,
-    "speed": 0.9,
-    "appeal": 0.85
-   },
-   "connected": [
-    "governor"
-   ],
-   "output": 1,
-   "speed": 0.85,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 1,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-1",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 15,
-     "row": 8
-    },
-    "capacity": {
-     "column": 13,
-     "row": 9
-    },
-    "speed": {
-     "column": 10,
-     "row": 10
-    },
-    "appeal": {
-     "column": 10,
-     "row": 4
-    }
-   },
-   "facings": {
-    "yield": "S",
     "capacity": "E",
-    "speed": "E",
-    "appeal": "E"
+    "speed": "S",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 9,
-     "row": 1
+     "column": 15,
+     "row": 16
     },
     "kiln": {
-     "column": 10,
-     "row": 8
+     "column": 11,
+     "row": 15
     },
     "governor": {
-     "column": 16,
-     "row": 1
-    },
-    "sorter": {
-     "column": 11,
-     "row": 4
-    },
-    "rack": {
-     "column": 0,
-     "row": 0
+     "column": 15,
+     "row": 14
     }
    },
    "upgrades": {
-    "yield": 4,
-    "capacity": 4,
+    "yield": 1,
+    "capacity": 0,
     "speed": 2,
     "appeal": 1
    }
   },
   "expected": {
    "clearance": {
-    "yield": 0.8,
-    "capacity": 0.75,
-    "speed": 0.7,
-    "appeal": 0.9
+    "yield": 1,
+    "capacity": 1,
+    "speed": 1,
+    "appeal": 0.7
    },
    "connected": [],
    "output": 1,
@@ -849,55 +766,120 @@
   }
  },
  {
-  "name": "layout-2",
+  "name": "layout-1",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 0,
-     "row": 0
+     "column": 7,
+     "row": 10
     },
     "capacity": {
      "column": 7,
-     "row": 3
-    },
-    "speed": {
-     "column": 6,
      "row": 6
     },
+    "speed": {
+     "column": 5,
+     "row": 3
+    },
     "appeal": {
-     "column": 13,
-     "row": 0
+     "column": 5,
+     "row": 16
     }
    },
    "facings": {
-    "yield": "N",
+    "yield": "E",
     "capacity": "W",
-    "speed": "N",
+    "speed": "S",
     "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 3,
-     "row": 2
+     "column": 2,
+     "row": 13
     },
     "kiln": {
      "column": 5,
-     "row": 0
-    },
-    "governor": {
-     "column": 16,
-     "row": 0
-    },
-    "sorter": {
-     "column": 0,
-     "row": 2
+     "row": 1
     }
    },
    "upgrades": {
+    "yield": 4,
+    "capacity": 2,
+    "speed": 1,
+    "appeal": 3
+   }
+  },
+  "expected": {
+   "clearance": {
     "yield": 1,
-    "capacity": 4,
-    "speed": 2,
+    "capacity": 1,
+    "speed": 1,
     "appeal": 1
+   },
+   "connected": [],
+   "output": 1,
+   "speed": 1,
+   "price": 1.02,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 1
+  }
+ },
+ {
+  "name": "layout-2",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 6,
+     "row": 7
+    },
+    "capacity": {
+     "column": 3,
+     "row": 13
+    },
+    "speed": {
+     "column": 3,
+     "row": 8
+    },
+    "appeal": {
+     "column": 16,
+     "row": 0
+    }
+   },
+   "facings": {
+    "yield": "S",
+    "capacity": "N",
+    "speed": "E",
+    "appeal": "N"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 6,
+     "row": 2
+    },
+    "kiln": {
+     "column": 15,
+     "row": 0
+    },
+    "governor": {
+     "column": 14,
+     "row": 6
+    },
+    "sorter": {
+     "column": 2,
+     "row": 2
+    },
+    "rack": {
+     "column": 5,
+     "row": 5
+    }
+   },
+   "upgrades": {
+    "yield": 4,
+    "capacity": 2,
+    "speed": 1,
+    "appeal": 0
    }
   },
   "expected": {
@@ -922,42 +904,42 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 14,
-     "row": 5
+     "column": 7,
+     "row": 4
     },
     "capacity": {
-     "column": 1,
-     "row": 2
+     "column": 11,
+     "row": 10
     },
     "speed": {
-     "column": 14,
-     "row": 2
+     "column": 11,
+     "row": 3
     },
     "appeal": {
-     "column": 15,
+     "column": 9,
      "row": 4
     }
    },
    "facings": {
-    "yield": "W",
+    "yield": "N",
     "capacity": "N",
-    "speed": "W",
-    "appeal": "N"
+    "speed": "S",
+    "appeal": "W"
    },
    "fittings": {
     "hopper": {
      "column": 11,
-     "row": 0
+     "row": 1
     },
     "kiln": {
-     "column": 4,
-     "row": 2
+     "column": 2,
+     "row": 3
     }
    },
    "upgrades": {
-    "yield": 4,
-    "capacity": 2,
-    "speed": 4,
+    "yield": 0,
+    "capacity": 0,
+    "speed": 3,
     "appeal": 1
    }
   },
@@ -971,11 +953,11 @@
    "connected": [],
    "output": 1,
    "speed": 1,
-   "price": 1,
+   "price": 1.02,
    "storage": 1,
    "inputThrift": 1,
    "benches": 0,
-   "frontage": 0
+   "frontage": 1
   }
  },
  {
@@ -983,55 +965,43 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 12,
-     "row": 2
+     "column": 15,
+     "row": 0
     },
     "capacity": {
-     "column": 15,
-     "row": 7
+     "column": 9,
+     "row": 8
     },
     "speed": {
-     "column": 11,
-     "row": 5
+     "column": 3,
+     "row": 13
     },
     "appeal": {
-     "column": 11,
-     "row": 3
+     "column": 5,
+     "row": 14
     }
    },
    "facings": {
     "yield": "N",
-    "capacity": "W",
-    "speed": "E",
+    "capacity": "E",
+    "speed": "W",
     "appeal": "S"
    },
    "fittings": {
     "hopper": {
-     "column": 14,
-     "row": 5
+     "column": 5,
+     "row": 13
     },
     "kiln": {
-     "column": 3,
-     "row": 9
-    },
-    "governor": {
-     "column": 0,
-     "row": 1
-    },
-    "sorter": {
-     "column": 14,
-     "row": 4
-    },
-    "rack": {
-     "column": 0,
-     "row": 8
+     "column": 1,
+     "row": 11
     }
    },
    "upgrades": {
-    "yield": 3,
-    "capacity": 0,
-    "speed": 0,
-    "appeal": 3
+    "yield": 0,
+    "capacity": 1,
+    "speed": 2,
+    "appeal": 0
    }
   },
   "expected": {
@@ -1039,7 +1009,7 @@
     "yield": 1,
     "capacity": 1,
     "speed": 1,
-    "appeal": 0.95
+    "appeal": 1
    },
    "connected": [],
    "output": 1,
@@ -1056,61 +1026,65 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 3,
-     "row": 3
+     "column": 13,
+     "row": 16
     },
     "capacity": {
-     "column": 7,
-     "row": 2
+     "column": 0,
+     "row": 13
     },
     "speed": {
      "column": 3,
-     "row": 5
+     "row": 13
     },
     "appeal": {
      "column": 1,
-     "row": 3
+     "row": 14
     }
    },
    "facings": {
-    "yield": "S",
-    "capacity": "W",
-    "speed": "S",
-    "appeal": "W"
+    "yield": "E",
+    "capacity": "N",
+    "speed": "N",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 9,
-     "row": 0
+     "column": 1,
+     "row": 8
     },
     "kiln": {
-     "column": 5,
-     "row": 4
+     "column": 7,
+     "row": 13
     },
     "governor": {
-     "column": 15,
-     "row": 4
+     "column": 11,
+     "row": 13
     },
     "sorter": {
-     "column": 0,
-     "row": 0
+     "column": 6,
+     "row": 15
     },
     "rack": {
-     "column": 6,
-     "row": 4
+     "column": 16,
+     "row": 16
+    },
+    "counter": {
+     "column": 14,
+     "row": 14
     }
    },
    "upgrades": {
-    "yield": 3,
-    "capacity": 0,
+    "yield": 1,
+    "capacity": 2,
     "speed": 4,
     "appeal": 0
    }
   },
   "expected": {
    "clearance": {
-    "yield": 0.95,
-    "capacity": 1,
+    "yield": 0.7,
+    "capacity": 0.7,
     "speed": 1,
     "appeal": 1
    },
@@ -1129,169 +1103,43 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 3,
-     "row": 2
+     "column": 16,
+     "row": 16
     },
     "capacity": {
-     "column": 6,
-     "row": 3
+     "column": 13,
+     "row": 12
     },
     "speed": {
-     "column": 15,
-     "row": 2
+     "column": 14,
+     "row": 16
     },
     "appeal": {
-     "column": 11,
-     "row": 10
+     "column": 3,
+     "row": 16
     }
    },
    "facings": {
-    "yield": "W",
+    "yield": "S",
     "capacity": "N",
-    "speed": "S",
+    "speed": "N",
     "appeal": "S"
    },
    "fittings": {
     "hopper": {
-     "column": 0,
-     "row": 5
+     "column": 7,
+     "row": 15
     },
     "kiln": {
-     "column": 0,
-     "row": 10
+     "column": 13,
+     "row": 11
     }
    },
    "upgrades": {
-    "yield": 2,
-    "capacity": 1,
-    "speed": 0,
-    "appeal": 0
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 1,
+    "yield": 0,
+    "capacity": 4,
     "speed": 1,
     "appeal": 1
-   },
-   "connected": [],
-   "output": 1,
-   "speed": 1,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 1,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-7",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 11,
-     "row": 7
-    },
-    "capacity": {
-     "column": 14,
-     "row": 7
-    },
-    "speed": {
-     "column": 16,
-     "row": 2
-    },
-    "appeal": {
-     "column": 9,
-     "row": 0
-    }
-   },
-   "facings": {
-    "yield": "N",
-    "capacity": "N",
-    "speed": "E",
-    "appeal": "E"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 1,
-     "row": 8
-    },
-    "kiln": {
-     "column": 3,
-     "row": 0
-    },
-    "governor": {
-     "column": 15,
-     "row": 9
-    }
-   },
-   "upgrades": {
-    "yield": 4,
-    "capacity": 4,
-    "speed": 3,
-    "appeal": 1
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 1,
-    "speed": 1,
-    "appeal": 0.7
-   },
-   "connected": [],
-   "output": 1,
-   "speed": 1,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 1,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-8",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 10,
-     "row": 8
-    },
-    "capacity": {
-     "column": 14,
-     "row": 5
-    },
-    "speed": {
-     "column": 16,
-     "row": 5
-    },
-    "appeal": {
-     "column": 5,
-     "row": 6
-    }
-   },
-   "facings": {
-    "yield": "E",
-    "capacity": "E",
-    "speed": "E",
-    "appeal": "E"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 6,
-     "row": 10
-    },
-    "kiln": {
-     "column": 12,
-     "row": 4
-    }
-   },
-   "upgrades": {
-    "yield": 2,
-    "capacity": 4,
-    "speed": 0,
-    "appeal": 3
    }
   },
   "expected": {
@@ -1312,202 +1160,54 @@
   }
  },
  {
-  "name": "layout-9",
+  "name": "layout-7",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 16,
-     "row": 8
+     "column": 15,
+     "row": 11
     },
     "capacity": {
-     "column": 16,
-     "row": 7
+     "column": 7,
+     "row": 3
     },
     "speed": {
-     "column": 0,
-     "row": 7
+     "column": 3,
+     "row": 9
     },
     "appeal": {
-     "column": 11,
-     "row": 10
+     "column": 4,
+     "row": 15
     }
    },
    "facings": {
     "yield": "E",
-    "capacity": "N",
-    "speed": "S",
-    "appeal": "S"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 9,
-     "row": 5
-    },
-    "kiln": {
-     "column": 5,
-     "row": 6
-    },
-    "governor": {
-     "column": 14,
-     "row": 5
-    },
-    "sorter": {
-     "column": 2,
-     "row": 3
-    }
-   },
-   "upgrades": {
-    "yield": 0,
-    "capacity": 2,
-    "speed": 4,
-    "appeal": 4
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 0.7,
-    "speed": 1,
-    "appeal": 1
-   },
-   "connected": [],
-   "output": 1.05,
-   "speed": 1,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 1,
-   "benches": 1,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-10",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 11,
-     "row": 4
-    },
-    "capacity": {
-     "column": 16,
-     "row": 3
-    },
-    "speed": {
-     "column": 7,
-     "row": 5
-    },
-    "appeal": {
-     "column": 6,
-     "row": 10
-    }
-   },
-   "facings": {
-    "yield": "W",
     "capacity": "E",
-    "speed": "N",
-    "appeal": "S"
+    "speed": "S",
+    "appeal": "E"
    },
    "fittings": {
     "hopper": {
-     "column": 10,
-     "row": 9
-    },
-    "kiln": {
-     "column": 11,
+     "column": 4,
      "row": 7
     },
-    "governor": {
-     "column": 15,
+    "kiln": {
+     "column": 7,
      "row": 4
     },
+    "governor": {
+     "column": 13,
+     "row": 8
+    },
     "sorter": {
-     "column": 4,
-     "row": 10
-    },
-    "rack": {
-     "column": 15,
-     "row": 3
-    },
-    "counter": {
-     "column": 15,
-     "row": 1
+     "column": 13,
+     "row": 9
     }
    },
    "upgrades": {
     "yield": 2,
     "capacity": 1,
     "speed": 3,
-    "appeal": 3
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 1,
-    "speed": 1,
-    "appeal": 1
-   },
-   "connected": [
-    "rack"
-   ],
-   "output": 1,
-   "speed": 1,
-   "price": 1,
-   "storage": 1.4,
-   "inputThrift": 1,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-11",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 13,
-     "row": 9
-    },
-    "capacity": {
-     "column": 0,
-     "row": 9
-    },
-    "speed": {
-     "column": 5,
-     "row": 9
-    },
-    "appeal": {
-     "column": 7,
-     "row": 10
-    }
-   },
-   "facings": {
-    "yield": "W",
-    "capacity": "W",
-    "speed": "S",
-    "appeal": "E"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 6,
-     "row": 8
-    },
-    "kiln": {
-     "column": 15,
-     "row": 9
-    },
-    "governor": {
-     "column": 7,
-     "row": 6
-    },
-    "sorter": {
-     "column": 14,
-     "row": 9
-    }
-   },
-   "upgrades": {
-    "yield": 2,
-    "capacity": 2,
-    "speed": 0,
     "appeal": 1
    }
   },
@@ -1516,7 +1216,7 @@
     "yield": 1,
     "capacity": 1,
     "speed": 1,
-    "appeal": 0.7
+    "appeal": 1
    },
    "connected": [],
    "output": 1,
@@ -1529,51 +1229,55 @@
   }
  },
  {
-  "name": "layout-12",
+  "name": "layout-8",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 14,
-     "row": 2
+     "column": 12,
+     "row": 16
     },
     "capacity": {
-     "column": 11,
-     "row": 5
+     "column": 13,
+     "row": 2
     },
     "speed": {
-     "column": 5,
-     "row": 7
+     "column": 0,
+     "row": 3
     },
     "appeal": {
-     "column": 4,
-     "row": 7
+     "column": 0,
+     "row": 6
     }
    },
    "facings": {
-    "yield": "N",
-    "capacity": "S",
-    "speed": "W",
-    "appeal": "S"
+    "yield": "W",
+    "capacity": "E",
+    "speed": "S",
+    "appeal": "E"
    },
    "fittings": {
     "hopper": {
-     "column": 6,
-     "row": 10
+     "column": 0,
+     "row": 0
+    },
+    "kiln": {
+     "column": 9,
+     "row": 7
     }
    },
    "upgrades": {
-    "yield": 3,
+    "yield": 2,
     "capacity": 0,
-    "speed": 2,
-    "appeal": 1
+    "speed": 1,
+    "appeal": 2
    }
   },
   "expected": {
    "clearance": {
-    "yield": 1,
+    "yield": 0.7,
     "capacity": 1,
-    "speed": 0.8,
-    "appeal": 0.9
+    "speed": 0.7,
+    "appeal": 1
    },
    "connected": [],
    "output": 1,
@@ -1586,59 +1290,321 @@
   }
  },
  {
-  "name": "layout-13",
+  "name": "layout-9",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 3,
-     "row": 4
+     "column": 13,
+     "row": 12
     },
     "capacity": {
-     "column": 6,
-     "row": 1
+     "column": 2,
+     "row": 14
     },
     "speed": {
-     "column": 3,
-     "row": 2
+     "column": 14,
+     "row": 10
     },
     "appeal": {
-     "column": 7,
-     "row": 10
+     "column": 5,
+     "row": 14
     }
    },
    "facings": {
-    "yield": "E",
-    "capacity": "S",
-    "speed": "S",
+    "yield": "N",
+    "capacity": "N",
+    "speed": "N",
     "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 14,
-     "row": 5
+     "column": 16,
+     "row": 4
     },
     "kiln": {
-     "column": 0,
-     "row": 0
-    },
-    "governor": {
-     "column": 0,
-     "row": 10
+     "column": 14,
+     "row": 14
     }
    },
    "upgrades": {
-    "yield": 3,
-    "capacity": 1,
+    "yield": 4,
+    "capacity": 0,
     "speed": 2,
-    "appeal": 3
+    "appeal": 4
    }
   },
   "expected": {
    "clearance": {
     "yield": 0.95,
     "capacity": 1,
-    "speed": 0.9,
+    "speed": 1,
     "appeal": 1
+   },
+   "connected": [],
+   "output": 1,
+   "speed": 1,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-10",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 4,
+     "row": 3
+    },
+    "capacity": {
+     "column": 13,
+     "row": 8
+    },
+    "speed": {
+     "column": 11,
+     "row": 1
+    },
+    "appeal": {
+     "column": 7,
+     "row": 0
+    }
+   },
+   "facings": {
+    "yield": "N",
+    "capacity": "W",
+    "speed": "S",
+    "appeal": "N"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 15,
+     "row": 14
+    },
+    "kiln": {
+     "column": 12,
+     "row": 8
+    },
+    "governor": {
+     "column": 11,
+     "row": 8
+    }
+   },
+   "upgrades": {
+    "yield": 4,
+    "capacity": 1,
+    "speed": 3,
+    "appeal": 0
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 0.9,
+    "speed": 1,
+    "appeal": 1
+   },
+   "connected": [],
+   "output": 1,
+   "speed": 1,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-11",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 16,
+     "row": 3
+    },
+    "capacity": {
+     "column": 12,
+     "row": 8
+    },
+    "speed": {
+     "column": 15,
+     "row": 16
+    },
+    "appeal": {
+     "column": 7,
+     "row": 9
+    }
+   },
+   "facings": {
+    "yield": "E",
+    "capacity": "S",
+    "speed": "E",
+    "appeal": "N"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 10,
+     "row": 16
+    },
+    "kiln": {
+     "column": 10,
+     "row": 5
+    },
+    "governor": {
+     "column": 13,
+     "row": 16
+    },
+    "sorter": {
+     "column": 0,
+     "row": 0
+    },
+    "rack": {
+     "column": 5,
+     "row": 15
+    }
+   },
+   "upgrades": {
+    "yield": 2,
+    "capacity": 0,
+    "speed": 2,
+    "appeal": 0
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 1,
+    "speed": 0.7,
+    "appeal": 1
+   },
+   "connected": [],
+   "output": 1,
+   "speed": 1,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-12",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 6,
+     "row": 11
+    },
+    "capacity": {
+     "column": 14,
+     "row": 15
+    },
+    "speed": {
+     "column": 1,
+     "row": 1
+    },
+    "appeal": {
+     "column": 13,
+     "row": 8
+    }
+   },
+   "facings": {
+    "yield": "S",
+    "capacity": "N",
+    "speed": "N",
+    "appeal": "N"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 9,
+     "row": 8
+    },
+    "kiln": {
+     "column": 13,
+     "row": 3
+    },
+    "governor": {
+     "column": 2,
+     "row": 0
+    }
+   },
+   "upgrades": {
+    "yield": 4,
+    "capacity": 1,
+    "speed": 2,
+    "appeal": 1
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 1,
+    "speed": 1,
+    "appeal": 1
+   },
+   "connected": [
+    "governor"
+   ],
+   "output": 1,
+   "speed": 0.85,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-13",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 5,
+     "row": 11
+    },
+    "capacity": {
+     "column": 11,
+     "row": 15
+    },
+    "speed": {
+     "column": 15,
+     "row": 11
+    },
+    "appeal": {
+     "column": 12,
+     "row": 14
+    }
+   },
+   "facings": {
+    "yield": "E",
+    "capacity": "S",
+    "speed": "S",
+    "appeal": "S"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 12,
+     "row": 8
+    },
+    "kiln": {
+     "column": 12,
+     "row": 15
+    }
+   },
+   "upgrades": {
+    "yield": 0,
+    "capacity": 4,
+    "speed": 0,
+    "appeal": 1
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 1,
+    "speed": 1,
+    "appeal": 0.8
    },
    "connected": [],
    "output": 1,
@@ -1656,75 +1622,67 @@
    "tiles": {
     "yield": {
      "column": 10,
-     "row": 2
+     "row": 16
     },
     "capacity": {
-     "column": 15,
-     "row": 2
+     "column": 2,
+     "row": 0
     },
     "speed": {
-     "column": 12,
-     "row": 9
+     "column": 1,
+     "row": 2
     },
     "appeal": {
-     "column": 9,
-     "row": 8
+     "column": 3,
+     "row": 0
     }
    },
    "facings": {
-    "yield": "S",
-    "capacity": "E",
-    "speed": "W",
-    "appeal": "W"
+    "yield": "W",
+    "capacity": "N",
+    "speed": "S",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 7,
-     "row": 9
+     "column": 15,
+     "row": 0
     },
     "kiln": {
-     "column": 4,
-     "row": 3
+     "column": 0,
+     "row": 0
     },
     "governor": {
-     "column": 4,
-     "row": 8
-    },
-    "sorter": {
-     "column": 5,
+     "column": 16,
      "row": 4
     },
-    "rack": {
-     "column": 4,
-     "row": 9
-    },
-    "counter": {
-     "column": 11,
+    "sorter": {
+     "column": 12,
      "row": 4
     }
    },
    "upgrades": {
-    "yield": 3,
+    "yield": 1,
     "capacity": 1,
-    "speed": 2,
-    "appeal": 0
+    "speed": 3,
+    "appeal": 1
    }
   },
   "expected": {
    "clearance": {
-    "yield": 0.95,
+    "yield": 0.7,
     "capacity": 1,
     "speed": 1,
     "appeal": 1
    },
    "connected": [],
-   "output": 1,
+   "output": 1.05,
    "speed": 1,
-   "price": 1.02,
+   "price": 1,
    "storage": 1,
    "inputThrift": 1,
-   "benches": 0,
-   "frontage": 1
+   "benches": 1,
+   "frontage": 0
   }
  },
  {
@@ -1732,55 +1690,39 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 9,
-     "row": 4
+     "column": 1,
+     "row": 1
     },
     "capacity": {
-     "column": 12,
-     "row": 6
-    },
-    "speed": {
-     "column": 11,
+     "column": 3,
      "row": 8
     },
+    "speed": {
+     "column": 13,
+     "row": 9
+    },
     "appeal": {
-     "column": 3,
-     "row": 10
+     "column": 9,
+     "row": 16
     }
    },
    "facings": {
-    "yield": "E",
-    "capacity": "N",
-    "speed": "W",
-    "appeal": "E"
+    "yield": "W",
+    "capacity": "S",
+    "speed": "S",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 14,
-     "row": 5
-    },
-    "kiln": {
-     "column": 9,
-     "row": 1
-    },
-    "governor": {
-     "column": 0,
-     "row": 1
-    },
-    "sorter": {
-     "column": 6,
-     "row": 6
-    },
-    "rack": {
-     "column": 16,
-     "row": 6
+     "column": 15,
+     "row": 12
     }
    },
    "upgrades": {
-    "yield": 2,
-    "capacity": 4,
-    "speed": 2,
-    "appeal": 4
+    "yield": 0,
+    "capacity": 1,
+    "speed": 0,
+    "appeal": 1
    }
   },
   "expected": {
@@ -1805,70 +1747,56 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 12,
-     "row": 7
+     "column": 4,
+     "row": 8
     },
     "capacity": {
-     "column": 5,
-     "row": 5
+     "column": 2,
+     "row": 12
     },
     "speed": {
-     "column": 4,
-     "row": 1
+     "column": 9,
+     "row": 4
     },
     "appeal": {
-     "column": 14,
-     "row": 7
+     "column": 16,
+     "row": 8
     }
    },
    "facings": {
-    "yield": "N",
-    "capacity": "S",
+    "yield": "E",
+    "capacity": "N",
     "speed": "N",
-    "appeal": "S"
+    "appeal": "W"
    },
    "fittings": {
     "hopper": {
-     "column": 15,
-     "row": 5
+     "column": 6,
+     "row": 9
     },
     "kiln": {
-     "column": 0,
-     "row": 5
-    },
-    "governor": {
-     "column": 16,
-     "row": 1
-    },
-    "sorter": {
-     "column": 12,
-     "row": 4
-    },
-    "rack": {
-     "column": 3,
-     "row": 0
-    },
-    "counter": {
-     "column": 5,
-     "row": 1
+     "column": 7,
+     "row": 3
     }
    },
    "upgrades": {
-    "yield": 3,
-    "capacity": 1,
-    "speed": 1,
-    "appeal": 1
+    "yield": 4,
+    "capacity": 2,
+    "speed": 0,
+    "appeal": 2
    }
   },
   "expected": {
    "clearance": {
     "yield": 1,
     "capacity": 1,
-    "speed": 0.9,
+    "speed": 1,
     "appeal": 1
    },
-   "connected": [],
-   "output": 1,
+   "connected": [
+    "hopper"
+   ],
+   "output": 1.18,
    "speed": 1,
    "price": 1,
    "storage": 1,
@@ -1882,51 +1810,63 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 12,
-     "row": 9
+     "column": 16,
+     "row": 3
     },
     "capacity": {
-     "column": 9,
-     "row": 7
+     "column": 12,
+     "row": 8
     },
     "speed": {
-     "column": 13,
-     "row": 6
+     "column": 15,
+     "row": 16
     },
     "appeal": {
-     "column": 10,
-     "row": 6
+     "column": 7,
+     "row": 9
     }
    },
    "facings": {
-    "yield": "W",
-    "capacity": "N",
-    "speed": "W",
-    "appeal": "E"
+    "yield": "E",
+    "capacity": "S",
+    "speed": "E",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
      "column": 10,
-     "row": 9
+     "row": 16
     },
     "kiln": {
-     "column": 12,
+     "column": 10,
      "row": 5
+    },
+    "governor": {
+     "column": 13,
+     "row": 16
+    },
+    "sorter": {
+     "column": 10,
+     "row": 0
+    },
+    "rack": {
+     "column": 5,
+     "row": 15
     }
    },
    "upgrades": {
-    "yield": 0,
-    "capacity": 3,
-    "speed": 3,
-    "appeal": 1
+    "yield": 2,
+    "capacity": 0,
+    "speed": 2,
+    "appeal": 0
    }
   },
   "expected": {
    "clearance": {
     "yield": 1,
-    "capacity": 0.95,
-    "speed": 0.8,
-    "appeal": 0.7
+    "capacity": 1,
+    "speed": 0.7,
+    "appeal": 1
    },
    "connected": [],
    "output": 1,
@@ -1943,116 +1883,45 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 10,
-     "row": 5
+     "column": 6,
+     "row": 11
     },
     "capacity": {
-     "column": 9,
-     "row": 0
+     "column": 14,
+     "row": 15
     },
     "speed": {
-     "column": 15,
+     "column": 1,
      "row": 1
     },
     "appeal": {
-     "column": 9,
-     "row": 5
+     "column": 13,
+     "row": 8
     }
    },
    "facings": {
-    "yield": "W",
-    "capacity": "S",
-    "speed": "E",
-    "appeal": "S"
+    "yield": "S",
+    "capacity": "N",
+    "speed": "N",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 12,
-     "row": 7
+     "column": 9,
+     "row": 8
     },
     "kiln": {
-     "column": 9,
+     "column": 13,
      "row": 3
     },
     "governor": {
-     "column": 15,
-     "row": 5
-    },
-    "sorter": {
-     "column": 16,
-     "row": 2
-    },
-    "rack": {
-     "column": 11,
-     "row": 7
-    },
-    "counter": {
-     "column": 12,
+     "column": 2,
      "row": 0
     }
    },
    "upgrades": {
-    "yield": 1,
-    "capacity": 2,
-    "speed": 4,
-    "appeal": 3
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 0.8,
+    "yield": 4,
     "capacity": 1,
-    "speed": 1,
-    "appeal": 0.95
-   },
-   "connected": [
-    "sorter"
-   ],
-   "output": 1,
-   "speed": 1,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 0.8,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-19",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 12,
-     "row": 7
-    },
-    "capacity": {
-     "column": 2,
-     "row": 3
-    },
-    "speed": {
-     "column": 7,
-     "row": 1
-    },
-    "appeal": {
-     "column": 14,
-     "row": 1
-    }
-   },
-   "facings": {
-    "yield": "W",
-    "capacity": "S",
-    "speed": "N",
-    "appeal": "E"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 16,
-     "row": 10
-    }
-   },
-   "upgrades": {
-    "yield": 3,
-    "capacity": 4,
     "speed": 2,
     "appeal": 1
    }
@@ -2063,6 +1932,69 @@
     "capacity": 1,
     "speed": 1,
     "appeal": 1
+   },
+   "connected": [
+    "governor"
+   ],
+   "output": 1,
+   "speed": 0.85,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-19",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 5,
+     "row": 11
+    },
+    "capacity": {
+     "column": 11,
+     "row": 15
+    },
+    "speed": {
+     "column": 15,
+     "row": 11
+    },
+    "appeal": {
+     "column": 12,
+     "row": 14
+    }
+   },
+   "facings": {
+    "yield": "E",
+    "capacity": "S",
+    "speed": "S",
+    "appeal": "S"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 12,
+     "row": 8
+    },
+    "kiln": {
+     "column": 12,
+     "row": 15
+    }
+   },
+   "upgrades": {
+    "yield": 0,
+    "capacity": 4,
+    "speed": 0,
+    "appeal": 1
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 1,
+    "speed": 1,
+    "appeal": 0.8
    },
    "connected": [],
    "output": 1,
@@ -2079,134 +2011,57 @@
   "layout": {
    "tiles": {
     "yield": {
-     "column": 6,
-     "row": 4
+     "column": 10,
+     "row": 16
     },
     "capacity": {
-     "column": 11,
-     "row": 1
-    },
-    "speed": {
-     "column": 7,
+     "column": 2,
      "row": 0
     },
+    "speed": {
+     "column": 1,
+     "row": 2
+    },
     "appeal": {
-     "column": 9,
-     "row": 6
+     "column": 3,
+     "row": 0
     }
    },
    "facings": {
-    "yield": "N",
-    "capacity": "W",
+    "yield": "W",
+    "capacity": "N",
     "speed": "S",
-    "appeal": "S"
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 7,
-     "row": 10
-    },
-    "kiln": {
-     "column": 7,
-     "row": 6
-    },
-    "governor": {
-     "column": 13,
-     "row": 7
-    },
-    "sorter": {
      "column": 15,
-     "row": 6
-    },
-    "rack": {
-     "column": 13,
-     "row": 6
-    }
-   },
-   "upgrades": {
-    "yield": 0,
-    "capacity": 1,
-    "speed": 4,
-    "appeal": 1
-   }
-  },
-  "expected": {
-   "clearance": {
-    "yield": 1,
-    "capacity": 1,
-    "speed": 1,
-    "appeal": 1
-   },
-   "connected": [],
-   "output": 1,
-   "speed": 1,
-   "price": 1,
-   "storage": 1,
-   "inputThrift": 1,
-   "benches": 0,
-   "frontage": 0
-  }
- },
- {
-  "name": "layout-21",
-  "layout": {
-   "tiles": {
-    "yield": {
-     "column": 1,
      "row": 0
     },
-    "capacity": {
-     "column": 16,
-     "row": 2
-    },
-    "speed": {
+    "kiln": {
      "column": 0,
      "row": 0
     },
-    "appeal": {
-     "column": 10,
-     "row": 0
-    }
-   },
-   "facings": {
-    "yield": "E",
-    "capacity": "N",
-    "speed": "W",
-    "appeal": "W"
-   },
-   "fittings": {
-    "hopper": {
-     "column": 15,
-     "row": 3
-    },
-    "kiln": {
-     "column": 16,
-     "row": 0
-    },
     "governor": {
-     "column": 2,
-     "row": 5
-    },
-    "sorter": {
      "column": 16,
      "row": 4
     },
-    "rack": {
-     "column": 10,
-     "row": 6
+    "sorter": {
+     "column": 12,
+     "row": 4
     }
    },
    "upgrades": {
-    "yield": 4,
-    "capacity": 3,
+    "yield": 1,
+    "capacity": 1,
     "speed": 3,
-    "appeal": 4
+    "appeal": 1
    }
   },
   "expected": {
    "clearance": {
-    "yield": 1,
-    "capacity": 0.925,
+    "yield": 0.7,
+    "capacity": 1,
     "speed": 1,
     "appeal": 1
    },
@@ -2221,50 +2076,50 @@
   }
  },
  {
-  "name": "layout-22",
+  "name": "layout-21",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 11,
-     "row": 8
+     "column": 1,
+     "row": 1
     },
     "capacity": {
-     "column": 15,
-     "row": 4
+     "column": 3,
+     "row": 8
     },
     "speed": {
      "column": 13,
-     "row": 2
+     "row": 9
     },
     "appeal": {
-     "column": 1,
-     "row": 3
+     "column": 9,
+     "row": 16
     }
    },
    "facings": {
     "yield": "W",
     "capacity": "S",
-    "speed": "W",
+    "speed": "S",
     "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 12,
-     "row": 2
+     "column": 15,
+     "row": 12
     }
    },
    "upgrades": {
-    "yield": 3,
-    "capacity": 0,
-    "speed": 4,
-    "appeal": 3
+    "yield": 0,
+    "capacity": 1,
+    "speed": 0,
+    "appeal": 1
    }
   },
   "expected": {
    "clearance": {
     "yield": 1,
     "capacity": 1,
-    "speed": 0.95,
+    "speed": 1,
     "appeal": 1
    },
    "connected": [],
@@ -2278,46 +2133,121 @@
   }
  },
  {
-  "name": "layout-23",
+  "name": "layout-22",
   "layout": {
    "tiles": {
     "yield": {
-     "column": 0,
-     "row": 3
+     "column": 4,
+     "row": 8
     },
     "capacity": {
-     "column": 5,
-     "row": 10
+     "column": 2,
+     "row": 12
     },
     "speed": {
-     "column": 10,
-     "row": 0
+     "column": 9,
+     "row": 4
     },
     "appeal": {
-     "column": 0,
-     "row": 5
+     "column": 16,
+     "row": 8
     }
    },
    "facings": {
     "yield": "E",
-    "capacity": "E",
-    "speed": "W",
-    "appeal": "S"
+    "capacity": "N",
+    "speed": "N",
+    "appeal": "W"
    },
    "fittings": {
     "hopper": {
-     "column": 11,
-     "row": 5
+     "column": 6,
+     "row": 9
     },
     "kiln": {
      "column": 7,
-     "row": 4
+     "row": 3
     }
    },
    "upgrades": {
-    "yield": 0,
-    "capacity": 4,
+    "yield": 4,
+    "capacity": 2,
+    "speed": 0,
+    "appeal": 2
+   }
+  },
+  "expected": {
+   "clearance": {
+    "yield": 1,
+    "capacity": 1,
     "speed": 1,
+    "appeal": 1
+   },
+   "connected": [
+    "hopper"
+   ],
+   "output": 1.18,
+   "speed": 1,
+   "price": 1,
+   "storage": 1,
+   "inputThrift": 1,
+   "benches": 0,
+   "frontage": 0
+  }
+ },
+ {
+  "name": "layout-23",
+  "layout": {
+   "tiles": {
+    "yield": {
+     "column": 16,
+     "row": 3
+    },
+    "capacity": {
+     "column": 12,
+     "row": 8
+    },
+    "speed": {
+     "column": 15,
+     "row": 16
+    },
+    "appeal": {
+     "column": 7,
+     "row": 9
+    }
+   },
+   "facings": {
+    "yield": "E",
+    "capacity": "S",
+    "speed": "E",
+    "appeal": "N"
+   },
+   "fittings": {
+    "hopper": {
+     "column": 10,
+     "row": 16
+    },
+    "kiln": {
+     "column": 10,
+     "row": 5
+    },
+    "governor": {
+     "column": 13,
+     "row": 16
+    },
+    "sorter": {
+     "column": 10,
+     "row": 0
+    },
+    "rack": {
+     "column": 5,
+     "row": 15
+    }
+   },
+   "upgrades": {
+    "yield": 2,
+    "capacity": 0,
+    "speed": 2,
     "appeal": 0
    }
   },
@@ -2343,59 +2273,47 @@
   "layout": {
    "tiles": {
     "yield": {
+     "column": 6,
+     "row": 11
+    },
+    "capacity": {
+     "column": 14,
+     "row": 15
+    },
+    "speed": {
      "column": 1,
      "row": 1
     },
-    "capacity": {
-     "column": 2,
-     "row": 3
-    },
-    "speed": {
-     "column": 9,
-     "row": 6
-    },
     "appeal": {
-     "column": 0,
-     "row": 9
+     "column": 13,
+     "row": 8
     }
    },
    "facings": {
-    "yield": "N",
-    "capacity": "S",
-    "speed": "S",
-    "appeal": "S"
+    "yield": "S",
+    "capacity": "N",
+    "speed": "N",
+    "appeal": "N"
    },
    "fittings": {
     "hopper": {
-     "column": 7,
-     "row": 6
-    },
-    "kiln": {
      "column": 9,
      "row": 8
     },
+    "kiln": {
+     "column": 13,
+     "row": 3
+    },
     "governor": {
-     "column": 15,
-     "row": 6
-    },
-    "sorter": {
      "column": 2,
-     "row": 6
-    },
-    "rack": {
-     "column": 11,
      "row": 0
-    },
-    "counter": {
-     "column": 6,
-     "row": 2
     }
    },
    "upgrades": {
-    "yield": 1,
-    "capacity": 0,
-    "speed": 0,
-    "appeal": 2
+    "yield": 4,
+    "capacity": 1,
+    "speed": 2,
+    "appeal": 1
    }
   },
   "expected": {
@@ -2403,11 +2321,13 @@
     "yield": 1,
     "capacity": 1,
     "speed": 1,
-    "appeal": 0.7
+    "appeal": 1
    },
-   "connected": [],
+   "connected": [
+    "governor"
+   ],
    "output": 1,
-   "speed": 1,
+   "speed": 0.85,
    "price": 1,
    "storage": 1,
    "inputThrift": 1,

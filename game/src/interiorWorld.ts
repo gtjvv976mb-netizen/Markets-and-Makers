@@ -776,7 +776,7 @@ export class InteriorWorld {
   /** Re-frame for the current canvas size and zoom. Does not touch the renderer. */
   private applyCameraProjection(width: number, height: number): void {
     const ratio = width / height;
-    let viewHeight = ROOM_HALF_DEPTH * 2.4 * this.cameraZoom;
+    let viewHeight = ROOM_HALF_DEPTH * 1.9 * this.cameraZoom;
     let viewWidth = viewHeight * ratio;
     const minWidth = ROOM_HALF_WIDTH * 1.78 * this.cameraZoom;
     if (viewWidth < minWidth) {

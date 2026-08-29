@@ -649,7 +649,7 @@ export const PRODUCT_SATURATION_FLOOR = 0.8;
 
 export const FLOOR_TILE = 1.6;
 export const FLOOR_COLUMNS = 17;
-export const FLOOR_ROWS = 11;
+export const FLOOR_ROWS = 17;
 /** Tiles kept clear: the walkway from the door to the back of the room. */
 export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
 
@@ -715,10 +715,10 @@ export function servicedTiles(): Array<{ column: number; row: number }> {
 
 /** Where the four stations stand before an owner moves them. */
 export const DEFAULT_EQUIPMENT_TILES: Record<string, { column: number; row: number }> = {
-  yield: { column: 5, row: 2 },
-  capacity: { column: 11, row: 2 },
-  speed: { column: 5, row: 8 },
-  appeal: { column: 11, row: 8 },
+  yield: { column: 5, row: 3 },
+  capacity: { column: 11, row: 3 },
+  speed: { column: 5, row: 13 },
+  appeal: { column: 11, row: 13 },
 };
 
 export const CIVIC_BOARD_BASE = 3;
