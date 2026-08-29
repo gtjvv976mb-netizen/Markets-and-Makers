@@ -5,10 +5,6 @@ import {
   INTERIOR_EQUIPMENT_CATALOG,
   INTERIOR_ROOMS,
   interiorAvatarYaw,
-  PROP_SLOTS,
-  ROOM_HALF_DEPTH,
-  ROOM_HALF_WIDTH,
-  STATIONS,
 } from "../src/interiorWorld";
 
 const upgradeKeys: UpgradeKey[] = ["yield", "capacity", "speed", "appeal"];
@@ -116,72 +112,7 @@ describe("business interiors", () => {
     expect(INTERIOR_EQUIPMENT_CATALOG.workshop.yield.name).toBe("MercSpec Calibrator");
   });
 
-  it("gives every trade a distinct floor kit", () => {
-    const seen = new Map<string, LicenseKey>();
-    for (const license of licenses) {
-      const kit = INTERIOR_ROOMS[license].props;
-      expect(kit.length, `${license} has no floor kit`).toBeGreaterThan(0);
-      // The floor was cleared: a room places only as many pieces as it has slots, and the
-      // authored kit is longer than that on purpose so the ordering still says which piece
-      // matters most. What has to stay true is that the pieces a player actually SEES
-      // differ from trade to trade — the rest of the list is preference, not placement.
-      const placed = kit.slice(0, PROP_SLOTS.length).join(",");
-      const clash = seen.get(placed);
-      expect(clash, `${license} shows the same kit as ${clash}`).toBeUndefined();
-      seen.set(placed, license);
-    }
-  });
 
-  it("leads each trade's kit with the piece that names it", () => {
-    // The two slots flanking the door are the first thing seen on entering, so they
-    // carry the signature piece rather than the shared crates every trade owns.
-    const signature: Record<LicenseKey, string> = {
-      aquaworks: "tanks", sungrid: "solar", greenhouse: "beds", mine: "orecart",
-      timberworks: "logs", cratemill: "crates", workshop: "toolwall", factory: "conveyor",
-      construction: "scaffold", freight: "pallets", shop: "shelves", restaurant: "diner",
-      gym: "weights", cinema: "seats", recycler: "bins",
-    };
-    for (const license of licenses) {
-      expect(INTERIOR_ROOMS[license].props[0], `${license} does not lead with its own kit`)
-        .toBe(signature[license]);
-    }
-  });
 
-  it("never stands kit on a station, the door or the walkway", () => {
-    const DOOR = { x: 0, z: -5.73, clear: 1.6 };
-    const KIT_REACH = 1.2;      // the largest radius any piece reports
-    const STATION_REACH = 1.5;  // base plus its halo
 
-    for (const [x, z] of PROP_SLOTS) {
-      expect(Math.abs(x) + KIT_REACH, `kit at ${x},${z} reaches through the side wall`)
-        .toBeLessThanOrEqual(ROOM_HALF_WIDTH);
-      expect(Math.abs(z) + KIT_REACH / 2, `kit at ${x},${z} reaches through the end wall`)
-        .toBeLessThanOrEqual(ROOM_HALF_DEPTH);
-
-      for (const station of STATIONS) {
-        const [sx, sz] = station.position;
-        expect(
-          Math.hypot(x - sx, z - sz),
-          `kit at ${x},${z} fouls the ${station.key} station`,
-        ).toBeGreaterThan(KIT_REACH + STATION_REACH);
-      }
-
-      expect(Math.hypot(x - DOOR.x, z - DOOR.z), `kit at ${x},${z} blocks the door`)
-        .toBeGreaterThan(KIT_REACH + DOOR.clear);
-
-      // The walkway runs up the middle of the room, 2.35 wide.
-      const blocksWalkway = Math.abs(x) < 1.18 + KIT_REACH;
-      expect(blocksWalkway, `kit at ${x},${z} stands in the walkway`).toBe(false);
-    }
-  });
-
-  it("stands no two pieces of kit inside each other", () => {
-    for (let i = 0; i < PROP_SLOTS.length; i += 1) {
-      for (let j = i + 1; j < PROP_SLOTS.length; j += 1) {
-        const [ax, az] = PROP_SLOTS[i]!;
-        const [bx, bz] = PROP_SLOTS[j]!;
-        expect(Math.hypot(ax - bx, az - bz)).toBeGreaterThan(2.4);
-      }
-    }
-  });
 });

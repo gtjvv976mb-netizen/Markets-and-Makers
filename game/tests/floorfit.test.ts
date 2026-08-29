@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FLOOR_COLUMNS, FLOOR_ROWS, tileIsBuildable, tileToWorld } from "../src/data";
-import { ROOM_HALF_WIDTH, ROOM_HALF_DEPTH, PROP_SLOTS } from "../src/interiorWorld";
+import { ROOM_HALF_WIDTH, ROOM_HALF_DEPTH } from "../src/interiorWorld";
 
 describe("the cleared floor fits its room", () => {
   it("keeps every buildable tile inside the walls", () => {
@@ -16,15 +16,9 @@ describe("the cleared floor fits its room", () => {
         }
       }
     }
-    console.log(`room ${ROOM_HALF_WIDTH * 2}x${ROOM_HALF_DEPTH * 2}, ${buildable} buildable tiles, kit pieces ${PROP_SLOTS.length}`);
+    console.log(`room ${ROOM_HALF_WIDTH * 2}x${ROOM_HALF_DEPTH * 2}, ${buildable} buildable tiles, nothing else on the floor`);
     expect(outside, `tiles outside the walls: ${outside.join(" ")}`).toHaveLength(0);
     expect(buildable, "a floor worth arranging").toBeGreaterThan(40);
   });
 
-  it("stands the floor kit clear of the buildable grid", () => {
-    for (const [x, z] of PROP_SLOTS) {
-      expect(Math.abs(x) < ROOM_HALF_WIDTH, `kit at ${x},${z} inside the room`).toBe(true);
-      expect(Math.abs(z) < ROOM_HALF_DEPTH, `kit at ${x},${z} inside the room`).toBe(true);
-    }
-  });
 });

@@ -175,18 +175,6 @@ export const INTERIOR_EQUIPMENT_CATALOG: Record<LicenseKey, Record<UpgradeKey, I
 // same timber rafters, same four glass bays — only the accent colour and one machine
 // module told a mine from a cinema. This is the part that makes each trade somewhere,
 // not just something: its own palette, and its own floor kit standing around the walls.
-//
-// The kit is placed, never scattered. Six authored slots sit clear of the four upgrade
-// stations, the exit door at the back, and the centre walkway, so nothing a business
-// owns can ever block the way to a station it owns.
-
-/** Where floor kit may stand: [x, z, facing]. Clear of stations, door and walkway. */
-export const PROP_SLOTS: ReadonlyArray<readonly [number, number, number]> = [
-  // Two bays, pushed out to the far corners of the widened floor so they dress the room
-  // without standing on ground a maker might want to build on.
-  [-9.4, 6.6, Math.PI],
-  [9.4, 6.6, Math.PI],
-];
 
 export type PropKind =
   | "tanks" | "solar" | "beds" | "orecart" | "logs" | "crates" | "toolwall"
@@ -235,8 +223,6 @@ export interface RoomDesign {
   /** Glazing tint and the sky behind it — a mine reads cold, a kitchen warm. */
   glass: number;
   sky: number;
-  /** Floor kit, taken in order into PROP_SLOTS. Fewer than six leaves slots empty. */
-  props: readonly PropKind[];
   /**
    * How the room is lit.
    *
@@ -254,49 +240,34 @@ export interface RoomDesign {
 
 export const INTERIOR_ROOMS: Record<LicenseKey, RoomDesign> = {
   aquaworks: { displayName: "Living Filtration Gallery", description: "A bright tidal hall where reed beds, pressure loops and clear-water tanks make every litre visible.", regenerativeSystem: "Closed-loop water recovery · living reed filtration", architecture: "living-water-gallery", floorPattern: "water-runnel", accent: 0x45c9cf, floor: 0xbfd3d6, path: 0xa9c4c9, wall: 0x7f9aa1, trim: 0x5d7f88, glass: 0x9cdfe0, sky: 0x123e42,
-    props: ["tanks", "conveyor", "bins", "shelves"],
     light: { key: 0xd6f4ff, keyStrength: 2.4, bounce: 0x2c5a63, fill: 0x8fe6ea, fillStrength: 1.05, level: 1.7 } },
   sungrid: { displayName: "Heliostat Control Atrium", description: "A sun-washed energy hall that turns daylight, storage and distribution into one readable circuit.", regenerativeSystem: "Solar microgrid · second-life battery bank", architecture: "heliostat-atrium", floorPattern: "solar-circuit", accent: 0xf2c94c, floor: 0xd9cfa6, path: 0xcabf90, wall: 0x9a9673, trim: 0x8a6f3c, glass: 0xd8e9a8, sky: 0x2c4a3a,
-    props: ["solar", "toolwall", "crates", "conveyor"],
     light: { key: 0xfff0c2, keyStrength: 3.4, bounce: 0x6a6a3c, fill: 0xffe9a8, fillStrength: 1.15, level: 2.0 } },
   greenhouse: { displayName: "Canopy Biome House", description: "A humid barrel-biome of hydroponic rows, rain capture and pollinator rails under a living glass canopy.", regenerativeSystem: "Rain capture · nutrient recirculation · pollinator habitat", architecture: "canopy-biome", floorPattern: "growing-rows", accent: 0x82bd55, floor: 0xc6bd8c, path: 0xb3ac7c, wall: 0x7f9668, trim: 0x6f5a34, glass: 0xb9e7b0, sky: 0x1d4630,
-    props: ["beds", "shelves", "crates", "tanks"],
     light: { key: 0xf4ffd9, keyStrength: 3.2, bounce: 0x3f6a3a, fill: 0xc8f0a8, fillStrength: 1.2, level: 2.1 } },
   mine: { displayName: "Reclaimed Strata Vault", description: "A rock-cut assay chamber where clean electric tools work beside mist collectors and active habitat restoration.", regenerativeSystem: "Dust capture · water mist recovery · moss reclamation", architecture: "reclaimed-strata-vault", floorPattern: "strata-bands", accent: 0xd58d4f, floor: 0x9b9188, path: 0x8b8078, wall: 0x6f6862, trim: 0x4f4a45, glass: 0x9fb2b8, sky: 0x241f1c,
-    props: ["orecart", "conveyor", "toolwall", "bins"],
     light: { key: 0xffd9a0, keyStrength: 1.5, bounce: 0x241d18, fill: 0x6d8b96, fillStrength: 0.45, level: 0.95 } },
   timberworks: { displayName: "Regrowth Timber Hall", description: "An open glulam shed joining a solar kiln, provenance wall and seedling nursery to every cut board.", regenerativeSystem: "Solar kiln · seedling replacement ledger · sawdust recovery", architecture: "regrowth-timber-hall", floorPattern: "timber-grain", accent: 0xc8914a, floor: 0xc7a273, path: 0xb69065, wall: 0x8d6c46, trim: 0x6c4f2f, glass: 0xcfe0a8, sky: 0x2a3a24,
-    props: ["logs", "toolwall", "conveyor", "shelves"],
     light: { key: 0xffe6b8, keyStrength: 2.7, bounce: 0x5a4028, fill: 0xd2e6a4, fillStrength: 0.8, level: 1.6 } },
   cratemill: { displayName: "Circular Packhouse", description: "A flat-pack line where reusable frames, nesting crates and return bins keep materials moving in a loop.", regenerativeSystem: "Reusable packaging pool · offcut return loop", architecture: "circular-packhouse", floorPattern: "folding-grid", accent: 0xe39a52, floor: 0xcbb187, path: 0xbaa077, wall: 0x8f7550, trim: 0x6f5537, glass: 0xd8dfae, sky: 0x2f3b2a,
-    props: ["crates", "conveyor", "pallets", "toolwall"],
     light: { key: 0xffe3ae, keyStrength: 2.6, bounce: 0x5c452a, fill: 0xd8dfae, fillStrength: 0.75, level: 1.55 } },
   workshop: { displayName: "Component Atelier", description: "A sawtooth-lit Mercedonian atelier with an overhead tool rail, repair benches and a reclaimed-parts library.", regenerativeSystem: "Repair-first fabrication · reclaimed component library", architecture: "sawtooth-atelier", floorPattern: "maker-sparks", accent: 0xe98262, floor: 0xc4b596, path: 0xb2a385, wall: 0x84836c, trim: 0x6d5738, glass: 0xc9e3d0, sky: 0x243d3a,
-    props: ["toolwall", "crates", "shelves", "pallets"],
     light: { key: 0xffe1b0, keyStrength: 2.6, bounce: 0x4a4636, fill: 0x9fd8c6, fillStrength: 0.8, level: 1.6 } },
   factory: { displayName: "Clean Forge Hall", description: "A five-bay fabrication floor with compact robotics, daylight clerestories and visible closed-loop cooling.", regenerativeSystem: "Heat recovery · closed-loop coolant · rooftop solar", architecture: "clean-forge-hall", floorPattern: "assembly-line", accent: 0xe7ad45, floor: 0xa9a9a2, path: 0x999992, wall: 0x767a7c, trim: 0x565b5e, glass: 0xa9cfd6, sky: 0x1e2e33,
-    props: ["conveyor", "toolwall", "pallets", "bins"],
     light: { key: 0xe8f0ff, keyStrength: 2.5, bounce: 0x33393c, fill: 0x9ec6d6, fillStrength: 0.9, level: 1.45 } },
   construction: { displayName: "Civic Prefab Studio", description: "A design room and assembly bay where district models become low-waste modular building panels.", regenerativeSystem: "Design-for-disassembly · permeable planted work yard", architecture: "civic-prefab-studio", floorPattern: "survey-grid", accent: 0xe5a949, floor: 0xb8ada0, path: 0xa79c90, wall: 0x827a70, trim: 0x64594d, glass: 0xc4d8c0, sky: 0x2b3630,
-    props: ["scaffold", "pallets", "crates", "conveyor"],
     light: { key: 0xffeccb, keyStrength: 2.8, bounce: 0x4c463c, fill: 0xb8ccb4, fillStrength: 0.7, level: 1.6 } },
   freight: { displayName: "Solar Quay Depot", description: "A harbour dispatch deck with route intelligence, shore power and compact electric cargo handling.", regenerativeSystem: "Solar shore power · reusable cargo pooling", architecture: "solar-quay-depot", floorPattern: "quay-route", accent: 0x4ab6bd, floor: 0xb0a894, path: 0x9f9784, wall: 0x7c7566, trim: 0x5c5648, glass: 0xb6d2d6, sky: 0x223034,
-    props: ["pallets", "crates", "shelves", "bins"],
     light: { key: 0xffeed2, keyStrength: 2.4, bounce: 0x3e3a30, fill: 0xa8c6cc, fillStrength: 0.8, level: 1.45 } },
   shop: { displayName: "Lantern Market Pavilion", description: "A compact produce market and café beneath a leaf-fan canopy, built around refill and return stations.", regenerativeSystem: "Reusable cup loop · local produce cooling · herb wall", architecture: "lantern-market-pavilion", floorPattern: "market-petals", accent: 0xeb7f68, floor: 0xdcc9a8, path: 0xcbb897, wall: 0x9a8367, trim: 0x7a5f42, glass: 0xf0d5b8, sky: 0x3a3026,
-    props: ["shelves", "crates", "diner", "bins"],
     light: { key: 0xfff0d0, keyStrength: 2.9, bounce: 0x6b543a, fill: 0xffdcb4, fillStrength: 1.0, level: 1.85 } },
   restaurant: { displayName: "Edible Garden Kitchen", description: "An open conservatory kitchen where the solar hearth, herb beds and dining garden share one warm room.", regenerativeSystem: "Solar cooking · food-waste compost · rain-chain irrigation", architecture: "edible-garden-kitchen", floorPattern: "hearth-ring", accent: 0xf09a63, floor: 0xd8b58c, path: 0xc7a37b, wall: 0x96694a, trim: 0x74492f, glass: 0xf5cf9a, sky: 0x3d2a1e,
-    props: ["diner", "shelves", "bins", "tanks"],
     light: { key: 0xffd9a2, keyStrength: 3.0, bounce: 0x6a3f26, fill: 0xffc98a, fillStrength: 1.05, level: 1.8 } },
   gym: { displayName: "Kinetic Wellness Grove", description: "An airy lotus-rib hall where movement powers the recovery garden and cooling channel.", regenerativeSystem: "Human-powered generation · passive cooling · refill bar", architecture: "kinetic-wellness-grove", floorPattern: "kinetic-orbit", accent: 0x56bba4, floor: 0xa8bfae, path: 0x97ae9d, wall: 0x6f8b7c, trim: 0x50695c, glass: 0xb9e2d4, sky: 0x1c3a33,
-    props: ["weights", "shelves", "tanks", "toolwall"],
     light: { key: 0xeaffef, keyStrength: 2.7, bounce: 0x2f5147, fill: 0xa8e6d2, fillStrength: 1.0, level: 1.75 } },
   cinema: { displayName: "Lantern Theatre", description: "A timber-acoustic screening room and planted foyer crowned by a luminous Mercedonian lantern marquee.", regenerativeSystem: "Low-energy projection · reclaimed acoustic timber", architecture: "lantern-theatre", floorPattern: "projector-beam", accent: 0xe6ad4d, floor: 0x6d6070, path: 0x5f5363, wall: 0x4b4152, trim: 0x352d3b, glass: 0x9a86b4, sky: 0x1a1522,
-    props: ["seats", "shelves", "diner", "crates"],
     light: { key: 0xb49ad8, keyStrength: 1.2, bounce: 0x1a1522, fill: 0x8a72b4, fillStrength: 0.55, level: 0.8 } },
   recycler: { displayName: "Materials Loop Laboratory", description: "A clean recovery lab where sorting bays, sample galleries and feedstock banks close the city material loop.", regenerativeSystem: "Optical sorting · remanufacturing feedstock loop", architecture: "materials-loop-lab", floorPattern: "circular-loop", accent: 0x77b95a, floor: 0xa9b394, path: 0x98a284, wall: 0x74805f, trim: 0x555f43, glass: 0xc0dba8, sky: 0x252f22,
-    props: ["bins", "conveyor", "crates", "pallets"],
     light: { key: 0xf2ffd6, keyStrength: 2.5, bounce: 0x424a34, fill: 0xbcd8a4, fillStrength: 0.85, level: 1.55 } },
 };
 
@@ -1266,16 +1237,24 @@ export class InteriorWorld {
     this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
     for (const definition of STATIONS) this.createStation(definition, cream, timber);
-    this.createSignatureSystem(design, cream, timber, teal, accentMaterial, glass);
-    this.dressRoom(design);
 
-    // Only the two by the side walls: the front pair stood where the outer floor kit
-    // now goes, and every room brings its own greenery if the trade calls for it.
-    for (const [x, z, scale] of [
-      [-7.15, -1.0, 0.85], [7.1, -1.0, 0.85],
-    ] as Array<[number, number, number]>) {
-      this.createPlant(x, z, scale, accent);
-    }
+    // NOTHING ELSE STANDS ON THE FLOOR.
+    //
+    // The room used to open with a trade centrepiece, a floor kit and a pair of planters
+    // already placed, on top of four equipment ports. Between them a maker walked into a
+    // room that was finished before they touched it, and every tile the grid offered was
+    // occupied by scenery they never chose and could not move.
+    //
+    // What is left is the room and nothing else: walls, glazing, the roof, the door, the
+    // sign over it, and the floor. Everything a player sees standing on that floor is
+    // something they put there — the four stations at their chosen tiles, and whatever
+    // fittings they have bought and placed beside them.
+    //
+    // createSignatureSystem, dressRoom and createPlant are still here and still work; they
+    // are simply not called. That is deliberate rather than a deletion: they carry fifteen
+    // trades' worth of authored dressing, and a room that later wants a wall-mounted
+    // centrepiece rather than a floor-standing one should start from that, not from
+    // nothing.
 
     this.updateUpgradeLevels(this.upgrades, this.upgradeCeiling);
   }
@@ -1622,352 +1601,6 @@ export class InteriorWorld {
     }
   }
 
-  /**
-   * The production story seen from the entrance. These are intentionally larger and
-   * more literal than the upgrade stations: a Mercedonian should know whether this is
-   * a water plant, cinema or timber hall before reading any interface copy.
-   */
-  private createSignatureSystem(
-    design: RoomDesign,
-    cream: THREE.MeshStandardMaterial,
-    timber: THREE.MeshStandardMaterial,
-    teal: THREE.MeshStandardMaterial,
-    accent: THREE.MeshStandardMaterial,
-    glass: THREE.MeshPhysicalMaterial,
-  ): void {
-    const root = new THREE.Group();
-    root.name = `interior-signature-${design.architecture}`;
-    this.content.add(root);
-    const dark = this.propMaterial(0x29494a, 0.66, 0.18);
-    const metal = this.propMaterial(0x7f9191, 0.46, 0.42);
-    const copper = this.propMaterial(0xa76e42, 0.48, 0.34);
-    const green = this.propMaterial(0x5d913f, 0.82);
-    const soil = this.propMaterial(0x5f4931, 0.9);
-    const gold = this.propMaterial(0xe1b64c, 0.46, 0.24);
-    const rust = this.propMaterial(0xb56849, 0.68, 0.1);
-    const glow = new THREE.MeshStandardMaterial({
-      color: design.accent,
-      emissive: design.accent,
-      emissiveIntensity: 0.85,
-      roughness: 0.38,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const box = (
-      size: readonly [number, number, number],
-      at: readonly [number, number, number],
-      material: THREE.Material,
-    ): THREE.Mesh => this.addBox(root, size, at, material);
-    const cylinder = (
-      radius: number,
-      height: number,
-      at: readonly [number, number, number],
-      material: THREE.Material,
-      segments = 10,
-    ): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, segments), material);
-      mesh.position.set(...at);
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      mesh.receiveShadow = true;
-      root.add(mesh);
-      return mesh;
-    };
-    const cone = (
-      top: number,
-      bottom: number,
-      height: number,
-      at: readonly [number, number, number],
-      material: THREE.Material,
-    ): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 10), material);
-      mesh.position.set(...at);
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      root.add(mesh);
-      return mesh;
-    };
-    const torus = (
-      radius: number,
-      tube: number,
-      at: readonly [number, number, number],
-      material: THREE.Material,
-      arc = Math.PI * 2,
-    ): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 7, 22, arc), material);
-      mesh.position.set(...at);
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      root.add(mesh);
-      return mesh;
-    };
-    const sphere = (
-      radius: number,
-      at: readonly [number, number, number],
-      material: THREE.Material,
-    ): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 9, 6), material);
-      mesh.position.set(...at);
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      root.add(mesh);
-      return mesh;
-    };
-    const animate = (object: THREE.Object3D, motion: "spin-x" | "spin-y" | "spin-z" | "pulse" | "float", speed = 1): void => {
-      this.ambientObjects.push({ object, motion, speed, originY: object.position.y });
-    };
-    const plantTuft = (x: number, y: number, z: number, scale = 1): void => {
-      cylinder(0.045 * scale, 0.42 * scale, [x, y + 0.2 * scale, z], green, 6);
-      for (const offset of [-0.15, 0, 0.15]) {
-        const leaf = sphere(0.17 * scale, [x + offset * scale, y + 0.46 * scale + Math.abs(offset) * 0.25, z], green);
-        leaf.scale.set(0.65, 1.25, 0.55);
-      }
-    };
-
-    switch (design.architecture) {
-      case "living-water-gallery": {
-        for (const [x, radius, height] of [[-4.15, 0.68, 2.45], [-2.75, 0.48, 1.75]] as Array<[number, number, number]>) {
-          cylinder(radius, height, [x, height / 2 + 0.15, -5.25], glass, 12);
-          cylinder(radius * 1.07, 0.13, [x, 0.16, -5.25], copper, 12);
-          cylinder(radius * 1.07, 0.13, [x, height + 0.14, -5.25], copper, 12);
-        }
-        const pipe = torus(1.15, 0.09, [-3.45, 2.45, -5.05], copper, Math.PI);
-        animate(pipe, "pulse", 1.2);
-        box([3.15, 0.1, 0.24], [3.8, 0.28, -5.25], teal);
-        for (const x of [2.65, 3.25, 3.85, 4.45, 5.05]) plantTuft(x, 0.3, -5.2, 0.72);
-        for (const z of [-3.4, -1.6, 0.2, 2.0]) {
-          const flow = box([0.33, 0.035, 0.55], [0, 0.07, z], glow);
-          animate(flow, "pulse", 0.65 + z * 0.04);
-        }
-        break;
-      }
-      case "heliostat-atrium": {
-        for (let row = 0; row < 2; row += 1) for (let column = 0; column < 4; column += 1) {
-          const x = 2.6 + column * 0.82;
-          box([0.68, 0.58, 0.42], [x, 0.46 + row * 0.68, -5.3], row % 2 ? accent : teal);
-          box([0.48, 0.05, 0.44], [x, 0.78 + row * 0.68, -5.28], gold);
-        }
-        cylinder(0.13, 2.65, [-4.1, 1.45, -5.15], metal, 10);
-        const rotor = new THREE.Group();
-        rotor.position.set(-4.1, 2.55, -5.15);
-        root.add(rotor);
-        for (let i = 0; i < 3; i += 1) {
-          const blade = this.addBox(rotor, [1.65, 0.1, 0.28], [0.65, 0, 0], accent);
-          blade.rotation.y = (i / 3) * Math.PI * 2;
-        }
-        sphere(0.24, [-4.1, 2.55, -5.15], gold);
-        animate(rotor, "spin-y", 0.72);
-        break;
-      }
-      case "canopy-biome": {
-        box([4.2, 0.44, 0.82], [-3.9, 0.23, -5.22], timber);
-        box([4.0, 0.12, 0.67], [-3.9, 0.5, -5.2], soil);
-        for (const x of [-5.45, -4.7, -3.95, -3.2, -2.45]) plantTuft(x, 0.52, -5.18, 0.82);
-        cylinder(0.7, 2.35, [4.65, 1.2, -5.2], glass, 12);
-        cylinder(0.76, 0.11, [4.65, 0.1, -5.2], teal, 12);
-        cylinder(0.76, 0.11, [4.65, 2.35, -5.2], teal, 12);
-        box([7.7, 0.1, 0.12], [0, 2.65, -5.03], metal);
-        const pollinator = box([0.6, 0.28, 0.38], [-1.5, 2.45, -4.98], accent);
-        animate(pollinator, "float", 0.8);
-        break;
-      }
-      case "reclaimed-strata-vault": {
-        for (const [x, radius, color] of [[-5.0, 0.66, 0x756b64], [-4.15, 0.52, 0x8c7967], [-3.4, 0.45, 0x625e5c]] as Array<[number, number, number]>) {
-          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(radius, 0), this.propMaterial(color));
-          rock.position.set(x, radius, -5.15);
-          root.add(rock);
-        }
-        for (const [x, height] of [[-5.1, 1.0], [-4.35, 1.35], [-3.55, 0.8]] as Array<[number, number]>) {
-          const crystal = cone(0, 0.22, height, [x, height / 2 + 0.45, -4.92], glow);
-          crystal.rotation.z = (x + 4.2) * 0.18;
-        }
-        box([2.4, 0.38, 0.75], [3.85, 0.42, -5.15], dark);
-        const drill = cylinder(0.28, 2.15, [3.85, 1.35, -4.95], metal, 10);
-        drill.rotation.z = Math.PI / 2;
-        const drillTip = cone(0, 0.36, 0.9, [2.45, 1.35, -4.95], accent);
-        drillTip.rotation.z = Math.PI / 2;
-        animate(drill, "spin-x", 1.45);
-        break;
-      }
-      case "regrowth-timber-hall": {
-        box([3.15, 2.25, 0.78], [3.95, 1.15, -5.2], dark);
-        const kilnPanel = box([2.75, 0.11, 0.92], [3.95, 2.36, -5.05], teal);
-        kilnPanel.rotation.x = 0.18;
-        const saw = torus(1.0, 0.16, [-4.0, 1.55, -5.02], metal);
-        for (let i = 0; i < 8; i += 1) {
-          const tooth = box([0.24, 0.42, 0.16], [-4.0 + Math.cos(i * Math.PI / 4) * 1.12, 1.55 + Math.sin(i * Math.PI / 4) * 1.12, -5.02], metal);
-          tooth.rotation.z = i * Math.PI / 4;
-        }
-        cylinder(0.2, 0.5, [-4.0, 1.55, -5.02], copper, 10).rotation.x = Math.PI / 2;
-        animate(saw, "spin-z", 0.55);
-        for (const x of [-1.9, -1.3, 1.3, 1.9]) plantTuft(x, 0.05, -5.18, 0.62);
-        break;
-      }
-      case "circular-packhouse": {
-        for (const size of [2.7, 2.05, 1.4]) {
-          const frame = new THREE.Group();
-          frame.position.set(-3.85, size / 2 + 0.2, -5.12 + size * 0.015);
-          root.add(frame);
-          this.addBox(frame, [size, 0.13, 0.15], [0, size / 2, 0], timber);
-          this.addBox(frame, [size, 0.13, 0.15], [0, -size / 2, 0], timber);
-          this.addBox(frame, [0.13, size, 0.15], [-size / 2, 0, 0], timber);
-          this.addBox(frame, [0.13, size, 0.15], [size / 2, 0, 0], timber);
-        }
-        box([3.4, 0.35, 0.82], [3.8, 0.48, -5.15], dark);
-        for (const x of [2.45, 3.1, 3.75, 4.4, 5.05]) {
-          const roller = cylinder(0.14, 0.7, [x, 0.77, -5.02], metal, 8);
-          roller.rotation.x = Math.PI / 2;
-          animate(roller, "spin-x", 1.25);
-        }
-        box([0.85, 0.7, 0.6], [3.75, 1.3, -5.12], accent);
-        break;
-      }
-      case "sawtooth-atelier": {
-        const gear = new THREE.Group();
-        gear.position.set(-4.15, 1.75, -5.05);
-        root.add(gear);
-        const gearRing = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.18, 8, 22), accent);
-        gear.add(gearRing);
-        for (let i = 0; i < 10; i += 1) {
-          const tooth = this.addBox(gear, [0.24, 0.44, 0.18], [Math.cos(i * Math.PI / 5) * 1.23, Math.sin(i * Math.PI / 5) * 1.23, 0], accent);
-          tooth.rotation.z = i * Math.PI / 5;
-        }
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.28, 10), copper);
-        hub.rotation.x = Math.PI / 2;
-        gear.add(hub);
-        animate(gear, "spin-z", 0.34);
-        box([5.2, 0.14, 0.18], [3.5, 2.65, -5.0], metal);
-        for (const x of [1.25, 2.75, 4.25, 5.75]) {
-          box([0.09, 1.2, 0.09], [x, 2.08, -5.0], metal);
-          box([0.46, 0.18, 0.3], [x, 1.45, -5.0], x % 2 ? accent : gold);
-        }
-        break;
-      }
-      case "clean-forge-hall": {
-        for (const x of [-5.1, 5.1]) box([0.24, 2.75, 0.24], [x, 1.42, -5.05], metal);
-        box([10.5, 0.25, 0.28], [0, 2.75, -5.05], metal);
-        box([3.2, 0.32, 0.82], [-3.55, 0.38, -5.15], dark);
-        box([3.2, 0.32, 0.82], [3.55, 0.38, -5.15], dark);
-        for (const x of [-4.65, -3.9, -3.15, -2.4, 2.4, 3.15, 3.9, 4.65]) {
-          const roller = cylinder(0.13, 0.7, [x, 0.66, -5.02], metal, 8);
-          roller.rotation.x = Math.PI / 2;
-          animate(roller, "spin-x", 1.05);
-        }
-        for (const x of [-3.75, 3.75]) {
-          const arm = new THREE.Group();
-          arm.position.set(x, 0.55, -4.92);
-          root.add(arm);
-          const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.32, 9, 6), accent);
-          arm.add(shoulder);
-          const upper = this.addBox(arm, [0.28, 1.25, 0.28], [0, 0.72, 0], accent);
-          upper.rotation.z = x < 0 ? -0.42 : 0.42;
-          sphere(0.25, [x + (x < 0 ? 0.48 : -0.48), 1.66, -4.92], gold);
-          animate(arm, "pulse", 0.55);
-        }
-        break;
-      }
-      case "civic-prefab-studio": {
-        box([3.2, 0.16, 1.5], [-3.95, 0.12, -5.05], timber);
-        box([3.2, 2.15, 0.16], [-3.95, 1.24, -5.62], cream);
-        box([0.16, 2.15, 1.5], [-5.48, 1.24, -5.05], accent);
-        box([0.16, 2.15, 1.5], [-2.42, 1.24, -5.05], teal);
-        for (const x of [2.3, 5.3]) box([0.2, 2.55, 0.2], [x, 1.3, -5.1], metal);
-        box([3.2, 0.22, 0.25], [3.8, 2.52, -5.1], accent);
-        const hookLine = box([0.05, 1.4, 0.05], [3.8, 1.78, -5.0], dark);
-        const hook = torus(0.25, 0.07, [3.8, 1.0, -5.0], gold, Math.PI * 1.35);
-        hook.rotation.z = -0.35;
-        animate(hookLine, "float", 0.5);
-        break;
-      }
-      case "solar-quay-depot": {
-        box([4.15, 2.05, 0.82], [-3.65, 1.08, -5.18], rust);
-        for (const x of [-5.25, -4.25, -3.25, -2.25]) box([0.09, 1.78, 0.86], [x, 1.08, -5.15], copper);
-        box([2.9, 0.18, 0.95], [4.0, 0.32, -5.1], dark);
-        box([1.25, 0.85, 0.72], [4.0, 0.82, -5.0], cream);
-        for (const x of [3.25, 4.75]) {
-          const wheel = cylinder(0.28, 0.16, [x, 0.26, -4.95], dark, 10);
-          wheel.rotation.x = Math.PI / 2;
-        }
-        box([2.7, 0.75, 0.1], [0, 3.05, -5.55], teal);
-        for (const [x, y] of [[-0.75, 2.95], [0.1, 3.2], [0.95, 3.02]] as Array<[number, number]>) sphere(0.13, [x, y, -5.43], glow);
-        break;
-      }
-      case "lantern-market-pavilion": {
-        box([5.4, 0.82, 1.0], [-3.35, 0.5, -5.08], timber);
-        box([5.2, 0.16, 1.03], [-3.35, 0.98, -5.06], cream);
-        const produce = [0xd95f4d, 0xe2b94d, 0x6ea84d, 0x9b5baa];
-        for (let i = 0; i < 14; i += 1) sphere(0.16, [-5.45 + (i % 7) * 0.7, 1.16 + Math.floor(i / 7) * 0.29, -4.85], this.propMaterial(produce[i % produce.length]!));
-        box([2.0, 1.8, 0.42], [4.5, 1.0, -5.3], teal);
-        for (const y of [0.55, 1.15, 1.75]) box([1.75, 0.09, 0.48], [4.5, y, -5.08], timber);
-        for (const x of [2.55, 3.45, 4.35, 5.25, 6.15]) {
-          const lantern = sphere(0.18, [x, 2.72 + (Math.round(x) % 2) * 0.18, -5.0], glow);
-          lantern.scale.y = 1.35;
-          animate(lantern, "float", 0.55 + x * 0.03);
-        }
-        break;
-      }
-      case "edible-garden-kitchen": {
-        cylinder(1.05, 1.25, [-3.9, 0.72, -5.05], cream, 12);
-        const ovenMouth = torus(0.62, 0.16, [-3.9, 1.0, -4.35], copper, Math.PI);
-        ovenMouth.rotation.x = Math.PI / 2;
-        const hood = cone(0.35, 1.05, 1.25, [-3.9, 1.95, -5.05], accent);
-        hood.rotation.z = Math.PI;
-        const ember = sphere(0.42, [-3.9, 0.82, -4.34], glow);
-        animate(ember, "pulse", 1.35);
-        box([4.1, 0.42, 0.82], [3.75, 0.26, -5.15], timber);
-        box([3.9, 0.1, 0.68], [3.75, 0.52, -5.12], soil);
-        for (const x of [2.2, 2.85, 3.5, 4.15, 4.8, 5.45]) plantTuft(x, 0.53, -5.1, 0.58);
-        for (const y of [0.75, 1.2, 1.65, 2.1]) sphere(0.09, [6.2, y, -5.0], glass);
-        break;
-      }
-      case "kinetic-wellness-grove": {
-        const wheel = new THREE.Group();
-        wheel.position.set(-4.25, 1.65, -5.0);
-        root.add(wheel);
-        wheel.add(new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.15, 8, 24), accent));
-        for (let i = 0; i < 8; i += 1) {
-          const spoke = this.addBox(wheel, [2.25, 0.07, 0.1], [0, 0, 0], metal);
-          spoke.rotation.z = i * Math.PI / 4;
-        }
-        animate(wheel, "spin-z", 0.46);
-        box([3.65, 2.45, 0.28], [3.95, 1.3, -5.55], timber);
-        for (const [x, y] of [[2.6, 0.7], [3.2, 1.4], [3.9, 0.9], [4.6, 1.7], [5.3, 1.05]] as Array<[number, number]>) sphere(0.17, [x, y, -5.32], x % 2 ? accent : gold);
-        box([4.5, 0.12, 0.48], [0.4, 0.16, -5.0], glass);
-        for (const x of [-1.2, -0.4, 0.4, 1.2, 2.0]) plantTuft(x, 0.2, -5.05, 0.5);
-        break;
-      }
-      case "lantern-theatre": {
-        const screenMaterial = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, emissive: design.accent, emissiveIntensity: 0.34, roughness: 0.7 });
-        box([5.0, 2.55, 0.12], [-3.85, 1.55, -5.52], screenMaterial);
-        box([5.35, 0.16, 0.18], [-3.85, 0.22, -5.45], gold);
-        box([2.1, 1.15, 0.72], [4.25, 1.15, -5.0], dark);
-        for (const x of [3.7, 4.8]) {
-          const reel = torus(0.44, 0.09, [x, 1.72, -4.62], metal);
-          for (let i = 0; i < 5; i += 1) sphere(0.08, [x + Math.cos(i * Math.PI * 0.4) * 0.25, 1.72 + Math.sin(i * Math.PI * 0.4) * 0.25, -4.56], dark);
-          animate(reel, "spin-z", x < 4 ? 0.45 : -0.38);
-        }
-        const lens = cylinder(0.25, 0.68, [4.25, 1.08, -4.42], glow, 10);
-        lens.rotation.x = Math.PI / 2;
-        for (const x of [-6.4, -5.45, 5.45, 6.4]) {
-          const lantern = sphere(0.2, [x, 3.55, -5.18], glow);
-          lantern.scale.y = 1.45;
-          animate(lantern, "float", 0.6);
-        }
-        break;
-      }
-      case "materials-loop-lab": {
-        const loop = torus(1.35, 0.18, [-3.95, 1.7, -5.02], accent);
-        animate(loop, "spin-z", 0.26);
-        const hopper = cone(0.45, 1.05, 1.25, [3.85, 2.05, -5.05], metal);
-        hopper.rotation.z = Math.PI;
-        box([0.4, 0.95, 0.4], [3.85, 1.0, -5.05], dark);
-        box([4.2, 0.35, 0.72], [3.85, 0.42, -5.12], teal);
-        const bayColours = [0x4d92ad, 0x78a953, 0xd29a43];
-        for (let i = 0; i < 3; i += 1) box([1.05, 0.82, 0.75], [2.45 + i * 1.4, 0.87, -5.08], this.propMaterial(bayColours[i]!));
-        for (const [x, color] of [[-5.2, 0x6b91a0], [-4.2, 0x8ea55d], [-3.25, 0xbb7650]] as Array<[number, number]>) {
-          box([0.72, 0.72, 0.48], [x, 0.52, -5.02], this.propMaterial(color));
-          box([0.68, 0.05, 0.5], [x, 0.52, -4.74], dark);
-        }
-        break;
-      }
-    }
-  }
 
   private createBusinessSign(accent: THREE.Color): void {
     if (!this.business) return;
@@ -7287,261 +6920,10 @@ export class InteriorWorld {
     root.add(lampCore);
   }
 
-  /**
-   * Stand this trade's floor kit around the walls.
-   *
-   * Each piece is a handful of boxes in the room's own palette — enough to say
-   * "this is a mine" from the door without competing with the four upgrade stations,
-   * which are what the player is actually here to read. Every piece is registered as
-   * an obstacle, so the kit is as solid indoors as the buildings are outdoors.
-   */
-  private dressRoom(design: RoomDesign): void {
-    // Only the first two pieces of floor kit are laid out now, and both hug the cutaway
-    // front edge. The room used to open with four of them plus four equipment ports, so a
-    // maker arrived to a floor that was already full and a grid they could not really use.
-    // The kit is scene-setting; the space is the point.
-    design.props.slice(0, 2).forEach((kind, index) => {
-      const slot = PROP_SLOTS[index];
-      if (!slot) return;
-      const [x, z, facing] = slot;
-      const root = new THREE.Group();
-      root.name = `interior-prop-${kind}-${index}`;
-      root.position.set(x, 0, z);
-      root.rotation.y = facing;
-      this.content.add(root);
-      const radius = this.buildProp(root, kind, design);
-      this.obstacles.push({ x, z, radius });
-    });
-  }
 
   /** A flat colour, shared between every piece of kit that asks for the same one. */
-  private propMaterial(colour: number, rough = 0.82, metal = 0): THREE.MeshStandardMaterial {
-    const key = `${colour}:${rough}:${metal}`;
-    const existing = this.propMaterials.get(key);
-    if (existing) return existing;
-    const material = new THREE.MeshStandardMaterial({ color: colour, roughness: rough, metalness: metal });
-    this.propMaterials.set(key, material);
-    return material;
-  }
 
   /** Build one piece of floor kit into `root`, and report the radius it occupies. */
-  private buildProp(root: THREE.Group, kind: PropKind, design: RoomDesign): number {
-    const box = (
-      size: readonly [number, number, number],
-      at: readonly [number, number, number],
-      colour: number,
-      rough = 0.82,
-      metal = 0,
-    ): THREE.Mesh => this.addBox(root, size, at, this.propMaterial(colour, rough, metal));
-    const cyl = (r: number, h: number, at: readonly [number, number, number], colour: number, seg = 8): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), this.propMaterial(colour));
-      mesh.position.set(at[0], at[1], at[2]);
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      mesh.receiveShadow = true;
-      root.add(mesh);
-      return mesh;
-    };
-    const TIMBER = 0x8a6540;
-    const STEEL = 0x76858a;
-    const DARK = 0x3c4a4d;
-
-    switch (kind) {
-      case "tanks": {
-        for (const [dx, r, h] of [[-0.5, 0.34, 1.5], [0.45, 0.26, 1.1]] as Array<[number, number, number]>) {
-          cyl(r, h, [dx, h / 2, 0], design.glass, 10);
-          cyl(r * 1.1, 0.09, [dx, h, 0], STEEL, 10);
-          cyl(r * 1.1, 0.09, [dx, 0.05, 0], STEEL, 10);
-        }
-        box([1.5, 0.09, 0.09], [0, 1.18, 0.2], STEEL, 0.5, 0.4);
-        return 1.0;
-      }
-      case "solar": {
-        for (const dx of [-0.42, 0.42]) {
-          box([0.09, 0.86, 0.09], [dx, 0.43, 0], STEEL, 0.5, 0.4);
-        }
-        const panel = box([1.42, 0.07, 0.82], [0, 0.94, 0.06], 0x27506b, 0.34, 0.25);
-        panel.rotation.x = -0.42;
-        box([1.46, 0.06, 0.1], [0, 0.68, 0.36], STEEL, 0.5, 0.4);
-        return 0.95;
-      }
-      case "beds": {
-        box([1.7, 0.36, 0.78], [0, 0.18, 0], TIMBER);
-        box([1.58, 0.1, 0.66], [0, 0.4, 0], 0x5a4630);
-        for (const dx of [-0.55, 0, 0.55]) {
-          cyl(0.05, 0.42, [dx, 0.62, 0], 0x4f7a3c, 6);
-          const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 4), this.propMaterial(0x6ea34c));
-          leaf.position.set(dx, 0.88, 0);
-          root.add(leaf);
-        }
-        return 1.0;
-      }
-      case "orecart": {
-        box([1.12, 0.56, 0.72], [0, 0.44, 0], DARK, 0.7, 0.3);
-        box([1.0, 0.12, 0.6], [0, 0.76, 0], 0x6b5a4a);
-        for (const dx of [-0.38, 0.38]) for (const dz of [-0.3, 0.3]) {
-          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 8), this.propMaterial(0x2b3336));
-          wheel.rotation.z = Math.PI / 2;
-          wheel.position.set(dx, 0.16, dz);
-          root.add(wheel);
-        }
-        for (const [dx, r] of [[-0.24, 0.17], [0.16, 0.2], [0.4, 0.13]] as Array<[number, number]>) {
-          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), this.propMaterial(0x8b8078));
-          rock.position.set(dx, 0.86, 0);
-          root.add(rock);
-        }
-        return 0.95;
-      }
-      case "logs": {
-        for (const [row, count, y] of [[0, 4, 0.22], [1, 3, 0.6]] as Array<[number, number, number]>) {
-          for (let i = 0; i < count; i += 1) {
-            const log = cyl(0.19, 1.5, [(i - (count - 1) / 2) * 0.4 + row * 0.2, y, 0], TIMBER, 8);
-            log.rotation.z = Math.PI / 2;
-          }
-        }
-        box([0.1, 0.94, 0.1], [-0.92, 0.47, 0], STEEL, 0.5, 0.4);
-        box([0.1, 0.94, 0.1], [0.92, 0.47, 0], STEEL, 0.5, 0.4);
-        return 1.05;
-      }
-      case "crates": {
-        const shades = [0xb9915f, 0xa8814f, 0xc7a370];
-        let i = 0;
-        for (const [dx, dy, dz, sz] of [
-          [-0.4, 0.3, 0, 0.58], [0.35, 0.32, 0.05, 0.62], [-0.1, 0.86, 0, 0.5],
-        ] as Array<[number, number, number, number]>) {
-          const shade = shades[i % shades.length]!;
-          box([sz, sz, sz], [dx, dy, dz], shade);
-          box([sz * 1.02, 0.05, sz * 0.24], [dx, dy, dz], 0x6f5537);
-          i += 1;
-        }
-        return 0.9;
-      }
-      case "toolwall": {
-        box([1.7, 1.16, 0.11], [0, 1.15, -0.3], TIMBER);            // pegboard
-        box([1.7, 0.1, 0.62], [0, 0.86, 0], 0x9a8a70, 0.8);          // bench top
-        for (const dx of [-0.76, 0.76]) box([0.1, 0.86, 0.5], [dx, 0.43, 0], 0x6f5537);
-        for (const [dx, w, h] of [[-0.55, 0.1, 0.42], [-0.2, 0.26, 0.1], [0.2, 0.09, 0.5], [0.6, 0.2, 0.2]] as Array<[number, number, number]>) {
-          box([w, h, 0.06], [dx, 1.42, -0.22], 0x51636a, 0.5, 0.45);  // tools hung up
-        }
-        return 0.95;
-      }
-      case "conveyor": {
-        box([1.9, 0.1, 0.66], [0, 0.72, 0], DARK, 0.62, 0.2);
-        for (const dx of [-0.78, 0, 0.78]) box([0.11, 0.72, 0.11], [dx, 0.36, 0], STEEL, 0.5, 0.4);
-        for (let i = -3; i <= 3; i += 1) {
-          const roller = cyl(0.07, 0.6, [i * 0.26, 0.81, 0], STEEL, 6);
-          roller.rotation.x = Math.PI / 2;
-        }
-        return 1.05;
-      }
-      case "scaffold": {
-        for (const dx of [-0.7, 0.7]) for (const dz of [-0.3, 0.3]) box([0.09, 1.7, 0.09], [dx, 0.85, dz], STEEL, 0.5, 0.4);
-        for (const y of [0.6, 1.16, 1.7]) box([1.5, 0.08, 0.08], [0, y, -0.3], STEEL, 0.5, 0.4);
-        box([1.44, 0.08, 0.62], [0, 1.2, 0], TIMBER);
-        box([1.2, 0.5, 0.1], [0, 0.32, 0.28], 0xc4b48a);
-        return 0.95;
-      }
-      case "pallets": {
-        for (const [dy, count] of [[0.08, 1], [0.24, 1], [0.4, 1]] as Array<[number, number]>) {
-          void count;
-          box([1.5, 0.09, 0.86], [0, dy, 0], TIMBER);
-        }
-        box([1.1, 0.62, 0.72], [0, 0.79, 0], 0xb08a58);
-        box([1.12, 0.05, 0.2], [0, 0.79, 0], 0x6f5537);
-        return 0.95;
-      }
-      case "shelves": {
-        box([1.8, 0.09, 0.5], [0, 0.42, -0.16], TIMBER);
-        box([1.8, 0.09, 0.5], [0, 0.94, -0.16], TIMBER);
-        box([1.8, 0.09, 0.5], [0, 1.46, -0.16], TIMBER);
-        for (const dx of [-0.86, 0.86]) box([0.1, 1.6, 0.5], [dx, 0.8, -0.16], 0x6f5537);
-        const goods = [0xd9a441, 0x7fae5c, 0xc9663f, 0x69a9b0];
-        let g = 0;
-        for (const y of [0.58, 1.1, 1.62]) for (const dx of [-0.5, 0, 0.5]) {
-          box([0.26, 0.24, 0.26], [dx, y, -0.16], goods[g % goods.length]!);
-          g += 1;
-        }
-        return 1.0;
-      }
-      case "diner": {
-        cyl(0.42, 0.06, [0, 0.74, 0], TIMBER, 10);
-        cyl(0.09, 0.74, [0, 0.37, 0], STEEL, 8);
-        cyl(0.3, 0.05, [0, 0.03, 0], STEEL, 10);
-        for (const [dx, dz] of [[-0.66, 0], [0.66, 0]] as Array<[number, number]>) {
-          box([0.36, 0.07, 0.36], [dx, 0.44, dz], 0x9a6a44);
-          box([0.36, 0.44, 0.07], [dx + (dx < 0 ? -0.14 : 0.14), 0.66, dz], 0x9a6a44);
-          for (const lx of [-0.13, 0.13]) for (const lz of [-0.13, 0.13]) {
-            box([0.05, 0.44, 0.05], [dx + lx, 0.22, dz + lz], 0x6f4a2e);
-          }
-        }
-        return 1.0;
-      }
-      case "weights": {
-        box([1.8, 0.12, 0.5], [0, 0.28, 0], DARK, 0.6, 0.3);
-        box([1.8, 0.12, 0.5], [0, 0.74, 0], DARK, 0.6, 0.3);
-        for (const dx of [-0.86, 0.86]) box([0.11, 0.92, 0.5], [dx, 0.46, 0], STEEL, 0.5, 0.4);
-        for (const [dx, r] of [[-0.5, 0.17], [-0.1, 0.15], [0.3, 0.13], [0.62, 0.11]] as Array<[number, number]>) {
-          const plate = cyl(r, 0.1, [dx, 0.92, 0], 0x2f3a3d, 10);
-          plate.rotation.z = Math.PI / 2;
-        }
-        for (const [dx, r] of [[-0.45, 0.19], [0.05, 0.16], [0.45, 0.14]] as Array<[number, number]>) {
-          const plate = cyl(r, 0.1, [dx, 0.46, 0], 0x44525a, 10);
-          plate.rotation.z = Math.PI / 2;
-        }
-        return 1.0;
-      }
-      case "seats": {
-        for (const row of [0, 1]) {
-          const dz = row * 0.62;
-          for (const dx of [-0.62, 0, 0.62]) {
-            box([0.5, 0.1, 0.44], [dx, 0.44, dz], 0x6d3f4a);
-            box([0.5, 0.52, 0.09], [dx, 0.7, dz - 0.2], 0x7c4855);
-            box([0.09, 0.44, 0.44], [dx - 0.28, 0.22, dz], 0x4a2c34);
-            box([0.09, 0.44, 0.44], [dx + 0.28, 0.22, dz], 0x4a2c34);
-          }
-        }
-        return 1.15;
-      }
-      case "bins": {
-        const colours = [0x4f8b5c, 0x3f7794, 0xb5883c];
-        colours.forEach((colour, i) => {
-          const dx = (i - 1) * 0.62;
-          box([0.54, 0.86, 0.54], [dx, 0.43, 0], colour);
-          box([0.6, 0.08, 0.6], [dx, 0.9, 0], 0x3a4a3f);
-          box([0.3, 0.04, 0.3], [dx, 0.95, 0], 0x2c3a30);
-        });
-        return 1.0;
-      }
-    }
-  }
-
-  private createPlant(x: number, z: number, scale: number, accent: THREE.Color): void {
-    const root = new THREE.Group();
-    root.position.set(x, 0, z);
-    root.scale.setScalar(scale);
-    this.content.add(root);
-    const pot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.48, 0.36, 0.64, 10),
-      new THREE.MeshStandardMaterial({ color: 0xb7734b, roughness: 0.88 }),
-    );
-    pot.position.y = 0.32;
-    pot.castShadow = true;
-    root.add(pot);
-    const stemMaterial = new THREE.MeshStandardMaterial({ color: 0x456d39, roughness: 0.84 });
-    for (let index = 0; index < 7; index += 1) {
-      const angle = (index / 7) * Math.PI * 2;
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 7), stemMaterial);
-      leaf.scale.set(0.58, 1.35, 0.42);
-      leaf.rotation.z = angle;
-      leaf.position.set(Math.cos(angle) * 0.28, 0.93 + (index % 2) * 0.18, Math.sin(angle) * 0.24);
-      root.add(leaf);
-    }
-    const bloom = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 9, 6),
-      new THREE.MeshStandardMaterial({ color: accent.clone().lerp(new THREE.Color(0xffd45e), 0.5), roughness: 0.6 }),
-    );
-    bloom.position.y = 1.38;
-    root.add(bloom);
-  }
 
   private addBox<T extends THREE.Material>(
     parent: THREE.Object3D,
