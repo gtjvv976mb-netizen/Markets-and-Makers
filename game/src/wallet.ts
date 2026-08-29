@@ -68,12 +68,30 @@ export async function signIn(): Promise<Principal> {
   const wallet = provider();
   if (!wallet) throw new Error("No Solana wallet found. Install Phantom to link an account.");
 
-  const { publicKey } = await wallet.connect();
+  // A rejected prompt throws with the wallet's own wording, which is often just "User
+  // rejected the request." — fine, but a wallet that never answers at all would hang here
+  // forever with no way back, so the failure is named either way.
+  const connection = await wallet.connect().catch((error: { message?: string }) => {
+    throw new Error(error?.message
+      ? `Your wallet did not complete the connection: ${error.message}`
+      : "Your wallet did not complete the connection.");
+  });
+  const publicKey = connection?.publicKey;
+  if (!publicKey) throw new Error("Your wallet connected without returning an address.");
   const walletAddress = publicKey.toString();
 
+  // A generous timeout, deliberately: the authority sleeps when idle and its FIRST request
+  // after a quiet spell measured 15.2 seconds against the live origin. The other calls in this
+  // file use 6s, which would abort a cold start every time and report it as a refusal — so
+  // this one waits, and the caller shows that it is waiting rather than looking dead.
   const challengeResponse = await fetch(`${base}/api/auth/challenge`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ walletAddress }),
+    signal: AbortSignal.timeout(45_000),
+  }).catch((error: Error) => {
+    throw new Error(error.name === "TimeoutError"
+      ? "Mercedonia did not answer in time. It may be waking up — try once more in a moment."
+      : "Could not reach Mercedonia. Check your connection and try again.");
   });
   if (!challengeResponse.ok) throw new Error("The server would not issue a sign-in request.");
   const challenge = await challengeResponse.json() as { nonce: string; message: string };
@@ -83,6 +101,13 @@ export async function signIn(): Promise<Principal> {
   const verifyResponse = await fetch(`${base}/api/auth/verify`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ walletAddress, nonce: challenge.nonce, signature: base58(signed.signature) }),
+    signal: AbortSignal.timeout(45_000),
+  }).catch((error: Error) => {
+    // The signature is already spent at this point, so say so plainly rather than leaving a
+    // player wondering whether they are half signed-in.
+    throw new Error(error.name === "TimeoutError"
+      ? "Mercedonia did not confirm the signature in time. Nothing was linked — try again."
+      : "Lost contact while confirming the signature. Nothing was linked — try again.");
   });
   if (!verifyResponse.ok) {
     const detail = await verifyResponse.json().catch(() => ({})) as { message?: string };

@@ -2441,15 +2441,46 @@ function renderWalletSlot(): void {
 
 let gateSettled = false;
 
+/**
+ * Watch for a wallet that has not finished injecting itself yet.
+ *
+ * Phantom and every other extension set window.solana ASYNCHRONOUSLY, after the page has
+ * started running. renderBootGate ran exactly once, read walletAvailable() at that instant and
+ * never looked again — so a player who HAS a wallet could be shown "Get a Solana wallet", an
+ * <a target="_blank"> to a download page. With a popup blocker in the way, clicking it does
+ * visibly nothing, which is precisely the "I press connect and nothing shows up" report.
+ *
+ * Polls briefly and also listens for the Wallet Standard announcement, then redraws the gate.
+ */
+let walletWatch = 0;
+function watchForWallet(): void {
+  if (walletWatch) return;
+  const stop = (): void => { window.clearInterval(walletWatch); walletWatch = 0; };
+  const check = (): void => {
+    if (!walletAvailable()) return;
+    stop();
+    // Only redraw while the gate is still the thing on screen.
+    if (!element("#bootGate").hidden) renderBootGate();
+  };
+  window.addEventListener("wallet-standard:register-wallet", check, { once: false });
+  walletWatch = window.setInterval(check, 250);
+  // Extensions that are going to inject have done so well inside this.
+  window.setTimeout(stop, 8000);
+  check();
+}
+
 function renderBootGate(): void {
   const choices = document.querySelector<HTMLElement>("#bootChoices");
   if (!choices) return;
   const canConnect = walletAvailable();
+  if (!canConnect) watchForWallet();
   choices.innerHTML = `
     ${canConnect
       ? `<button class="boot-primary" data-action="gate-connect">Connect Solana wallet</button>`
       : `<a class="boot-primary" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener">Get a Solana wallet</a>
-         <small class="boot-hint">On a phone, open this page inside your wallet's own browser to sign in.</small>`}
+         <small class="boot-hint">Already have one? It may still be waking up \u2014 this button becomes
+           <b>Connect Solana wallet</b> the moment your wallet answers. On a phone, open this page inside
+           your wallet's own browser to sign in.</small>`}
     <button class="boot-secondary" data-action="gate-demo">Play the demo</button>`;
 }
 
@@ -3307,12 +3338,23 @@ document.body.addEventListener("click", (event) => {
     // sealed session would quietly become an unsealed one. Reload instead, so the real
     // flow starts from a clean state and whatever profile this browser already holds.
     if (isDemo()) { window.location.reload(); return; }
+    // Say something immediately. The authority sleeps when idle and its first response can
+    // take fifteen seconds or more; with no pending state and no timeout, a player who has
+    // signed in their wallet just watches a dead button and reasonably concludes it is broken.
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Waking Mercedonia\u2026";
     signIn().then((who) => { principal = who; closeBootGate(); toast(`Signed in as ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
-      .catch((error: Error) => toast(error.message));
+      .catch((error: Error) => toast(error.message))
+      .finally(() => { button.disabled = false; if (label) button.textContent = label; });
   }
   else if (action === "wallet-connect") {
+    const linkLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Waking Mercedonia\u2026";
     signIn().then((who) => { principal = who; toast(`Wallet linked: ${who.walletAddress.slice(0, 4)}…${who.walletAddress.slice(-4)}`); return refreshWallet(); })
-      .catch((error: Error) => toast(error.message));
+      .catch((error: Error) => toast(error.message))
+      .finally(() => { button.disabled = false; if (linkLabel) button.textContent = linkLabel; });
   }
   else if (action === "wallet-disconnect") {
     void signOut().then(() => { principal = null; standing = null; serverWallet = null; withdrawalDesk = null; makerHoldings = {}; toast("Wallet unlinked."); renderAll(); });
