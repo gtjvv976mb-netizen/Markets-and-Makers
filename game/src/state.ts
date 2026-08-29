@@ -11,13 +11,14 @@ import {
   RIVAL_BASE_STRENGTH, RIVAL_GROWTH_PER_LEVEL, RIVAL_GROWTH_CEILING_LEVEL, TREND_HORIZON_PERIODS, INITIAL_CITIZEN_POOL,
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
-  CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX,
-  DEFAULT_EQUIPMENT_TILES, FITTINGS, tileIsBuildable, type FittingKey,
+  CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX, PRODUCT_DAILY_TRANCHE, PRODUCT_SATURATION_FLOOR,
+  CIVIC_PRODUCT_MARKUP, DEFAULT_EQUIPMENT_TILES, FITTINGS, FLOOR_WALKWAY_COLUMN, servicedTiles,
+  tileIsBuildable, type FittingKey,
   CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
   FRANCHISE_BASE_BID, FRANCHISE_RIVAL_STEP, FRANCHISE_ROUND_DAYS,
 } from "./data";
-import { BUSINESS_TIER, PRODUCTS_BY_ID, productsOf, type Product } from "./products";
+import { BUSINESS_TIER, PRODUCTS_BY_ID, productChainDepth, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 import { worldRunsOnServer } from "./realm";
 
@@ -62,6 +63,8 @@ export interface ShiftReport {
   revenue: number; spent: number; wages: number; halted: HaltReason;
 }
 export interface ProcurementLedger { date: string; used: Record<ResourceKey, number>; }
+/** Units of each product the district has already absorbed today. Resets with the UTC day. */
+export interface ProductDemandLedger { date: string; sold: Record<string, number>; }
 export interface EconomySnapshot { at: number; priceIndex: number; confidence: number; treasury: number; citizenPool: number; }
 
 /**
@@ -91,7 +94,8 @@ export interface GameState {
   equipmentTiles: Record<string, { column: number; row: number }>;
   /** Fittings they have bought, and the tile each stands on. */
   fittings: Partial<Record<FittingKey, { column: number; row: number }>>;
-  productStock: Record<string, number>; todayRevenue: number; todayExpenses: number;
+  productStock: Record<string, number>; productDemand: ProductDemandLedger;
+  todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
   version: 4;
   wallet: number; governmentTreasury: number; citizenPool: number; taxPaid: number; laborPaid: number; reputation: number;
@@ -174,6 +178,33 @@ function blankProcurement(): Record<ResourceKey, number> {
  * in the walkway — a hand-edited save must not be able to strand equipment somewhere the
  * owner can never reach it.
  */
+/**
+ * Pull a tile into the serviced bay, keeping it as close to where its owner put it as possible.
+ *
+ * Written because the bay shrank the buildable floor from 84 tiles to 28, so every save made
+ * before it has machines at columns 2 and 10 that no longer exist. The old behaviour — reset to
+ * the authored default — would greet a returning player with a room somebody else rearranged,
+ * which is the single biggest risk in this change. Same row wins first, then the same side of
+ * the walkway, so a machine that stood on the left stays on the left and the arrangement a
+ * player chose survives the move.
+ */
+function nearestServicedTile(
+  desired: { column: number; row: number },
+  taken: ReadonlySet<string>,
+): { column: number; row: number } | null {
+  const candidates = servicedTiles()
+    .filter((tile) => !taken.has(`${tile.column}:${tile.row}`))
+    .map((tile) => ({
+      tile,
+      cost: Math.abs(tile.row - desired.row) * 4
+        + Math.abs(tile.column - desired.column)
+        // Crossing the walkway is the most disruptive move available, so it is the last resort.
+        + (Math.sign(tile.column - FLOOR_WALKWAY_COLUMN) === Math.sign(desired.column - FLOOR_WALKWAY_COLUMN) ? 0 : 12),
+    }))
+    .sort((a, b) => a.cost - b.cost);
+  return candidates[0]?.tile ?? null;
+}
+
 function sanitiseEquipmentTiles(raw: unknown): Record<string, { column: number; row: number }> {
   const source = (raw ?? {}) as Record<string, { column?: unknown; row?: unknown }>;
   const out: Record<string, { column: number; row: number }> = { ...DEFAULT_EQUIPMENT_TILES };
@@ -181,25 +212,44 @@ function sanitiseEquipmentTiles(raw: unknown): Record<string, { column: number; 
   for (const key of Object.keys(DEFAULT_EQUIPMENT_TILES)) {
     const column = Math.floor(Number(source[key]?.column));
     const row = Math.floor(Number(source[key]?.row));
-    const spot = Number.isFinite(column) && Number.isFinite(row) && tileIsBuildable(column, row)
-      && !taken.has(`${column}:${row}`)
-      ? { column, row } : DEFAULT_EQUIPMENT_TILES[key]!;
+    const asked = Number.isFinite(column) && Number.isFinite(row) ? { column, row } : null;
+    const spot = asked && tileIsBuildable(column, row) && !taken.has(`${column}:${row}`)
+      ? asked
+      // Relocated rather than reset: see nearestServicedTile.
+      : (asked ? nearestServicedTile(asked, taken) : null)
+        ?? nearestServicedTile(DEFAULT_EQUIPMENT_TILES[key]!, taken)
+        ?? DEFAULT_EQUIPMENT_TILES[key]!;
     out[key] = spot;
     taken.add(`${spot.column}:${spot.row}`);
   }
   return out;
 }
 
-/** Keep only fittings that exist and sit somewhere buildable. */
-function sanitiseFittings(raw: unknown): GameState["fittings"] {
+/**
+ * Keep every fitting an owner paid for, moving it into the bay if the floor changed under it.
+ *
+ * This used to DROP any fitting that failed tileIsBuildable. When the bay shrank that would
+ * have quietly destroyed up to six purchases of 240-360 $MM each, with no message and no
+ * refund — a paid item disappearing between one session and the next. A fitting is only
+ * discarded now if it is not a real fitting at all.
+ */
+function sanitiseFittings(raw: unknown, stations: Record<string, { column: number; row: number }>): GameState["fittings"] {
   const source = (raw ?? {}) as Record<string, { column?: unknown; row?: unknown }>;
   const out: GameState["fittings"] = {};
+  const taken = new Set(Object.values(stations).map((tile) => `${tile.column}:${tile.row}`));
   for (const key of Object.keys(FITTINGS) as FittingKey[]) {
-    const column = Math.floor(Number(source[key]?.column));
-    const row = Math.floor(Number(source[key]?.row));
-    if (Number.isFinite(column) && Number.isFinite(row) && tileIsBuildable(column, row)) {
-      out[key] = { column, row };
-    }
+    const entry = source[key];
+    if (!entry) continue;
+    const column = Math.floor(Number(entry.column));
+    const row = Math.floor(Number(entry.row));
+    const asked = Number.isFinite(column) && Number.isFinite(row) ? { column, row } : null;
+    if (!asked) continue;
+    const spot = tileIsBuildable(asked.column, asked.row) && !taken.has(`${asked.column}:${asked.row}`)
+      ? asked
+      : nearestServicedTile(asked, taken);
+    if (!spot) continue;
+    out[key] = spot;
+    taken.add(`${spot.column}:${spot.row}`);
   }
   return out;
 }
@@ -212,7 +262,7 @@ export function createFreshState(): GameState {
     errand: null,
     equipmentTiles: { ...DEFAULT_EQUIPMENT_TILES },
     fittings: {},
-    productStock: {}, todayRevenue: 0, todayExpenses: 0,
+    productStock: {}, productDemand: { date: today, sold: {} }, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
     governmentTreasury: INITIAL_MERC_DOLLAR_SUPPLY - INITIAL_CITIZEN_POOL - 750,
@@ -276,6 +326,18 @@ function finite(value: unknown, fallback: number, min = 0, max = Number.MAX_SAFE
   return typeof value === "number" && Number.isFinite(value) ? clamp(value, min, max) : fallback;
 }
 
+/**
+ * A quantity a player asked for, made safe to do arithmetic with.
+ *
+ * Every comparison against NaN is false, so an un-numeric count sails straight through
+ * `wallet < cost` and `stock < amount` and then turns the purse or the shelf into NaN — a
+ * save that can never be repaired. Anything that is not a real number counts as one.
+ */
+const MAX_BATCH = 9_999;
+function countOf(value: unknown): number {
+  return clamp(Math.floor(finite(value, 1, 1, MAX_BATCH)), 1, MAX_BATCH);
+}
+
 /** Upgrade historical player-visible copy without resetting an existing local save. */
 function canonicalizeSavedCopy(value: string): string {
   return value
@@ -324,6 +386,7 @@ export function loadState(): GameState {
       visits: Math.floor(finite(saved.daily.visits, 0, 0, 99_999)),
       claimed: Boolean(saved.daily.claimed),
     } : fresh.daily;
+    const savedEquipmentTiles = sanitiseEquipmentTiles(saved.equipmentTiles);
     const procurementUsed = blankProcurement();
     if (saved.procurement?.date === today) {
       for (const key of resourceKeys) procurementUsed[key] = Math.floor(finite(saved.procurement.used?.[key], 0, 0, 99_999));
@@ -435,8 +498,9 @@ export function loadState(): GameState {
       marketLastUpdated: finite(saved.marketLastUpdated, Date.now()), servicePriceIndex: finite(saved.servicePriceIndex, 1, .85, 1.3),
       districtBusinesses: Math.floor(finite(saved.districtBusinesses, 0, 0, 400)),
       // A save from before the floor was a grid has no layout; give it the authored one.
-      equipmentTiles: sanitiseEquipmentTiles(saved.equipmentTiles),
-      fittings: sanitiseFittings(saved.fittings),
+      // Stations are seated first because fittings must not be seated on top of one.
+      equipmentTiles: savedEquipmentTiles,
+      fittings: sanitiseFittings(saved.fittings, savedEquipmentTiles),
       mayorHidden: Boolean(saved.mayorHidden),
       installation: saved.installation && typeof saved.installation === "object"
         ? {
@@ -471,6 +535,17 @@ export function loadState(): GameState {
           if (PRODUCTS_BY_ID.has(id)) kept[id] = Math.floor(finite(qty, 0, 0, 99_999));
         }
         return kept;
+      })(),
+      // A save from yesterday carries no demand debt; only today's tally is worth restoring,
+      // and it is sanitised the same way stock is — a hand-edited save must not be able to
+      // hand back full-price demand, nor a NaN that poisons every later sale.
+      productDemand: (() => {
+        if (saved.productDemand?.date !== today) return { date: today, sold: {} };
+        const sold: Record<string, number> = {};
+        for (const [id, units] of Object.entries(saved.productDemand.sold ?? {})) {
+          if (PRODUCTS_BY_ID.has(id)) sold[id] = Math.floor(finite(units, 0, 0, 99_999));
+        }
+        return { date: today, sold };
       })(),
       todayRevenue: finite(saved.todayRevenue, 0),
       todayExpenses: finite(saved.todayExpenses, 0),
@@ -510,6 +585,7 @@ export class GameStore {
   private rollCalendar(now = Date.now()): void {
     const today = utcDay(now);
     if (this.state.daily.date !== today) this.state.daily = { date: today, jobs: 0, contracts: 0, trades: 0, visits: 0, claimed: false };
+    if (this.state.productDemand.date !== today) this.state.productDemand = { date: today, sold: {} };
     if (this.state.procurement.date !== today) {
       this.state.procurement = { date: today, used: blankProcurement() };
       this.state.todayRevenue = 0;
@@ -896,11 +972,14 @@ export class GameStore {
   buyResource(key: ResourceKey, quantity = 1): ActionResult {
     this.rollCalendar();
     this.rebalanceMarket();
-    const amount = Math.max(1, Math.floor(quantity));
+    const amount = countOf(quantity);
     if (RESOURCES[key].civicSupply === false) return this.result(false, `${RESOURCES[key].name} is recovered from production, not sold by the civic supplier.`);
     const unitPrice = this.marketBuyPrice(key); const cost = unitPrice * amount;
     if (this.state.wallet < cost) return this.result(false, `You need ${cost} ${CURRENCY_CODE}.`);
     this.state.wallet -= cost; this.state.governmentTreasury += cost; this.state.inventory[key] += amount; this.state.daily.trades += amount; this.moveMarket(key, 1, amount);
+    // Recorded like every other outgoing. Omitting it made "Today's costs" and "Profit"
+    // wrong for every offline purchase, while the server-mirrored path already counted it.
+    this.state.todayExpenses += cost;
     this.commit(`Civic fallback supplied ${amount} ${RESOURCES[key].short} at ${unitPrice} ${CURRENCY_CODE} each. Scarcity moved the market price.`, "success");
     return this.result(true, "Resource purchased.");
   }
@@ -1047,6 +1126,9 @@ export class GameStore {
    * back through the door as customers.
    */
   makeProduct(productId: string): ActionResult {
+    // Roll the day BEFORE touching today's ledger: commit() rolls it too, and a roll that
+    // lands after the write zeroes the entry while the money still moves.
+    this.rollCalendar();
     const product = PRODUCTS_BY_ID.get(productId);
     if (!product) return this.result(false, "No such product.");
     if (product.business !== this.state.license) return this.result(false, "Another trade makes that.");
@@ -1069,13 +1151,151 @@ export class GameStore {
   }
 
   /** Sell finished goods to whoever wants them — Mercedonians, or another trade. */
-  sellProduct(productId: string, quantity = 1): ActionResult {
+  /**
+   * What the civic supplier asks for another trade's product.
+   *
+   * A markup over what that trade sells it for, so buying an input is always dearer than
+   * making it — the supplier is a fallback, not a shortcut past the supply chain. When
+   * real makers are producing these, the maker market undercuts this price and the chain
+   * works the way it is meant to; the supplier just means it is never IMPOSSIBLE.
+   */
+  productBuyPrice(productId: string): number {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return 0;
+    // The premium COMPOUNDS with how deep the component sits in the ladder, because that is
+    // how many makers each took their own margin on the way up.
+    //
+    // A flat multiple cannot work here, and this is the measurement that settles it: buying
+    // every component in and selling the finished good earned 15,477 a day for a tier-3 trade
+    // against 363 for a tier-1 doing identical work — a 42.6x spread for the same five
+    // presses. A flat markup taxes only the bottom rung while the buyer keeps every rung's
+    // accumulated margin above it, so the deeper the ladder the better the shortcut paid.
+    // Compounding charges for the whole chain of work the supplier did on your behalf.
+    const depth = productChainDepth(productId);
+    const premium = Math.pow(CIVIC_PRODUCT_MARKUP, 1 + depth);
+    // Never at or below the best the district will ever pay, or buying from the supplier and
+    // selling it straight back is free money. Same rule marketSellPrice keeps for resources.
+    return Math.max(product.price + 1, Math.ceil(product.price * premium));
+  }
+
+  /** Units of this product the district has already taken today. */
+  soldToday(productId: string): number {
+    return Math.max(0, this.state.productDemand.sold[productId] ?? 0);
+  }
+
+  /**
+   * What ONE more unit fetches today, given how many have already gone.
+   *
+   * The district is not a bottomless buyer at a fixed price. Each tranche of
+   * PRODUCT_DAILY_TRANCHE units clears at DEMAND_TRANCHE_DECAY of the one before, down to a
+   * floor, and the tally resets with the UTC day — the same shape the service payout has used
+   * all along. This is what makes a money loop self-limiting instead of unbounded: it does not
+   * ban the loop, it just stops paying for the ten-thousandth identical crate.
+   */
+  productSellPrice(productId: string, alreadySold = -1): number {
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return 0;
+    const sold = alreadySold < 0 ? this.soldToday(productId) : Math.max(0, alreadySold);
+    const tranche = Math.floor(sold / PRODUCT_DAILY_TRANCHE);
+    const decayed = product.price * Math.pow(DEMAND_TRANCHE_DECAY, tranche);
+    // Floored on labour rather than on price: see PRODUCT_SATURATION_FLOOR. Every product
+    // costs more to make than a saturated district will pay for it, so over-production always
+    // stops being worth it — which is the whole point, and is what a price-fraction floor
+    // could not deliver. price > labour holds for all 75, so this never lifts the ask.
+    const floor = Math.min(product.price, product.labour * PRODUCT_SATURATION_FLOOR);
+    return Math.max(1, Math.round(Math.max(floor, decayed)));
+  }
+
+  /** What `amount` units fetch in total, priced one at a time as demand thins under them. */
+  productSaleGross(productId: string, amount: number): number {
+    const units = countOf(amount);
+    let sold = this.soldToday(productId);
+    let gross = 0;
+    for (let i = 0; i < units; i += 1) { gross += this.productSellPrice(productId, sold); sold += 1; }
+    return gross;
+  }
+
+  /**
+   * Buy a component from the civic supplier.
+   *
+   * Ten of the fifteen trades list products whose inputs are OTHER trades' products, and
+   * there was no way to obtain one: productStock only ever moved when you made, consumed
+   * or sold something yourself. A cratemill needs a rainwater draw and cut stone, neither
+   * of which a cratemill can make and neither of which could be bought — so two thirds of
+   * the roster could list five products and start none of them.
+   *
+   * The supply chain was designed and never opened. This opens it.
+   */
+  buyProduct(productId: string, quantity = 1): ActionResult {
+    // Roll the day BEFORE touching today's ledger: commit() rolls it too, and a roll that
+    // lands after the write zeroes the entry while the money still moves.
+    this.rollCalendar();
+    // A trade needs a trader. Neither of these checked for one, which is how the contribution
+    // wash was reachable in two clicks from a completely fresh save — no plot, no licence, no
+    // building, just buy from the supplier and sell straight back.
+    if (!this.state.buildingPlaced || !this.state.license) {
+      return this.result(false, "Open a business before you buy components.");
+    }
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such component.");
+    const amount = countOf(quantity);
+    const cost = this.productBuyPrice(productId) * amount;
+    if (this.state.wallet < cost) {
+      return this.result(false, `${product.name} costs ${cost} ${CURRENCY_CODE}.`);
+    }
+    this.state.wallet -= cost;
+    this.state.todayExpenses += cost;
+    // Paid into the civic treasury, like every other purchase from the city, so buying an
+    // input moves money rather than destroying it.
+    this.state.governmentTreasury += cost;
+    this.state.productStock[productId] = this.stockOf(productId) + amount;
+    this.commit(`Bought ${amount} ${product.name} for ${cost} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, "Bought from the civic supplier.");
+  }
+
+  /** What the civic supplier would charge to close every gap in this product's inputs. */
+  missingInputCost(product: Product): number {
+    return this.missingInputs(product)
+      .reduce((total, gap) => total + this.productBuyPrice(gap.product.id) * gap.short, 0);
+  }
+
+  /**
+   * Buy every input this product is short of, in one go.
+   *
+   * Ten of the fifteen trades make things out of OTHER trades' products, and nothing in the
+   * game ever put one of those in your hands — a cratemill could list five crates and start
+   * none of them. This is the shop that was missing. It is deliberately dearer than the
+   * shelf price so making your own always beats buying it in.
+   */
+  buyMissingInputs(productId: string): ActionResult {
     const product = PRODUCTS_BY_ID.get(productId);
     if (!product) return this.result(false, "No such product.");
-    const amount = Math.max(1, Math.floor(quantity));
+    const gaps = this.missingInputs(product);
+    if (!gaps.length) return this.result(false, `You already hold everything for a ${product.name}.`);
+    const cost = this.missingInputCost(product);
+    if (this.state.wallet < cost) {
+      return this.result(false, `Those components cost ${cost} ${CURRENCY_CODE}; you hold ${Math.floor(this.state.wallet)}.`);
+    }
+    for (const gap of gaps) this.buyProduct(gap.product.id, gap.short);
+    return this.result(true, `Components for a ${product.name} delivered.`);
+  }
+
+  sellProduct(productId: string, quantity = 1): ActionResult {
+    // Roll the day BEFORE touching today's ledger: commit() rolls it too, and a roll that
+    // lands after the write zeroes the entry while the money still moves.
+    this.rollCalendar();
+    // A trade needs a trader. Neither of these checked for one, which is how the contribution
+    // wash was reachable in two clicks from a completely fresh save — no plot, no licence, no
+    // building, just buy from the supplier and sell straight back.
+    if (!this.state.buildingPlaced || !this.state.license) {
+      return this.result(false, "Open a business before you sell goods.");
+    }
+    const product = PRODUCTS_BY_ID.get(productId);
+    if (!product) return this.result(false, "No such product.");
+    const amount = countOf(quantity);
     if (this.stockOf(productId) < amount) return this.result(false, `You only hold ${this.stockOf(productId)}.`);
 
-    const gross = product.price * amount;
+    const gross = this.productSaleGross(productId, amount);
     const tax = Math.floor(gross * TAX_RATE);
     const fromCitizens = product.buyer === "citizens";
     const pool = fromCitizens ? this.state.citizenPool : this.state.governmentTreasury;
@@ -1086,11 +1306,27 @@ export class GameStore {
     }
 
     this.state.productStock[productId] = this.stockOf(productId) - amount;
+    this.state.productDemand.sold[productId] = this.soldToday(productId) + amount;
     if (fromCitizens) this.state.citizenPool -= gross; else this.state.governmentTreasury -= gross;
     this.state.wallet += gross - tax;
     this.state.governmentTreasury += tax;
+    this.state.taxPaid += tax;
     this.state.lifetimeRevenue += gross;
     this.state.todayRevenue += gross - tax;
+    // NO addContribution HERE, deliberately. I added one and it was the worst thing in this
+    // change. The comment justifying it claimed contribution is a share of a fixed budget and
+    // so dilutes rather than inflates; that was asserted, never measured, and it is false —
+    // epochShare() is mine/(mine + COHORT_CONTRIBUTION_BASE) against a hardcoded 45,000, a
+    // synthetic denominator, so a new source INFLATES the claimant's payout. Measured: a week
+    // of the loop reached epochShare 0.85 of the epoch budget (63,660 $MM against 3,123 for
+    // honest play), and because the wash trade LOSES Merc Dollars while minting contribution,
+    // every profitability test in this file passed while it ran underneath them. The weights
+    // were calibrated when the largest contributing sale in the game grossed 85; a product
+    // grosses up to 6,706.
+    //
+    // The product chain genuinely should pay $MM one day. That needs SERVER-SIDE settlement —
+    // the server credits contribution_epoch only from settleSale, which no product path
+    // reaches — not a figure the client awards itself.
     this.addExperience(3 + product.complexity * 2);
     this.commit(`Sold ${amount} ${product.name} for ${gross} ${CURRENCY_CODE}.`, "success");
     return this.result(true, "Sold.");
@@ -1175,7 +1411,7 @@ export class GameStore {
   sellResource(key: ResourceKey, quantity = 1): ActionResult {
     this.rollCalendar();
     this.rebalanceMarket();
-    const amount = Math.max(1, Math.floor(quantity));
+    const amount = countOf(quantity);
     if (this.state.inventory[key] < amount) return this.result(false, `You do not hold ${amount} ${RESOURCES[key].short}.`);
     const citizenDemand = RESOURCES[key].buyer === "citizens";
     const sale = this.demandSaleGross(key, amount);
@@ -1420,7 +1656,7 @@ export class GameStore {
 
   hireStaff(count = 1): ActionResult {
     if (!this.state.buildingPlaced) return this.result(false, "Build your business before hiring.");
-    const hired = Math.max(1, Math.floor(count));
+    const hired = countOf(count);
     this.state.staff += hired;
     this.commit(`${hired} Mercedonian${hired === 1 ? "" : "s"} joined your payroll at ${STAFF_DAILY_WAGE} ${CURRENCY_CODE} a day each.`, "success");
     return this.result(true, "Hired.");
@@ -1428,7 +1664,7 @@ export class GameStore {
 
   releaseStaff(count = 1): ActionResult {
     if (this.state.staff <= 0) return this.result(false, "Nobody is on your payroll.");
-    const released = Math.min(this.state.staff, Math.max(1, Math.floor(count)));
+    const released = Math.min(this.state.staff, countOf(count));
     this.state.staff -= released;
     this.state.reputation = Math.max(0, this.state.reputation - released);
     this.commit(`${released} Mercedonian${released === 1 ? "" : "s"} left the payroll.`, "warning");

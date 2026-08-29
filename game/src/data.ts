@@ -601,6 +601,52 @@ export const FITTINGS: Record<FittingKey, FittingSpec> = {
   },
 };
 
+/**
+ * What the civic supplier adds over a product's own sale price.
+ *
+ * Dear enough that buying a component is never better than making it or getting it from
+ * another maker, cheap enough that a trade is never simply stuck.
+ */
+/**
+ * What the civic supplier adds on top of a component's shelf price.
+ *
+ * This is a convenience premium, NOT the anti-farming mechanism. I tried to make it the
+ * anti-farming mechanism and it cannot be one: a flat multiple taxes only the bottom rung of
+ * a chain while the maker keeps every rung's margin above it, so the markup that stops a
+ * two-licence chain (2.15) is not the one that stops a five-licence chain (42.3, i.e. no
+ * number at all). Worse, the 1.6 that bought safety at one hop made all fifty products with
+ * inputs a guaranteed loss, so nobody would ever have pressed the button.
+ *
+ * Unbounded selling was the actual defect. PRODUCT_DAILY_TRANCHE fixes that directly, which
+ * frees this constant to do its real job: make buying a component in dearer than making it,
+ * so the supplier is the convenient option and never the clever one.
+ */
+export const CIVIC_PRODUCT_MARKUP = 1.15;
+
+/**
+ * How many of one product the district absorbs at full price in a day, before each further
+ * tranche fetches DEMAND_TRANCHE_DECAY less, down to DEMAND_PRICE_FLOOR.
+ *
+ * Products had no demand limit at all: sellProduct paid a FIXED price for UNLIMITED units.
+ * That is the root cause of every money loop measured here — the multi-licence supplier chain
+ * (+212 to +772 a sale, forever), and the older tier-1 faucet that needs no supplier at all
+ * (make from nothing, sell at shelf price, repeat). Resources have had a daily procurement
+ * quota and depth-relative price impact all along; products simply never got either.
+ */
+export const PRODUCT_DAILY_TRANCHE = 3;
+
+/**
+ * What a saturated district still pays, as a fraction of the product's LABOUR — not of its
+ * price.
+ *
+ * A price-fraction floor cannot do this job. Borrowing the service floor (0.34 of price) left
+ * 70 of the 75 products still profitable once demand was exhausted, because labour is only
+ * 23-40% of price, so a third of price still covers it — an unbounded faucet, merely a slower
+ * one. Below 1 this is unprofitable BY CONSTRUCTION for every product, whatever its margin,
+ * and stays true for products nobody has written yet.
+ */
+export const PRODUCT_SATURATION_FLOOR = 0.8;
+
 export const FLOOR_TILE = 1.6;
 export const FLOOR_COLUMNS = 13;
 export const FLOOR_ROWS = 7;
@@ -625,20 +671,46 @@ export function worldToTile(x: number, z: number): { column: number; row: number
   };
 }
 
-/** Whether a tile may hold equipment at all, before asking what is already there. */
+/**
+ * The serviced bay: the columns either side of the walkway, where power, water and drainage
+ * run. Machines have to reach the spine.
+ *
+ * This replaces "anywhere except the walkway", and it is the load-bearing change in the whole
+ * floor design. With 84 buildable tiles NO adjacency rule can ever bind — a hill-climber and
+ * an exhaustive enumeration of 909,298 station arrangements both found that the shipped
+ * default layout, untouched, already scores 98-99% of the theoretical best. Placement could
+ * not matter at that size, so the tile grid was decoration. At 28 tiles it is a real choice.
+ *
+ * The comment this replaces claimed floor space beside a machine was the scarce thing. It
+ * never was. This makes it true.
+ */
+export const SERVICE_BAY_REACH = 2;
 export function tileIsBuildable(column: number, row: number): boolean {
   if (column < 0 || column >= FLOOR_COLUMNS || row < 0 || row >= FLOOR_ROWS) return false;
   // The walkway stays open from the door to the back wall, or a maker can seal themselves
   // off from their own machines with a well-placed press.
-  return column !== FLOOR_WALKWAY_COLUMN;
+  if (column === FLOOR_WALKWAY_COLUMN) return false;
+  const reach = Math.abs(column - FLOOR_WALKWAY_COLUMN);
+  return reach <= SERVICE_BAY_REACH;
+}
+
+/** Every tile a machine may stand on, in reading order. */
+export function servicedTiles(): Array<{ column: number; row: number }> {
+  const tiles: Array<{ column: number; row: number }> = [];
+  for (let row = 0; row < FLOOR_ROWS; row += 1) {
+    for (let column = 0; column < FLOOR_COLUMNS; column += 1) {
+      if (tileIsBuildable(column, row)) tiles.push({ column, row });
+    }
+  }
+  return tiles;
 }
 
 /** Where the four stations stand before an owner moves them. */
 export const DEFAULT_EQUIPMENT_TILES: Record<string, { column: number; row: number }> = {
-  yield: { column: 2, row: 2 },
-  capacity: { column: 10, row: 2 },
-  speed: { column: 2, row: 4 },
-  appeal: { column: 10, row: 4 },
+  yield: { column: 4, row: 1 },
+  capacity: { column: 8, row: 1 },
+  speed: { column: 4, row: 4 },
+  appeal: { column: 8, row: 4 },
 };
 
 export const CIVIC_BOARD_BASE = 3;

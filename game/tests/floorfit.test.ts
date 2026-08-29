@@ -18,7 +18,15 @@ describe("the cleared floor fits its room", () => {
     }
     console.log(`room ${ROOM_HALF_WIDTH * 2}x${ROOM_HALF_DEPTH * 2}, ${buildable} buildable tiles, nothing else on the floor`);
     expect(outside, `tiles outside the walls: ${outside.join(" ")}`).toHaveLength(0);
-    expect(buildable, "a floor worth arranging").toBeGreaterThan(40);
+    // This used to assert `> 40`, on my assumption that more buildable tiles meant more floor
+    // worth arranging. Measurement said the exact opposite: at 84 tiles a hill-climber and an
+    // exhaustive enumeration of 909,298 station arrangements both found the untouched default
+    // layout already scoring 98-99% of the theoretical best, because with that much room every
+    // adjacency rule is trivially satisfiable. A big floor is not an interesting one. The bay
+    // has to be tight enough that a placement can be wrong, and large enough to hold all ten
+    // things a maxed-out maker owns.
+    expect(buildable, "tight enough that arrangement is a real choice").toBeLessThanOrEqual(32);
+    expect(buildable, "roomy enough for 4 machines and 6 fittings").toBeGreaterThanOrEqual(10 + 4);
   });
 
 });

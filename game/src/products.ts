@@ -108,3 +108,24 @@ export const PRODUCTS_BY_ID = new Map(PRODUCTS.map((entry) => [entry.id, entry])
 export function productsOf(business: LicenseKey): Product[] {
   return PRODUCTS.filter((entry) => entry.business === business);
 }
+
+
+/**
+ * How many rungs of the ladder stand under a product.
+ *
+ * 0 for something made from nothing, 1 for something made from those, 2 for the top. Memoised,
+ * and cycle-guarded so a future data edit that makes A need B and B need A cannot hang the game.
+ */
+const CHAIN_DEPTH = new Map<string, number>();
+export function productChainDepth(productId: string, seen: ReadonlySet<string> = new Set()): number {
+  const cached = CHAIN_DEPTH.get(productId);
+  if (cached !== undefined) return cached;
+  const product = PRODUCTS_BY_ID.get(productId);
+  if (!product || seen.has(productId)) return 0;
+  const inputs = Object.keys(product.inputs ?? {});
+  if (!inputs.length) { CHAIN_DEPTH.set(productId, 0); return 0; }
+  const guard = new Set(seen).add(productId);
+  const depth = 1 + Math.max(...inputs.map((id) => productChainDepth(id, guard)));
+  if (seen.size === 0) CHAIN_DEPTH.set(productId, depth);
+  return depth;
+}

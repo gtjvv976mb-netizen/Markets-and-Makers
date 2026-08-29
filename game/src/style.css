@@ -496,7 +496,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .interior-header-actions { display: flex; align-items: center; gap: 10px; }
 .interior-header-actions > span { padding: 7px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #ffe29a; background: rgba(255,255,255,.08); font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
 .interior-grid { display: grid; height: calc(100% - 68px);
-  grid-template-columns: minmax(0,1fr) var(--interior-aside, 236px); overflow: hidden;
+  grid-template-columns: minmax(0,1fr) var(--interior-aside, 348px); overflow: hidden;
   transition: grid-template-columns .2s ease; }
 /* The room is the screen. The readout is a narrow column of names and levels laid over the
    far edge of it, not a second panel competing for the frame — at 236px it holds a station
@@ -1510,6 +1510,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .product-needs .have { background: #e4f1e4; color: #2f6b45; }
 .product-needs .short { background: #f8e6e2; color: #9e2b27; }
 .product-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+/* A row holding one control spans the card instead of sitting in half of a two-column
+   grid with an empty cell beside it. */
+.product-actions.single { grid-template-columns: 1fr; }
 .product-actions button { min-height: 40px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .product-hint { display: block; margin-top: 7px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 
@@ -3260,7 +3263,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   font-weight: 950;
 }
 .interior-shell .close-button > span { font-size: 14px; }
-.interior-grid { height: calc(100% - 72px); grid-template-columns: minmax(0,1fr) minmax(340px,390px); }
+/* Merged into the single .interior-grid rule near the top of this file. Two declarations at
+   equal specificity meant this one won, and because it does not reference --interior-aside the
+   fold button stopped working: collapsing the readout left a 340px blank column instead of
+   letting the room run edge to edge. */
+.interior-grid { height: calc(100% - 72px); }
 .interior-stage {
   background:
     radial-gradient(circle at 50% 18%,color-mix(in srgb,var(--interior-accent) 46%,#84c7b5),#164e54 76%);

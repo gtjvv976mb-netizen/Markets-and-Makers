@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { dampWrappedYaw, headingYaw, planarSpeed, walkAnimationRate } from "./characterRig";
 import {
-  BUSINESS, DEFAULT_EQUIPMENT_TILES, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE, MAX_UPGRADE_LEVEL,
-  tileIsBuildable, tileToWorld, worldToTile,
+  BUSINESS, DEFAULT_EQUIPMENT_TILES, FITTINGS, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE,
+  FLOOR_WALKWAY_COLUMN, MAX_UPGRADE_LEVEL, servicedTiles, tileIsBuildable, tileToWorld, worldToTile,
 } from "./data";
-import type { BusinessConfig, LicenseKey, UpgradeKey } from "./data";
+import type { BusinessConfig, FittingKey, LicenseKey, UpgradeKey } from "./data";
 import { createPlayerMercedonian } from "./mercedonianAvatar";
 import { surfaceTile } from "./tileTextures";
 
@@ -12,6 +12,8 @@ export interface InteriorEnterOptions {
   business: BusinessConfig;
   /** Where this owner has put each machine. Authored defaults if they never moved one. */
   tiles?: Record<string, { column: number; row: number }>;
+  /** Which fittings have been bought, and the tile each one stands on. */
+  fittings?: Partial<Record<FittingKey, { column: number; row: number } | null>>;
   /** Called when a placement drag ends on a tile. The store decides whether it sticks. */
   onPlace?: (key: string, column: number, row: number, kind: "station" | "fitting") => boolean;
   /** Recommended when several custom configs share a display name. Inferred otherwise. */
@@ -401,6 +403,8 @@ export class InteriorWorld {
   private ghostTile: { column: number; row: number } | null = null;
   private gridHelper: THREE.Group | null = null;
   private tiles: Record<string, { column: number; row: number }> = {};
+  private fittingTiles: Partial<Record<FittingKey, { column: number; row: number } | null>> = {};
+  private readonly fittingRoots = new Map<FittingKey, THREE.Group>();
   private onPlace: ((key: string, column: number, row: number, kind: "station" | "fitting") => boolean) | null = null;
   private pinchDistance = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
@@ -500,11 +504,141 @@ export class InteriorWorld {
       if (held.kind === "station") {
         this.tiles = { ...this.tiles, [held.key]: tile };
         this.layoutStations();
+      } else {
+        this.fittingTiles = { ...this.fittingTiles, [held.key as FittingKey]: tile };
+        this.layoutFittings();
       }
+      this.rebuildObstacles();
     }
   }
 
   get isPlacing(): boolean { return this.carrying !== null; }
+
+  /**
+   * Build the six fittings, once, and park them where their owner left them.
+   *
+   * These were bought and paid for (240-360 $MM each) and then never drawn. `buildInterior`
+   * raised four stations and stopped; `endPlacement` only re-laid the floor when the thing in
+   * hand was a station. So a maker dragged a green box onto a tile, released it, the store
+   * took the money — and the room stayed empty, for good. The comment above the stations even
+   * promised "whatever fittings they have bought and placed beside them" while nothing in this
+   * file could draw one.
+   *
+   * Each is its own shape rather than a generic crate: the whole point of the adjacency rule is
+   * that you can look at the floor and see which machine a thing is feeding.
+   */
+  private createFittings(timber: THREE.Material): void {
+    this.fittingRoots.clear();
+    const design = INTERIOR_ROOMS[this.license];
+    const accent = new THREE.MeshStandardMaterial({ color: design.accent, roughness: 0.42, metalness: 0.22 });
+    const dark = new THREE.MeshStandardMaterial({ color: design.trim, roughness: 0.66, metalness: 0.18 });
+    const glass = new THREE.MeshStandardMaterial({
+      color: design.glass, roughness: 0.16, metalness: 0.05, transparent: true, opacity: 0.62,
+    });
+
+    const add = (root: THREE.Group, geo: THREE.BufferGeometry, mat: THREE.Material,
+                 pos: [number, number, number], rot?: [number, number, number]): THREE.Mesh => {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(...pos);
+      if (rot) mesh.rotation.set(...rot);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+      return mesh;
+    };
+
+    for (const key of Object.keys(FITTINGS) as FittingKey[]) {
+      const root = new THREE.Group();
+      root.name = `fitting-${key}`;
+      switch (key) {
+        case "hopper": {   // a funnel on legs, mouth up: it feeds the line
+          add(root, new THREE.CylinderGeometry(0.34, 0.1, 0.46, 10, 1, true), accent, [0, 0.62, 0]);
+          add(root, new THREE.CylinderGeometry(0.11, 0.11, 0.3, 8), dark, [0, 0.24, 0]);
+          for (const [x, z] of [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]]) {
+            add(root, new THREE.CylinderGeometry(0.032, 0.032, 0.4, 6), dark, [x, 0.2, z]);
+          }
+          break;
+        }
+        case "kiln": {     // a squat drum with a glowing door
+          add(root, new THREE.CylinderGeometry(0.36, 0.38, 0.62, 12), dark, [0, 0.31, 0]);
+          add(root, new THREE.CircleGeometry(0.2, 12), accent, [0, 0.34, 0.385], [0, 0, 0]);
+          add(root, new THREE.CylinderGeometry(0.06, 0.06, 0.5, 6), dark, [0.2, 0.87, -0.16]);
+          break;
+        }
+        case "governor": { // a spinning regulator on a post
+          add(root, new THREE.CylinderGeometry(0.09, 0.12, 0.66, 8), dark, [0, 0.33, 0]);
+          add(root, new THREE.SphereGeometry(0.13, 10, 8), accent, [0, 0.74, 0]);
+          for (const sign of [-1, 1]) {
+            add(root, new THREE.SphereGeometry(0.075, 8, 6), accent, [0.22 * sign, 0.62, 0]);
+            add(root, new THREE.CylinderGeometry(0.022, 0.022, 0.3, 5), dark,
+                [0.11 * sign, 0.68, 0], [0, 0, sign * 0.72]);
+          }
+          break;
+        }
+        case "sorter": {   // an inclined belt over a pair of bins
+          add(root, new THREE.BoxGeometry(0.78, 0.07, 0.3), dark, [0, 0.56, 0], [0, 0, 0.22]);
+          for (const sign of [-1, 1]) add(root, new THREE.BoxGeometry(0.28, 0.26, 0.28), accent, [0.24 * sign, 0.13, 0]);
+          add(root, new THREE.CylinderGeometry(0.05, 0.05, 0.34, 8), dark, [-0.36, 0.36, 0], [Math.PI / 2, 0, 0]);
+          break;
+        }
+        case "rack": {     // open shelving, the thing that holds finished goods
+          for (const y of [0.2, 0.46, 0.72]) add(root, new THREE.BoxGeometry(0.74, 0.045, 0.36), timber, [0, y, 0]);
+          for (const [x, z] of [[-0.34, -0.16], [0.34, -0.16], [-0.34, 0.16], [0.34, 0.16]]) {
+            add(root, new THREE.BoxGeometry(0.05, 0.78, 0.05), dark, [x, 0.39, z]);
+          }
+          add(root, new THREE.BoxGeometry(0.2, 0.16, 0.22), accent, [-0.16, 0.55, 0]);
+          break;
+        }
+        case "counter": {  // a serving counter with a glass front: this one faces customers
+          add(root, new THREE.BoxGeometry(0.86, 0.5, 0.42), timber, [0, 0.25, 0]);
+          add(root, new THREE.BoxGeometry(0.88, 0.06, 0.46), accent, [0, 0.53, 0]);
+          add(root, new THREE.BoxGeometry(0.8, 0.26, 0.03), glass, [0, 0.7, 0.2]);
+          for (const sign of [-1, 1]) add(root, new THREE.CylinderGeometry(0.02, 0.02, 0.24, 5), dark, [0.38 * sign, 0.68, 0.2]);
+          break;
+        }
+      }
+      root.visible = false;
+      this.content.add(root);
+      this.fittingRoots.set(key, root);
+    }
+    this.layoutFittings();
+  }
+
+  /** Show the fittings that have been bought, on the tiles they were put on. */
+  private layoutFittings(): void {
+    for (const [key, root] of this.fittingRoots) {
+      const tile = this.fittingTiles[key] ?? null;
+      if (!tile) { root.visible = false; continue; }
+      const world = tileToWorld(tile.column, tile.row);
+      root.position.set(world.x, 0, world.z);
+      // Turned to face the walkway, so a row of fittings reads as a line of work rather than
+      // six objects that happen to share a floor.
+      root.rotation.y = world.x > 0 ? -Math.PI / 2 : Math.PI / 2;
+      root.visible = true;
+    }
+  }
+
+  /**
+   * Rebuild the walk-blockers from where things ACTUALLY stand.
+   *
+   * `createStation` pushed a collider at the authored constant and `layoutStations` then moved
+   * the machine without touching it, so every collider sat 2-3 units from its own machine:
+   * four invisible pillars mid-floor, and four machines you could walk straight through.
+   */
+  private rebuildObstacles(): void {
+    this.obstacles.length = 0;
+    for (const key of this.stations.keys()) {
+      const tile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key as UpgradeKey];
+      if (!tile) continue;
+      const world = tileToWorld(tile.column, tile.row);
+      this.obstacles.push({ x: world.x, z: world.z, radius: 0.92 });
+    }
+    for (const tile of Object.values(this.fittingTiles)) {
+      if (!tile) continue;
+      const world = tileToWorld(tile.column, tile.row);
+      this.obstacles.push({ x: world.x, z: world.z, radius: 0.55 });
+    }
+  }
 
   /** Move every station to the tile its owner put it on. */
   private layoutStations(): void {
@@ -575,9 +709,16 @@ export class InteriorWorld {
     const world = tileToWorld(column, row);
     this.ghost.position.set(world.x, 0, world.z);
     const held = this.carrying;
-    const occupied = Object.entries(this.tiles)
+    // Fittings count as occupancy too. This only consulted `this.tiles` — stations — so the
+    // ghost glowed green over a tile that already held a fitting and the store then refused
+    // the drop, which reads to a player as the game randomly rejecting a legal move.
+    const stationClash = Object.entries(this.tiles)
       .some(([key, tile]) => !(held.kind === "station" && key === held.key)
         && tile.column === column && tile.row === row);
+    const fittingClash = Object.entries(this.fittingTiles)
+      .some(([key, tile]) => !!tile && !(held.kind === "fitting" && key === held.key)
+        && tile.column === column && tile.row === row);
+    const occupied = stationClash || fittingClash;
     const allowed = tileIsBuildable(column, row) && !occupied;
     this.ghost.traverse((node) => {
       if (node instanceof THREE.Mesh && node.material instanceof THREE.MeshBasicMaterial) {
@@ -829,6 +970,7 @@ export class InteriorWorld {
     this.clearGhost();
     this.showGrid(false);
     this.tiles = { ...DEFAULT_EQUIPMENT_TILES, ...(options.tiles ?? {}) };
+    this.fittingTiles = { ...(options.fittings ?? {}) };
     this.onPlace = options.onPlace ?? null;
     this.applyCameraOrbit();
     this.business = options.business;
@@ -1170,6 +1312,12 @@ export class InteriorWorld {
     this.content.name = "interactive-business-interior";
     this.scene.add(this.content);
     this.stations.clear();
+    // The grid and the fitting roots live on `content`, which was just disposed and replaced.
+    // Keeping the stale handles meant showGrid() saw a non-null gridHelper, skipped rebuilding
+    // it, and toggled `visible` on a group no longer in the scene — so from the second visit
+    // to any interior onward, the placement grid never appeared again.
+    this.gridHelper = null;
+    this.fittingRoots.clear();
     this.interactiveObjects.length = 0;
     this.obstacles.length = 0;
     this.ambientObjects.length = 0;
@@ -1244,10 +1392,14 @@ export class InteriorWorld {
 
     this.createRoomShell(design, stone, timber, teal, glass, accentMaterial);
     this.createFloorStory(design);
+    this.createServiceBay(design);
+    this.dressShopFloor(design);
 
     this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
     for (const definition of STATIONS) this.createStation(definition, cream, timber);
+    this.createFittings(timber);
+    this.rebuildObstacles();
 
     // NOTHING ELSE STANDS ON THE FLOOR.
     //
@@ -1361,11 +1513,20 @@ export class InteriorWorld {
         sideRails(timber, 4.7);
         for (const x of [-6.15, -3.75, 3.75, 6.15]) windowBay(x, 2.05, 3.4, 2.25);
         for (const x of [-5.9, -3.65, 3.65, 5.9]) arch(x, 2.35, 1.15, accent, 0.92);
-        for (const x of [-7.35, 7.35]) {
+        // Canopy ribs, ABOVE the room rather than through it.
+        //
+        // These were quarter-torus arcs of radius 2.45 centred at x +-7.35 and y 2.25 — well
+        // inside the 11-unit half-width and low enough that each one swept down across the
+        // floor the player builds on. Rendered in the dark timber material against a pale
+        // floor they read as black scribbles lying over the tiles, not as a roof. Moved out
+        // to the wall line and lifted so they arc overhead, which is what a barrel-biome rib
+        // actually does, and given the lighter trim so they sit back rather than dominate.
+        for (const x of [-10.15, 10.15]) {
           for (const z of [-4.6, -1.5, 1.6, 4.7]) {
-            const rib = new THREE.Mesh(new THREE.TorusGeometry(2.45, 0.065, 5, 14, Math.PI * 0.48), timber);
-            rib.position.set(x, 2.25, z);
+            const rib = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.055, 5, 14, Math.PI * 0.42), accent);
+            rib.position.set(x, 3.6, z);
             rib.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
+            rib.rotation.z = x < 0 ? -0.18 : 0.18;
             this.content.add(rib);
           }
         }
@@ -1500,6 +1661,123 @@ export class InteriorWorld {
   }
 
   /** A thin, non-colliding production diagram embedded in the floor. */
+  /**
+   * Paint the serviced bay, and dress the floor outside it.
+   *
+   * Both halves of this are required by the bay, not decoration. The bay cut the buildable
+   * floor from 84 tiles to 28, and a rule the player cannot see is a tax they resent rather
+   * than a puzzle they solve — so the buildable region is drawn as worked surface with a
+   * keyline before anyone has to ask where machines go. And the 56 tiles now outside it would
+   * otherwise be bare, which would leave the room reading emptier than the diorama it
+   * replaced. The outer floor becomes the shop: the trade's own dressing lives there, where a
+   * machine can never be dropped on top of it.
+   */
+  private createServiceBay(design: RoomDesign): void {
+    const tiles = servicedTiles();
+    if (!tiles.length) return;
+    const columns = [...new Set(tiles.map((tile) => tile.column))].sort((a, b) => a - b);
+    const left = columns.filter((column) => column < FLOOR_WALKWAY_COLUMN);
+    const right = columns.filter((column) => column > FLOOR_WALKWAY_COLUMN);
+    const rows = [...new Set(tiles.map((tile) => tile.row))];
+    const depth = (Math.max(...rows) - Math.min(...rows) + 1) * FLOOR_TILE;
+    const midRow = (Math.max(...rows) + Math.min(...rows)) / 2;
+
+    // Worked surface, deliberately darker than the floor it sits on. At the trade's own path
+    // colour and half opacity this was invisible against the floor — which fails its only job,
+    // because a buildable region the player cannot see is a rule they discover by being
+    // refused. Darkened and given a bright keyline so the bay reads at a glance.
+    const worked = new THREE.Color(design.wall).lerp(new THREE.Color(0x000000), 0.28);
+    const surface = new THREE.MeshStandardMaterial({
+      color: worked, roughness: 0.94, metalness: 0.06,
+      transparent: true, opacity: 0.9, depthWrite: false,
+    });
+    const keyline = new THREE.MeshBasicMaterial({
+      color: design.accent, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide,
+    });
+
+    for (const bank of [left, right]) {
+      if (!bank.length) continue;
+      const width = bank.length * FLOOR_TILE;
+      const centre = tileToWorld((bank[0]! + bank[bank.length - 1]!) / 2, midRow);
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), surface);
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(centre.x, 0.024, centre.z);
+      pad.receiveShadow = true;
+      this.content.add(pad);
+
+      // A keyline round the bank, the way the world's own tiles are edged.
+      for (const [w, d, ox, oz] of [[width, 0.1, 0, -depth / 2], [width, 0.1, 0, depth / 2],
+                                    [0.1, depth, -width / 2, 0], [0.1, depth, width / 2, 0]] as Array<[number, number, number, number]>) {
+        const edge = new THREE.Mesh(new THREE.PlaneGeometry(w, d), keyline);
+        edge.rotation.x = -Math.PI / 2;
+        edge.position.set(centre.x + ox, 0.032, centre.z + oz);
+        this.content.add(edge);
+      }
+    }
+  }
+
+  /**
+   * The shop: what stands on the floor the player cannot build on.
+   *
+   * Deliberately sparse and pushed to the outer columns. The room was emptied on purpose once
+   * before — it used to open with a centrepiece and a floor kit already occupying the tiles a
+   * maker wanted — so this only ever dresses tiles that are NOT buildable, and never the bay.
+   */
+  private dressShopFloor(design: RoomDesign): void {
+    const timber = new THREE.MeshStandardMaterial({ color: design.trim, roughness: 0.72, metalness: 0.08 });
+    const leaf = new THREE.MeshStandardMaterial({ color: design.accent, roughness: 0.58, metalness: 0.05 });
+    const crate = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.78, metalness: 0.06 });
+
+    const at = (column: number, row: number): { x: number; z: number } => tileToWorld(column, row);
+    const outerLeft = 1, outerRight = FLOOR_COLUMNS - 2;
+
+    // Planters down both outer edges: greenery is the house language, and it reads at any
+    // orbit angle without competing with the machines in the middle.
+    for (const column of [outerLeft, outerRight]) {
+      for (const row of [0, 3, 6]) {
+        const spot = at(column, row);
+        const tub = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.29, 0.34, 8), timber);
+        tub.position.set(spot.x, 0.17, spot.z);
+        tub.castShadow = true;
+        this.content.add(tub);
+        for (let i = 0; i < 5; i += 1) {
+          const angle = (i / 5) * Math.PI * 2;
+          const frond = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.62, 5), leaf);
+          frond.position.set(spot.x + Math.cos(angle) * 0.13, 0.6, spot.z + Math.sin(angle) * 0.13);
+          frond.rotation.z = Math.cos(angle) * 0.42;
+          frond.rotation.x = Math.sin(angle) * 0.42;
+          this.content.add(frond);
+        }
+      }
+    }
+
+    // A low stack of the trade's own goods against each far corner.
+    for (const [column, row] of [[outerLeft, 1], [outerRight, 5]] as Array<[number, number]>) {
+      const spot = at(column, row);
+      for (let i = 0; i < 3; i += 1) {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.42), crate);
+        box.position.set(spot.x + (i % 2) * 0.08, 0.15 + i * 0.31, spot.z - i * 0.05);
+        box.rotation.y = i * 0.16;
+        box.castShadow = true;
+        this.content.add(box);
+      }
+    }
+
+    // A bench facing the aisle, so the shop half has somewhere to stand and look.
+    for (const column of [outerLeft + 1, outerRight - 1]) {
+      const spot = at(column, 3);
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 1.15), timber);
+      seat.position.set(spot.x, 0.42, spot.z);
+      seat.castShadow = true;
+      this.content.add(seat);
+      for (const dz of [-0.42, 0.42]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.42, 0.09), timber);
+        leg.position.set(spot.x, 0.21, spot.z + dz);
+        this.content.add(leg);
+      }
+    }
+  }
+
   private createFloorStory(design: RoomDesign): void {
     const path = new THREE.Mesh(
       new THREE.PlaneGeometry(2.35, 10.5),
@@ -1653,7 +1931,7 @@ export class InteriorWorld {
     const texture = this.createSignTexture("RETURN OUTSIDE", "E  EXIT BUSINESS", `#${accent.getHexString()}`, 640, 180);
     const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
     label.renderOrder = 10;
-    label.scale.set(3.0, 0.84, 1);
+    label.scale.set(1.8, 0.5, 1);
     label.position.set(0, 3.55, 0.2);
     root.add(label);
 
@@ -1755,9 +2033,11 @@ export class InteriorWorld {
     }
 
     const labelTexture = this.createStationTexture(definition, design, this.upgrades[definition.key], accent);
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false, depthTest: false }));
+    // Was 3.25 units — 2.03 tiles — with depthTest off, so labels overlapped each other and
+    // painted straight through the machines in front of them. Sized to sit inside one tile.
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false }));
     label.renderOrder = 10;
-    label.scale.set(3.25, 0.92, 1);
+    label.scale.set(1.95, 0.55, 1);
     label.position.set(0, 3.05, 0);
     root.add(label);
 

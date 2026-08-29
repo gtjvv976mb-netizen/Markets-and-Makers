@@ -152,9 +152,20 @@ describe("a save can never strand a machine", () => {
     return new GameStore();
   };
 
-  it("pulls a machine off the grid back to its authored spot", () => {
-    const store = load({ yield: { column: 99, row: 99 } });
-    expect(store.equipmentTile("yield")).toEqual(DEFAULT_EQUIPMENT_TILES.yield);
+  it("pulls a machine off the grid to the nearest legal tile, not back to the default", () => {
+    // This asserted a reset to DEFAULT_EQUIPMENT_TILES. That is the wrong behaviour now the
+    // serviced bay has shrunk the floor: every save written before it has machines at columns
+    // 2 and 10, and resetting them would greet a returning player with a room somebody else
+    // rearranged — the single biggest risk in the change. The machine is relocated instead,
+    // keeping its row and its side of the walkway.
+    const stranded = { column: 12, row: 6 };
+    const seated = load({ ...DEFAULT_EQUIPMENT_TILES, yield: stranded }).state.equipmentTiles["yield"]!;
+    expect(tileIsBuildable(seated.column, seated.row), "must land somewhere legal").toBe(true);
+    expect(seated.row, "keeps the row it was on").toBe(stranded.row);
+    expect(Math.sign(seated.column - FLOOR_WALKWAY_COLUMN), "keeps its side of the walkway")
+      .toBe(Math.sign(stranded.column - FLOOR_WALKWAY_COLUMN));
+    expect(seated, "and is NOT simply reset to the authored default")
+      .not.toEqual(DEFAULT_EQUIPMENT_TILES["yield"]);
   });
 
   it("pulls a machine out of the walkway", () => {

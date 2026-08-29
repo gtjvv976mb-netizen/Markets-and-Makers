@@ -1068,7 +1068,15 @@ function productionMarkup(): string {
             <button data-action="make-product" data-product="${product.id}" ${store.canMake(product) ? "" : "disabled"}>Make · ${product.labour} ${CURRENCY_CODE}</button>
             <button class="secondary" data-action="errand-sell-product" data-product="${product.id}" ${stock > 0 && !store.errand() ? "" : "disabled"}>${store.errand() ? "Hands full" : `Ship · ${product.price}`}</button>
           </div>
-          ${missing.length ? `<small class="product-hint">Buy ${missing.map((m) => `${m.short} ${m.product.name}`).join(", ")} from ${[...new Set(missing.map((m) => BUSINESS[m.product.business].name))].join(" or ")}.</small>` : ""}
+          ${missing.length ? (() => {
+            // Quote the whole job, not just the components: a player who spent their last MM
+            // on parts they then cannot afford the labour for is stranded holding inputs.
+            const parts = store.missingInputCost(product);
+            const job = parts + product.labour;
+            const makers = [...new Set(missing.map((m) => BUSINESS[m.product.business].name))].join(" or ");
+            return `<div class="product-actions single"><button class="secondary" data-action="buy-inputs" data-product="${product.id}" ${store.state.wallet >= job ? "" : "disabled"}>Buy components \u00B7 ${parts} ${CURRENCY_CODE}</button></div>
+          <small class="product-hint">Needs ${missing.map((m) => `${m.short} ${m.product.name}`).join(", ")}, made by ${makers}. With labour that is ${job} ${CURRENCY_CODE} all in.</small>`;
+          })() : ""}
         </article>`;
       }).join("")}
     </div>`;
@@ -1725,6 +1733,17 @@ function renderInterior(): void {
     purse(),   // the displayed balance: the console must redraw when it changes
     ...Object.values(store.state.upgrades),
     ...Object.values(store.state.inventory),
+    // Placement has to be in the signature. Buying or moving a fitting changed none of the
+    // terms above, so the panel kept showing "not beside its machine" after the player had
+    // just moved it beside its machine — until some unrelated change forced a repaint.
+    ...(Object.keys(FITTINGS) as FittingKey[]).map((key) => {
+      const tile = store.state.fittings[key];
+      return tile ? `${key}@${tile.column},${tile.row}` : `${key}-`;
+    }),
+    ...(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
+      const tile = store.state.equipmentTiles[key];
+      return tile ? `${key}@${tile.column},${tile.row}` : `${key}-`;
+    }),
   ].join(":");
   if (signature === interiorConsoleSignature) return;
   interiorConsoleSignature = signature;
@@ -2941,6 +2960,8 @@ function openInterior(): void {
       upgrades: store.state.upgrades,
       upgradeCeiling: store.upgradeCeiling(),
       tiles: store.state.equipmentTiles,
+      // Without this the room had no idea which fittings existed, so it could not draw one.
+      fittings: store.state.fittings,
       // The store owns the rules — the walkway, what already stands on a tile. The room
       // only asks; a refusal leaves the machine where it was.
       // The room asks; the store decides. Stations move, fittings are bought the first
@@ -3189,6 +3210,7 @@ document.body.addEventListener("click", (event) => {
     void tradeThroughRealm("sell", key, 1).then((handled) => { if (!handled) report(store.sellResource(key)); });
   }
   else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
+  else if (action === "buy-inputs") report(store.buyMissingInputs(button.dataset.product ?? ""));
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
   else if (action === "claim-epoch") void claimEpoch();
   else if (action === "withdraw-chain") void withdrawToWallet();
