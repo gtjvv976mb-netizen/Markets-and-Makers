@@ -1697,13 +1697,28 @@ export class GameStore {
     // with no way back, which is not a difficulty curve, it is a trap with no door.
     if (this.state.brokenDown) { this.state.chargesSettledAt = now; return 0; }
     const elapsed = now - this.state.chargesSettledAt;
-    const days = Math.floor(elapsed / 86_400_000);
+    // Billed days are capped to the same window the catch-up credits work for.
+    //
+    // The catch-up stops crediting production at OFFLINE_MAX_HOURS (and usually earlier,
+    // when district demand fills), but this meter used to run for the WHOLE absence: thirty
+    // days away billed thirty days of wages against at most ~26 hours of earnable work —
+    // measured, a 5,000-wallet business came back 2,100 poorer than its own idle earnings
+    // could ever repay. Same principle as the breakdown clause above: when the line cannot
+    // work, the meter does not run. An active player settles daily, so the cap never binds
+    // on anyone who is actually playing.
+    const days = Math.min(
+      Math.floor(elapsed / 86_400_000),
+      Math.max(1, Math.ceil(OFFLINE_MAX_HOURS / 24)),
+    );
     if (days <= 0) return 0;
 
     const bill = this.dailyUtilityBill() * days;
     const payroll = this.dailyPayroll() * days;
     const owed = bill + payroll;
-    this.state.chargesSettledAt += days * 86_400_000;
+    // Jump to NOW rather than advancing by the billed days: with the cap, advancing would
+    // leave the uncharged remainder pending and re-bill it on every later settle, turning
+    // the cap into an instalment plan for the exact charge it exists to waive.
+    this.state.chargesSettledAt = now;
 
     if (this.state.wallet < owed) {
       // Unpaid bills cut the supply rather than pushing anyone into debt.

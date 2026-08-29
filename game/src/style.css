@@ -3638,3 +3638,24 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .fitting.idle { border-left-color: #d09a3a; }
 .fitting.idle small { color: #d09a3a; opacity: .95; }
 .fitting:disabled { opacity: .38; cursor: not-allowed; }
+
+/* ── WHILE YOU WERE AWAY ─────────────────────────────────────────────────────
+   The idle payoff card, in the city's own colours. Centred, small, readable in five
+   seconds, gone on the first click. */
+.away-report { position: fixed; z-index: 60; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  display: grid; gap: 10px; width: min(340px, calc(100vw - 40px)); padding: 16px 18px;
+  border-radius: 16px; color: #fff8df; background: rgba(13,42,44,.97);
+  box-shadow: 0 24px 60px rgba(4,26,28,.5), inset 0 0 0 1.5px rgba(255,221,115,.28);
+  text-align: center; animation: away-in .28s ease; }
+@keyframes away-in { from { opacity: 0; transform: translate(-50%,-46%); } }
+.away-report > small { color: rgba(255,255,255,.55); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.away-rows { display: flex; justify-content: center; gap: 16px; }
+.away-rows span { display: grid; font-size: 10.5px; color: rgba(255,255,255,.6); font-weight: 700; }
+.away-rows b { color: #ffdd73; font-size: 19px; font-weight: 800; }
+.away-net { display: grid; gap: 2px; padding: 9px 0 7px; border-top: 1px solid rgba(255,221,115,.16); border-bottom: 1px solid rgba(255,221,115,.16); }
+.away-net span { font-size: 22px; font-weight: 900; }
+.away-net.up span { color: #9fe08a; }
+.away-net.down span { color: #f0a08a; }
+.away-net small { color: rgba(255,255,255,.55); font-size: 10.5px; font-weight: 700; }
+.away-halt { margin: 0; color: #ffdd73; font-size: 11.5px; font-weight: 700; line-height: 1.45; }
+.away-report em { color: rgba(255,255,255,.4); font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }

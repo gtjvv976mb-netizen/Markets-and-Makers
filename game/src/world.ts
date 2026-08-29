@@ -1713,7 +1713,8 @@ export class World3D {
    * moving the flag would read as the click having missed.
    */
   private beginWalk(x: number, z: number, groundY: number): void {
-    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, x, z);
+    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, x, z,
+      { isWalkable: (px, pz) => this.sampleWalkHeight(px, pz) !== null });
     if (!legs) {
       this.clearWalk();
       return;
@@ -1747,7 +1748,8 @@ export class World3D {
     }
     this.replanned += 1;
     this.stalledFor = 0;
-    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, goal.x, goal.z);
+    const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, goal.x, goal.z,
+      { isWalkable: (px, pz) => this.sampleWalkHeight(px, pz) !== null });
     if (!legs) {
       this.clearWalk();
       return;
@@ -2012,9 +2014,18 @@ export class World3D {
         if (this.walkPath.length === 0) this.clearWalk();
       } else {
         const distance = Math.min(delta * PLAYER_WALK_SPEED_MPS, remaining);
+        const beforeX = this.avatar.position.x;
+        const beforeZ = this.avatar.position.z;
         const stepped = this.stepAlong(toLegX / remaining, toLegZ / remaining, distance);
         moved = stepped || moved;
-        if (stepped) this.stalledFor = 0;
+        // Progress TOWARD THE LEG, not just any movement. The world streams in around a
+        // plan — a building's solid can land ON the planned line after it was drawn — and
+        // axis-sliding along that solid still reported "stepped", so the stall never fired
+        // and the avatar crept at 5% speed for minutes without ever replanning. Measured
+        // live: commanded 10 m/s, delivered 0.5. Sliding IS stalling.
+        const progressed = ((this.avatar.position.x - beforeX) * toLegX
+          + (this.avatar.position.z - beforeZ) * toLegZ) / remaining;
+        if (stepped && progressed >= distance * 0.5) this.stalledFor = 0;
         else {
           // Held up by something the plan did not carry: a car in the road, or ground
           // the planner never sampled. Wait a beat — traffic clears itself — and only

@@ -169,6 +169,12 @@ export interface RouteOptions {
   radius?: number;
   /** Traffic is excluded from routing: a route planned around a car is stale at once. */
   includeMovers?: boolean;
+  /**
+   * Ground the mover can actually stand on. The obstacle field only knows about SOLIDS;
+   * the mover also refuses terrain whose height sample is null, so a planner that cannot
+   * ask the same question plans lines the avatar can only slide along.
+   */
+  isWalkable?: (x: number, z: number) => boolean;
 }
 
 /**
@@ -185,10 +191,15 @@ export function route(
 ): Array<{ x: number; z: number }> | null {
   const radius = options.radius ?? PLAYER_RADIUS;
   const movers = options.includeMovers ?? false;
-  const free = (x: number, z: number): boolean => !field.blocked(x, z, radius, movers);
+  // The mover refuses ground the height sampler rejects, so the planner must refuse it too.
+  // Without this the router drew a straight "clear" line across a null-terrain patch and the
+  // avatar spent minutes sliding along its edge at 5% speed. Measured on the live line:
+  // blocked=false, y=NULL, at the exact stall point.
+  const walkable = options.isWalkable ?? ((): boolean => true);
+  const free = (x: number, z: number): boolean => !field.blocked(x, z, radius, movers) && walkable(x, z);
 
   // Nothing in the way: the straight line is the route, and no search is run at all.
-  if (clearLine(field, startX, startZ, goalX, goalZ, radius, movers)) return [{ x: goalX, z: goalZ }];
+  if (clearLine(field, startX, startZ, goalX, goalZ, radius, movers, walkable)) return [{ x: goalX, z: goalZ }];
 
   const minX = Math.min(startX, goalX) - MARGIN;
   const maxX = Math.max(startX, goalX) + MARGIN;
@@ -280,7 +291,7 @@ export function route(
   // The true goal, not the cell centre it snapped to — unless the click was inside a
   // building, in which case the snapped cell IS the destination.
   if (free(goalX, goalZ)) cells.push({ x: goalX, z: goalZ });
-  return smooth(field, startX, startZ, cells, radius, movers);
+  return smooth(field, startX, startZ, cells, radius, movers, walkable);
 }
 
 /** Drop waypoints that a straight line already covers, so the walk reads naturally. */
@@ -291,6 +302,7 @@ function smooth(
   cells: Array<{ x: number; z: number }>,
   radius: number,
   movers: boolean,
+  walkable: (x: number, z: number) => boolean = () => true,
 ): Array<{ x: number; z: number }> {
   const kept: Array<{ x: number; z: number }> = [];
   let fromX = startX;
@@ -299,7 +311,9 @@ function smooth(
   while (i < cells.length) {
     let furthest = i;
     for (let j = cells.length - 1; j > i; j -= 1) {
-      if (clearLine(field, fromX, fromZ, cells[j]!.x, cells[j]!.z, radius, movers)) {
+      // Same standard as the search itself, or smoothing quietly re-crosses the exact
+      // terrain A* just detoured around.
+      if (clearLine(field, fromX, fromZ, cells[j]!.x, cells[j]!.z, radius, movers, walkable)) {
         furthest = j;
         break;
       }
@@ -322,12 +336,15 @@ function clearLine(
   toZ: number,
   radius: number,
   movers: boolean,
+  walkable: (x: number, z: number) => boolean = () => true,
 ): boolean {
   const span = Math.hypot(toX - fromX, toZ - fromZ);
   const steps = Math.max(1, Math.ceil(span / (radius > 0 ? radius : 0.5)));
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps;
-    if (field.blocked(fromX + (toX - fromX) * t, fromZ + (toZ - fromZ) * t, radius, movers)) return false;
+    const x = fromX + (toX - fromX) * t;
+    const z = fromZ + (toZ - fromZ) * t;
+    if (field.blocked(x, z, radius, movers) || !walkable(x, z)) return false;
   }
   return true;
 }

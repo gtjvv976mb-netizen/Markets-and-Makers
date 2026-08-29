@@ -559,7 +559,12 @@ describe("Markets & Makers economy", () => {
     expect(store.exchangeMercDollarsForMM(100_000).ok).toBe(false);
   });
 
-  it("bills a business for water, power and wages whether it trades or not", () => {
+  it("bills for the days the line could work, and no further", () => {
+    // This used to assert three full days billed for three days away — "whether it trades
+    // or not". That rule made absence a pure fine: the catch-up stops crediting work at
+    // OFFLINE_MAX_HOURS (~a day), so a month away billed a month of wages against one day
+    // of earnable production. Measured before the change: 5,000 -> 2,900 with automation
+    // on. The meter now stops with the line, exactly as it already did for breakdowns.
     const state = createFreshState();
     state.wallet = 5_000;
     state.ownedPlotId = "garden-row"; state.license = "greenhouse"; state.buildingPlaced = true;
@@ -567,15 +572,19 @@ describe("Markets & Makers economy", () => {
     state.chargesSettledAt = Date.now() - 3 * 86_400_000;
     const store = new GameStore(state);
 
+    const cappedDays = Math.max(1, Math.ceil(OFFLINE_MAX_HOURS / 24));
+    expect(cappedDays, "the cap this test is written against").toBe(2);
+
     const treasuryBefore = store.state.governmentTreasury;
     const citizensBefore = store.state.citizenPool;
     const paid = store.settleStandingCharges();
 
-    expect(paid).toBe(store.dailyOverhead() * 3);
+    expect(paid).toBe(store.dailyOverhead() * cappedDays);
     // The city keeps the utility bill; the wages go to the Mercedonians who earned them.
-    expect(store.state.governmentTreasury).toBe(treasuryBefore + store.dailyUtilityBill() * 3);
-    expect(store.state.citizenPool).toBe(citizensBefore + store.dailyPayroll() * 3);
-    // Charges settle once, not twice.
+    expect(store.state.governmentTreasury).toBe(treasuryBefore + store.dailyUtilityBill() * cappedDays);
+    expect(store.state.citizenPool).toBe(citizensBefore + store.dailyPayroll() * cappedDays);
+    // And the waived remainder is WAIVED — not an instalment plan. A settle immediately
+    // after must bill nothing, or the cap just spreads the same fine over future days.
     expect(store.settleStandingCharges()).toBe(0);
   });
 

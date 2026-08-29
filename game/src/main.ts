@@ -533,11 +533,59 @@ world.setFrameCallback(() => {
 });
 
 // Replay the time the player was away, on load and whenever they come back to the tab.
-store.catchUp();
+//
+// And SHOW it. The catch-up used to run silently on load — the single most common way a
+// player returns — so a night of jobs, sales and wages happened with no acknowledgement at
+// all, and only a tab-switch return earned a one-line toast. The away report is the payoff
+// moment of an idle game: it is the proof that the world kept working, and every reference
+// game leads with it. One card, the city's own colours, numbers a player can read in five
+// seconds, dismissed with a click anywhere.
+function showAwayReport(shift: ReturnType<typeof store.catchUp>): void {
+  const meaningful = shift.hours >= 0.25 && (shift.jobs > 0 || shift.revenue > 0 || shift.wages > 0);
+  if (!meaningful) return;
+  // Not over the wallet gate. The boot catch-up runs before the player has signed in, and
+  // the card was landing on top of the connect screen; the payoff belongs to the moment
+  // they are back IN the city, so it waits for the gate to clear.
+  const gate = document.querySelector<HTMLElement>("#bootGate, .boot-gate, .wallet-gate");
+  if (gate && gate.offsetParent !== null) {
+    const wait = window.setInterval(() => {
+      if (!gate.offsetParent) { window.clearInterval(wait); showAwayReport(shift); }
+    }, 400);
+    window.setTimeout(() => window.clearInterval(wait), 120_000);
+    return;
+  }
+  const halted = shift.halted === "demand" ? "The district's shelves filled — visit the floor to restart the line."
+    : shift.halted === "funds" ? "The line stopped when supplies could not be paid for."
+    : shift.halted === "breakdown" ? "The line broke down and is waiting on a repair."
+    : null;
+  const spanHours = Math.round(shift.hours * 10) / 10;
+  const span = spanHours >= 24 ? `${Math.round(spanHours / 2.4) / 10} days` : `${spanHours} hours`;
+  const net = shift.revenue - shift.wages - shift.spent;
+  const card = document.createElement("div");
+  card.className = "away-report";
+  card.setAttribute("role", "status");
+  card.innerHTML = `
+    <small>While you were away · ${escapeMarkup(span)} worked</small>
+    <div class="away-rows">
+      <span><b>${shift.jobs}</b> job${shift.jobs === 1 ? "" : "s"} run</span>
+      <span><b>${shift.produced}</b> made</span>
+      <span><b>${shift.sold}</b> sold</span>
+    </div>
+    <div class="away-net ${net >= 0 ? "up" : "down"}">
+      <span>${net >= 0 ? "+" : ""}${formatNumber(net)} ${CURRENCY_CODE}</span>
+      <small>${formatNumber(shift.revenue)} earned · ${formatNumber(shift.wages + shift.spent)} wages &amp; costs</small>
+    </div>
+    ${halted ? `<p class="away-halt">${escapeMarkup(halted)}</p>` : ""}
+    <em>Click anywhere to continue</em>`;
+  document.body.appendChild(card);
+  const dismiss = (): void => { card.remove(); document.removeEventListener("pointerdown", dismiss, true); };
+  document.addEventListener("pointerdown", dismiss, true);
+  window.setTimeout(dismiss, 20_000);
+}
+showAwayReport(store.catchUp());
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
-  const shift = store.catchUp();
-  if (shift.jobs > 0) toast(`${shift.jobs} job${shift.jobs === 1 ? "" : "s"} ran while you were away.`);
+  showAwayReport(store.catchUp());
   renderAll();
 });
 // Who owns the district decides whether this client settles its own footfall. Asked
