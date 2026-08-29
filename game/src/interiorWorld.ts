@@ -1395,13 +1395,6 @@ export class InteriorWorld {
       color: 0xffffff, roughness: 0.82, map: tiled(design.trim, "planks", 4),
     });
     const teal = new THREE.MeshStandardMaterial({ color: 0x1c6667, roughness: 0.72 });
-    const accentMaterial = new THREE.MeshStandardMaterial({
-      color: design.accent,
-      roughness: 0.52,
-      metalness: 0.12,
-      emissive: new THREE.Color(design.accent).multiplyScalar(0.12),
-      emissiveIntensity: 0.4,
-    });
     // The floor carries the room's own motif — a workshop is planked, a mine is
     // flagstone, a greenhouse is worked ground — at a repeat that lands one tile per
     // metre, matching the scale the city outside is drawn at.
@@ -1409,14 +1402,6 @@ export class InteriorWorld {
       design.architecture === "canopy-biome" || design.architecture === "living-water-gallery" ? "speckle"
       : design.architecture === "regrowth-timber-hall" || design.architecture === "sawtooth-atelier" ? "planks"
       : "flagstone";
-    const glass = new THREE.MeshPhysicalMaterial({
-      color: design.glass,
-      transmission: 0.35,
-      transparent: true,
-      opacity: 0.56,
-      roughness: 0.18,
-      metalness: 0.05,
-    });
 
     // ONE DRAWN TILE = ONE PLACEMENT TILE.
     //
@@ -1462,7 +1447,7 @@ export class InteriorWorld {
     // No GridHelper any more: it was a wireframe standing in for tiled ground, and laid
     // over a surface that now draws its own borders it read as a second, misaligned grid.
 
-    this.createRoomShell(design, stone, timber, teal, glass, accentMaterial);
+    this.createRoomShell(design, stone, timber);
     this.createFloorStory(design);
     // NOTHING ELSE GOES ON THE FLOOR — no shop dressing the owner never chose, no painted
     // bay, no apron pads. The translucent overlays read as holograms lying on the ground of
@@ -1471,7 +1456,6 @@ export class InteriorWorld {
     // else. The tile grid appears WHILE something is in hand and vanishes when it is let go:
     // a placement aid, not decoration.
 
-    this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
     for (const definition of STATIONS) this.createStation(definition, cream, timber);
     this.createFittings(timber);
@@ -1508,9 +1492,6 @@ export class InteriorWorld {
     design: RoomDesign,
     stone: THREE.MeshStandardMaterial,
     timber: THREE.MeshStandardMaterial,
-    teal: THREE.MeshStandardMaterial,
-    glass: THREE.MeshPhysicalMaterial,
-    accent: THREE.MeshStandardMaterial,
   ): void {
     const box = (
       size: readonly [number, number, number],
@@ -1522,83 +1503,107 @@ export class InteriorWorld {
       mesh.rotation.z = rotationZ;
       return mesh;
     };
-    // The wall planes, DERIVED. Every window, arch and band below was hardcoded at
-    // z = -5.7..-5.92 — the wall line of the room this file used to build. The room has been
-    // 16 deep and 22 wide for some time, so the entire glazing layer stood better than two
-    // metres inside the floor: a row of frames apparently standing mid-room, which is what
-    // finally got it reported as "the windows and doors are not placed properly".
-    const WALL_Z = -(ROOM_HALF_DEPTH - 0.14);
-    const wx = (x: number): number =>
-      THREE.MathUtils.clamp(x * 1.42, -(ROOM_HALF_WIDTH - 1.3), ROOM_HALF_WIDTH - 1.3);
-    const windowBay = (x: number, width: number, height = 3.0, y = 2.12): void => {
-      box([width, height, 0.13], [wx(x), y, WALL_Z - 0.06], glass);
-      box([0.13, height + 0.2, 0.27], [wx(x) - width / 2, y, WALL_Z], teal);
-      box([0.13, height + 0.2, 0.27], [wx(x) + width / 2, y, WALL_Z], teal);
-      box([width + 0.12, 0.12, 0.27], [wx(x), y + height / 2, WALL_Z], teal);
-      box([width + 0.12, 0.12, 0.27], [wx(x), y - height / 2, WALL_Z], teal);
-    };
-    const roundWindow = (x: number, y: number, radius: number): void => {
-      const pane = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.83, 18), glass);
-      pane.position.set(wx(x), y, WALL_Z - 0.05);
-      this.content.add(pane);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.11, 7, 20), accent);
-      rim.position.set(wx(x), y, WALL_Z + 0.04);
-      this.content.add(rim);
-    };
-    const arch = (x: number, y: number, radius: number, material: THREE.Material, scaleX = 1): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.095, 6, 20, Math.PI), material);
-      mesh.position.set(wx(x), y, WALL_Z + 0.06);
-      mesh.scale.x = scaleX;
-      mesh.castShadow = this.renderer.shadowMap.enabled;
-      this.content.add(mesh);
-      return mesh;
-    };
-    /** A vertical post standing on the floor AGAINST the wall — the one non-window feature. */
-    const pilaster = (x: number, material: THREE.Material, height = 3.6): void => {
-      box([0.16, height, 0.26], [wx(x), height / 2, WALL_Z], material);
-    };
-
-    // TWO REAL WALLS, TWO LOW ONES.
+    // WALLS WITH REAL OPENINGS.
     //
-    // The glazing used to stand on a knee-high plinth with sky behind it — window frames
-    // rising out of nothing, which is exactly why the room read as awkward. A window is a
-    // hole in a wall; it needs the wall. The two FAR faces (-z, where the door is, and -x)
-    // are solid to height now, painted in the trade's wall colour, and the camera's orbit is
-    // clamped to the open corner so they always stay at the back of the view. The two NEAR
-    // faces keep the knee-wall, which is how the camera sees in at all.
+    // Windows used to be frames-and-glass APPLIED to the inner face of a solid slab: from
+    // inside they read as pictures of windows, from outside the slab showed nothing at all —
+    // "the windows are not natural and not seen from the outside" was exactly right. A
+    // window is an absence of wall. Each far wall is now built as segments AROUND its
+    // openings — sill band, header band, piers — with glass IN the opening, so daylight and
+    // sky read straight through it from either side.
     const WALL_HEIGHT = 4.7;
+    const SILL = 1.05;
+    const HEAD = 3.7;
+    const THICK = 0.35;
     const wallFace = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.86, metalness: 0.04 });
-    const back = box([ROOM_HALF_WIDTH * 2 + 0.7, WALL_HEIGHT, 0.35],
-        [0, WALL_HEIGHT / 2, -(ROOM_HALF_DEPTH + 0.18)], wallFace);
-    const left = box([0.35, WALL_HEIGHT, ROOM_HALF_DEPTH * 2 + 0.7],
-        [-(ROOM_HALF_WIDTH + 0.18), WALL_HEIGHT / 2, 0], wallFace);
-    // The lighting was tuned for a room with no tall walls; letting these two cast shadow
-    // drops half the floor into dusk. They receive light, they block nothing.
-    back.castShadow = false;
-    left.castShadow = false;
-    // A capping strip in the trim colour, so each face ends on a drawn line rather than a cut.
-    box([ROOM_HALF_WIDTH * 2 + 0.8, 0.18, 0.42], [0, WALL_HEIGHT + 0.09, -(ROOM_HALF_DEPTH + 0.18)], timber);
-    box([0.42, 0.18, ROOM_HALF_DEPTH * 2 + 0.8], [-(ROOM_HALF_WIDTH + 0.18), WALL_HEIGHT + 0.09, 0], timber);
-    // The near plinths, exactly as before.
-    box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [ROOM_HALF_WIDTH + 0.05, 0.2, 0], stone);
-    box([ROOM_HALF_WIDTH * 2 + 0.5, 0.44, 0.5], [0, 0.2, ROOM_HALF_DEPTH + 0.05], stone);
+    const paneMaterial = new THREE.MeshPhysicalMaterial({
+      color: design.glass, transmission: 0.6, transparent: true, opacity: 0.42, roughness: 0.12, metalness: 0.03,
+      side: THREE.DoubleSide,
+    });
+    const noShadow = (mesh: THREE.Mesh): THREE.Mesh => { mesh.castShadow = false; return mesh; };
 
-    // The left wall carries glazing too — the same frame language as the back wall, evenly
-    // spaced along the room's depth, so a solid face is never a blank slab.
-    const sideBay = (v: number, width: number, height = 2.9, y = 2.1): void => {
-      box([0.13, height, width], [-(ROOM_HALF_WIDTH - 0.14), y, v], glass);
-      box([0.27, height + 0.2, 0.13], [-(ROOM_HALF_WIDTH - 0.2), y, v - width / 2], teal);
-      box([0.27, height + 0.2, 0.13], [-(ROOM_HALF_WIDTH - 0.2), y, v + width / 2], teal);
-      box([0.27, 0.12, width + 0.12], [-(ROOM_HALF_WIDTH - 0.2), y + height / 2, v], teal);
-      box([0.27, 0.12, width + 0.12], [-(ROOM_HALF_WIDTH - 0.2), y - height / 2, v], teal);
+    /**
+     * One wall as segments around its openings.
+     * `along` is the wall's own axis; `place` positions a segment of a given along-length.
+     * Openings are [centre, width] pairs in wall coordinates, plus an optional doorway that
+     * runs floor-to-head with no sill band under it.
+     */
+    const buildWall = (
+      length: number,
+      openings: Array<[number, number]>,
+      doorway: [number, number] | null,
+      place: (size: readonly [number, number, number], centre: number, y: number) => THREE.Mesh,
+    ): void => {
+      const spans: Array<[number, number]> = [...openings, ...(doorway ? [doorway] : [])]
+        .sort((left, right) => left[0] - right[0]);
+      // piers between openings, and from each end wall corner
+      let cursor = -length / 2;
+      for (const [centre, width] of spans) {
+        const start = centre - width / 2;
+        if (start - cursor > 0.05) {
+          noShadow(place([start - cursor, WALL_HEIGHT, THICK], (cursor + start) / 2, WALL_HEIGHT / 2));
+        }
+        cursor = centre + width / 2;
+      }
+      if (length / 2 - cursor > 0.05) {
+        noShadow(place([length / 2 - cursor, WALL_HEIGHT, THICK], (cursor + length / 2) / 2, WALL_HEIGHT / 2));
+      }
+      // sill band under windows (not under the doorway), header band over everything
+      for (const [centre, width] of openings) {
+        noShadow(place([width, SILL, THICK], centre, SILL / 2));
+      }
+      for (const [centre, width] of spans) {
+        noShadow(place([width, WALL_HEIGHT - HEAD, THICK], centre, (WALL_HEIGHT + HEAD) / 2));
+      }
+      // glass in each window opening, recessed to the wall's midplane
+      for (const [centre, width] of openings) {
+        noShadow(place([width - 0.1, HEAD - SILL - 0.08, 0.06], centre, (SILL + HEAD) / 2))
+          .material = paneMaterial;
+      }
     };
-    for (const v of [-ROOM_HALF_DEPTH * 0.55, 0, ROOM_HALF_DEPTH * 0.55]) sideBay(v, 2.3);
 
-    // Each trade keeps its identity through palette, floor pattern and window rhythm — and
-    // through nothing that hangs in the air. Every roof bar, sawtooth tooth, heliostat fin,
-    // tilted canopy, chevron plank, side rail and rib is gone: the room has no ceiling by
-    // design (that is how the camera stays outside), so anything drawn at height had nothing
-    // to hold it and read as floating scaffolding, not as a building.
+    /**
+     * Per-trade glazing RHYTHM: how many openings, how wide, where. This is the window plan
+     * the wall is punched from — identity through arrangement, since every opening is now a
+     * genuine hole rather than a drawn shape.
+     */
+    const HWD = ROOM_HALF_WIDTH;
+    const PLANS: Record<InteriorArchitecture, Array<[number, number]>> = {
+      "living-water-gallery":   [[-HWD * 0.66, 1.7], [-HWD * 0.36, 1.7], [HWD * 0.36, 1.7], [HWD * 0.66, 1.7]],
+      "heliostat-atrium":       [[-HWD * 0.64, 2.3], [-HWD * 0.33, 2.3], [HWD * 0.33, 2.3], [HWD * 0.64, 2.3]],
+      "canopy-biome":           [[-HWD * 0.62, 2.9], [-HWD * 0.28, 2.9], [HWD * 0.28, 2.9], [HWD * 0.62, 2.9]],
+      "reclaimed-strata-vault": [[-HWD * 0.5, 1.5], [HWD * 0.5, 1.5]],
+      "regrowth-timber-hall":   [[-HWD * 0.6, 2.4], [-HWD * 0.3, 2.4], [HWD * 0.3, 2.4], [HWD * 0.6, 2.4]],
+      "circular-packhouse":     [[-HWD * 0.72, 1.3], [-HWD * 0.48, 1.3], [-HWD * 0.24, 1.3], [HWD * 0.24, 1.3], [HWD * 0.48, 1.3], [HWD * 0.72, 1.3]],
+      "sawtooth-atelier":       [[-HWD * 0.62, 2.1], [-HWD * 0.3, 2.1], [HWD * 0.3, 2.1], [HWD * 0.62, 2.1]],
+      "clean-forge-hall":       [[-HWD * 0.7, 1.4], [-HWD * 0.46, 1.4], [-HWD * 0.22, 1.4], [HWD * 0.22, 1.4], [HWD * 0.46, 1.4], [HWD * 0.7, 1.4]],
+      "civic-prefab-studio":    [[-HWD * 0.6, 2.3], [-HWD * 0.3, 2.3], [HWD * 0.3, 2.3], [HWD * 0.6, 2.3]],
+      "solar-quay-depot":       [[-HWD * 0.48, 4.6], [HWD * 0.48, 4.6]],
+      "lantern-market-pavilion":[[-HWD * 0.45, 4.2], [HWD * 0.45, 4.2]],
+      "edible-garden-kitchen":  [[-HWD * 0.45, 4.2], [HWD * 0.45, 4.2]],
+      "kinetic-wellness-grove": [[-HWD * 0.45, 4.4], [HWD * 0.45, 4.4]],
+      "lantern-theatre":        [[-HWD * 0.6, 1.3], [HWD * 0.6, 1.3]],
+      "materials-loop-lab":     [[-HWD * 0.6, 2.0], [-HWD * 0.28, 2.0], [HWD * 0.28, 2.0], [HWD * 0.6, 2.0]],
+    };
+
+    // The back wall carries the doorway on the walkway axis; the left wall takes three
+    // evenly spaced openings of the trade's own width.
+    const DOOR_W = 2.5;
+    buildWall(ROOM_HALF_WIDTH * 2 + 0.7, PLANS[design.architecture], [0, DOOR_W],
+      (size, centre, y) => box(size as never, [centre, y, -(ROOM_HALF_DEPTH + 0.18)], wallFace));
+    const sideWidth = Math.min(2.6, PLANS[design.architecture][0]?.[1] ?? 2.3);
+    buildWall(ROOM_HALF_DEPTH * 2 + 0.7,
+      [[-ROOM_HALF_DEPTH * 0.55, sideWidth], [0, sideWidth], [ROOM_HALF_DEPTH * 0.55, sideWidth]], null,
+      (size, centre, y) => {
+        const mesh = box([size[2], size[1], size[0]] as never, [-(ROOM_HALF_WIDTH + 0.18), y, centre], wallFace);
+        return mesh;
+      });
+    // Capping strips, then the two low near walls, unchanged.
+    noShadow(box([ROOM_HALF_WIDTH * 2 + 0.8, 0.18, 0.42], [0, WALL_HEIGHT + 0.09, -(ROOM_HALF_DEPTH + 0.18)], timber));
+    noShadow(box([0.42, 0.18, ROOM_HALF_DEPTH * 2 + 0.8], [-(ROOM_HALF_WIDTH + 0.18), WALL_HEIGHT + 0.09, 0], timber));
+    noShadow(box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [ROOM_HALF_WIDTH + 0.05, 0.2, 0], stone));
+    noShadow(box([ROOM_HALF_WIDTH * 2 + 0.5, 0.44, 0.5], [0, 0.2, ROOM_HALF_DEPTH + 0.05], stone));
+
     // EACH TRADE'S IDENTITY, ON ITS WALLS.
     //
     // With the floor belonging to the player's machines and nothing allowed to hang in the
@@ -1807,97 +1812,20 @@ export class InteriorWorld {
         break;
       }
     }
-    /* the per-trade glazing continues below */
-    switch (design.architecture) {
-      case "living-water-gallery": {
-        for (const x of [-5.7, -3.45, 3.45, 5.7]) roundWindow(x, 2.35, 0.92);
-        arch(0, 2.2, 2.15, accent, 1.1);
-        break;
-      }
-      case "heliostat-atrium": {
-        for (const x of [-6.4, -4.2, 4.2, 6.4]) windowBay(x, 1.65, 2.85, 2.05);
-        break;
-      }
-      case "canopy-biome": {
-        for (const x of [-6.15, -3.75, 3.75, 6.15]) windowBay(x, 2.05, 3.4, 2.25);
-        for (const x of [-6.15, -3.75, 3.75, 6.15]) arch(x, 4.15, 1.05, accent, 0.92);
-        break;
-      }
-      case "reclaimed-strata-vault": {
-        box([ROOM_HALF_WIDTH * 2 - 0.4, 2.7, 0.38], [0, 1.55, WALL_Z - 0.02], stone);
-        for (const x of [-4.55, 4.55]) windowBay(x, 1.35, 1.25, 3.15);
-        break;
-      }
-      case "regrowth-timber-hall": {
-        for (const x of [-5.8, -3.55, 3.55, 5.8]) windowBay(x, 1.75, 3.0, 2.05);
-        for (const x of [-7.0, 7.0]) pilaster(x, timber, 4.0);
-        break;
-      }
-      case "circular-packhouse": {
-        for (const x of [-6.3, -4.4, 4.4, 6.3]) for (const y of [1.3, 3.15]) {
-          box([1.45, 1.38, 0.13], [wx(x), y, WALL_Z - 0.06], glass);
-          box([1.6, 0.1, 0.27], [wx(x), y - 0.75, WALL_Z], accent);
-        }
-        for (const x of [-7.1, -5.3, -3.5, 3.5, 5.3, 7.1]) pilaster(x, timber, 4.1);
-        break;
-      }
-      case "sawtooth-atelier": {
-        for (const x of [-6.3, -4.25, 4.25, 6.3]) windowBay(x, 1.6, 2.75, 2.0);
-        for (const x of [-7.3, 7.3]) pilaster(x, teal, 3.9);
-        break;
-      }
-      case "clean-forge-hall": {
-        for (const x of [-6.7, -5.0, -3.3, 3.3, 5.0, 6.7]) windowBay(x, 1.05, 1.7, 2.95);
-        for (const x of [-7.4, -5.8, 5.8, 7.4]) pilaster(x, teal, 4.1);
-        break;
-      }
-      case "civic-prefab-studio": {
-        for (const x of [-6.4, -4.25, 4.25, 6.4]) windowBay(x, 1.7, 2.55, 2.15);
-        for (const x of [-7.1, 7.1]) pilaster(x, timber, 3.9);
-        break;
-      }
-      case "solar-quay-depot": {
-        windowBay(-5.25, 4.25, 2.85, 2.0);
-        windowBay(5.25, 4.25, 2.85, 2.0);
-        for (const x of [-6.8, 6.8]) arch(x, 3.05, 1.1, accent, 1.15);
-        break;
-      }
-      case "lantern-market-pavilion": {
-        windowBay(-5.25, 4.25, 3.0, 2.05);
-        windowBay(5.25, 4.25, 3.0, 2.05);
-        arch(0, 2.25, 2.25, timber, 1.05);
-        break;
-      }
-      case "edible-garden-kitchen": {
-        for (const x of [-5.15, 5.15]) {
-          windowBay(x, 4.1, 3.25, 2.2);
-          arch(x, 4.05, 1.5, accent, 0.95);
-        }
-        break;
-      }
-      case "kinetic-wellness-grove": {
-        for (const x of [-5.35, 5.35]) windowBay(x, 4.0, 3.45, 2.25);
-        break;
-      }
-      case "lantern-theatre": {
-        box([ROOM_HALF_WIDTH * 2 - 0.4, 3.95, 0.36], [0, 2.2, WALL_Z - 0.04], stone);
-        for (const x of [-6.5, -4.8, 4.8, 6.5]) roundWindow(x, 3.0, 0.5);
-        for (const x of [-7.2, 7.2]) pilaster(x, timber, 3.9);
-        break;
-      }
-      case "materials-loop-lab": {
-        for (const x of [-6.0, -3.85, 3.85, 6.0]) roundWindow(x, 2.45, 0.88);
-        arch(0, 2.25, 2.2, accent, 1.08);
-        break;
-      }
-    }
+    // (The old applied-glazing switch lived here. The window PLANS above replaced it:
+    //  every opening is now a genuine hole in the wall, not a drawing on its face.)
   }
 
-  /** A thin, non-colliding production diagram embedded in the floor. */
+  /**
+   * The walkway strip, and NOTHING else painted on the floor.
+   *
+   * This used to draw a per-trade "floor story" — runnels, circuits, growing rows, a
+   * projector beam — in translucent accent over the tiles. Reported, correctly, as
+   * "remnants of the previous build, irregular colouring": translucent paint over a tiled
+   * floor reads as stains, not as design. A trade's identity lives on its walls; the floor
+   * is tiles and the one strip that means something — the aisle machines may never block.
+   */
   private createFloorStory(design: RoomDesign): void {
-    // The walkway IS the walkway column: exactly one tile wide, one texture repeat per tile,
-    // running the grid's full depth down column FLOOR_WALKWAY_COLUMN. It was 2.35 units wide
-    // at an unrelated offset — painted over a 1.6-unit column it never lined up with.
     const walkTop = tileToWorld(FLOOR_WALKWAY_COLUMN, 0);
     const walkEnd = tileToWorld(FLOOR_WALKWAY_COLUMN, FLOOR_ROWS - 1);
     const path = new THREE.Mesh(
@@ -1916,129 +1844,8 @@ export class InteriorWorld {
     path.position.set(walkTop.x, 0.018, (walkTop.z + walkEnd.z) / 2);
     path.receiveShadow = true;
     this.content.add(path);
-
-    const lineMaterial = new THREE.MeshBasicMaterial({
-      color: design.accent,
-      transparent: true,
-      opacity: design.floorPattern === "projector-beam" ? 0.28 : 0.5,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    // Every pattern below was authored in the coordinates of the ORIGINAL ~15x12 floor and
-    // kept them while the room grew to 27x27, shrinking each trade's floor story into a
-    // postage stamp in the middle of the room — one visible reason the interiors stopped
-    // reading as distinct. The helpers scale authored coordinates to the live room, so the
-    // fifteen patterns stretch with any future resize instead of quietly dying again.
-    const SX = (ROOM_HALF_WIDTH - 1.2) / 7.5;
-    const SZ = (ROOM_HALF_DEPTH - 1.2) / 5.2;
-    const line = (width: number, depth: number, x: number, z: number, rotation = 0): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width * SX, depth * SZ), lineMaterial);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.rotation.z = rotation;
-      mesh.position.set(x * SX, 0.035, z * SZ);
-      this.content.add(mesh);
-      return mesh;
-    };
-    const ring = (radius: number, x: number, z: number, scaleX = 1): THREE.Mesh => {
-      const scaled = radius * Math.min(SX, SZ);
-      const mesh = new THREE.Mesh(new THREE.RingGeometry(Math.max(0.1, scaled - 0.1), scaled, 30), lineMaterial);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x * SX, 0.038, z * SZ);
-      mesh.scale.x = scaleX;
-      this.content.add(mesh);
-      return mesh;
-    };
-
-    switch (design.floorPattern) {
-      case "water-runnel":
-        line(0.52, 9.6, 0, 0.2);
-        for (const z of [-3.7, -1.2, 1.3, 3.8]) line(1.2, 0.08, 0, z);
-        break;
-      case "solar-circuit":
-        line(0.12, 9.4, 0, 0.2);
-        for (const [x, z] of [[-3.9, -1.3], [3.9, -1.3], [-3.9, 2.6], [3.9, 2.6]] as Array<[number, number]>) {
-          line(Math.abs(x), 0.1, x / 2, z);
-          ring(0.32, x, z);
-        }
-        break;
-      case "growing-rows":
-        for (const x of [-3.7, -2.75, 2.75, 3.7]) line(0.12, 8.6, x, 0.2);
-        break;
-      case "strata-bands":
-        for (const z of [-4.0, -1.9, 0.2, 2.3, 4.4]) line(14.0, 0.12, 0, z, -0.08);
-        break;
-      case "timber-grain":
-        for (const x of [-6.0, -3.0, 0, 3.0, 6.0]) line(0.08, 10.5, x, 0.2);
-        break;
-      case "folding-grid":
-        for (const x of [-4.8, -2.4, 2.4, 4.8]) line(0.08, 9.6, x, 0.1);
-        for (const z of [-3.8, 0, 3.8]) line(13.5, 0.08, 0, z);
-        break;
-      case "maker-sparks":
-        for (const [x, z] of [[-3, -1], [3, -1], [-2.6, 2.8], [2.6, 2.8]] as Array<[number, number]>) line(0.54, 0.54, x, z, Math.PI / 4);
-        line(0.1, 9.4, 0, 0.2);
-        break;
-      case "assembly-line":
-        line(0.12, 9.5, -0.7, 0.2);
-        line(0.12, 9.5, 0.7, 0.2);
-        for (const z of [-3.5, -1.5, 0.5, 2.5, 4.5]) line(1.35, 0.08, 0, z);
-        break;
-      case "survey-grid":
-        for (const x of [-4, 0, 4]) line(0.07, 10.0, x, 0.2);
-        for (const z of [-3.5, 0.5, 4.5]) line(13.0, 0.07, 0, z);
-        break;
-      case "quay-route":
-        line(0.12, 5.0, 0, -2.2);
-        line(4.0, 0.12, -2.0, 0.3);
-        line(4.0, 0.12, 2.0, 2.7);
-        for (const [x, z] of [[-4, 0.3], [4, 2.7]] as Array<[number, number]>) ring(0.3, x, z);
-        break;
-      case "market-petals":
-        for (const [x, z] of [[-0.55, -1.3], [0.55, -1.3], [-0.55, -0.25], [0.55, -0.25]] as Array<[number, number]>) ring(0.62, x, z, 0.65);
-        line(0.1, 7.5, 0, 1.1);
-        break;
-      case "hearth-ring":
-        ring(1.15, 0, 0.35);
-        ring(1.45, 0, 0.35);
-        line(0.1, 7.0, 0, 1.8);
-        break;
-      case "kinetic-orbit":
-        ring(1.1, 0, 0.3, 1.6);
-        ring(1.6, 0, 0.3, 1.55);
-        for (const x of [-4.0, 4.0]) ring(0.5, x, 2.9);
-        break;
-      case "projector-beam":
-        line(5.5, 8.5, 0, 0.1);
-        line(0.12, 9.2, 0, 0.1);
-        break;
-      case "circular-loop":
-        ring(2.0, 0, 0.2, 1.7);
-        line(0.1, 5.4, 0, -2.4);
-        for (const x of [-4.0, 4.0]) ring(0.42, x, 2.9);
-        break;
-    }
   }
 
-
-  private createBusinessSign(accent: THREE.Color): void {
-    if (!this.business) return;
-    const signTexture = this.createSignTexture(
-      this.business.name,
-      `${this.business.icon}  ${this.business.sector.toUpperCase()}`,
-      `#${accent.getHexString()}`,
-      1024,
-      256,
-    );
-    // MOUNTED OVER THE DOOR, in the wall plane — not a seven-metre banner hovering mid-air
-    // in the middle of the room. The header already names the business; inside, the sign is
-    // a fascia board where a building would actually carry one.
-    const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.6, 1.15),
-      new THREE.MeshBasicMaterial({ map: signTexture, transparent: true }),
-    );
-    sign.position.set(0, 4.3, -(ROOM_HALF_DEPTH - 0.18));
-    this.content.add(sign);
-  }
 
   private createExitDoor(accent: THREE.Color, timber: THREE.Material, teal: THREE.Material): void {
     const root = new THREE.Group();
@@ -7748,52 +7555,6 @@ export class InteriorWorld {
       }
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-    texture.needsUpdate = true;
-    this.textures.add(texture);
-    return texture;
-  }
-
-  private createSignTexture(
-    title: string,
-    subtitle: string,
-    accent: string,
-    width: number,
-    height: number,
-  ): THREE.CanvasTexture {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas 2D is required for interior signs.");
-    // The plate is drawn the way the city outside draws everything: a flat fill, a hard
-    // dark border, no gradient and no glow. The old one was a soft-shadowed rounded card
-    // with a coloured stroke — a UI chip floating in a world that has no soft edges
-    // anywhere else in it.
-    context.clearRect(0, 0, width, height);
-    const inset = Math.round(height * 0.09);
-    const radius = Math.round(height * 0.12);
-    // The dark border first, as a slightly larger plate underneath.
-    this.roundedRect(context, inset - 6, inset - 6, width - (inset - 6) * 2, height - (inset - 6) * 2, radius + 4);
-    context.fillStyle = "#0d2426";
-    context.fill();
-    // Then the face, in the accent, leaving the dark showing as a drawn edge.
-    this.roundedRect(context, inset, inset, width - inset * 2, height - inset * 2, radius);
-    context.fillStyle = "#12494c";
-    context.fill();
-    // A solid accent bar down the left, the way the world's own plaques are keyed.
-    context.fillStyle = accent;
-    context.fillRect(inset, inset + radius * 0.4, Math.round(width * 0.018), height - inset * 2 - radius * 0.8);
-    context.fillStyle = "#f8eccd";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.font = `800 ${this.fittedFontSize(context, title, width * 0.82, height * 0.31)}px system-ui, sans-serif`;
-    context.fillText(title, width / 2, height * 0.43);
-    context.fillStyle = accent;
-    context.font = `700 ${this.fittedFontSize(context, subtitle, width * 0.82, height * 0.19)}px system-ui, sans-serif`;
-    context.fillText(subtitle, width / 2, height * 0.71);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
