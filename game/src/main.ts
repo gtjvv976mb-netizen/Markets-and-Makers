@@ -1665,6 +1665,31 @@ function renderResources(): void {
   }).join("");
 }
 
+/**
+ * The interior's logo set: drawn marks, not typography.
+ *
+ * Every icon in the room's HUD was a Unicode glyph — ⚒ ▦ ϟ ✦ — which renders at the mercy
+ * of the platform font: a different weight on every OS, emoji-substituted on some, and never
+ * sitting on the same optical grid twice. These are 24x24 stroke drawings in currentColor,
+ * so they inherit the gold/teal language of whatever chip they sit in and match each other.
+ */
+const LOGO: Record<string, string> = {
+  yield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v7"/><path d="M8 6l4 4 4-4"/><rect x="5" y="13" width="14" height="8" rx="1.5"/><path d="M9 17h6"/></svg>`,
+  capacity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/><rect x="8.5" y="4" width="7" height="7" rx="1"/></svg>`,
+  speed: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>`,
+  appeal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>`,
+  hopper: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16l-6 8v6l-4 2v-8z"/></svg>`,
+  kiln: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 6 6 6 10a6 6 0 0 1-12 0c0-4 3-6 6-10z"/><path d="M12 13c1.2 1.4 2 2.2 2 3.6a2 2 0 0 1-4 0c0-1.4.8-2.2 2-3.6z"/></svg>`,
+  governor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 0 1 16 0"/><path d="M12 15l4-5"/><path d="M3 19h18"/></svg>`,
+  sorter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><path d="M12 9l-6 6v4"/><path d="M12 9l6 6v4"/><path d="M4 21h4M16 21h4"/></svg>`,
+  rack: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16M20 4v16"/><path d="M4 9h16M4 15h16"/><path d="M8 6.5h4M12 12h4"/></svg>`,
+  counter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18v3H3z"/><path d="M5 13v7h14v-7"/><path d="M12 10V6"/><circle cx="12" cy="4.5" r="1.6"/></svg>`,
+  build: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5l5 5-9 9H5v-5z"/><path d="M12 7l5 5"/></svg>`,
+  turn: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8a8 8 0 1 0 2 6"/><path d="M20 3v5h-5"/></svg>`,
+  exit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H5v16h4"/><path d="M13 8l4 4-4 4M17 12H8"/></svg>`,
+};
+const logo = (name: string): string => `<i class="hud-logo" aria-hidden="true">${LOGO[name] ?? ""}</i>`;
+
 function renderInteriorPrompt(): void {
   const icon = interiorPromptNode.querySelector<HTMLElement>("i");
   const hint = interiorPromptNode.querySelector<HTMLElement>("small");
@@ -1672,7 +1697,7 @@ function renderInteriorPrompt(): void {
   if (!icon || !hint || !title) return;
 
   if (!interiorPrompt) {
-    icon.textContent = "⌁";
+    icon.innerHTML = logo("build");
     hint.textContent = "Explore the room";
     title.textContent = "Move close to an equipment station";
     interiorInteractButton.textContent = "Walk closer";
@@ -1681,7 +1706,7 @@ function renderInteriorPrompt(): void {
   }
 
   const selection = interiorPrompt.selection;
-  icon.textContent = selection.kind === "upgrade" ? UPGRADE_NAMES[selection.key].icon : "↗";
+  icon.innerHTML = selection.kind === "upgrade" ? logo(selection.key) : logo("exit");
   hint.textContent = interiorPrompt.inputHint;
   title.textContent = `${interiorPrompt.title} · ${interiorPrompt.detail}`;
   interiorInteractButton.textContent = interiorPrompt.actionLabel;
@@ -1749,7 +1774,7 @@ function renderInterior(): void {
           return `<div class="interior-tray-row">
             <button class="interior-floor-row" data-action="interior-move" data-upgrade="${key}"
               aria-label="${owned === 0 ? "Place" : "Move"} ${escapeMarkup(machine.name)}">
-              <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i>
+              ${logo(key)}
               <span class="ifr-name">${escapeMarkup(machine.name)}</span>
               <span class="ifr-pips" aria-label="Level ${owned} of ${ceiling}">${
                 Array.from({ length: ceiling }, (_, i) => `<b class="${i < owned ? "on" : ""}"></b>`).join("")
@@ -1757,7 +1782,7 @@ function renderInterior(): void {
               <span class="ifr-meta">${owned === 0 ? "Not installed \u00b7 drag to place" : "Drag to move"}</span>
             </button>
             <button class="interior-move" data-action="interior-turn" data-upgrade="${key}"
-              title="Turn ${escapeMarkup(machine.name)} (R)" aria-label="Turn ${escapeMarkup(machine.name)}">\u21BB</button>
+              title="Turn ${escapeMarkup(machine.name)} (R)" aria-label="Turn ${escapeMarkup(machine.name)}">${logo("turn")}</button>
           </div>`;
         }).join("")}
       </div>
@@ -1771,7 +1796,7 @@ function renderInterior(): void {
           return `<button class="interior-floor-row" data-action="fitting-place" data-fitting="${key}"
             ${!owned && !afford ? "disabled" : ""}
             title="${escapeMarkup(spec.detail)} \u2014 serves the ${escapeMarkup(UPGRADE_NAMES[spec.serves].name)}">
-            <i aria-hidden="true">${spec.icon}</i>
+            ${logo(key)}
             <span class="ifr-name">${escapeMarkup(spec.name)}</span>
             <span class="ifr-meta">${owned
               ? (live ? "Working \u00b7 drag to move" : "Not beside its machine \u00b7 drag to move")
@@ -1799,7 +1824,7 @@ function renderInterior(): void {
 
   consoleNode.innerHTML = `<div id="interiorEquipmentPanel" style="--equipment-color:${design.secondary}">
     <small class="equipment-kicker">${escapeMarkup(config.name)} · ${escapeMarkup(upgrade.name)}</small>
-    <div class="equipment-title"><i>${upgrade.icon}</i><div><h3>${escapeMarkup(design.name)}</h3><small>${level === 0 ? "Blueprint ready · not installed" : `Physical equipment · level ${level} of ${ceiling}`}</small></div></div>
+    <div class="equipment-title">${logo(selectedKey)}<div><h3>${escapeMarkup(design.name)}</h3><small>${level === 0 ? "Blueprint ready · not installed" : `Physical equipment · level ${level} of ${ceiling}`}</small></div></div>
     <p class="equipment-copy">${escapeMarkup(design.description)}</p>
     <div class="interior-system-note"><small>${escapeMarkup(room.displayName)}</small><strong>${escapeMarkup(room.regenerativeSystem)}</strong></div>
     <div class="equipment-benefit"><small>Business improvement</small><strong>${escapeMarkup(upgrade.effect)}</strong></div>

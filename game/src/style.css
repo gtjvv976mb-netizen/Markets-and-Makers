@@ -512,12 +512,49 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 /* Folded away, the room runs edge to edge and the panel becomes a rail you can pull back.
    The interior is the thing worth looking at; the readout should be able to get out of
    its way without leaving the room. */
+/* ── COMPACT INTERIOR HUD ─────────────────────────────────────────────────────
+   One control language for everything inside a business: slim dark-teal pills, gold for
+   values and primary actions, drawn stroke logos (.hud-logo) instead of platform glyphs.
+   Every measurement here is deliberately one step smaller than the old chrome — the room
+   is the point, the chrome is furniture. */
+.hud-logo { display: inline-grid; place-items: center; width: 16px; height: 16px; font-style: normal; }
+.hud-logo svg { width: 100%; height: 100%; }
+
+.interior-shell > header { min-height: 52px; padding: 0 12px; }
+.interior-identity { gap: 8px; }
+.interior-identity h2 { font-size: 16px; }
+.interior-identity small { font-size: 9px; letter-spacing: .1em; }
+.interior-mark { width: 30px; height: 30px; border-radius: 10px; }
+.interior-header-actions { gap: 6px; }
+.interior-header-actions > span { padding: 5px 9px; border-radius: 9px; font-size: 10px; letter-spacing: .05em; }
+.interior-system-chip { display: inline-flex; gap: 6px; align-items: center; }
+.interior-system-chip small { display: none; }   /* the value is the message; the label was furniture */
+.interior-system-chip strong { font-size: 10.5px; }
+.close-button { display: inline-flex; gap: 6px; align-items: center; padding: 7px 12px; border-radius: 999px; font-size: 11px; }
+
+.interior-objective { top: 10px; left: 10px; max-width: min(260px, calc(100% - 20px)); padding: 7px 10px;
+  border-radius: 10px; box-shadow: 0 8px 18px rgba(5,38,40,.2); }
+.interior-objective small { font-size: 7.5px; }
+.interior-objective strong { font-size: 12.5px; }
+.interior-objective span { display: none; }   /* one line of instruction, not a paragraph */
+
+.interior-prompt { right: 12px; bottom: 12px; left: 12px; max-width: 520px; grid-template-columns: 30px minmax(0,1fr) auto;
+  gap: 8px; padding: 6px 8px; border-radius: 999px; }
+.interior-prompt > i { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%;
+  color: #0d2a2c; background: #ffdd73; font-size: 14px; font-style: normal; }
+.interior-prompt small { font-size: 8.5px; }
+.interior-prompt strong { font-size: 12px; }
+.interior-prompt button { padding: 7px 14px; border-radius: 999px; font-size: 11.5px; font-weight: 900; }
+
+.interior-build-button { top: 10px; right: 10px; gap: 6px; padding: 8px 13px; font-size: 12px; }
+.interior-grid.tray-open .interior-build-button { right: calc(var(--interior-aside) + 10px); }
+
 /* ── THE BUILD TRAY ───────────────────────────────────────────────────────────
    The panel is closed by default — the room runs edge to edge — and the Build button opens
    it. From the tray a player starts placing a machine or a fitting straight onto the floor.
    Painted to the recipe the world's own labels use: rgba(16,67,70,.92) ground, gold values. */
 .interior-grid { --interior-aside: 0px; }
-.interior-grid.tray-open { --interior-aside: 324px; }
+.interior-grid.tray-open { --interior-aside: 272px; }
 .interior-grid:not(.tray-open) > aside { opacity: 0; pointer-events: none; }
 .interior-build-button { position: absolute; z-index: 7; top: 14px; right: 14px; display: inline-flex; gap: 8px;
   align-items: center; padding: 10px 16px; border: 0; border-radius: 999px; color: #0d2a2c;
@@ -550,32 +587,33 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
    why it read as empty space with a sentence floating in it. */
 .interior-console { padding: 0; border-left: none; background: #0d2a2c; }
 .interior-floor { display: grid; align-content: start; gap: 0; min-height: 100%; padding: 0; text-align: left; }
-.interior-floor-head { padding: 15px 16px 11px; border-bottom: 1px solid rgba(255,221,115,.16); }
+.interior-floor-head { padding: 11px 13px 8px; border-bottom: 1px solid rgba(255,221,115,.16); }
 .interior-floor-head small { display: block; color: rgba(255,255,255,.5); font-size: 10.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.interior-floor-head strong { display: block; margin-top: 3px; color: #ffdd73; font-size: 18px; font-weight: 800; }
+.interior-floor-head strong { display: block; margin-top: 2px; color: #ffdd73; font-size: 15px; font-weight: 800; }
 
 .interior-floor-list { display: grid; gap: 1px; background: rgba(255,255,255,.06); }
-.interior-floor-row { display: grid; grid-template-columns: 30px minmax(0,1fr) auto; grid-template-areas: "icon name pips" "icon meta meta";
-  gap: 2px 10px; align-items: center; width: 100%; padding: 11px 16px; border: 0; border-left: 3px solid transparent;
+.interior-floor-row { display: grid; grid-template-columns: 26px minmax(0,1fr) auto; grid-template-areas: "icon name pips" "icon meta meta";
+  gap: 1px 9px; align-items: center; width: 100%; padding: 8px 13px; border: 0; border-left: 3px solid transparent;
   color: inherit; background: #0d2a2c; text-align: left; cursor: pointer; }
 .interior-floor-row:hover { background: #10393a; }
 .interior-floor-row.active { border-left-color: #ffdd73; background: #10393a; }
-.interior-floor-row > i { grid-area: icon; display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%;
-  color: #ffdd73; background: rgba(8,47,53,.92); box-shadow: inset 0 0 0 2px rgba(244,173,62,.55); font-size: 14px; font-style: normal; }
-.ifr-name { grid-area: name; color: #fff8df; font-size: 13.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.interior-floor-row > .hud-logo { grid-area: icon; width: 26px; height: 26px; padding: 5px; border-radius: 9px;
+  color: #ffdd73; background: rgba(8,47,53,.92); box-shadow: inset 0 0 0 1.5px rgba(244,173,62,.5); }
+.ifr-name { grid-area: name; color: #fff8df; font-size: 12.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ifr-pips { grid-area: pips; display: flex; gap: 3px; }
 .ifr-pips b { width: 7px; height: 7px; border: 1.5px solid rgba(255,255,255,.34); border-radius: 50%; }
 .ifr-pips b.on { border-color: #ffdd73; background: #ffdd73; }
-.ifr-meta { grid-area: meta; color: rgba(255,255,255,.56); font-size: 11px; font-weight: 700; }
+.ifr-meta { grid-area: meta; color: rgba(255,255,255,.52); font-size: 10px; font-weight: 700; }
 
 .interior-floor-foot { margin-top: auto; padding: 12px 16px 15px; border-top: 1px solid rgba(255,221,115,.16); }
 .interior-floor-foot small { display: block; color: rgba(255,255,255,.5); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .interior-floor-foot strong { display: block; margin-top: 3px; color: #fff8df; font-size: 12.5px; font-weight: 700; line-height: 1.4; }
 
 .interior-tray { display: grid; align-content: start; min-height: 100%; }
-.interior-tray-section { padding: 13px 16px 7px; color: rgba(255,255,255,.5); font-size: 10.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.interior-tray-row { display: grid; grid-template-columns: minmax(0,1fr) 40px; gap: 1px; }
-.interior-tray-row .interior-move { border: 0; color: #ffdd73; background: #0d2a2c; font-size: 15px; cursor: pointer; }
+.interior-tray-section { padding: 10px 13px 5px; color: rgba(255,255,255,.5); font-size: 10.5px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.interior-tray-row { display: grid; grid-template-columns: minmax(0,1fr) 34px; gap: 1px; }
+.interior-tray-row .interior-move { display: grid; place-items: center; border: 0; color: rgba(255,221,115,.75); background: #0d2a2c; cursor: pointer; }
+.interior-tray-row .interior-move .hud-logo { width: 14px; height: 14px; }
 .interior-tray-row .interior-move:hover { background: #10393a; }
 .interior-floor-row[disabled] { opacity: .45; cursor: default; }
 
