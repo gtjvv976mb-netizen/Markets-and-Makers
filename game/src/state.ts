@@ -1,7 +1,7 @@
 import {
   AUTO_BUY_PREMIUM, AUTO_MAINTAIN_AT, AUTO_MAINTAIN_COST, AUTO_SELL_BROKER_FEE, BREAKDOWN_CONDITION,
   BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BROKER_PRICE_FLOOR,
-  BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
+  BASE_PLOT_ALLOWANCE, BUSINESS, CAPACITY_DURATION_STEP, CAREER_LEVELS, PLOTS_PER_CAREER_LEVEL, OFFLINE_HOURS_PER_CAPACITY, OFFLINE_MAX_HOURS, OPENING_JOBS, OPENING_MAX_SECONDS, OPENING_TIME_SCALE, PRODUCTION_TIME_SCALE, STORAGE_BASE_CAPACITY, STORAGE_PER_CAPACITY_LEVEL, CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, COHORT_CONTRIBUTION_BASE, CONTRIBUTION_WEIGHT,
   DAILY_GOALS, DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, EPOCH_LENGTH_DAYS,
   OFFLINE_VISITS_PER_HOUR, OFFLINE_VISIT_CAP, plotFootfall,
   BANK_SPREAD, BANK_TREASURY_MM, CIVIC_WAGE_BASE, EVENT_DAYS,
@@ -1691,6 +1691,16 @@ export class GameStore {
     return this.result(true, "Released.");
   }
 
+  /**
+   * How long this business keeps working unattended: the base window plus six hours per
+   * capacity level. The window that earns is the window that bills — settleStandingCharges
+   * caps on the same number, so a bigger silo means more earnable hours AND more billable
+   * ones, never one without the other.
+   */
+  offlineWindowHours(): number {
+    return OFFLINE_MAX_HOURS + this.state.upgrades.capacity * OFFLINE_HOURS_PER_CAPACITY;
+  }
+
   /** Settle the city's bill and the payroll for any whole days that have passed. */
   settleStandingCharges(now = Date.now()): number {
     if (!this.state.buildingPlaced) { this.state.chargesSettledAt = now; return 0; }
@@ -1715,7 +1725,7 @@ export class GameStore {
     // on anyone who is actually playing.
     const days = Math.min(
       Math.floor(elapsed / 86_400_000),
-      Math.max(1, Math.ceil(OFFLINE_MAX_HOURS / 24)),
+      Math.max(1, Math.ceil(this.offlineWindowHours() / 24)),
     );
     if (days <= 0) return 0;
 
@@ -2607,7 +2617,7 @@ export class GameStore {
     }
 
     const config = BUSINESS[license];
-    const budget = Math.min(now - this.state.lastTickAt, OFFLINE_MAX_HOURS * 3_600_000);
+    const budget = Math.min(now - this.state.lastTickAt, this.offlineWindowHours() * 3_600_000);
     if (budget <= 0) { this.state.lastTickAt = now; return report; }
 
     let clock = this.state.lastTickAt;

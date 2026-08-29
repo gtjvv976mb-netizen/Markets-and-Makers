@@ -82,7 +82,16 @@ export const EPOCH_LENGTH_DAYS = 7;
 export const EPOCH_EMISSION_RATE = 0.003;
 export const EPOCH_MM_FLOOR = 8_000;
 export const REWARDS_POOL_MM = 25_000_000;
-export const EPOCH_MM_BUDGET = 60_000;
+/**
+ * 75,000, matching what the funding maths has ALWAYS emitted.
+ *
+ * This said 60,000 for its whole life while fundReserve and the peg derived ~75,140 per
+ * epoch — confirmed three independent ways, most recently by a forty-player simulation that
+ * issued 74,775 real units under the claim lock. The owner's call, made 2026-08-30 with
+ * "make it more profitable": the emitted number is the intended number. The one red test
+ * that guarded this discrepancy goes green with this line.
+ */
+export const EPOCH_MM_BUDGET = 75_000;
 /** Nobody who contributed should round to nothing, however crowded the realm gets. */
 export const MIN_EPOCH_PAYOUT = 25;
 /** A share of every fee and tax funds the next epoch instead of only draining the vault. */

@@ -625,7 +625,12 @@ export const CIVIC_PRODUCT_MARKUP = 1.15;
 
 /**
  * How many of one product the district absorbs at full price in a day, before each further
- * tranche fetches DEMAND_TRANCHE_DECAY less, down to DEMAND_PRICE_FLOOR.
+ * tranche fetches DEMAND_TRANCHE_DECAY less, down to the saturation floor.
+ *
+ * Raised 3 -> 5 on the owner's "make it more profitable" (2026-08-30): two-thirds more
+ * full-price sales per product-day for honest play. The anti-farm invariant is UNTOUCHED by
+ * this knob on purpose — the floor is a fraction of LABOUR, so over-production still loses
+ * money at any tranche size, and the suite's 200-press farm test still measures a loss.
  *
  * Products had no demand limit at all: sellProduct paid a FIXED price for UNLIMITED units.
  * That is the root cause of every money loop measured here — the multi-licence supplier chain
@@ -633,7 +638,7 @@ export const CIVIC_PRODUCT_MARKUP = 1.15;
  * (make from nothing, sell at shelf price, repeat). Resources have had a daily procurement
  * quota and depth-relative price impact all along; products simply never got either.
  */
-export const PRODUCT_DAILY_TRANCHE = 3;
+export const PRODUCT_DAILY_TRANCHE = 5;
 
 /**
  * What a saturated district still pays, as a fraction of the product's LABOUR — not of its
@@ -753,6 +758,16 @@ export const OFFLINE_VISIT_CAP = 90;
 
 /** Absence longer than this stops accruing. Caps the faucet a long holiday would open. */
 export const OFFLINE_MAX_HOURS = 26;
+/**
+ * Extra offline hours per capacity level: the warehouse is also the silo.
+ *
+ * Straight from the reference research ("Egg Inc: offline earning time is a visible,
+ * purchasable farm structure"): the right to idle LONGER is progression a player buys, not
+ * a flat ceiling. Capacity is the natural carrier — a bigger store plausibly runs longer
+ * unattended — so a maxed capacity bay stretches the window from 26 hours to 50. District
+ * demand still caps what those hours can SELL, so this cannot out-emit the economy.
+ */
+export const OFFLINE_HOURS_PER_CAPACITY = 6;
 
 /**
  * Recipe durations are authored in prototype seconds. Real play runs on a clock:

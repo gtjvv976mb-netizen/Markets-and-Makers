@@ -3,7 +3,7 @@ import { pool, closeDatabase } from "../src/database.js";
 import {
   districtQuota, epochBudget, epochStanding, fundReserve, islandBoard, quote, recordPurchase, recordSale,
 } from "../src/economy.js";
-import { CHAIN_PREMIUM_MAX, CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MIN_EPOCH_PAYOUT, PRESSURE_MAX, PRESSURE_MIN, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
+import { CHAIN_PREMIUM_MAX, CITIZEN_NAME, CURRENCY_CODE, CURRENCY_NAME, EPOCH_MM_BUDGET, MERC_DOLLARS_PER_MM, MIN_EPOCH_PAYOUT, PRESSURE_MAX, PRESSURE_MIN, REALM_NAME, RESERVE_FUNDING_RATE, RESOURCES, epochIdFor } from "../src/catalogue.js";
 import { chainPremium, derivedDemand, unitPriceAt } from "../src/economy.js";
 import { live as liveDatabase } from "./live-database.js";
 
@@ -118,7 +118,11 @@ suite("shared district economy", () => {
 
     await fundReserve(REALM, 40_000, "market.fee");
     const funded = await epochBudget(REALM, epoch + 1);
-    expect(funded).toBe(EPOCH_MM_BUDGET + Math.floor(40_000 * RESERVE_FUNDING_RATE));
+    // fundReserve applies RESERVE_FUNDING_RATE on the way IN (0.35 x 40,000 = 14,000 Merc
+    // Dollars banked), and epochBudget converts through the peg on the way OUT (/100 = 140
+    // $MM). The old expectation applied the rate a second time and skipped the peg — it was
+    // never right, and it hid behind the 60k/75k budget discrepancy this suite also carried.
+    expect(funded).toBe(EPOCH_MM_BUDGET + Math.floor((40_000 * RESERVE_FUNDING_RATE) / MERC_DOLLARS_PER_MM));
     expect(funded).toBeGreaterThan(base);
   });
 
