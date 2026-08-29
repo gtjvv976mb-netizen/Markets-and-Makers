@@ -20,6 +20,8 @@ export interface SaleResult {
  */
 export async function sellToDistrict(input: {
   idempotencyKey: string; playerId: string; islandId: string; itemKey: string; quantity: number;
+  /** Settlement time; defaults to now. Simulations pass simulated clocks; production never does. */
+  at?: number;
 }): Promise<SaleResult> {
   const spec = RESOURCES[input.itemKey];
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${input.itemKey}`);
@@ -32,6 +34,7 @@ export async function sellToDistrict(input: {
       realmId: REALM, islandId: input.islandId, itemKey: input.itemKey,
       quantity: input.quantity, playerId: input.playerId,
       contributionWeight: CONTRIBUTION_WEIGHT[spec.buyer],
+      at: input.at,
     });
     const tax = Math.floor(priced.gross * TAX_RATE);
     const net = priced.gross - tax;
@@ -62,16 +65,24 @@ export async function buyFromCivic(input: {
   if (spec.civicSupply === false) throw new EconomyError("not-supplied", `${input.itemKey} is recovered from production, not sold by the civic supplier.`);
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new MarketError("bad-quantity", "Quantity must be a positive whole number.");
 
-  return command(input.idempotencyKey, "economy.buy", input.playerId, async (client) => {
+  const purchase = await command(input.idempotencyKey, "economy.buy", input.playerId, async (client) => {
     const priced = await applyPurchaseWithin(client, {
       realmId: REALM, islandId: input.islandId, itemKey: input.itemKey, quantity: input.quantity,
     });
     await moveCurrency(client, REALM, input.idempotencyKey, priced.cost,
       { type: "player", id: input.playerId }, { type: "government", id: "treasury" }, "economy.buy");
+
     await takeItems(client, REALM, input.idempotencyKey, input.itemKey, input.quantity,
       { type: "government", id: "supply" }, { type: "player", id: input.playerId }, "economy.buy");
     return { itemKey: input.itemKey, quantity: input.quantity, cost: priced.cost, unitPrice: Math.round(priced.cost / input.quantity) };
   });
+  // Every player->treasury flow recycles into emission, not only the sales tax. Before
+  // this, "35% of fees" was really 35% of the 5% tax — about 1.75% of citizen gross — and
+  // supplier purchases, licences and upgrades funded nothing. Safe against wash-pumping:
+  // paying the treasury raises nobody's contribution, so inflating the budget this way is
+  // a 65%-loss donation diluted across every contributor.
+  await fundReserve(REALM, purchase.cost, "economy.buy");
+  return purchase;
 }
 
 /** The civic supplier is not infinite bookkeeping: it needs stock to hand over. */

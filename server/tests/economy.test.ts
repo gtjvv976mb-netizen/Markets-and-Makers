@@ -30,6 +30,7 @@ async function player(name: string): Promise<string> {
 suite("shared district economy", () => {
   beforeEach(async () => {
     await pool!.query("delete from demand_day");
+    await pool!.query("delete from procurement_day");
     await pool!.query("delete from market_pressure");
     await pool!.query("delete from contribution_epoch");
     await pool!.query("delete from reserve_funding");
@@ -118,12 +119,12 @@ suite("shared district economy", () => {
 
     await fundReserve(REALM, 40_000, "market.fee");
     const funded = await epochBudget(REALM, epoch + 1);
-    // fundReserve applies RESERVE_FUNDING_RATE on the way IN (0.35 x 40,000 = 14,000 Merc
-    // Dollars banked), and epochBudget converts through the peg on the way OUT (/100 = 140
-    // $MM). The old expectation applied the rate a second time and skipped the peg — it was
-    // never right, and it hid behind the 60k/75k budget discrepancy this suite also carried.
-    expect(funded).toBe(EPOCH_MM_BUDGET + Math.floor((40_000 * RESERVE_FUNDING_RATE) / MERC_DOLLARS_PER_MM));
-    expect(funded).toBeGreaterThan(base);
+    // Recycled fees SUBSTITUTE for pool principal (Norway's handlingsregelen): the 140 $MM
+    // of recycled taxes pays the budget first and the endowment draw shrinks by the same
+    // 140, so the TOTAL stays at the EPOCH_MM_BUDGET ceiling while the POOL is drawn less.
+    // Funding no longer raises emission — it extends how long emission can last.
+    expect(funded).toBe(EPOCH_MM_BUDGET);
+    expect(funded).toBe(base);   // the ceiling binds in both cases; what changed is the principal draw
   });
 
   it("quotes every resource for an island", async () => {

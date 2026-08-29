@@ -94,6 +94,17 @@ export const REWARDS_POOL_MM = 25_000_000;
 export const EPOCH_MM_BUDGET = 75_000;
 /** Nobody who contributed should round to nothing, however crowded the realm gets. */
 export const MIN_EPOCH_PAYOUT = 25;
+/**
+ * The procurement stabilizer: what the treasury may spend buying goods each day, as a share
+ * of what it holds above its floor — Chile's structural-balance rule in one line. When the
+ * treasury is rich the cap sits far above real demand and no player ever meets it; as the
+ * treasury thins, procurement thins with it, so the drain decays toward equilibrium instead
+ * of running linearly into the floor. The floor keeps a minimum market alive even in a
+ * depression, exactly like the payroll floor keeps citizens fed.
+ */
+export const PROCUREMENT_SHARE_CAP = 0.005;
+export const PROCUREMENT_DAY_FLOOR = 500;
+
 /** A share of every fee and tax funds the next epoch instead of only draining the vault. */
 export const RESERVE_FUNDING_RATE = 0.35;
 /** Peg: one USDT of $MM buys 10,000 Merc Dollars. Must match game/src/data.ts. */

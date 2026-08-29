@@ -1,9 +1,10 @@
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
+import { TREASURY_FLOOR } from "./minds.js";
 import { command } from "./market.js";
 import {
   CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, DEMAND_PRICE_FLOOR, DEMAND_TIER_WEIGHT, DEMAND_TRANCHE_DECAY,
-  DISTRICT_TRADER_BASELINE, EPOCH_EMISSION_RATE, EPOCH_MM_FLOOR, REWARDS_POOL_MM, MEAN_REVERSION_CAP, MEAN_REVERSION_PER_MINUTE, MIN_EPOCH_PAYOUT,
+  DISTRICT_TRADER_BASELINE, EPOCH_EMISSION_RATE, EPOCH_MM_BUDGET, EPOCH_MM_FLOOR, PROCUREMENT_DAY_FLOOR, PROCUREMENT_SHARE_CAP, REWARDS_POOL_MM, MEAN_REVERSION_CAP, MEAN_REVERSION_PER_MINUTE, MIN_EPOCH_PAYOUT,
   CHAIN_CYCLES_PER_DAY, CHAIN_PREMIUM_MAX, DEPTH_PRICE_IMPACT, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT,
   CURRENCY_CODE, MERC_DOLLARS_PER_MM, PRESSURE_MAX, PRESSURE_MIN, RESERVE_FUNDING_RATE, RESOURCES, clamp, epochIdFor, utcDay,
 } from "./catalogue.js";
@@ -206,6 +207,38 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
   if (!spec) throw new EconomyError("unknown-item", `No such resource: ${input.itemKey}`);
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new EconomyError("bad-quantity", "Quantity must be a positive whole number.");
   const at = input.at ?? Date.now();
+
+  // THE PROCUREMENT STABILIZER (Chile's structural-balance rule). Every other treasury
+  // outflow answers to a formula — payroll to its share cap, works to what remains after
+  // wages, the $MM budget to the endowment rate — but a government-buyer sale paid
+  // unconditionally, making procurement the one tap player activity could hold open against
+  // a sinking treasury. Measured over an eight-week circulation simulation: a linear
+  // ~2k/day drain, indifferent to the balance. The day's procurement now caps at
+  // PROCUREMENT_SHARE_CAP of what the treasury holds above its floor, never below
+  // PROCUREMENT_DAY_FLOOR so a depression still has a market. Checked and charged inside
+  // this transaction on locked rows, so concurrent sales cannot split the same headroom.
+  if (spec.buyer === "government") {
+    const day = utcDay(at);
+    // Read WITHOUT locking: the government tick holds this row for its whole settlement,
+    // and a sale queuing behind it (or deadlocking against it) is worse than a budget
+    // computed a moment stale. The procurement_day row lock below is what serialises the
+    // actual spend accounting.
+    const treasuryRow = await client.query<{ balance: string }>(
+      `select balance from currency_account
+        where realm_id=$1 and owner_type='government' and owner_id='treasury' and currency_code='MERCS'`,
+      [input.realmId]);
+    const spendable = Math.max(0, Number(treasuryRow.rows[0]?.balance ?? 0) - TREASURY_FLOOR);
+    const dayBudget = Math.max(PROCUREMENT_DAY_FLOOR, Math.floor(spendable * PROCUREMENT_SHARE_CAP));
+    await client.query(
+      `insert into procurement_day (realm_id, day, spent) values ($1,$2,0)
+       on conflict (realm_id, day) do nothing`, [input.realmId, day]);
+    const spentRow = await client.query<{ spent: string }>(
+      `select spent from procurement_day where realm_id=$1 and day=$2 for update`, [input.realmId, day]);
+    if (Number(spentRow.rows[0]?.spent ?? 0) >= dayBudget) {
+      throw new EconomyError("procurement-budget",
+        "The city's procurement budget is spent for today. Sell to Mercedonians, or come back tomorrow.");
+    }
+  }
   {
     const pressure = await currentPressure(client, input.realmId, input.islandId, input.itemKey);
     // One read for the whole settlement; the district does not change mid-sale.
@@ -251,6 +284,11 @@ export async function applySaleWithin(client: PoolClient, input: SaleInput): Pro
        do update set contribution = contribution_epoch.contribution + excluded.contribution`,
       [input.realmId, epoch, input.playerId, contribution]);
 
+    if (spec.buyer === "government") {
+      await client.query(
+        `update procurement_day set spent = spent + $3 where realm_id=$1 and day=$2`,
+        [input.realmId, utcDay(at), gross]);
+    }
     return { gross, firstUnit, lastUnit, pressure: moved, contribution };
   }
 }
@@ -378,9 +416,28 @@ export async function epochBudget(
   const mercDollars = Number(funded.rows[0]?.amount ?? 0);
   const drawn = await on.query<{ total: string }>(
     `select coalesce(sum(claimed_units),0) as total from contribution_epoch where realm_id = $1`, [realmId]);
-  const remaining = Math.max(0, REWARDS_POOL_MM - Number(drawn.rows[0]?.total ?? 0));
-  const endowment = Math.max(Math.min(EPOCH_MM_FLOOR, remaining), Math.floor(remaining * EPOCH_EMISSION_RATE));
-  return endowment + Math.floor(mercDollars / MERC_DOLLARS_PER_MM);
+  // The pool is principal PLUS everything recycling has ever put back. Without the
+  // add-back, claims charged the pool for their full payout — fee-funded portion included —
+  // so substitution capped the budget while the principal drained at the same speed, which
+  // is Norway's rule with the fund's deposits thrown in the sea. Recycled fees are deposits.
+  const recycled = await on.query<{ amount: string }>(
+    `select coalesce(sum(amount),0) as amount from reserve_funding where realm_id = $1`,
+    [realmId]);
+  const recycledMM = Math.floor(Number(recycled.rows[0]?.amount ?? 0) / MERC_DOLLARS_PER_MM);
+  const remaining = Math.max(0, REWARDS_POOL_MM + recycledMM - Number(drawn.rows[0]?.total ?? 0));
+  // Recycled fees SUBSTITUTE for pool principal; they do not stack on top of it.
+  //
+  // Norway's handlingsregelen, applied literally: spend the fund's return, not the fund.
+  // The old line added reserve funding ON TOP of the 0.3% principal draw with no ceiling,
+  // which made recycling pro-cyclical — a fee boom raised emission in the same epoch the
+  // pool kept draining at full rate. Now the recycled money pays the budget FIRST, the
+  // endowment draw covers only what recycling could not, and EPOCH_MM_BUDGET is finally
+  // what its name says: a ceiling, not an entitlement. At full recycling the pool's
+  // ~333-epoch geometric decay stretches toward indefinite.
+  const reserveMM = Math.floor(mercDollars / MERC_DOLLARS_PER_MM);
+  const rawEndowment = Math.max(Math.min(EPOCH_MM_FLOOR, remaining), Math.floor(remaining * EPOCH_EMISSION_RATE));
+  const endowment = Math.min(rawEndowment, Math.max(0, EPOCH_MM_BUDGET - reserveMM));
+  return Math.min(EPOCH_MM_BUDGET, endowment + reserveMM);
 }
 
 /**

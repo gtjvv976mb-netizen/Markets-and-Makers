@@ -201,6 +201,24 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     // NEUTRAL when no cabinet has sat, which reproduces the original formula exactly.
     const directive = await readDirective(client, Object.keys(STATE_INDUSTRIES));
 
+    // VELOCITY-CLAMPED DIALS (Yale's 80/20 endowment smoothing). The clamps bound the
+    // LEVEL of the cabinet's dials but not their SPEED: a directive could legally swing
+    // 1.25 -> 0.6 -> 1.25 on consecutive sittings, whipsawing the citizens' purse and with
+    // it every shop's takings. Today's effective factor moves only 20% of the way from
+    // yesterday's toward whatever the cabinet asked — one insane sitting can push the
+    // economy at most a fifth of the way to its error, and a full swing takes ~10 days.
+    // Solvency still binds LAST: the payroll cap and treasury floor sit under this, so
+    // smoothing can never spend money the treasury does not have.
+    const smoothedRow = await client.query<{ wage_effective: string | null; works_effective: string | null }>(
+      "select wage_effective, works_effective from realm_clock where realm_id=$1 and mind='government'", [REALM]);
+    const previousWage = Number(smoothedRow.rows[0]?.wage_effective ?? directive.wageFactor);
+    const previousWorks = Number(smoothedRow.rows[0]?.works_effective ?? directive.worksFactor);
+    const effectiveWage = 0.8 * previousWage + 0.2 * directive.wageFactor;
+    const effectiveWorks = 0.8 * previousWorks + 0.2 * directive.worksFactor;
+    await client.query(
+      "update realm_clock set wage_effective=$2, works_effective=$3 where realm_id=$1 and mind='government'",
+      [REALM, effectiveWage, effectiveWorks]);
+
     const counted = await client.query<{ n: string }>(
       "select count(*)::text as n from business b join plot p on p.id=b.plot_id where p.realm_id=$1", [REALM]);
     const population = BASE_POPULATION + Number(counted.rows[0]!.n) * POPULATION_PER_BUSINESS;
@@ -222,7 +240,7 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
     // Order matters: the factor is applied to the BILL, then the cap is applied to the
     // result. A wageFactor above 1 can therefore never lift payment past the cap — it can
     // only close the gap to it on a day the cap was not already binding.
-    const settled = settlePayroll(wageBill, spendable, payrollCap, directive.wageFactor);
+    const settled = settlePayroll(wageBill, spendable, payrollCap, effectiveWage);
     const wagesPaid = settled.paid;
     if (wagesPaid > 0) {
       await moveCurrency(client, REALM, keyFor("payroll", String(Math.floor(now / 1000))), wagesPaid,
@@ -253,7 +271,7 @@ export async function runGovernmentMind(now = Date.now()): Promise<GovernmentRep
       if (have >= target) continue;
 
       // A works produces at a rate, not instantly: a day's run closes a quarter of the gap.
-      const wanted = Math.floor((target - have) * Math.min(1, hours / 24) * 0.25 * directive.worksFactor);
+      const wanted = Math.floor((target - have) * Math.min(1, hours / 24) * 0.25 * effectiveWorks);
       const affordable = Math.floor(budget / plan.costPerUnit);
       const made = Math.max(0, Math.min(wanted, affordable));
       if (made <= 0) continue;

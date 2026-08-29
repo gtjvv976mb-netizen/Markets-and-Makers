@@ -73,6 +73,11 @@ suite("forty players, one district, one week", () => {
     // Epoch claims: everyone tries, the authority decides — serialised by its advisory
     // lock, priced by the REAL cohort, bounded by the REAL budget.
     const atClaim = start + 6 * DAY + 20 * 3_600_000;
+    // Budget BEFORE the claim pass: each claim's payout depletes the pool, so later
+    // claimants derive a slightly smaller budget — by design (percent-of-remaining).
+    // Compared after the fact, total issuance can exceed the FINAL budget by rounding
+    // drift while remaining safely under the STARTING one.
+    const budgetAtStart = await epochBudget(REALM, epochIdFor(atClaim));
     let issued = 0; const payouts: number[] = []; const reasons = new Map<string, number>();
     for (const p of players) {
       try {
@@ -106,10 +111,9 @@ suite("forty players, one district, one week", () => {
     // the long-standing documented-vs-emitted discrepancy, and this simulation confirmed it
     // from a third direction by issuing 74,775 real units under the claim lock. The bound
     // that matters is the one the server enforces.
-    const realBudget = await epochBudget(REALM, epochIdFor(atClaim));
-    console.log(`  authority's own budget: ${realBudget} (catalogue constant says ${EPOCH_MM_BUDGET})`);
-    expect(issued, "issued $MM must never exceed the authority's budget").toBeLessThanOrEqual(realBudget);
-    expect(issued / realBudget, "and a full house should consume most of it").toBeGreaterThan(0.5);
+    console.log(`  authority's budget at claim time: ${budgetAtStart} (ceiling ${EPOCH_MM_BUDGET})`);
+    expect(issued, "issued $MM must never exceed the budget as it stood").toBeLessThanOrEqual(budgetAtStart);
+    expect(issued / budgetAtStart, "and a full house should consume most of it").toBeGreaterThan(0.5);
     // and demand contention is real: a crowded district pays a single seller less than an empty one would
     const q = await quote(REALM, "hearth", sellable[0]!);
     expect(q.pressure, "a week of forty players must have moved prices").not.toBe(1);

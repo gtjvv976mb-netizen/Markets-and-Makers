@@ -11,6 +11,7 @@
 
 import { createHash } from "node:crypto";
 import { FITTINGS, tileIsBuildable } from "./floor.js";
+import { fundReserve } from "./economy.js";
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID, type PlotSpec } from "./plots.js";
@@ -189,6 +190,7 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
   const condition = Math.min(100, Math.max(0, Math.floor(Number(input.condition) || 0)));
   const floor = sanitiseFloor(input.floor);
 
+  let upgradesPaid = 0;
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -279,6 +281,7 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
         await moveCurrency(client, input.realmId, keyFor("upgrade", input.plotId, String(upgrades.yield),
           String(upgrades.capacity), String(upgrades.speed), String(upgrades.appeal)), owed,
           { type: "player", id: input.playerId }, { type: "government", id: "treasury" }, "business.upgrade");
+        upgradesPaid += owed;
       }
     }
 
@@ -332,6 +335,8 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
       }
     }
     await client.query("commit");
+    // Upgrades are a player->treasury flow, so they recycle into emission like every other.
+    if (upgradesPaid > 0) await fundReserve(input.realmId, upgradesPaid, "business.upgrade");
   } catch (error) {
     await client.query("rollback");
     throw error;

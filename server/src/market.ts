@@ -209,7 +209,9 @@ export async function cancelListing(input: {
 export async function buyListing(input: {
   idempotencyKey: string; listingId: string; buyerPlayerId: string; feeRate?: number;
 }): Promise<{ listingId: string; itemKey: string; quantity: number; paid: number; fee: number }> {
-  return command(input.idempotencyKey, "market.buy", input.buyerPlayerId, async (client) => {
+  let feePaid = 0;
+  let feeRealm = "";
+  const taken = await command(input.idempotencyKey, "market.buy", input.buyerPlayerId, async (client) => {
     const locked = await client.query<{
       realm_id: string; item_key: string; quantity: string; unit_price: string; seller_player_id: string;
     }>(`select realm_id, item_key, quantity, unit_price, seller_player_id
@@ -227,6 +229,8 @@ export async function buyListing(input: {
     if (fee > 0) {
       await moveCurrency(client, row.realm_id, input.listingId, fee,
         { type: "player", id: input.buyerPlayerId }, { type: "government", id: "treasury" }, "market.fee");
+      feePaid = fee;
+      feeRealm = row.realm_id;
     }
     await takeItems(client, row.realm_id, input.listingId, row.item_key, quantity,
       { type: "escrow", id: input.listingId }, { type: "player", id: input.buyerPlayerId }, "market.buy");
@@ -236,6 +240,14 @@ export async function buyListing(input: {
 
     return { listingId: input.listingId, itemKey: row.item_key, quantity, paid: total, fee };
   });
+  // Market fees are a player->treasury flow; they recycle into emission with the rest.
+  if (feePaid > 0 && feeRealm) {
+    // Dynamic import, deliberately: economy.ts imports command() from this file, so a
+    // static import back the other way is a module cycle waiting to misload.
+    const { fundReserve } = await import("./economy.js");
+    await fundReserve(feeRealm, feePaid, "market.fee");
+  }
+  return taken;
 }
 
 /** Cheapest first — an island order book for one good, or for everything on that island. */
