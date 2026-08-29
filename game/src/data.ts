@@ -1039,3 +1039,59 @@ export const MM_EXCHANGE_BUNDLE = 100;
 export const MM_EXCHANGE_FEE_RATE = 0.02;
 export const MIN_MM_RESERVE = 25_000_000;
 export const SAVE_KEY = "markets-makers-3d-browser-v8";
+
+
+/** Which way a machine faces. Its working side — the floor in front of it is its apron. */
+export type Facing = "N" | "E" | "S" | "W";
+export const FACINGS: readonly Facing[] = ["N", "E", "S", "W"] as const;
+export const FACING_STEP: Record<Facing, { column: number; row: number }> = {
+  N: { column: 0, row: -1 },
+  E: { column: 1, row: 0 },
+  S: { column: 0, row: 1 },
+  W: { column: -1, row: 0 },
+};
+
+/**
+ * How deep the working floor in front of a machine needs to be, by upgrade level.
+ *
+ * Index 0 is a machine nobody has upgraded, and it needs nothing: a new maker who has bought
+ * no levels can put their four machines anywhere and be told off for none of it. Depth grows
+ * with the level because that is the pressure the mechanic runs on — the floor gets tighter as
+ * the machines get better, so a layout that was fine at level 1 is worth revisiting at level 4.
+ *
+ * It stops at 2, not 3. A three-deep apron reaches from one bank clean across the aisle into
+ * the far bank, so every machine contested every other machine and the AUTHORED DEFAULT
+ * layout scored 80% — punishing players who never touched their floor, on patch day, for a
+ * layout the game itself chose for them. At two it reaches one bay column plus the aisle,
+ * which is open ground.
+ */
+export const APRON_DEPTH: readonly number[] = [0, 1, 1, 2, 2];
+
+/** The worst a boxed-in machine can be reduced to, as a fraction of its own upgrade bonus. */
+export const APRON_MIN_CLEARANCE = 0.7;
+
+/** The apron tiles for a machine at `tile` facing `facing` at `level`, clipped to the floor. */
+export function apronTiles(
+  tile: { column: number; row: number },
+  facing: Facing,
+  level: number,
+): Array<{ column: number; row: number }> {
+  const depth = APRON_DEPTH[Math.max(0, Math.min(APRON_DEPTH.length - 1, Math.floor(level)))] ?? 0;
+  if (depth <= 0) return [];
+  const step = FACING_STEP[facing];
+  // One tile wider than the machine on each side, so a machine in a corner still has a
+  // recognisable working area rather than a single-file queue.
+  const across = step.column === 0
+    ? [{ column: -1, row: 0 }, { column: 0, row: 0 }, { column: 1, row: 0 }]
+    : [{ column: 0, row: -1 }, { column: 0, row: 0 }, { column: 0, row: 1 }];
+  const out: Array<{ column: number; row: number }> = [];
+  for (let ahead = 1; ahead <= depth; ahead += 1) {
+    for (const side of across) {
+      const column = tile.column + step.column * ahead + side.column;
+      const row = tile.row + step.row * ahead + side.row;
+      if (column < 0 || column >= FLOOR_COLUMNS || row < 0 || row >= FLOOR_ROWS) continue;
+      out.push({ column, row });
+    }
+  }
+  return out;
+}

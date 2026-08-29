@@ -12,7 +12,8 @@ import {
   INITIAL_MM_RESERVE, INITIAL_MERC_DOLLAR_SUPPLY, ISLANDS, MIN_MM_RESERVE,   DEMAND_TIER_WEIGHT, MM_REFERENCE_RATE, PLOTS, RESOURCES, SAVE_KEY, SERVICE_AUDIENCE_BUDGET, SPECIALIZATIONS,
   INSTALL_BASE_SECONDS, UPGRADE_NAMES, CIVIC_BUILDINGS, RIDE_FARE_PER_METRE, RIDE_MINIMUM_FARE, RIDE_DROP_OFF,
   CHAIN_DRAW, CHAIN_CYCLES_PER_DAY, DISTRICT_BASE_TRADES, DISTRICT_NEIGHBOUR_WEIGHT, DEPTH_PRICE_IMPACT, MARKET_REVERSION_CAP, CHAIN_PREMIUM_MAX, PRODUCT_DAILY_TRANCHE, PRODUCT_SATURATION_FLOOR,
-  CIVIC_PRODUCT_MARKUP, DEFAULT_EQUIPMENT_TILES, FITTINGS, FLOOR_WALKWAY_COLUMN, servicedTiles,
+  APRON_MIN_CLEARANCE, apronTiles, CIVIC_PRODUCT_MARKUP, DEFAULT_EQUIPMENT_TILES, FACINGS, FITTINGS,
+  FLOOR_WALKWAY_COLUMN, servicedTiles, type Facing,
   tileIsBuildable, type FittingKey,
   CIVIC_BOARD_BASE, CIVIC_BOARD_MAX, CIVIC_BOARD_PER_MAKER, CIVIC_DISTRICT_BONUS_MAX, CIVIC_DISTRICT_BONUS_PER_MAKER,
   CURRENCY_CODE, ERRAND_DESK, ERRAND_VERB, TAX_RATE, TUTORIAL, UPGRADE_COSTS, type ErrandKind, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey,
@@ -94,6 +95,7 @@ export interface GameState {
   equipmentTiles: Record<string, { column: number; row: number }>;
   /** Fittings they have bought, and the tile each stands on. */
   fittings: Partial<Record<FittingKey, { column: number; row: number }>>;
+  equipmentFacing: Partial<Record<UpgradeKey, Facing>>;
   productStock: Record<string, number>; productDemand: ProductDemandLedger;
   todayRevenue: number; todayExpenses: number;
   franchiseBids: Partial<Record<LicenseKey, { round: number; amount: number }>>;
@@ -262,6 +264,7 @@ export function createFreshState(): GameState {
     errand: null,
     equipmentTiles: { ...DEFAULT_EQUIPMENT_TILES },
     fittings: {},
+    equipmentFacing: {},
     productStock: {}, productDemand: { date: today, sold: {} }, todayRevenue: 0, todayExpenses: 0,
     version: 4,
     wallet: 750,
@@ -500,6 +503,15 @@ export function loadState(): GameState {
       // A save from before the floor was a grid has no layout; give it the authored one.
       // Stations are seated first because fittings must not be seated on top of one.
       equipmentTiles: savedEquipmentTiles,
+      equipmentFacing: (() => {
+        const out: Partial<Record<UpgradeKey, Facing>> = {};
+        const saw = (saved.equipmentFacing ?? {}) as Record<string, unknown>;
+        for (const key of Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[]) {
+          const value = saw[key];
+          if (typeof value === "string" && (FACINGS as readonly string[]).includes(value)) out[key] = value as Facing;
+        }
+        return out;
+      })(),
       fittings: sanitiseFittings(saved.fittings, savedEquipmentTiles),
       mayorHidden: Boolean(saved.mayorHidden),
       installation: saved.installation && typeof saved.installation === "object"
@@ -953,7 +965,7 @@ export class GameStore {
 
   marketBuyPrice(key: ResourceKey): number { return Math.max(1, Math.round(RESOURCES[key].governmentPrice * this.state.marketPressure[key] * this.eventMultiplier(key))); }
   marketSellPrice(key: ResourceKey): number {
-    const appeal = 1 + this.state.upgrades.appeal * .05;
+    const appeal = 1 + this.state.upgrades.appeal * .05 * this.apronClearance("appeal");
     const stabilizer = RESOURCES[key].buyer === "government" ? this.stabilizerMultiplier() : 1;
     const quality = this.state.specialization === "premium" ? 1.08 : 1;
     // A kiln or a trade counter beside its station lifts what the goods fetch.
@@ -1030,9 +1042,9 @@ export class GameStore {
   /** Customers one cycle serves. Read by the info desk. */
   serviceVisitors(config: (typeof BUSINESS)[LicenseKey], cycles: number): number {
     if (!config.servicePayout) return 0;
-    const appeal = 1 + this.state.upgrades.appeal * .15;
+    const appeal = 1 + this.state.upgrades.appeal * .15 * this.apronClearance("appeal");
     const specialization = this.state.specialization === "community" ? 1.15 : this.state.specialization === "premium" ? 1.08 : 1;
-    const throughput = (1 + this.state.upgrades.yield * .12) * specialization;
+    const throughput = (1 + this.state.upgrades.yield * .12 * this.apronClearance("yield")) * specialization;
     const priceResponse = Math.pow(1 / this.state.servicePriceIndex, config.priceElasticity ?? 1);
     return Math.max(1, Math.ceil((config.baseVisitors ?? 4) * cycles * appeal * throughput * (this.consumerConfidenceIndex() / 100) * priceResponse));
   }
@@ -1844,10 +1856,129 @@ export class GameStore {
   // ---------------------------------------------------------------------
 
   /** Whether a tile touches the station this fitting serves, including diagonally. */
+  /** Which way a machine faces. Machines face the walkway until their owner turns them. */
+  equipmentFacing(key: UpgradeKey): Facing {
+    const saved = this.state.equipmentFacing?.[key];
+    if (saved) return saved;
+    const tile = this.equipmentTile(key);
+    return tile.column < FLOOR_WALKWAY_COLUMN ? "E" : "W";
+  }
+
+  /** Turn a machine a quarter turn. The floor in front of it is the floor that matters. */
+  rotateEquipment(key: UpgradeKey): ActionResult {
+    const from = this.equipmentFacing(key);
+    const next = FACINGS[(FACINGS.indexOf(from) + 1) % FACINGS.length]!;
+    this.state.equipmentFacing = { ...this.state.equipmentFacing, [key]: next };
+    this.commit(`${UPGRADE_NAMES[key]} turned to face ${{ N: "the back", E: "east", S: "the door", W: "west" }[next]}.`, "success");
+    return this.result(true, "Turned.");
+  }
+
+  /** The working floor in front of a machine, as tiles. */
+  apronOf(key: UpgradeKey): Array<{ column: number; row: number }> {
+    return apronTiles(this.equipmentTile(key), this.equipmentFacing(key), this.state.upgrades[key]);
+  }
+
+  /**
+   * How much of a machine's own upgrade bonus its floor actually delivers.
+   *
+   * A machine needs room in front of it to be worked. Anything standing on its apron — another
+   * machine, or a fitting that serves somebody else — takes a bite out of what its levels are
+   * worth. A fitting serving THIS machine is welcome and costs nothing, so a valid arrangement
+   * can never punish itself.
+   *
+   * Level 0 has no apron at all, so a new maker who has bought nothing is charged nothing: the
+   * penalty scales the bonus, and zero times anything is zero.
+   */
+  apronClearance(key: UpgradeKey): number {
+    // Memoised on the things that can change it. This sits in the production hot path — it
+    // scales throughput, storage and price — and recomputing every other machine's apron on
+    // every call took the balance simulation from passing to a 6.2 second timeout. The
+    // signature is cheap to build and changes only when the floor does.
+    // Built from primitives, not JSON.stringify: stringifying four nested objects on every
+    // call was itself most of the cost and still timed out at 5.1s.
+    let signature = "";
+    for (const other of Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[]) {
+      const tile = this.state.equipmentTiles[other];
+      signature += `${tile?.column ?? -1},${tile?.row ?? -1},${this.state.equipmentFacing?.[other] ?? ""},${this.state.upgrades[other]}|`;
+    }
+    for (const fitting of Object.keys(FITTINGS) as FittingKey[]) {
+      const tile = this.state.fittings?.[fitting];
+      signature += `${tile?.column ?? -1},${tile?.row ?? -1}|`;
+    }
+    if (this.clearanceSignature !== signature) {
+      this.clearanceSignature = signature;
+      this.clearanceCache.clear();
+    }
+    const cached = this.clearanceCache.get(key);
+    if (cached !== undefined) return cached;
+    this.computeAllClearances();
+    return this.clearanceCache.get(key) ?? 1;
+  }
+
+  private clearanceSignature = "";
+  private readonly clearanceCache = new Map<UpgradeKey, number>();
+
+  /**
+   * Work out all four clearances in one pass.
+   *
+   * Each machine's clearance depends on every other machine's apron, so computing them one at
+   * a time did the same work four times over. Measured: the balance simulation was already at
+   * 4.6s against a 5s limit before any of this, and the naive version pushed it to 6.2s.
+   */
+  private computeAllClearances(): void {
+    const keys = Object.keys(DEFAULT_EQUIPMENT_TILES) as UpgradeKey[];
+    const aprons = new Map<UpgradeKey, Array<{ column: number; row: number }>>();
+    const claims = new Map<string, number>();
+    for (const key of keys) {
+      const apron = this.apronOf(key);
+      aprons.set(key, apron);
+      for (const tile of apron) {
+        if (!tileIsBuildable(tile.column, tile.row)) continue;
+        const id = `${tile.column}:${tile.row}`;
+        claims.set(id, (claims.get(id) ?? 0) + 1);
+      }
+    }
+    const stationAt = new Map<string, UpgradeKey>();
+    for (const key of keys) {
+      const tile = this.equipmentTile(key);
+      stationAt.set(`${tile.column}:${tile.row}`, key);
+    }
+    const fittingServes = new Map<string, UpgradeKey>();
+    for (const [fitting, tile] of Object.entries(this.state.fittings ?? {}) as Array<[FittingKey, { column: number; row: number }]>) {
+      if (tile) fittingServes.set(`${tile.column}:${tile.row}`, FITTINGS[fitting].serves);
+    }
+
+    for (const key of keys) {
+      const apron = aprons.get(key)!;
+      if (!apron.length) { this.clearanceCache.set(key, 1); continue; }
+      if (apron.length < 3) { this.clearanceCache.set(key, APRON_MIN_CLEARANCE); continue; }
+      let clutter = 0;
+      for (const tile of apron) {
+        const id = `${tile.column}:${tile.row}`;
+        const station = stationAt.get(id);
+        if (station && station !== key) { clutter += 1; continue; }
+        const serves = fittingServes.get(id);
+        // A fitting that serves THIS machine belongs on its apron and costs nothing.
+        if (serves !== undefined && serves !== key) { clutter += 1; continue; }
+        // Two machines cannot both work the same patch of floor. Only the bay is contestable;
+        // the aisle and the shop beyond it are open ground.
+        if ((claims.get(id) ?? 0) > 1) clutter += 1;
+      }
+      this.clearanceCache.set(key,
+        Math.max(APRON_MIN_CLEARANCE, 1 - (1 - APRON_MIN_CLEARANCE) * (clutter / apron.length)));
+    }
+  }
+
   fittingIsConnected(key: FittingKey, column: number, row: number): boolean {
-    const station = this.equipmentTile(FITTINGS[key].serves);
-    return Math.abs(station.column - column) <= 1 && Math.abs(station.row - row) <= 1
-      && !(station.column === column && station.row === row);
+    const serves = FITTINGS[key].serves;
+    const station = this.equipmentTile(serves);
+    if (station.column === column && station.row === row) return false;
+    // Touching still counts, exactly as it always did, so nothing disconnects on patch day.
+    const touching = Math.abs(station.column - column) <= 1 && Math.abs(station.row - row) <= 1;
+    // And a fitting anywhere on its machine's apron works too: reach grows as the machine is
+    // levelled, which is the reward for levelling rather than a fresh constraint.
+    const onApron = this.apronOf(serves).some((tile) => tile.column === column && tile.row === row);
+    return touching || onApron;
   }
 
   /** The fittings that are both bought AND standing where they can do their work. */
@@ -2162,7 +2293,7 @@ export class GameStore {
     if (base <= 0) return 0;
     // Fittings standing beside the yield station push volume; ones standing away from it
     // contribute nothing, which is exactly what makes where they go a decision.
-    const exact = base * (1 + this.state.upgrades.yield * .12 + quality) * this.fittingEffects().output;
+    const exact = base * (1 + this.state.upgrades.yield * .12 * this.apronClearance("yield") + quality) * this.fittingEffects().output;
     const carried = exact + (this.state.yieldCarry[key] ?? 0);
     const made = Math.floor(carried);
     this.state.yieldCarry[key] = carried - made;
@@ -2325,7 +2456,7 @@ export class GameStore {
   }
 
   storageCapacity(): number {
-    const base = STORAGE_BASE_CAPACITY + this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL;
+    const base = STORAGE_BASE_CAPACITY + Math.floor(this.state.upgrades.capacity * STORAGE_PER_CAPACITY_LEVEL * this.apronClearance("capacity"));
     return Math.floor(base * this.fittingEffects().storage);
   }
 
@@ -2586,7 +2717,7 @@ export class GameStore {
           const base = (config.output[key] ?? 0) * cycles;
           if (base <= 0) continue;
           // Estimating must not SPEND the yield carry — this is a question, not a shift.
-          const made = Math.max(base, Math.floor(base * (1 + this.state.upgrades.yield * .12) + (this.state.yieldCarry[key] ?? 0)));
+          const made = Math.max(base, Math.floor(base * (1 + this.state.upgrades.yield * .12 * this.apronClearance("yield")) + (this.state.yieldCarry[key] ?? 0)));
           // Count only the units the broker would actually take.
           //
           // The gate and the seller used to disagree: the gate priced the whole batch, and

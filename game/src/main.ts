@@ -1685,7 +1685,7 @@ function equipmentSelectorMarkup(license: LicenseKey, selectedKey: UpgradeKey | 
     const design = INTERIOR_EQUIPMENT_CATALOG[license][key];
     const level = store.state.upgrades[key];
     const status = level === 0 ? "Not installed" : `Level ${level}`;
-    return `<div class="interior-station-row"><button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button><button class="interior-move" data-action="interior-move" data-upgrade="${key}" title="Move ${escapeMarkup(design.name)}" aria-label="Move ${escapeMarkup(design.name)} to another tile">\u2725</button></div>`;
+    return `<div class="interior-station-row"><button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button><button class="interior-move" data-action="interior-move" data-upgrade="${key}" title="Move ${escapeMarkup(design.name)}" aria-label="Move ${escapeMarkup(design.name)} to another tile">\u2725</button><button class="interior-move" data-action="interior-turn" data-upgrade="${key}" title="Turn ${escapeMarkup(design.name)} (R)" aria-label="Turn ${escapeMarkup(design.name)} to face another way">\u21BB</button></div>`;
   }).join("")}</div>
     <div class="interior-aside-title">Fittings</div>
     <p class="fitting-note">Each one only works standing beside the machine it serves.</p>
@@ -2962,6 +2962,7 @@ function openInterior(): void {
       tiles: store.state.equipmentTiles,
       // Without this the room had no idea which fittings existed, so it could not draw one.
       fittings: store.state.fittings,
+      facings: store.state.equipmentFacing,
       // The store owns the rules — the walkway, what already stands on a tile. The room
       // only asks; a refusal leaves the machine where it was.
       // The room asks; the store decides. Stations move, fittings are bought the first
@@ -3086,6 +3087,17 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Tab" && interiorOpen) trapFocusWithin(interiorModal, event);
   else if (event.key === "Tab" && sheet.dataset.open === "true") trapFocusWithin(sheet, event);
   if (event.code === "Escape" && interiorOpen) closeInterior();
+  // R turns the selected machine. The floor in front of a machine is the floor that counts,
+  // so being able to turn one is half of what makes a layout a decision.
+  if (event.code === "KeyR" && interiorOpen && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    const key = interiorSelection?.kind === "upgrade" ? interiorSelection.key : null;
+    if (key) {
+      event.preventDefault();
+      report(store.rotateEquipment(key));
+      interiorWorld.setFacings(store.state.equipmentFacing);
+      renderInterior();
+    }
+  }
   if (event.altKey && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
     event.preventDefault();
     switchTab(["shop", "trade", "world"][Number(event.code.at(-1)) - 1]);
@@ -3211,6 +3223,11 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "make-product") report(store.makeProduct(button.dataset.product ?? ""));
   else if (action === "buy-inputs") report(store.buyMissingInputs(button.dataset.product ?? ""));
+  else if (action === "interior-turn") {
+    report(store.rotateEquipment(button.dataset.upgrade as UpgradeKey));
+    interiorWorld.setFacings(store.state.equipmentFacing);
+    renderInterior();
+  }
   else if (action === "sell-product") report(store.sellProduct(button.dataset.product ?? ""));
   else if (action === "claim-epoch") void claimEpoch();
   else if (action === "withdraw-chain") void withdrawToWallet();

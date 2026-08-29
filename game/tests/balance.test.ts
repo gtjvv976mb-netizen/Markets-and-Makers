@@ -144,6 +144,10 @@ describe("the shape of the economy", () => {
     expect(losing, "trades where a month of active play leaves the maker poorer").toBe(0);
   });
 
+  // 20s, not the 5s default. This simulates sixty days across four upgrade tracks for several
+  // trades and legitimately takes ~4.5 seconds on its own — close enough to the default that it
+  // fails under full-suite CPU contention rather than because anything is wrong. Measured in
+  // isolation at 4499ms and 4413ms.
   it("makes every upgrade worth buying eventually", () => {
     // A/B from the same settled past, with the upgrade paid for out of the same purse.
     const rows: string[] = [];
@@ -201,7 +205,7 @@ describe("the shape of the economy", () => {
       expect(useful.length, `${licence} has too few upgrades worth buying: ${useful.join(", ") || "none"}`)
         .toBeGreaterThanOrEqual(3);
     }
-  });
+  }, 20_000);
 
   it("rewards a maker who invests over one who lets it pile up", () => {
     // The game no longer has a sell button, so "turning up" cannot mean clicking one.

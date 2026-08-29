@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { dampWrappedYaw, headingYaw, planarSpeed, walkAnimationRate } from "./characterRig";
 import {
   BUSINESS, DEFAULT_EQUIPMENT_TILES, FITTINGS, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE,
-  FLOOR_WALKWAY_COLUMN, MAX_UPGRADE_LEVEL, servicedTiles, tileIsBuildable, tileToWorld, worldToTile,
+  apronTiles, FLOOR_WALKWAY_COLUMN, MAX_UPGRADE_LEVEL, servicedTiles, tileIsBuildable,
+  tileToWorld, worldToTile,
 } from "./data";
-import type { BusinessConfig, FittingKey, LicenseKey, UpgradeKey } from "./data";
+import type { BusinessConfig, Facing, FittingKey, LicenseKey, UpgradeKey } from "./data";
 import { createPlayerMercedonian } from "./mercedonianAvatar";
 import { surfaceTile } from "./tileTextures";
 
@@ -14,6 +15,8 @@ export interface InteriorEnterOptions {
   tiles?: Record<string, { column: number; row: number }>;
   /** Which fittings have been bought, and the tile each one stands on. */
   fittings?: Partial<Record<FittingKey, { column: number; row: number } | null>>;
+  /** Which way each machine faces. The floor in front of it is its apron. */
+  facings?: Partial<Record<UpgradeKey, Facing>>;
   /** Called when a placement drag ends on a tile. The store decides whether it sticks. */
   onPlace?: (key: string, column: number, row: number, kind: "station" | "fitting") => boolean;
   /** Recommended when several custom configs share a display name. Inferred otherwise. */
@@ -405,6 +408,8 @@ export class InteriorWorld {
   private tiles: Record<string, { column: number; row: number }> = {};
   private fittingTiles: Partial<Record<FittingKey, { column: number; row: number } | null>> = {};
   private readonly fittingRoots = new Map<FittingKey, THREE.Group>();
+  private facings: Partial<Record<UpgradeKey, Facing>> = {};
+  private apronPaint: THREE.Group | null = null;
   private onPlace: ((key: string, column: number, row: number, kind: "station" | "fitting") => boolean) | null = null;
   private pinchDistance = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
@@ -509,6 +514,7 @@ export class InteriorWorld {
         this.layoutFittings();
       }
       this.rebuildObstacles();
+      this.paintAprons();
     }
   }
 
@@ -602,6 +608,73 @@ export class InteriorWorld {
       this.fittingRoots.set(key, root);
     }
     this.layoutFittings();
+  }
+
+  /** Which way a machine faces, defaulting to the aisle exactly as the store does. */
+  private facingOf(key: UpgradeKey): Facing {
+    const tile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key];
+    return this.facings[key] ?? ((tile?.column ?? 0) < FLOOR_WALKWAY_COLUMN ? "E" : "W");
+  }
+
+  /** Turn the machines to face where their owner pointed them, and repaint the aprons. */
+  setFacings(facings: Partial<Record<UpgradeKey, Facing>>): void {
+    this.facings = { ...facings };
+    for (const [key, station] of this.stations) {
+      const yaw = { N: Math.PI, E: -Math.PI / 2, S: 0, W: Math.PI / 2 }[this.facingOf(key)];
+      station.root.rotation.y = yaw;
+    }
+    this.paintAprons();
+  }
+
+  /**
+   * Paint the working floor in front of every machine, and tint the tiles that are contested.
+   *
+   * The apron is a soft rule — clearance moves in a 0.70 to 1.00 band — and soft rules get
+   * ignored when they are reported as a percentage in a panel. A player who never notices it
+   * loses up to 19% and never learns why. So it is drawn on the floor: clutter is a colour.
+   */
+  private paintAprons(): void {
+    if (this.apronPaint) {
+      this.content.remove(this.apronPaint);
+      disposeObject(this.apronPaint);
+      this.apronPaint = null;
+    }
+    const group = new THREE.Group();
+    group.name = "apron-paint";
+    const design = INTERIOR_ROOMS[this.license];
+
+    // Every tile any OTHER machine also wants, so the overlap can be shown rather than merely
+    // charged for.
+    const claims = new Map<string, number>();
+    for (const key of this.stations.keys()) {
+      for (const tile of apronTiles(this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key]!, this.facingOf(key), this.upgrades[key] ?? 0)) {
+        if (!tileIsBuildable(tile.column, tile.row)) continue;
+        const id = `${tile.column}:${tile.row}`;
+        claims.set(id, (claims.get(id) ?? 0) + 1);
+      }
+    }
+    const occupied = new Set<string>([
+      ...Object.values(this.tiles).map((t) => `${t.column}:${t.row}`),
+      ...Object.values(this.fittingTiles).filter(Boolean).map((t) => `${t!.column}:${t!.row}`),
+    ]);
+
+    const clear = new THREE.MeshBasicMaterial({ color: design.accent, transparent: true, opacity: 0.2, depthWrite: false });
+    const taken = new THREE.MeshBasicMaterial({ color: 0xd98b3a, transparent: true, opacity: 0.34, depthWrite: false });
+
+    for (const key of this.stations.keys()) {
+      const station = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key]!;
+      for (const tile of apronTiles(station, this.facingOf(key), this.upgrades[key] ?? 0)) {
+        const id = `${tile.column}:${tile.row}`;
+        const contested = (claims.get(id) ?? 0) > 1 || occupied.has(id);
+        const pad = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_TILE * 0.86, FLOOR_TILE * 0.86), contested ? taken : clear);
+        pad.rotation.x = -Math.PI / 2;
+        const world = tileToWorld(tile.column, tile.row);
+        pad.position.set(world.x, 0.045, world.z);
+        group.add(pad);
+      }
+    }
+    this.content.add(group);
+    this.apronPaint = group;
   }
 
   /** Show the fittings that have been bought, on the tiles they were put on. */
@@ -971,6 +1044,7 @@ export class InteriorWorld {
     this.showGrid(false);
     this.tiles = { ...DEFAULT_EQUIPMENT_TILES, ...(options.tiles ?? {}) };
     this.fittingTiles = { ...(options.fittings ?? {}) };
+    this.facings = { ...(options.facings ?? {}) };
     this.onPlace = options.onPlace ?? null;
     this.applyCameraOrbit();
     this.business = options.business;
@@ -1317,6 +1391,7 @@ export class InteriorWorld {
     // it, and toggled `visible` on a group no longer in the scene — so from the second visit
     // to any interior onward, the placement grid never appeared again.
     this.gridHelper = null;
+    this.apronPaint = null;
     this.fittingRoots.clear();
     this.interactiveObjects.length = 0;
     this.obstacles.length = 0;
@@ -1400,6 +1475,7 @@ export class InteriorWorld {
     for (const definition of STATIONS) this.createStation(definition, cream, timber);
     this.createFittings(timber);
     this.rebuildObstacles();
+    this.setFacings(this.facings);
 
     // NOTHING ELSE STANDS ON THE FLOOR.
     //
