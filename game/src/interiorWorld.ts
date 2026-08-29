@@ -857,6 +857,17 @@ export class InteriorWorld {
     this.moveTarget = null;
     if (active) {
       this.resize();
+      // ...and again once layout has settled, on a TIMER rather than a frame.
+      //
+      // resize() reads the canvas's laid-out size, and the panel animates in, so the call
+      // above can land while the canvas is still zero-width and pin the drawing buffer at
+      // 1x1. The self-heal in animate() cannot rescue that if requestAnimationFrame is
+      // throttled — which is exactly what a browser does to a hidden or backgrounded tab,
+      // and a player who opens a business and switches tabs while it loads would come back
+      // to a one-pixel room that never repairs itself. setTimeout keeps running when rAF
+      // does not, so this is the path that always fires.
+      window.setTimeout(() => { if (this.active && !this.disposed) this.resize(); }, 60);
+      window.setTimeout(() => { if (this.active && !this.disposed) this.resize(); }, 320);
       this.clock.start();
       // Whatever the room author laid out, the OWNER's arrangement wins.
       this.layoutStations();
@@ -1795,11 +1806,28 @@ export class InteriorWorld {
   private createBlueprint(key: UpgradeKey, design: InteriorEquipmentDesign, color: THREE.Color): THREE.Group {
     const root = new THREE.Group();
     root.name = `${design.form}-purchase-blueprint`;
-    const material = new THREE.MeshBasicMaterial({
+    // A ghost you can actually see.
+    //
+    // This was a wireframe at 0.38 opacity, which was legible while every station stood on
+    // a solid plinth — the plinth was what said "something belongs here" and the wireframe
+    // only said what. With the ports gone, an unbought station became a faint scribble
+    // under a full-size label: four names floating over an empty floor. Caught by looking
+    // at the room, which no amount of counting geometry would have told me.
+    //
+    // Solid at low opacity now, with a darker keyline over it, matching how the world
+    // outside draws a surface: a flat fill and a drawn border.
+    const material = new THREE.MeshStandardMaterial({
       color,
+      transparent: true,
+      opacity: 0.3,
+      roughness: 0.85,
+      depthWrite: false,
+    });
+    const keyline = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color).multiplyScalar(0.45),
       wireframe: true,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.75,
       depthWrite: false,
     });
     const geometry = key === "capacity"
@@ -1813,6 +1841,33 @@ export class InteriorWorld {
     ghost.position.y = 1.38;
     if (key === "speed") ghost.rotation.x = Math.PI / 2;
     root.add(ghost);
+    // The keyline over the fill, exactly as the world's own tiles are drawn.
+    const edges = new THREE.Mesh(geometry, keyline);
+    edges.position.copy(ghost.position);
+    edges.rotation.copy(ghost.rotation);
+    edges.scale.setScalar(1.008);
+    root.add(edges);
+
+    // And a footprint on the tile it stands on, so an unbought station reads as a claimed
+    // square of floor rather than something hovering over it. Same language as outside: a
+    // flat panel with a darker border drawn round it.
+    const footprint = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.34, 1.34),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.14, depthWrite: false }),
+    );
+    footprint.rotation.x = -Math.PI / 2;
+    footprint.position.y = 0.02;
+    root.add(footprint);
+    const footEdge = new THREE.Mesh(
+      new THREE.RingGeometry(0.92, 0.98, 4, 1, Math.PI / 4),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color).multiplyScalar(0.5),
+        transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false,
+      }),
+    );
+    footEdge.rotation.x = -Math.PI / 2;
+    footEdge.position.y = 0.025;
+    root.add(footEdge);
     const scan = new THREE.Mesh(
       new THREE.RingGeometry(0.66, 0.76, 24),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false }),
