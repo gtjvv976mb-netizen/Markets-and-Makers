@@ -51,6 +51,11 @@ suite("the founder's advance", () => {
       await pool!.query(`delete from ${t}`);
     }
     await pool!.query("update plot set owner_player_id = null, license = null");
+    // Plots hold a foreign key to their owners, and suites run in duration-cache order —
+    // whichever suite happens to run after one that registered businesses inherits owned
+    // plots, and a bare player wipe then dies on the constraint. Release first, always.
+    await pool!.query(`update plot set owner_player_id = null, license = null`);
+    await pool!.query(`delete from business`);
     await pool!.query(`delete from player`);
     await pool!.query(
       `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
@@ -117,6 +122,11 @@ suite("equipment must be paid for", () => {
       await pool!.query(`delete from ${t}`);
     }
     await pool!.query("update plot set owner_player_id = null, license = null");
+    // Plots hold a foreign key to their owners, and suites run in duration-cache order —
+    // whichever suite happens to run after one that registered businesses inherits owned
+    // plots, and a bare player wipe then dies on the constraint. Release first, always.
+    await pool!.query(`update plot set owner_player_id = null, license = null`);
+    await pool!.query(`delete from business`);
     await pool!.query(`delete from player`);
     await pool!.query(
       `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)

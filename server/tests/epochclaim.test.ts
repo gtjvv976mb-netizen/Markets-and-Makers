@@ -36,6 +36,11 @@ suite("the epoch claim", () => {
                          "reserve_funding", "command_receipt", "currency_ledger", "business"]) {
       await pool!.query(`delete from ${table}`);
     }
+    // Plots hold a foreign key to their owners, and suites run in duration-cache order —
+    // whichever suite happens to run after one that registered businesses inherits owned
+    // plots, and a bare player wipe then dies on the constraint. Release first, always.
+    await pool!.query(`update plot set owner_player_id = null, license = null`);
+    await pool!.query(`delete from business`);
     await pool!.query(`delete from player`);
   });
   afterAll(async () => { await closeDatabase(); });
