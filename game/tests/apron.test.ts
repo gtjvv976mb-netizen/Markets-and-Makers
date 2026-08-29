@@ -114,7 +114,8 @@ describe("two machines cannot work the same floor", () => {
     // (At level 4 it is two deep and reaches past the aisle into the far bank, which IS
     // contestable floor — so that case would prove nothing about the walkway.)
     const store = maker(2);
-    store.state.equipmentTiles = { ...store.state.equipmentTiles, yield: { column: 5, row: 3 } };
+    store.state.equipmentTiles = { ...store.state.equipmentTiles,
+      yield: { column: FLOOR_WALKWAY_COLUMN - 1, row: 3 } };
     store.state.equipmentFacing = { yield: "E" };   // faces straight at the walkway
     expect(APRON_DEPTH[2], "this test relies on a one-deep apron").toBe(1);
     for (const tile of store.apronOf("yield")) {

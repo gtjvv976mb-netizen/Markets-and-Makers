@@ -387,6 +387,8 @@ export class InteriorWorld {
   private cameraYaw = Math.atan2(10.5, 15.5);
   private cameraPitch = 0.72;
   private cameraZoom = 1;
+  private static readonly YAW_HOME = Math.atan2(10.5, 15.5);
+  private static readonly YAW_RANGE = 0.82;
   private static readonly PITCH_MIN = 0.28;
   private static readonly PITCH_MAX = 1.24;
   private static readonly ZOOM_MIN = 0.62;
@@ -761,7 +763,7 @@ export class InteriorWorld {
 
   /** Place the camera from yaw, pitch and zoom, keeping the room's centre framed. */
   private applyCameraOrbit(): void {
-    const radius = 21.5;
+    const radius = ROOM_HALF_WIDTH * 2.05;
     const horizontal = Math.cos(this.cameraPitch) * radius;
     this.camera.position.set(
       this.cameraLookAt.x + Math.sin(this.cameraYaw) * horizontal,
@@ -774,9 +776,9 @@ export class InteriorWorld {
   /** Re-frame for the current canvas size and zoom. Does not touch the renderer. */
   private applyCameraProjection(width: number, height: number): void {
     const ratio = width / height;
-    let viewHeight = 13.4 * this.cameraZoom;
+    let viewHeight = ROOM_HALF_DEPTH * 2.4 * this.cameraZoom;
     let viewWidth = viewHeight * ratio;
-    const minWidth = 18.2 * this.cameraZoom;
+    const minWidth = ROOM_HALF_WIDTH * 1.78 * this.cameraZoom;
     if (viewWidth < minWidth) {
       viewWidth = minWidth;
       viewHeight = viewWidth / ratio;
@@ -790,7 +792,16 @@ export class InteriorWorld {
 
   /** Orbit by a drag, in pixels. */
   private orbitBy(dx: number, dy: number): void {
-    this.cameraYaw -= dx * 0.006;
+    // Clamped to the open corner. The far walls (-z and -x) are SOLID now, so the glazing
+    // has a face to live in instead of standing on a knee-wall like billboards; the near
+    // walls stay low so the camera is never walled out. That deal only holds if the camera
+    // stays in the quadrant the low walls face — orbiting behind a solid wall would show a
+    // blank slab with the whole room hidden behind it.
+    this.cameraYaw = THREE.MathUtils.clamp(
+      this.cameraYaw - dx * 0.006,
+      InteriorWorld.YAW_HOME - InteriorWorld.YAW_RANGE,
+      InteriorWorld.YAW_HOME + InteriorWorld.YAW_RANGE,
+    );
     this.cameraPitch = Math.min(InteriorWorld.PITCH_MAX,
       Math.max(InteriorWorld.PITCH_MIN, this.cameraPitch + dy * 0.005));
     this.applyCameraOrbit();
@@ -1543,11 +1554,41 @@ export class InteriorWorld {
       box([0.16, height, 0.26], [wx(x), height / 2, WALL_Z], material);
     };
 
-    // Low, non-negotiable plinths tell the collision boundary without enclosing the
-    // camera. Everything above them is business-specific.
-    box([ROOM_HALF_WIDTH * 2 + 0.5, 0.44, 0.5], [0, 0.2, -(ROOM_HALF_DEPTH + 0.05)], stone);
-    box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [-(ROOM_HALF_WIDTH + 0.05), 0.2, 0], stone);
+    // TWO REAL WALLS, TWO LOW ONES.
+    //
+    // The glazing used to stand on a knee-high plinth with sky behind it — window frames
+    // rising out of nothing, which is exactly why the room read as awkward. A window is a
+    // hole in a wall; it needs the wall. The two FAR faces (-z, where the door is, and -x)
+    // are solid to height now, painted in the trade's wall colour, and the camera's orbit is
+    // clamped to the open corner so they always stay at the back of the view. The two NEAR
+    // faces keep the knee-wall, which is how the camera sees in at all.
+    const WALL_HEIGHT = 4.7;
+    const wallFace = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.86, metalness: 0.04 });
+    const back = box([ROOM_HALF_WIDTH * 2 + 0.7, WALL_HEIGHT, 0.35],
+        [0, WALL_HEIGHT / 2, -(ROOM_HALF_DEPTH + 0.18)], wallFace);
+    const left = box([0.35, WALL_HEIGHT, ROOM_HALF_DEPTH * 2 + 0.7],
+        [-(ROOM_HALF_WIDTH + 0.18), WALL_HEIGHT / 2, 0], wallFace);
+    // The lighting was tuned for a room with no tall walls; letting these two cast shadow
+    // drops half the floor into dusk. They receive light, they block nothing.
+    back.castShadow = false;
+    left.castShadow = false;
+    // A capping strip in the trim colour, so each face ends on a drawn line rather than a cut.
+    box([ROOM_HALF_WIDTH * 2 + 0.8, 0.18, 0.42], [0, WALL_HEIGHT + 0.09, -(ROOM_HALF_DEPTH + 0.18)], timber);
+    box([0.42, 0.18, ROOM_HALF_DEPTH * 2 + 0.8], [-(ROOM_HALF_WIDTH + 0.18), WALL_HEIGHT + 0.09, 0], timber);
+    // The near plinths, exactly as before.
     box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [ROOM_HALF_WIDTH + 0.05, 0.2, 0], stone);
+    box([ROOM_HALF_WIDTH * 2 + 0.5, 0.44, 0.5], [0, 0.2, ROOM_HALF_DEPTH + 0.05], stone);
+
+    // The left wall carries glazing too — the same frame language as the back wall, evenly
+    // spaced along the room's depth, so a solid face is never a blank slab.
+    const sideBay = (v: number, width: number, height = 2.9, y = 2.1): void => {
+      box([0.13, height, width], [-(ROOM_HALF_WIDTH - 0.14), y, v], glass);
+      box([0.27, height + 0.2, 0.13], [-(ROOM_HALF_WIDTH - 0.2), y, v - width / 2], teal);
+      box([0.27, height + 0.2, 0.13], [-(ROOM_HALF_WIDTH - 0.2), y, v + width / 2], teal);
+      box([0.27, 0.12, width + 0.12], [-(ROOM_HALF_WIDTH - 0.2), y + height / 2, v], teal);
+      box([0.27, 0.12, width + 0.12], [-(ROOM_HALF_WIDTH - 0.2), y - height / 2, v], teal);
+    };
+    for (const v of [-ROOM_HALF_DEPTH * 0.55, 0, ROOM_HALF_DEPTH * 0.55]) sideBay(v, 2.3);
 
     // Each trade keeps its identity through palette, floor pattern and window rhythm — and
     // through nothing that hangs in the air. Every roof bar, sawtooth tooth, heliostat fin,

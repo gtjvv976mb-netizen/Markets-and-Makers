@@ -139,12 +139,16 @@ describe("carrying an old floor into the bay", () => {
   });
 
   it("leaves a floor that was already legal completely alone", () => {
-    const legal = { yield: { column: 4, row: 0 }, capacity: { column: 8, row: 0 },
-                    speed: { column: 5, row: 6 }, appeal: { column: 7, row: 6 } };
-    seed({ equipmentTiles: legal, fittings: { hopper: { column: 4, row: 1 } } });
+    // Walkway-relative, so growing the grid cannot silently turn this seed illegal — its
+    // first version put capacity on column 8, which BECAME the walkway when the floor grew,
+    // and the sanitiser was then correctly relocating a tile this test swore was legal.
+    const W = FLOOR_WALKWAY_COLUMN;
+    const legal = { yield: { column: W - 4, row: 0 }, capacity: { column: W + 2, row: 0 },
+                    speed: { column: W - 3, row: 6 }, appeal: { column: W + 1, row: 6 } };
+    seed({ equipmentTiles: legal, fittings: { hopper: { column: W - 4, row: 1 } } });
     const state = loadState();
     expect(state.equipmentTiles).toMatchObject(legal);
-    expect(state.fittings.hopper).toMatchObject({ column: 4, row: 1 });
+    expect(state.fittings.hopper).toMatchObject({ column: W - 4, row: 1 });
   });
 
   it("still lets a migrated player move things afterwards", () => {
