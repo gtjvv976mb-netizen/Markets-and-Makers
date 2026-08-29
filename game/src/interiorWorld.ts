@@ -975,7 +975,11 @@ export class InteriorWorld {
     canvas.style.touchAction = "none";
 
     this.scene.background = new THREE.Color(0x123e42);
-    this.scene.fog = new THREE.Fog(0xcde9d6, 18, 36);
+    // NO FOG INDOORS. Fog(18, 36) was aerial perspective for a small room seen from a
+    // 21.5-unit camera. The camera now orbits at ~28 and derives from the room, so the whole
+    // interior had drifted INTO the band: measured, the room centre sat 55% fogged and the
+    // far corner past full opacity — "why is the interior foggy" was exactly right.
+    this.scene.fog = null;
     this.applyCameraOrbit();
 
     this.setupLighting();
@@ -1123,7 +1127,7 @@ export class InteriorWorld {
     this.applyCameraProjection(nextWidth, nextHeight);
     const compactViewport = nextWidth < 900 || nextHeight < 620
       || (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
-    this.renderer.setPixelRatio(pixelRatio ?? Math.min(window.devicePixelRatio || 1, compactViewport ? 1.2 : 1.6));
+    this.renderer.setPixelRatio(pixelRatio ?? Math.min(window.devicePixelRatio || 1, compactViewport ? 1.5 : 2));
     this.renderer.setSize(nextWidth, nextHeight, false);
   }
 
@@ -1367,7 +1371,7 @@ export class InteriorWorld {
     // cold grey rock under a dark sky, a kitchen is warm timber under a low sun.
     const design = INTERIOR_ROOMS[this.license];
     this.scene.background = new THREE.Color(design.sky);
-    this.scene.fog = new THREE.Fog(new THREE.Color(design.sky).lerp(new THREE.Color(design.floor), 0.42), 18, 36);
+    this.scene.fog = null;   // see the note where fog was first removed: a room is not a landscape
     // Surfaces are drawn from the same generator the city outside uses: a flat palette
     // base, one motif on a fixed lattice, and a darker keyline on all four edges. The
     // interiors were plain coloured materials while the world outside is tiled, so
@@ -1595,6 +1599,215 @@ export class InteriorWorld {
     // tilted canopy, chevron plank, side rail and rib is gone: the room has no ceiling by
     // design (that is how the camera stays outside), so anything drawn at height had nothing
     // to hold it and read as floating scaffolding, not as a building.
+    // EACH TRADE'S IDENTITY, ON ITS WALLS.
+    //
+    // With the floor belonging to the player's machines and nothing allowed to hang in the
+    // air, a trade's character has exactly two places to live: the floor pattern under
+    // everything, and the two solid walls. This gives every business a bespoke wall
+    // treatment — murals, cladding, inlays — every piece flush to a wall face, none of it
+    // an object standing in the room.
+    const BACK = -(ROOM_HALF_DEPTH + 0.0);
+    const LEFT = -(ROOM_HALF_WIDTH + 0.0);
+    /** A flat panel ON the back wall. */
+    const backPanel = (u: number, y: number, w: number, h: number, material: THREE.Material, rotZ = 0): THREE.Mesh => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+      m.position.set(u, y, BACK + 0.22);
+      m.rotation.z = rotZ;
+      this.content.add(m);
+      return m;
+    };
+    /** A flat panel ON the left wall. */
+    const leftPanel = (v: number, y: number, w: number, h: number, material: THREE.Material, rotZ = 0): THREE.Mesh => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+      m.position.set(LEFT + 0.22, y, v);
+      m.rotation.y = Math.PI / 2;
+      m.rotation.z = rotZ;
+      this.content.add(m);
+      return m;
+    };
+    const flat = (colour: number, opacity = 1): THREE.MeshBasicMaterial =>
+      new THREE.MeshBasicMaterial({ color: colour, transparent: opacity < 1, opacity, side: THREE.DoubleSide });
+    const accentFlat = flat(design.accent);
+    const trimFlat = flat(design.trim);
+    const glowFlat = new THREE.MeshBasicMaterial({ color: design.accent });
+    const HW = ROOM_HALF_WIDTH, HD = ROOM_HALF_DEPTH;
+
+    switch (design.architecture) {
+      case "living-water-gallery": {
+        // A water line running the whole back wall, valves marked along it.
+        backPanel(0, 3.55, HW * 2 - 1.2, 0.14, accentFlat);
+        for (const u of [-HW * 0.62, -HW * 0.2, HW * 0.24, HW * 0.66]) {
+          const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.07, 6, 14), accentFlat);
+          wheel.position.set(u, 3.55, BACK + 0.24);
+          this.content.add(wheel);
+        }
+        leftPanel(0, 3.55, HD * 2 - 1.2, 0.14, accentFlat);
+        break;
+      }
+      case "heliostat-atrium": {
+        // The sun on the wall, and a bank of collector panels angled toward it.
+        const sun = new THREE.Mesh(new THREE.CircleGeometry(1.5, 26), glowFlat);
+        sun.position.set(0, 3.6, BACK + 0.22);
+        this.content.add(sun);
+        for (const [u, tilt] of [[-HW * 0.62, 0.18], [-HW * 0.4, 0.1], [HW * 0.4, -0.1], [HW * 0.62, -0.18]] as Array<[number, number]>) {
+          backPanel(u, 3.4, 1.7, 1.05, trimFlat, tilt);
+        }
+        for (const v of [-HD * 0.5, 0, HD * 0.5]) leftPanel(v, 3.5, 1.7, 1.05, trimFlat, 0.12);
+        break;
+      }
+      case "canopy-biome": {
+        // Trellis: a diagonal timber lattice across both walls.
+        for (const u of [-HW * 0.7, -HW * 0.35, 0, HW * 0.35, HW * 0.7]) {
+          backPanel(u, 3.3, 3.4, 0.1, trimFlat, 0.6);
+          backPanel(u, 3.3, 3.4, 0.1, trimFlat, -0.6);
+        }
+        for (const v of [-HD * 0.55, 0, HD * 0.55]) {
+          leftPanel(v, 3.3, 3.4, 0.1, trimFlat, 0.6);
+          leftPanel(v, 3.3, 3.4, 0.1, trimFlat, -0.6);
+        }
+        break;
+      }
+      case "reclaimed-strata-vault": {
+        // Ore seams inlaid in the rock band.
+        for (const [u, y, w, tilt] of [[-HW * 0.55, 1.4, 3.4, 0.1], [-HW * 0.1, 2.0, 2.7, -0.14],
+                                       [HW * 0.34, 1.2, 3.1, 0.08], [HW * 0.68, 2.2, 2.2, -0.1]] as Array<[number, number, number, number]>) {
+          backPanel(u, y, w, 0.12, accentFlat, tilt);
+        }
+        for (const v of [-HD * 0.45, HD * 0.3]) leftPanel(v, 1.7, 2.8, 0.12, accentFlat, 0.1);
+        break;
+      }
+      case "regrowth-timber-hall": {
+        // Plank cladding: alternating-tone vertical boards along the lower walls.
+        for (let i = 0; i < 12; i += 1) {
+          const u = -HW + 1.2 + i * ((HW * 2 - 2.4) / 11);
+          backPanel(u, 1.35, 0.9, 2.3, i % 2 === 0 ? trimFlat : flat(design.wall));
+        }
+        for (let i = 0; i < 8; i += 1) {
+          const v = -HD + 1.4 + i * ((HD * 2 - 2.8) / 7);
+          leftPanel(v, 1.35, 0.9, 2.3, i % 2 === 0 ? trimFlat : flat(design.wall));
+        }
+        break;
+      }
+      case "circular-packhouse": {
+        // A crate-grid mural: nested square outlines.
+        for (const [u, size] of [[-HW * 0.6, 1.1], [-HW * 0.6, 0.62], [HW * 0.6, 1.1], [HW * 0.6, 0.62],
+                                 [0, 1.35], [0, 0.8]] as Array<[number, number]>) {
+          const frame = new THREE.Mesh(new THREE.RingGeometry(size - 0.09, size, 4, 1, Math.PI / 4), accentFlat);
+          frame.position.set(u, 3.45, BACK + 0.22);
+          this.content.add(frame);
+        }
+        for (const v of [-HD * 0.4, HD * 0.4]) {
+          const frame = new THREE.Mesh(new THREE.RingGeometry(0.91, 1.0, 4, 1, Math.PI / 4), accentFlat);
+          frame.position.set(LEFT + 0.22, 3.45, v);
+          frame.rotation.y = Math.PI / 2;
+          this.content.add(frame);
+        }
+        break;
+      }
+      case "sawtooth-atelier": {
+        // Pegboard and a long shelf line: the wall of a maker who hangs every tool.
+        backPanel(-HW * 0.45, 3.35, HW * 0.75, 1.7, flat(design.trim, 0.85));
+        for (let px = 0; px < 6; px += 1) for (let py = 0; py < 3; py += 1) {
+          const peg = new THREE.Mesh(new THREE.CircleGeometry(0.06, 8), accentFlat);
+          peg.position.set(-HW * 0.45 - HW * 0.28 + px * (HW * 0.11), 2.85 + py * 0.55, BACK + 0.24);
+          this.content.add(peg);
+        }
+        backPanel(HW * 0.42, 3.0, HW * 0.6, 0.1, accentFlat);
+        leftPanel(0, 3.0, HD * 1.2, 0.1, accentFlat);
+        break;
+      }
+      case "clean-forge-hall": {
+        // A hazard chevron band and the outline of the goods door.
+        for (let i = 0; i < 14; i += 1) {
+          const u = -HW + 1.3 + i * ((HW * 2 - 2.6) / 13);
+          backPanel(u, 0.85, 0.55, 0.28, i % 2 === 0 ? accentFlat : trimFlat, -0.5);
+        }
+        const outline = new THREE.Mesh(new THREE.RingGeometry(1.55, 1.68, 4, 1, Math.PI / 4), trimFlat);
+        outline.position.set(LEFT + 0.22, 2.1, 0);
+        outline.rotation.y = Math.PI / 2;
+        this.content.add(outline);
+        break;
+      }
+      case "civic-prefab-studio": {
+        // The blueprint board: a drawing of a building, on the wall where it belongs.
+        backPanel(-HW * 0.45, 3.2, HW * 0.8, 2.0, flat(0x14424e));
+        backPanel(-HW * 0.45, 2.75, HW * 0.5, 0.08, accentFlat);
+        backPanel(-HW * 0.62, 3.35, 0.08, 1.1, accentFlat);
+        backPanel(-HW * 0.28, 3.35, 0.08, 1.1, accentFlat);
+        backPanel(-HW * 0.45, 3.9, HW * 0.42, 0.08, accentFlat);
+        leftPanel(0, 3.2, HD * 0.8, 2.0, flat(0x14424e));
+        leftPanel(0, 2.75, HD * 0.5, 0.08, accentFlat);
+        break;
+      }
+      case "solar-quay-depot": {
+        // The route board: a harbour chart with a plotted course.
+        backPanel(HW * 0.45, 3.35, HW * 0.75, 1.9, flat(0x0f3a44));
+        for (const [du, dy] of [[-0.32, -0.5], [-0.1, -0.15], [0.14, 0.2], [0.34, 0.55]] as Array<[number, number]>) {
+          const dot = new THREE.Mesh(new THREE.CircleGeometry(0.09, 8), glowFlat);
+          dot.position.set(HW * 0.45 + du * HW * 0.6, 3.35 + dy, BACK + 0.24);
+          this.content.add(dot);
+        }
+        leftPanel(0, 1.1, HD * 1.6, 0.5, flat(design.trim, 0.9));
+        break;
+      }
+      case "lantern-market-pavilion": {
+        // Scalloped awning over the glazing, drawn on the wall.
+        for (let i = 0; i < 10; i += 1) {
+          const u = -HW + 1.6 + i * ((HW * 2 - 3.2) / 9);
+          const scallop = new THREE.Mesh(new THREE.CircleGeometry(0.55, 14, Math.PI, Math.PI), i % 2 === 0 ? accentFlat : flat(0xf0e0b8));
+          scallop.position.set(u, 3.95, BACK + 0.22);
+          this.content.add(scallop);
+        }
+        leftPanel(0, 3.95, HD * 1.6, 0.35, accentFlat);
+        break;
+      }
+      case "edible-garden-kitchen": {
+        // The pass: a shelf line with plates, and a hearth arch inlay.
+        backPanel(HW * 0.45, 2.9, HW * 0.7, 0.09, trimFlat);
+        for (const du of [-0.28, -0.14, 0, 0.14, 0.28]) {
+          const plate = new THREE.Mesh(new THREE.CircleGeometry(0.26, 16), flat(0xf3e6c6));
+          plate.position.set(HW * 0.45 + du * HW * 0.7, 3.25, BACK + 0.24);
+          this.content.add(plate);
+        }
+        const hearth = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.32, 20, 1, 0, Math.PI), accentFlat);
+        hearth.position.set(-HW * 0.5, 1.6, BACK + 0.22);
+        this.content.add(hearth);
+        break;
+      }
+      case "kinetic-wellness-grove": {
+        // The rings emblem and a barre line along the left wall.
+        for (const [u, r] of [[-HW * 0.2, 1.15], [0.0, 0.85], [HW * 0.18, 1.15]] as Array<[number, number]>) {
+          const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(r, 0.07, 6, 24), u === 0 ? glowFlat : accentFlat);
+          ringMesh.position.set(u, 3.4, BACK + 0.22);
+          this.content.add(ringMesh);
+        }
+        leftPanel(0, 2.2, HD * 1.7, 0.09, trimFlat);
+        break;
+      }
+      case "lantern-theatre": {
+        // The marquee: a bulb border, and the screen on the left wall.
+        for (let i = 0; i < 11; i += 1) {
+          const u = -HW * 0.45 + i * (HW * 0.09);
+          const bulb = new THREE.Mesh(new THREE.CircleGeometry(0.08, 8), glowFlat);
+          bulb.position.set(u, 4.15, BACK + 0.24);
+          this.content.add(bulb);
+        }
+        leftPanel(0, 2.6, HD * 1.35, 2.5, flat(0x0d0f1c));
+        leftPanel(0, 2.6, HD * 1.35 + 0.3, 2.8, flat(design.trim, 0.9)).position.x -= 0.02;
+        break;
+      }
+      case "materials-loop-lab": {
+        // The loop, closed, on the wall — and sorting chutes as converging lines.
+        const loop = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.12, 8, 30), glowFlat);
+        loop.position.set(0, 3.5, BACK + 0.22);
+        this.content.add(loop);
+        for (const [u, tilt] of [[-HW * 0.55, 0.35], [-HW * 0.35, 0.18], [HW * 0.35, -0.18], [HW * 0.55, -0.35]] as Array<[number, number]>) {
+          backPanel(u, 3.1, 2.4, 0.1, accentFlat, tilt);
+        }
+        break;
+      }
+    }
+    /* the per-trade glazing continues below */
     switch (design.architecture) {
       case "living-water-gallery": {
         for (const x of [-5.7, -3.45, 3.45, 5.7]) roundWindow(x, 2.35, 0.92);
@@ -1711,18 +1924,26 @@ export class InteriorWorld {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    // Every pattern below was authored in the coordinates of the ORIGINAL ~15x12 floor and
+    // kept them while the room grew to 27x27, shrinking each trade's floor story into a
+    // postage stamp in the middle of the room — one visible reason the interiors stopped
+    // reading as distinct. The helpers scale authored coordinates to the live room, so the
+    // fifteen patterns stretch with any future resize instead of quietly dying again.
+    const SX = (ROOM_HALF_WIDTH - 1.2) / 7.5;
+    const SZ = (ROOM_HALF_DEPTH - 1.2) / 5.2;
     const line = (width: number, depth: number, x: number, z: number, rotation = 0): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), lineMaterial);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width * SX, depth * SZ), lineMaterial);
       mesh.rotation.x = -Math.PI / 2;
       mesh.rotation.z = rotation;
-      mesh.position.set(x, 0.035, z);
+      mesh.position.set(x * SX, 0.035, z * SZ);
       this.content.add(mesh);
       return mesh;
     };
     const ring = (radius: number, x: number, z: number, scaleX = 1): THREE.Mesh => {
-      const mesh = new THREE.Mesh(new THREE.RingGeometry(radius - 0.08, radius, 30), lineMaterial);
+      const scaled = radius * Math.min(SX, SZ);
+      const mesh = new THREE.Mesh(new THREE.RingGeometry(Math.max(0.1, scaled - 0.1), scaled, 30), lineMaterial);
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x, 0.038, z);
+      mesh.position.set(x * SX, 0.038, z * SZ);
       mesh.scale.x = scaleX;
       this.content.add(mesh);
       return mesh;
