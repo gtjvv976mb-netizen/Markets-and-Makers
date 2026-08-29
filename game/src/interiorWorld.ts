@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { dampWrappedYaw, headingYaw, planarSpeed, walkAnimationRate } from "./characterRig";
 import {
   BUSINESS, DEFAULT_EQUIPMENT_TILES, FITTINGS, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_TILE,
-  apronTiles, FLOOR_WALKWAY_COLUMN, MAX_UPGRADE_LEVEL, servicedTiles, tileIsBuildable,
-  tileToWorld, worldToTile,
+  FLOOR_WALKWAY_COLUMN, MAX_UPGRADE_LEVEL, tileIsBuildable, tileToWorld, worldToTile,
 } from "./data";
 import type { BusinessConfig, Facing, FittingKey, LicenseKey, UpgradeKey } from "./data";
 import { createPlayerMercedonian } from "./mercedonianAvatar";
@@ -409,7 +408,6 @@ export class InteriorWorld {
   private fittingTiles: Partial<Record<FittingKey, { column: number; row: number } | null>> = {};
   private readonly fittingRoots = new Map<FittingKey, THREE.Group>();
   private facings: Partial<Record<UpgradeKey, Facing>> = {};
-  private apronPaint: THREE.Group | null = null;
   private onPlace: ((key: string, column: number, row: number, kind: "station" | "fitting") => boolean) | null = null;
   private pinchDistance = 0;
   private readonly activePointers = new Map<number, { x: number; y: number }>();
@@ -514,7 +512,6 @@ export class InteriorWorld {
         this.layoutFittings();
       }
       this.rebuildObstacles();
-      this.paintAprons();
     }
   }
 
@@ -616,65 +613,13 @@ export class InteriorWorld {
     return this.facings[key] ?? ((tile?.column ?? 0) < FLOOR_WALKWAY_COLUMN ? "E" : "W");
   }
 
-  /** Turn the machines to face where their owner pointed them, and repaint the aprons. */
+  /** Turn the machines to face where their owner pointed them. */
   setFacings(facings: Partial<Record<UpgradeKey, Facing>>): void {
     this.facings = { ...facings };
     for (const [key, station] of this.stations) {
       const yaw = { N: Math.PI, E: -Math.PI / 2, S: 0, W: Math.PI / 2 }[this.facingOf(key)];
       station.root.rotation.y = yaw;
     }
-    this.paintAprons();
-  }
-
-  /**
-   * Paint the working floor in front of every machine, and tint the tiles that are contested.
-   *
-   * The apron is a soft rule — clearance moves in a 0.70 to 1.00 band — and soft rules get
-   * ignored when they are reported as a percentage in a panel. A player who never notices it
-   * loses up to 19% and never learns why. So it is drawn on the floor: clutter is a colour.
-   */
-  private paintAprons(): void {
-    if (this.apronPaint) {
-      this.content.remove(this.apronPaint);
-      disposeObject(this.apronPaint);
-      this.apronPaint = null;
-    }
-    const group = new THREE.Group();
-    group.name = "apron-paint";
-    const design = INTERIOR_ROOMS[this.license];
-
-    // Every tile any OTHER machine also wants, so the overlap can be shown rather than merely
-    // charged for.
-    const claims = new Map<string, number>();
-    for (const key of this.stations.keys()) {
-      for (const tile of apronTiles(this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key]!, this.facingOf(key), this.upgrades[key] ?? 0)) {
-        if (!tileIsBuildable(tile.column, tile.row)) continue;
-        const id = `${tile.column}:${tile.row}`;
-        claims.set(id, (claims.get(id) ?? 0) + 1);
-      }
-    }
-    const occupied = new Set<string>([
-      ...Object.values(this.tiles).map((t) => `${t.column}:${t.row}`),
-      ...Object.values(this.fittingTiles).filter(Boolean).map((t) => `${t!.column}:${t!.row}`),
-    ]);
-
-    const clear = new THREE.MeshBasicMaterial({ color: design.accent, transparent: true, opacity: 0.2, depthWrite: false });
-    const taken = new THREE.MeshBasicMaterial({ color: 0xd98b3a, transparent: true, opacity: 0.34, depthWrite: false });
-
-    for (const key of this.stations.keys()) {
-      const station = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key]!;
-      for (const tile of apronTiles(station, this.facingOf(key), this.upgrades[key] ?? 0)) {
-        const id = `${tile.column}:${tile.row}`;
-        const contested = (claims.get(id) ?? 0) > 1 || occupied.has(id);
-        const pad = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_TILE * 0.86, FLOOR_TILE * 0.86), contested ? taken : clear);
-        pad.rotation.x = -Math.PI / 2;
-        const world = tileToWorld(tile.column, tile.row);
-        pad.position.set(world.x, 0.045, world.z);
-        group.add(pad);
-      }
-    }
-    this.content.add(group);
-    this.apronPaint = group;
   }
 
   /** Show the fittings that have been bought, on the tiles they were put on. */
@@ -1391,7 +1336,6 @@ export class InteriorWorld {
     // it, and toggled `visible` on a group no longer in the scene — so from the second visit
     // to any interior onward, the placement grid never appeared again.
     this.gridHelper = null;
-    this.apronPaint = null;
     this.fittingRoots.clear();
     this.interactiveObjects.length = 0;
     this.obstacles.length = 0;
@@ -1467,8 +1411,12 @@ export class InteriorWorld {
 
     this.createRoomShell(design, stone, timber, teal, glass, accentMaterial);
     this.createFloorStory(design);
-    this.createServiceBay(design);
-    this.dressShopFloor(design);
+    // NOTHING ELSE GOES ON THE FLOOR — no shop dressing the owner never chose, no painted
+    // bay, no apron pads. The translucent overlays read as holograms lying on the ground of
+    // a room that is otherwise solid objects under one light, and the planters and crates
+    // were furniture on a floor that belongs to the machines a player places and to nothing
+    // else. The tile grid appears WHILE something is in hand and vanishes when it is let go:
+    // a placement aid, not decoration.
 
     this.createBusinessSign(accent);
     this.createExitDoor(accent, timber, teal);
@@ -1737,123 +1685,6 @@ export class InteriorWorld {
   }
 
   /** A thin, non-colliding production diagram embedded in the floor. */
-  /**
-   * Paint the serviced bay, and dress the floor outside it.
-   *
-   * Both halves of this are required by the bay, not decoration. The bay cut the buildable
-   * floor from 84 tiles to 28, and a rule the player cannot see is a tax they resent rather
-   * than a puzzle they solve — so the buildable region is drawn as worked surface with a
-   * keyline before anyone has to ask where machines go. And the 56 tiles now outside it would
-   * otherwise be bare, which would leave the room reading emptier than the diorama it
-   * replaced. The outer floor becomes the shop: the trade's own dressing lives there, where a
-   * machine can never be dropped on top of it.
-   */
-  private createServiceBay(design: RoomDesign): void {
-    const tiles = servicedTiles();
-    if (!tiles.length) return;
-    const columns = [...new Set(tiles.map((tile) => tile.column))].sort((a, b) => a - b);
-    const left = columns.filter((column) => column < FLOOR_WALKWAY_COLUMN);
-    const right = columns.filter((column) => column > FLOOR_WALKWAY_COLUMN);
-    const rows = [...new Set(tiles.map((tile) => tile.row))];
-    const depth = (Math.max(...rows) - Math.min(...rows) + 1) * FLOOR_TILE;
-    const midRow = (Math.max(...rows) + Math.min(...rows)) / 2;
-
-    // Worked surface, deliberately darker than the floor it sits on. At the trade's own path
-    // colour and half opacity this was invisible against the floor — which fails its only job,
-    // because a buildable region the player cannot see is a rule they discover by being
-    // refused. Darkened and given a bright keyline so the bay reads at a glance.
-    const worked = new THREE.Color(design.wall).lerp(new THREE.Color(0x000000), 0.28);
-    const surface = new THREE.MeshStandardMaterial({
-      color: worked, roughness: 0.94, metalness: 0.06,
-      transparent: true, opacity: 0.9, depthWrite: false,
-    });
-    const keyline = new THREE.MeshBasicMaterial({
-      color: design.accent, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide,
-    });
-
-    for (const bank of [left, right]) {
-      if (!bank.length) continue;
-      const width = bank.length * FLOOR_TILE;
-      const centre = tileToWorld((bank[0]! + bank[bank.length - 1]!) / 2, midRow);
-      const pad = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), surface);
-      pad.rotation.x = -Math.PI / 2;
-      pad.position.set(centre.x, 0.024, centre.z);
-      pad.receiveShadow = true;
-      this.content.add(pad);
-
-      // A keyline round the bank, the way the world's own tiles are edged.
-      for (const [w, d, ox, oz] of [[width, 0.1, 0, -depth / 2], [width, 0.1, 0, depth / 2],
-                                    [0.1, depth, -width / 2, 0], [0.1, depth, width / 2, 0]] as Array<[number, number, number, number]>) {
-        const edge = new THREE.Mesh(new THREE.PlaneGeometry(w, d), keyline);
-        edge.rotation.x = -Math.PI / 2;
-        edge.position.set(centre.x + ox, 0.032, centre.z + oz);
-        this.content.add(edge);
-      }
-    }
-  }
-
-  /**
-   * The shop: what stands on the floor the player cannot build on.
-   *
-   * Deliberately sparse and pushed to the outer columns. The room was emptied on purpose once
-   * before — it used to open with a centrepiece and a floor kit already occupying the tiles a
-   * maker wanted — so this only ever dresses tiles that are NOT buildable, and never the bay.
-   */
-  private dressShopFloor(design: RoomDesign): void {
-    const timber = new THREE.MeshStandardMaterial({ color: design.trim, roughness: 0.72, metalness: 0.08 });
-    const leaf = new THREE.MeshStandardMaterial({ color: design.accent, roughness: 0.58, metalness: 0.05 });
-    const crate = new THREE.MeshStandardMaterial({ color: design.wall, roughness: 0.78, metalness: 0.06 });
-
-    const at = (column: number, row: number): { x: number; z: number } => tileToWorld(column, row);
-    const outerLeft = 1, outerRight = FLOOR_COLUMNS - 2;
-
-    // Planters down both outer edges: greenery is the house language, and it reads at any
-    // orbit angle without competing with the machines in the middle.
-    for (const column of [outerLeft, outerRight]) {
-      for (const row of [0, 3, 6]) {
-        const spot = at(column, row);
-        const tub = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.29, 0.34, 8), timber);
-        tub.position.set(spot.x, 0.17, spot.z);
-        tub.castShadow = true;
-        this.content.add(tub);
-        for (let i = 0; i < 5; i += 1) {
-          const angle = (i / 5) * Math.PI * 2;
-          const frond = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.62, 5), leaf);
-          frond.position.set(spot.x + Math.cos(angle) * 0.13, 0.6, spot.z + Math.sin(angle) * 0.13);
-          frond.rotation.z = Math.cos(angle) * 0.42;
-          frond.rotation.x = Math.sin(angle) * 0.42;
-          this.content.add(frond);
-        }
-      }
-    }
-
-    // A low stack of the trade's own goods against each far corner.
-    for (const [column, row] of [[outerLeft, 1], [outerRight, 5]] as Array<[number, number]>) {
-      const spot = at(column, row);
-      for (let i = 0; i < 3; i += 1) {
-        const box = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.42), crate);
-        box.position.set(spot.x + (i % 2) * 0.08, 0.15 + i * 0.31, spot.z - i * 0.05);
-        box.rotation.y = i * 0.16;
-        box.castShadow = true;
-        this.content.add(box);
-      }
-    }
-
-    // A bench facing the aisle, so the shop half has somewhere to stand and look.
-    for (const column of [outerLeft + 1, outerRight - 1]) {
-      const spot = at(column, 3);
-      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 1.15), timber);
-      seat.position.set(spot.x, 0.42, spot.z);
-      seat.castShadow = true;
-      this.content.add(seat);
-      for (const dz of [-0.42, 0.42]) {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.42, 0.09), timber);
-        leg.position.set(spot.x, 0.21, spot.z + dz);
-        this.content.add(leg);
-      }
-    }
-  }
-
   private createFloorStory(design: RoomDesign): void {
     const path = new THREE.Mesh(
       new THREE.PlaneGeometry(2.35, 10.5),
@@ -2113,7 +1944,7 @@ export class InteriorWorld {
     // painted straight through the machines in front of them. Sized to sit inside one tile.
     const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false }));
     label.renderOrder = 10;
-    label.scale.set(1.95, 0.55, 1);
+    label.scale.set(2.6, 0.72, 1);
     label.position.set(0, 3.05, 0);
     root.add(label);
 
@@ -7618,19 +7449,75 @@ export class InteriorWorld {
     };
   }
 
+  /**
+   * A station's plate, painted exactly the way the WORLD paints its own.
+   *
+   * The recipe is world.ts's plot marker, not an approximation of it: rgba(16,67,70,.92)
+   * fill, a corner radius proportioned the same way, gold for the name, no border and no
+   * accent bar. The interior had been drawing a different plate — cream on teal with a hard
+   * edge and a key bar — so the room a player spends their time in was the one place in the
+   * game that did not look like the city it stands in. The level is PIPS because
+   * "◆ LEVEL 3 / 4" set at 19% of the plate was unreadable at any size a sign in a room is
+   * actually drawn at.
+   */
   private createStationTexture(
     definition: StationDefinition,
     design: InteriorEquipmentDesign,
     level: number,
     accent: THREE.Color,
   ): THREE.Texture {
-    return this.createSignTexture(
-      design.name,
-      level === 0 ? `${definition.icon}  NOT INSTALLED · CHOOSE & BUY` : `${definition.icon}  LEVEL ${level} / ${this.upgradeCeiling}`,
-      `#${accent.getHexString()}`,
-      768,
-      216,
-    );
+    void definition;
+    const width = 768, height = 224;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas 2D is required for interior signs.");
+    context.clearRect(0, 0, width, height);
+
+    const pad = Math.round(height * 0.0625);
+    const radius = Math.round(height * 0.234);
+    this.roundedRect(context, pad, pad, width - pad * 2, height - pad * 2, radius);
+    context.fillStyle = "rgba(16,67,70,.92)";
+    context.fill();
+
+    context.textAlign = "center";
+    context.textBaseline = "alphabetic";
+    context.fillStyle = "#ffdd73";
+    context.font = `800 ${this.fittedFontSize(context, design.name, width * 0.84, height * 0.30)}px system-ui, sans-serif`;
+    context.fillText(design.name, width / 2, height * 0.46);
+
+    const pips = Math.max(1, this.upgradeCeiling);
+    const owned = Math.max(0, Math.min(pips, Math.floor(level)));
+    if (owned === 0) {
+      context.fillStyle = "#ffffff";
+      context.font = `700 ${Math.round(height * 0.19)}px system-ui, sans-serif`;
+      context.fillText("NOT INSTALLED", width / 2, height * 0.78);
+    } else {
+      const pipRadius = Math.round(height * 0.062);
+      const gap = pipRadius * 3.2;
+      const startX = width / 2 - ((pips - 1) * gap) / 2;
+      const pipY = height * 0.72;
+      for (let i = 0; i < pips; i += 1) {
+        context.beginPath();
+        context.arc(startX + i * gap, pipY, pipRadius, 0, Math.PI * 2);
+        if (i < owned) {
+          context.fillStyle = `#${accent.getHexString()}`;
+          context.fill();
+        } else {
+          context.strokeStyle = "rgba(255,255,255,.38)";
+          context.lineWidth = Math.max(2, pipRadius * 0.34);
+          context.stroke();
+        }
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    texture.needsUpdate = true;
+    this.textures.add(texture);
+    return texture;
   }
 
   private createSignTexture(

@@ -176,7 +176,19 @@ describe("markup contract", () => {
     expect(main).toContain("room.regenerativeSystem");
     expect(main).toContain('interiorModal.dataset.architecture = room.architecture');
     expect(main).toContain('interiorModal.style.setProperty("--interior-accent", roomAccent)');
-    expect(main).toContain("your Mercedonian will walk");
+    // The right-hand panel used to be an EMPTY STATE — a centred icon and a line of copy
+    // ("...your Mercedonian will walk to it before purchasing") shown for as long as nobody
+    // was standing at a machine, which is most of the time anyone spends in the room. That
+    // copy is gone because the panel is no longer empty: it reads the floor out.
+    // The panel became the BUILD TRAY: closed by default so the room runs edge to edge, a
+    // Build button opens it, and every row starts a drag-place onto the floor.
+    expect(main).toContain('class="interior-tray"');
+    expect(main).toContain("interior-floor-row");
+    expect(html).toContain('data-action="interior-build"');
+    expect(html, "the tray starts closed").not.toContain('interior-aside-toggle');
+    expect(main).not.toContain("interior-console-empty");
+    expect(html, "the first paint must not show the old placeholder either")
+      .not.toContain("Shape your Mercedonian enterprise");
     expect(main).not.toContain("your Maker will walk");
   });
 

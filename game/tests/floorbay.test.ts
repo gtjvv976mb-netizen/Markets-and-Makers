@@ -35,13 +35,14 @@ function seed(extra: Record<string, unknown>): void {
 }
 
 describe("the serviced bay", () => {
-  it("is the two columns either side of the walkway", () => {
+  it("is the whole floor, except the walkway", () => {
+    // The 28-tile bay was the measured answer to "placement cannot matter on 84 tiles";
+    // the owner's spec overruled it — equipment goes ANYWHERE on the floor. Placement
+    // pressure now comes from the apron rules alone, at whatever strength the space leaves
+    // them, and that trade-off is the owner's to make.
     const tiles = servicedTiles();
-    expect(tiles.length, "the bay must be small enough for placement to matter").toBe(28);
-    for (const tile of tiles) {
-      expect(Math.abs(tile.column - FLOOR_WALKWAY_COLUMN)).toBeLessThanOrEqual(2);
-      expect(tile.column).not.toBe(FLOOR_WALKWAY_COLUMN);
-    }
+    expect(tiles.length).toBe(FLOOR_COLUMNS * FLOOR_ROWS - FLOOR_ROWS);
+    for (const tile of tiles) expect(tile.column).not.toBe(FLOOR_WALKWAY_COLUMN);
   });
 
   it("leaves the walkway open end to end", () => {
@@ -62,14 +63,14 @@ describe("the serviced bay", () => {
     }
   });
 
-  it("rejects everything outside the bay", () => {
+  it("rejects only the walkway", () => {
     let outside = 0;
     for (let row = 0; row < FLOOR_ROWS; row += 1) {
       for (let column = 0; column < FLOOR_COLUMNS; column += 1) {
         if (!tileIsBuildable(column, row)) outside += 1;
       }
     }
-    expect(outside, "the outer floor is the shop, not the workshop").toBe(FLOOR_COLUMNS * FLOOR_ROWS - 28);
+    expect(outside, "one open column from the door to the back wall").toBe(FLOOR_ROWS);
   });
 });
 

@@ -19,7 +19,6 @@ export type Facing = "N" | "E" | "S" | "W";
 export const FLOOR_COLUMNS = 13;
 export const FLOOR_ROWS = 7;
 export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
-export const SERVICE_BAY_REACH = 2;
 export const APRON_DEPTH: readonly number[] = [0, 1, 1, 2, 2];
 export const APRON_MIN_CLEARANCE = 0.7;
 
@@ -52,8 +51,8 @@ const FACING_STEP: Record<Facing, { column: number; row: number }> = {
 
 export function tileIsBuildable(column: number, row: number): boolean {
   if (column < 0 || column >= FLOOR_COLUMNS || row < 0 || row >= FLOOR_ROWS) return false;
-  if (column === FLOOR_WALKWAY_COLUMN) return false;
-  return Math.abs(column - FLOOR_WALKWAY_COLUMN) <= SERVICE_BAY_REACH;
+  // The whole floor except the walkway — mirrors game/src/data.ts, pinned by the fixtures.
+  return column !== FLOOR_WALKWAY_COLUMN;
 }
 
 export function apronTiles(

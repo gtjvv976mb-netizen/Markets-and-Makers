@@ -195,23 +195,31 @@ describe("the panel offers them, and says which are working", () => {
     expect(main, "driven from the data, not a hand-written list").toMatch(/Object\.keys\(FITTINGS\)/);
   });
 
+  // Anchored on the fitting rows themselves. The old anchor was class="fitting-list", a
+  // wrapper the build tray no longer renders — and slice() on a missing needle returns ""
+  // and matches nothing, so these were asserting on an empty string.
+  const trayAt = main.indexOf('data-action="fitting-place"');
+  const tray = main.slice(Math.max(0, trayAt - 600), trayAt + 1400);
+
+  it("has a real slice to inspect", () => {
+    expect(trayAt, "no fitting-place row rendered anywhere").toBeGreaterThan(-1);
+    expect(tray.length).toBeGreaterThan(800);
+  });
+
   it("distinguishes working from merely owned", () => {
-    // The whole mechanic turns on that difference, so the panel has to show it. A player
+    // The whole mechanic turns on that difference, so the tray has to show it. A player
     // who cannot tell an idle fitting from a live one has been sold a decoration.
-    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
-    expect(list).toMatch(/activeFittings\(\)\.includes\(key\)/);
-    expect(list).toMatch(/not beside its machine/);
-    expect(list).toMatch(/working/);
+    expect(tray).toMatch(/activeFittings\(\)\.includes\(key\)/);
+    expect(tray).toMatch(/Not beside its machine/);
+    expect(tray).toMatch(/Working/);
   });
 
   it("says what a fitting serves before you buy it", () => {
-    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
-    expect(list).toMatch(/serves the/);
-    expect(list).toMatch(/spec\.detail/);
+    expect(tray).toMatch(/serves the/);
+    expect(tray).toMatch(/spec\.detail/);
   });
 
   it("closes the button when the purse cannot cover it", () => {
-    const list = main.slice(main.indexOf('class="fitting-list"'), main.indexOf('class="fitting-list"') + 1400);
-    expect(list).toMatch(/purse\(\) >= spec\.cost/);
+    expect(tray).toMatch(/purse\(\) >= spec\.cost/);
   });
 });

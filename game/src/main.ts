@@ -1688,29 +1688,6 @@ function renderInteriorPrompt(): void {
   interiorInteractButton.disabled = !interiorPrompt.available;
 }
 
-function equipmentSelectorMarkup(license: LicenseKey, selectedKey: UpgradeKey | null): string {
-  return `<div class="equipment-selector" aria-label="Choose an equipment station">${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
-    const design = INTERIOR_EQUIPMENT_CATALOG[license][key];
-    const level = store.state.upgrades[key];
-    const status = level === 0 ? "Not installed" : `Level ${level}`;
-    return `<div class="interior-station-row"><button class="${selectedKey === key ? "active" : ""}" style="--station-color:${design.secondary};--equipment-color:${design.secondary}" data-action="interior-focus" data-upgrade="${key}" aria-label="Walk to ${escapeMarkup(design.name)}, ${status}"><i>${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(design.name)}</strong><small>${status}</small></span></button><button class="interior-move" data-action="interior-move" data-upgrade="${key}" title="Move ${escapeMarkup(design.name)}" aria-label="Move ${escapeMarkup(design.name)} to another tile">\u2725</button><button class="interior-move" data-action="interior-turn" data-upgrade="${key}" title="Turn ${escapeMarkup(design.name)} (R)" aria-label="Turn ${escapeMarkup(design.name)} to face another way">\u21BB</button></div>`;
-  }).join("")}</div>
-    <div class="interior-aside-title">Fittings</div>
-    <p class="fitting-note">Each one only works standing beside the machine it serves.</p>
-    <div class="fitting-list">${(Object.keys(FITTINGS) as FittingKey[]).map((key) => {
-      const spec = FITTINGS[key];
-      const owned = !!store.state.fittings?.[key];
-      const live = store.activeFittings().includes(key);
-      const afford = purse() >= spec.cost;
-      return `<button class="fitting ${live ? "live" : owned ? "idle" : ""}" data-action="fitting-place" data-fitting="${key}"
-        ${!owned && !afford ? "disabled" : ""}
-        title="${escapeMarkup(spec.detail)} — serves the ${escapeMarkup(UPGRADE_NAMES[spec.serves].name)}">
-        <i aria-hidden="true">${spec.icon}</i>
-        <span><strong>${escapeMarkup(spec.name)}</strong><small>${owned ? (live ? "working" : "not beside its machine") : `${formatNumber(spec.cost)} ${CURRENCY_CODE}`}</small></span>
-      </button>`;
-    }).join("")}</div>`;
-}
-
 function renderInterior(): void {
   if (!interiorOpen || !store.state.license) return;
   const license = store.state.license;
@@ -1756,11 +1733,53 @@ function renderInterior(): void {
   if (signature === interiorConsoleSignature) return;
   interiorConsoleSignature = signature;
 
-  const selector = equipmentSelectorMarkup(license, selectedKey);
   const consoleNode = element("#interiorConsole");
   if (!selectedKey) {
-    const atExit = interiorSelection?.kind === "exit";
-    consoleNode.innerHTML = `<div id="interiorEquipmentPanel" class="interior-console-empty"><i>${atExit ? "↗" : config.icon}</i><small class="equipment-kicker">${escapeMarkup(room.displayName)}</small><strong>${atExit ? "Ready to leave?" : "Choose what to buy first"}</strong><p>${atExit ? "Use the exit below or choose another equipment station to keep improving this business." : `Every ${escapeMarkup(config.name)} machine is purpose-built for this production floor. Select one and your Mercedonian will walk to it before purchasing.`}</p><div class="interior-system-note"><small>Regenerative system</small><strong>${escapeMarkup(room.regenerativeSystem)}</strong></div>${atExit ? `<button class="interior-buy" data-action="interior-exit">Return to Mercedonia</button>` : ""}${selector}</div>`;
+    // THE BUILD TRAY. Everything that can stand on the floor, and nothing else: press a
+    // machine to start placing it (or move it, if it already stands), press a fitting to buy
+    // it into your hand. The tray closes itself the moment something is in hand — the thing
+    // being placed is the point, and the whole floor is legal ground.
+    consoleNode.innerHTML = `<div id="interiorEquipmentPanel" class="interior-tray">
+      <div class="interior-floor-head"><small>${escapeMarkup(room.displayName)}</small><strong>Build</strong></div>
+      <div class="interior-tray-section">Machines</div>
+      <div class="interior-floor-list">
+        ${(Object.keys(UPGRADE_NAMES) as UpgradeKey[]).map((key) => {
+          const machine = INTERIOR_EQUIPMENT_CATALOG[license][key];
+          const owned = store.state.upgrades[key];
+          return `<div class="interior-tray-row">
+            <button class="interior-floor-row" data-action="interior-move" data-upgrade="${key}"
+              aria-label="${owned === 0 ? "Place" : "Move"} ${escapeMarkup(machine.name)}">
+              <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i>
+              <span class="ifr-name">${escapeMarkup(machine.name)}</span>
+              <span class="ifr-pips" aria-label="Level ${owned} of ${ceiling}">${
+                Array.from({ length: ceiling }, (_, i) => `<b class="${i < owned ? "on" : ""}"></b>`).join("")
+              }</span>
+              <span class="ifr-meta">${owned === 0 ? "Not installed \u00b7 drag to place" : "Drag to move"}</span>
+            </button>
+            <button class="interior-move" data-action="interior-turn" data-upgrade="${key}"
+              title="Turn ${escapeMarkup(machine.name)} (R)" aria-label="Turn ${escapeMarkup(machine.name)}">\u21BB</button>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="interior-tray-section">Fittings</div>
+      <div class="interior-floor-list">
+        ${(Object.keys(FITTINGS) as FittingKey[]).map((key) => {
+          const spec = FITTINGS[key];
+          const owned = !!store.state.fittings?.[key];
+          const live = store.activeFittings().includes(key);
+          const afford = purse() >= spec.cost;
+          return `<button class="interior-floor-row" data-action="fitting-place" data-fitting="${key}"
+            ${!owned && !afford ? "disabled" : ""}
+            title="${escapeMarkup(spec.detail)} \u2014 serves the ${escapeMarkup(UPGRADE_NAMES[spec.serves].name)}">
+            <i aria-hidden="true">${spec.icon}</i>
+            <span class="ifr-name">${escapeMarkup(spec.name)}</span>
+            <span class="ifr-meta">${owned
+              ? (live ? "Working \u00b7 drag to move" : "Not beside its machine \u00b7 drag to move")
+              : `${formatNumber(spec.cost)} ${CURRENCY_CODE} \u00b7 buy & place`}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`;
     consoleNode.scrollTop = 0;
     return;
   }
@@ -1791,7 +1810,6 @@ function renderInterior(): void {
       ? `<div class="equipment-cost"><small>${needsCharter ? "Next step" : "Installation complete"}</small><strong>${needsCharter ? `Earn a master charter to unlock level ${MAX_UPGRADE_LEVEL}.` : "This machine is fully developed."}</strong></div>`
       : `<div class="equipment-cost"><small>${level === 0 ? "Purchase cost" : `Level ${nextLevel} installation cost`}</small><div class="cost-row"><span>${cost.mercDollars} ${CURRENCY_CODE}</span>${resourceCosts(cost.resources)}</div></div>`}
     <button class="interior-buy" data-action="interior-interact" ${atMaximum || !nearby ? "disabled" : ""}>${buttonLabel}</button>
-    ${selector}
   </div>`;
   consoleNode.scrollTop = 0;
 }
@@ -3235,24 +3253,29 @@ document.body.addEventListener("click", (event) => {
       `${made ? formatNumber(made.price) : ""} ${CURRENCY_CODE} on loading at the Tidegate Transit Hall`,
       { product: id }));
   }
-  else if (action === "interior-aside") {
-    // Fold the readout away so the room runs edge to edge. The state is remembered, since
-    // a player who wants the space usually wants it every time.
+  else if (action === "interior-build") {
+    // The panel is a TRAY now, not furniture. Closed, the room runs edge to edge; the Build
+    // button opens it, and from it a player presses-and-drags a machine or a fitting straight
+    // onto any tile of the floor. It closes itself when a drag begins, because the thing in
+    // hand is the point and the tray is done.
     const grid = element("#interiorGrid");
-    const folded = grid.classList.toggle("aside-folded");
-    try { localStorage.setItem("mm-interior-aside", folded ? "folded" : "open"); } catch { /* private mode */ }
-    button.textContent = folded ? "\u2039" : "\u203A";
-    button.setAttribute("aria-label", folded ? "Show the equipment panel" : "Hide the equipment panel");
+    const open = grid.classList.toggle("tray-open");
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) renderInterior();
     if (interiorOpen) interiorWorld.resize();
   }
   else if (action === "interior-move") {
     const key = button.dataset.upgrade as UpgradeKey;
+    element("#interiorGrid").classList.remove("tray-open");
+    if (interiorOpen) interiorWorld.resize();
     interiorWorld.beginPlacement(key, "station");
     toast(`Drag ${UPGRADE_NAMES[key].name} onto a tile, then release.`);
   }
   else if (action === "fitting-place") {
     const key = button.dataset.fitting as FittingKey;
     const spec = FITTINGS[key];
+    element("#interiorGrid").classList.remove("tray-open");
+    if (interiorOpen) interiorWorld.resize();
     interiorWorld.beginPlacement(key, "fitting");
     toast(`Drop the ${spec.name} beside your ${UPGRADE_NAMES[spec.serves].name} — anywhere else and it does nothing.`);
   }

@@ -684,14 +684,22 @@ export function worldToTile(x: number, z: number): { column: number; row: number
  * The comment this replaces claimed floor space beside a machine was the scarce thing. It
  * never was. This makes it true.
  */
-export const SERVICE_BAY_REACH = 2;
+/**
+ * The whole floor is buildable, except the walkway.
+ *
+ * This deliberately reverses the 28-tile serviced bay. The bay was the measured answer to
+ * "placement cannot matter on 84 tiles" — but the owner's spec is explicit: equipment goes
+ * ANYWHERE on the floor, and the floor shows nothing the player did not put there. Placement
+ * pressure now comes from the apron/adjacency rules alone, at whatever strength the space
+ * leaves them. The walkway stays open because sealing yourself away from your own door is
+ * never a choice, only an accident.
+ *
+ * server/src/floor.ts holds the authority's copy of this rule and shared/floor-fixtures.json
+ * pins them together — a change here that is not made there turns both suites red.
+ */
 export function tileIsBuildable(column: number, row: number): boolean {
   if (column < 0 || column >= FLOOR_COLUMNS || row < 0 || row >= FLOOR_ROWS) return false;
-  // The walkway stays open from the door to the back wall, or a maker can seal themselves
-  // off from their own machines with a well-placed press.
-  if (column === FLOOR_WALKWAY_COLUMN) return false;
-  const reach = Math.abs(column - FLOOR_WALKWAY_COLUMN);
-  return reach <= SERVICE_BAY_REACH;
+  return column !== FLOOR_WALKWAY_COLUMN;
 }
 
 /** Every tile a machine may stand on, in reading order. */
