@@ -306,6 +306,69 @@ export class World3D {
   private streetSolids: Blocker[] = [];
   private readonly buildingSolids = new Map<string, Blocker>();
   private walkPath: Array<{ x: number; z: number }> = [];
+  /**
+   * Walkability, memoised for the ROUTER only.
+   *
+   * The terrain-aware routing fix made every A* cell ask sampleWalkHeight, and that sampler
+   * raycasts — up to nine rays on a failing cell for seam-bridging. A cross-island search
+   * probes tens of thousands of cells; one route measured 16.5 SECONDS of main-thread stall.
+   * Terrain never changes after load, so the answers are cached at the router's own grid
+   * granularity. The mover keeps calling the live sampler with continuous coordinates —
+   * quantising ITS checks would change kerb behaviour — and the cache is dropped whenever
+   * the obstacle set is rebuilt, which is every moment the world's composition changes,
+   * so a chunk that streams in can turn a cached "no" into a fresh answer.
+   */
+  private readonly routeWalkableCache = new Map<number, boolean>();
+  private routerWalkable(x: number, z: number, budget: { rays: number }): boolean {
+    // Quantised to the router's own 1-unit grid — SAMPLE and key both. The A* lattice is
+    // anchored to the avatar's fractional position, so two clicks from different spots probe
+    // different fractional coordinates over the same ground; keyed at face value the cache
+    // never matched between clicks and every route re-raycast the island. Measured: routes
+    // WITHIN a freshly warmed patch still cost 65-654ms. Terrain is authored on a 2m tile
+    // grid, so 1-unit snapping cannot misjudge anything the router could act on.
+    const qx = Math.round(x);
+    const qz = Math.round(z);
+    const key = (qx + 4096) * 16384 + (qz + 4096);
+    const cached = this.routeWalkableCache.get(key);
+    if (cached !== undefined) return cached;
+    // Out of budget: answer OPTIMISTICALLY rather than stall the frame. A cold cross-island
+    // search still measured 3 seconds of raycasts even memoised; past the budget the router
+    // behaves as it always did before terrain-awareness — obstacles only — and the mover's
+    // slide-stall replan (with warmer cache each time) catches the rare route that gambled
+    // wrong. A hitch is a certainty; a slide is a possibility with a safety net.
+    if (budget.rays <= 0) return true;
+    budget.rays -= 1;
+    const value = this.sampleWalkHeight(qx, qz, true) !== null;
+    this.routeWalkableCache.set(key, value);
+    return value;
+  }
+
+  /**
+   * Fill the walkability cache from idle time, so first clicks stop paying for it.
+   *
+   * One pass over the island at route granularity, a few hundred cells per idle slice.
+   * After it completes — well under a minute of wall time on an idle tab — every route
+   * everywhere is pure cache reads and the per-route ray budget never binds again.
+   */
+  private prewarmRouteCache(): void {
+    let x = -96, z = -96;
+    const slice = (): void => {
+      let work = 0;
+      const budget = { rays: Number.POSITIVE_INFINITY };
+      while (work < 400 && x <= 96) {
+        this.routerWalkable(x, z, budget);
+        work += 1;
+        z += 1;
+        if (z > 96) { z = -96; x += 1; }
+      }
+      if (x <= 96 && this.running) {
+        const idle = (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+        if (idle) idle(() => slice(), { timeout: 500 });
+        else window.setTimeout(slice, 50);
+      }
+    };
+    slice();
+  }
   private walkGoal: { x: number; z: number } | null = null;
   private stalledFor = 0;
   private replanned = 0;
@@ -791,6 +854,7 @@ export class World3D {
    * leave the old shell standing invisibly in the middle of the plot.
    */
   private rebuildObstacles(): void {
+    this.routeWalkableCache.clear();
     this.obstacles.clear();
     for (const solid of this.civicSolids) this.obstacles.add(solid);
     for (const solid of this.streetSolids) this.obstacles.add(solid);
@@ -1713,8 +1777,9 @@ export class World3D {
    * moving the flag would read as the click having missed.
    */
   private beginWalk(x: number, z: number, groundY: number): void {
+    const rayBudget = { rays: 4000 };
     const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, x, z,
-      { isWalkable: (px, pz) => this.sampleWalkHeight(px, pz) !== null });
+      { isWalkable: (px, pz) => this.routerWalkable(px, pz, rayBudget) });
     if (!legs) {
       this.clearWalk();
       return;
@@ -1748,8 +1813,9 @@ export class World3D {
     }
     this.replanned += 1;
     this.stalledFor = 0;
+    const rayBudget = { rays: 4000 };
     const legs = route(this.obstacles, this.avatar.position.x, this.avatar.position.z, goal.x, goal.z,
-      { isWalkable: (px, pz) => this.sampleWalkHeight(px, pz) !== null });
+      { isWalkable: (px, pz) => this.routerWalkable(px, pz, rayBudget) });
     if (!legs) {
       this.clearWalk();
       return;
@@ -2307,6 +2373,7 @@ export class World3D {
       this.renderer.render(this.scene, this.camera);
     };
     animate();
+    this.prewarmRouteCache();
   }
 
   dispose(): void {

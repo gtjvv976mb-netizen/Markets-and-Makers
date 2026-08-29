@@ -733,7 +733,9 @@ export class GameStore {
       this.state.taxPaid += tax;
       this.state.lifetimeRevenue += gross;
       this.state.householdSpend += gross;
-      this.state.todayRevenue += gross;
+      // Net, not gross: the takings tile reads against a costs tile, and booking the tax
+      // into takings while also paying it out overstated every citizen sale's profit.
+      this.state.todayRevenue += gross - tax;
       this.addContribution(gross, weight);
       return gross;
     };
@@ -1434,6 +1436,11 @@ export class GameStore {
     }
     this.state.inventory[key] -= amount;
     this.state.wallet += gross - tax; this.state.governmentTreasury += tax; this.state.taxPaid += tax; this.state.lifetimeRevenue += gross;
+    // "Today's takings" is the money that reached the wallet, on EVERY path that pays it.
+    // This one and the contract settle credited the wallet without booking a takings entry,
+    // so the desk showed money arriving against a takings tile stuck at zero — caught live:
+    // wallet up, takings 0, first session of play.
+    this.state.todayRevenue += gross - tax;
     this.state.procurement.used[key] += amount;
     if (citizenDemand) this.recordCitizenActivity("retail", amount, gross, key, Date.now(), this.citizenBusinessForResource(key));
     this.addContribution(gross, citizenDemand ? "household" : "civic");
@@ -3133,6 +3140,7 @@ export class GameStore {
     this.state.governmentTreasury += tax;
     this.state.taxPaid += tax;
     this.state.lifetimeRevenue += contract.grossReward;
+    this.state.todayRevenue += contract.grossReward - tax;
     this.state.reputation += contract.reputationReward;
     this.addExperience(contract.xpReward);
     this.addContribution(contract.grossReward, "contract");

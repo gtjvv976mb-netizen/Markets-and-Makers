@@ -470,6 +470,10 @@ export class InteriorWorld {
       this.interact();
     } else if (key === "escape" && !event.repeat) {
       event.preventDefault();
+      // One Escape, one undo: with a machine in hand it cancels the placement; only an
+      // empty-handed Escape leaves the room. Closing the whole interior mid-drag threw the
+      // player out with the machine still in hand and the drop unresolved.
+      if (this.carrying) { this.endPlacement(false); return; }
       this.requestExit();
     }
   };
@@ -859,12 +863,12 @@ export class InteriorWorld {
   private readonly onPointerUp = (event: PointerEvent): void => {
     this.activePointers.delete(event.pointerId);
     if (this.carrying) {
-      this.canvas.releasePointerCapture?.(event.pointerId);
+      try { this.canvas.releasePointerCapture(event.pointerId); } catch { /* pointer already gone */ }
       this.endPlacement(true);
       return;
     }
     if (this.activePointers.size < 2) this.pinchDistance = 0;
-    this.canvas.releasePointerCapture?.(event.pointerId);
+    try { this.canvas.releasePointerCapture(event.pointerId); } catch { /* pointer already gone */ }
 
     const drag = this.dragging;
     this.dragging = null;
@@ -890,7 +894,9 @@ export class InteriorWorld {
     if (!this.active || event.button > 0) return;
     event.preventDefault();
     this.canvas.focus({ preventScroll: true });
-    this.canvas.setPointerCapture?.(event.pointerId);
+    // A capture on a pointer that lifted between event dispatch and this call throws
+    // NotFoundError — an uncaught exception per tap on some touch screens. Seen live.
+    try { this.canvas.setPointerCapture(event.pointerId); } catch { /* pointer already gone */ }
     this.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     // Carrying a machine takes the pointer over completely: a player aiming at a tile who

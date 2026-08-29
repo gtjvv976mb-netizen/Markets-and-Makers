@@ -3659,3 +3659,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .away-net small { color: rgba(255,255,255,.55); font-size: 10.5px; font-weight: 700; }
 .away-halt { margin: 0; color: #ffdd73; font-size: 11.5px; font-weight: 700; line-height: 1.45; }
 .away-report em { color: rgba(255,255,255,.4); font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+/* ── SEAMLESS INTERIOR ENTRY ─────────────────────────────────────────────────
+   The room fades in over 240ms instead of popping; the objective strip says its piece and
+   gets out of the way — after ten seconds the same static sentence is furniture. */
+.interior-modal { opacity: 0; transition: opacity .24s ease; }
+.interior-modal.show { opacity: 1; }
+.interior-objective { animation: objective-rest .4s ease 10s forwards; }
+@keyframes objective-rest { to { opacity: 0; visibility: hidden; } }

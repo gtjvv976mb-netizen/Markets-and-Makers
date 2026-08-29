@@ -233,10 +233,49 @@ export function route(
   const closed = new Uint8Array(total);
   const heuristic = (col: number, row: number): number => Math.hypot(col - goalCol, row - goalRow);
 
-  const open: Array<{ node: number; score: number }> = [];
+  // A real binary heap. The comment that used to sit here said a linear scan "measures
+  // under a millisecond and runs once per click" — true for the short hops it was written
+  // against, and quadratically false for a cross-island walk: a 160x160-unit search is tens
+  // of thousands of cells, and one replan measured in MINUTES of main-thread hitch. Replans
+  // are no longer rare either: streamed-in buildings and slide-stall detection both trigger
+  // them mid-walk, so the search now has to be cheap every time, not just on the click.
+  const heapNodes: number[] = [];
+  const heapScores: number[] = [];
+  const heapPush = (node: number, score: number): void => {
+    let i = heapNodes.length;
+    heapNodes.push(node); heapScores.push(score);
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heapScores[parent]! <= heapScores[i]!) break;
+      [heapNodes[parent], heapNodes[i]] = [heapNodes[i]!, heapNodes[parent]!];
+      [heapScores[parent], heapScores[i]] = [heapScores[i]!, heapScores[parent]!];
+      i = parent;
+    }
+  };
+  const heapPop = (): number | undefined => {
+    if (heapNodes.length === 0) return undefined;
+    const top = heapNodes[0];
+    const lastNode = heapNodes.pop()!;
+    const lastScore = heapScores.pop()!;
+    if (heapNodes.length > 0) {
+      heapNodes[0] = lastNode; heapScores[0] = lastScore;
+      let i = 0;
+      for (;;) {
+        const left = i * 2 + 1, right = left + 1;
+        let smallest = i;
+        if (left < heapNodes.length && heapScores[left]! < heapScores[smallest]!) smallest = left;
+        if (right < heapNodes.length && heapScores[right]! < heapScores[smallest]!) smallest = right;
+        if (smallest === i) break;
+        [heapNodes[smallest], heapNodes[i]] = [heapNodes[i]!, heapNodes[smallest]!];
+        [heapScores[smallest], heapScores[i]] = [heapScores[i]!, heapScores[smallest]!];
+        i = smallest;
+      }
+    }
+    return top;
+  };
   const startNode = index(startCol, startRow);
   cost[startNode] = 0;
-  open.push({ node: startNode, score: heuristic(startCol, startRow) });
+  heapPush(startNode, heuristic(startCol, startRow));
 
   const NEIGHBOURS: ReadonlyArray<readonly [number, number]> = [
     [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
@@ -244,12 +283,9 @@ export function route(
 
   let expanded = 0;
   let goalNode = -1;
-  while (open.length > 0) {
-    // A binary heap is the textbook answer; a linear scan over a few thousand entries
-    // measures under a millisecond and runs once per click.
-    let best = 0;
-    for (let i = 1; i < open.length; i += 1) if (open[i]!.score < open[best]!.score) best = i;
-    const current = open.splice(best, 1)[0]!.node;
+  for (;;) {
+    const current = heapPop();
+    if (current === undefined) break;
     if (closed[current]) continue;
     closed[current] = 1;
     if (current === index(goalCol, goalRow)) {
@@ -277,7 +313,7 @@ export function route(
       if (step >= cost[node]!) continue;
       cost[node] = step;
       cameFrom[node] = current;
-      open.push({ node, score: step + heuristic(nextCol, nextRow) });
+      heapPush(node, step + heuristic(nextCol, nextRow));
     }
   }
 
