@@ -657,14 +657,14 @@ export const FLOOR_WALKWAY_COLUMN = Math.floor(FLOOR_COLUMNS / 2);
 export function tileToWorld(column: number, row: number): { x: number; z: number } {
   return {
     x: (column - (FLOOR_COLUMNS - 1) / 2) * FLOOR_TILE,
-    z: (row - (FLOOR_ROWS - 1) / 2) * FLOOR_TILE + 1.1,
+    z: (row - (FLOOR_ROWS - 1) / 2) * FLOOR_TILE,
   };
 }
 
 /** The tile a world position falls in, clamped to the floor. */
 export function worldToTile(x: number, z: number): { column: number; row: number } {
   const column = Math.round(x / FLOOR_TILE + (FLOOR_COLUMNS - 1) / 2);
-  const row = Math.round((z - 1.1) / FLOOR_TILE + (FLOOR_ROWS - 1) / 2);
+  const row = Math.round(z / FLOOR_TILE + (FLOOR_ROWS - 1) / 2);
   return {
     column: Math.min(FLOOR_COLUMNS - 1, Math.max(0, column)),
     row: Math.min(FLOOR_ROWS - 1, Math.max(0, row)),

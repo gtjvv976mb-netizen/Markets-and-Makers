@@ -11,7 +11,11 @@ describe("the cleared floor fits its room", () => {
         if (!tileIsBuildable(column, row)) continue;
         buildable += 1;
         const world = tileToWorld(column, row);
-        if (Math.abs(world.x) > ROOM_HALF_WIDTH - 0.8 || Math.abs(world.z) > ROOM_HALF_DEPTH - 0.8) {
+        // The walls WRAP the grid now: an edge tile's centre sits exactly half a tile from
+        // the wall, its outer edge exactly on it. Inside-or-touching is the contract; only a
+        // tile POKING THROUGH a wall is a defect.
+        const half = 0.8;
+        if (Math.abs(world.x) - half > ROOM_HALF_WIDTH + 1e-9 || Math.abs(world.z) - half > ROOM_HALF_DEPTH + 1e-9) {
           outside.push(`${column},${row}`);
         }
       }

@@ -281,8 +281,11 @@ type TargetId = UpgradeKey | "exit";
 // space between them; now that equipment goes where its owner puts it, the useful thing is
 // open ground to put it on. 22x16 is enough that a full grid of machines and fittings
 // still leaves room to walk between them.
-export const ROOM_HALF_WIDTH = 11;
-export const ROOM_HALF_DEPTH = 8;
+// The room WRAPS THE GRID, exactly. Derived, not chosen: the whole floor is drawn tiles and
+// every tile a player sees is a tile they can build on — no plain margin, no strip of ground
+// the pattern cannot explain. Resize the grid and the walls follow.
+export const ROOM_HALF_WIDTH = (FLOOR_COLUMNS * FLOOR_TILE) / 2;
+export const ROOM_HALF_DEPTH = (FLOOR_ROWS * FLOOR_TILE) / 2;
 const PLAYER_RADIUS = 0.38;
 const WALK_SPEED = 4.25;
 
