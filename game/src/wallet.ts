@@ -68,10 +68,22 @@ export async function signIn(): Promise<Principal> {
   const wallet = provider();
   if (!wallet) throw new Error("No Solana wallet found. Install Phantom to link an account.");
 
-  // A rejected prompt throws with the wallet's own wording, which is often just "User
-  // rejected the request." — fine, but a wallet that never answers at all would hang here
-  // forever with no way back, so the failure is named either way.
-  const connection = await wallet.connect().catch((error: { message?: string }) => {
+  // A rejected prompt throws with the wallet's own wording — fine. But a wallet that never
+  // answers AT ALL — locked, wedged, or its popup lost behind a window — used to hang this
+  // promise forever, and the button above it sat disabled on "Waking Mercedonia…" for good:
+  // the exact "I press connect and nothing shows up" report, with no error to show because
+  // nothing ever failed. Ninety seconds is long enough to unlock a wallet and find a popup;
+  // after that the player gets words and a live button instead of silence.
+  const withDeadline = async <T>(work: Promise<T>, what: string): Promise<T> => {
+    let timer = 0;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error(
+        `Your wallet did not respond to the ${what} request. If it is locked, unlock it and try again — its popup may also be behind another window.`)), 90_000);
+    });
+    try { return await Promise.race([work, deadline]); }
+    finally { window.clearTimeout(timer); }
+  };
+  const connection = await withDeadline(wallet.connect(), "connection").catch((error: { message?: string }) => {
     throw new Error(error?.message
       ? `Your wallet did not complete the connection: ${error.message}`
       : "Your wallet did not complete the connection.");
@@ -96,7 +108,10 @@ export async function signIn(): Promise<Principal> {
   if (!challengeResponse.ok) throw new Error("The server would not issue a sign-in request.");
   const challenge = await challengeResponse.json() as { nonce: string; message: string };
 
-  const signed = await wallet.signMessage(new TextEncoder().encode(challenge.message), "utf8");
+  // Same deadline on the signature: this is the second popup, and the likelier one to be
+  // missed — the player already clicked once and looked away.
+  const signed = await withDeadline(
+    wallet.signMessage(new TextEncoder().encode(challenge.message), "utf8"), "signature");
 
   const verifyResponse = await fetch(`${base}/api/auth/verify`, {
     method: "POST", headers: { "Content-Type": "application/json" },
