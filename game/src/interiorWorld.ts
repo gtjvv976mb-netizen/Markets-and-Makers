@@ -1391,10 +1391,6 @@ export class InteriorWorld {
       design.architecture === "canopy-biome" || design.architecture === "living-water-gallery" ? "speckle"
       : design.architecture === "regrowth-timber-hall" || design.architecture === "sawtooth-atelier" ? "planks"
       : "flagstone";
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff, roughness: 0.94,
-      map: tiled(design.floor, floorMotif, Math.round(ROOM_HALF_WIDTH)),
-    });
     const glass = new THREE.MeshPhysicalMaterial({
       color: design.glass,
       transmission: 0.35,
@@ -1404,7 +1400,43 @@ export class InteriorWorld {
       metalness: 0.05,
     });
 
-    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF_WIDTH * 2, ROOM_HALF_DEPTH * 2), floorMaterial);
+    // ONE DRAWN TILE = ONE PLACEMENT TILE.
+    //
+    // The floor used to be a single 22x16 plane with its texture repeated 11 times — a
+    // 2.0-unit visual tile over a 1.6-unit placement grid that is itself offset 1.1 units
+    // toward the door. Different size AND different origin, so the seams a player could see
+    // could never line up with the tiles a machine actually snaps to; the room looked tiled
+    // and placed things sat astride the pattern. The tiled surface is now EXACTLY the
+    // placement grid — FLOOR_COLUMNS x FLOOR_ROWS repeats over precisely that many tile
+    // widths, centred where tileToWorld puts the grid — so alignment holds by construction,
+    // and the margin between the grid and the walls is plain ground with no pattern to lie.
+    const gridWidth = FLOOR_COLUMNS * FLOOR_TILE;
+    const gridDepth = FLOOR_ROWS * FLOOR_TILE;
+    const gridCentre = {
+      x: (tileToWorld(0, 0).x + tileToWorld(FLOOR_COLUMNS - 1, FLOOR_ROWS - 1).x) / 2,
+      z: (tileToWorld(0, 0).z + tileToWorld(FLOOR_COLUMNS - 1, FLOOR_ROWS - 1).z) / 2,
+    };
+    const gridTexture = tiled(design.floor, floorMotif, 1);
+    gridTexture.repeat.set(FLOOR_COLUMNS, FLOOR_ROWS);
+    const gridSurface = new THREE.Mesh(
+      new THREE.PlaneGeometry(gridWidth, gridDepth),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.94, map: gridTexture }),
+    );
+    gridSurface.rotation.x = -Math.PI / 2;
+    gridSurface.position.set(gridCentre.x, 0.012, gridCentre.z);
+    gridSurface.receiveShadow = true;
+    this.content.add(gridSurface);
+
+    // The full-room ground stays `this.floor`, because it is the raycast target for both
+    // click-to-walk and the placement ghost: shrink it to the grid and the margin by the
+    // door — which lies OUTSIDE the grid — becomes unclickable, stranding the exit. Plain
+    // and patternless, so the only tiles a player ever sees are tiles they can build on.
+    this.floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(ROOM_HALF_WIDTH * 2, ROOM_HALF_DEPTH * 2),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(design.floor).multiplyScalar(0.92), roughness: 0.96,
+      }),
+    );
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.receiveShadow = true;
     this.content.add(this.floor);
@@ -1606,20 +1638,25 @@ export class InteriorWorld {
 
   /** A thin, non-colliding production diagram embedded in the floor. */
   private createFloorStory(design: RoomDesign): void {
+    // The walkway IS the walkway column: exactly one tile wide, one texture repeat per tile,
+    // running the grid's full depth down column FLOOR_WALKWAY_COLUMN. It was 2.35 units wide
+    // at an unrelated offset — painted over a 1.6-unit column it never lined up with.
+    const walkTop = tileToWorld(FLOOR_WALKWAY_COLUMN, 0);
+    const walkEnd = tileToWorld(FLOOR_WALKWAY_COLUMN, FLOOR_ROWS - 1);
     const path = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.35, 10.5),
+      new THREE.PlaneGeometry(FLOOR_TILE, FLOOR_ROWS * FLOOR_TILE),
       new THREE.MeshStandardMaterial({
         color: 0xffffff, roughness: 0.92,
         map: (() => {
           const t = surfaceTile("road", new THREE.Color(design.path)).clone();
           t.needsUpdate = true;
-          t.repeat.set(2, 8);
+          t.repeat.set(1, FLOOR_ROWS);
           return t;
         })(),
       }),
     );
     path.rotation.x = -Math.PI / 2;
-    path.position.set(0, 0.018, 0.35);
+    path.position.set(walkTop.x, 0.018, (walkTop.z + walkEnd.z) / 2);
     path.receiveShadow = true;
     this.content.add(path);
 
@@ -1767,13 +1804,10 @@ export class InteriorWorld {
     // the fascia from most camera angles — one more thing hovering in a room that now
     // contains nothing unexplained.
 
-    this.exitHalo = new THREE.Mesh(
-      new THREE.RingGeometry(0.78, 1.05, 28),
-      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
-    );
-    this.exitHalo.rotation.x = -Math.PI / 2;
-    this.exitHalo.position.set(0, 0.035, 1.05);
-    root.add(this.exitHalo);
+    // No ring on the floor. It was a translucent glowing halo marking the door approach —
+    // exactly the kind of thing the owner meant by "anything unusual for a room". The door
+    // is a door; the walk-up prompt handles the rest.
+    this.exitHalo = null;
 
     const hitbox = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, 3.8, 1.2),

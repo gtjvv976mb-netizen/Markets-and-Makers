@@ -3009,8 +3009,12 @@ function openInterior(): void {
   interiorModal.classList.add("show");
   interiorModal.setAttribute("aria-hidden", "false");
   renderInterior();
-  requestAnimationFrame(() => {
-    if (!interiorOpen || store.state.license !== license) return;
+  // Enter SYNCHRONOUSLY. This was deferred one animation frame "for layout", but setActive
+  // already re-runs resize on a settle timer, and a rAF in a possibly-backgrounded tab can
+  // fire late or interleave with other input — leaving a visible room whose world was never
+  // activated: every control dead, nothing to say why. Measured exactly that state live:
+  // modal open, enter() never run, beginPlacement returning without a word.
+  {
     interiorWorld.enter({
       business: BUSINESS[license],
       license,
@@ -3041,7 +3045,7 @@ function openInterior(): void {
       },
     });
     interiorCanvas.focus({ preventScroll: true });
-  });
+  }
 }
 
 function closeInterior(): void {
