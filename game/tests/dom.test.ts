@@ -154,7 +154,12 @@ describe("markup contract", () => {
     expect(html).toContain('id="interiorObjectiveTitle"');
     expect(html).toContain('id="interiorObjectiveCopy"');
     expect(html).toContain('id="interiorSystem"');
-    expect(html).toContain('data-interior-move="forward"');
+    // The on-screen arrow pad and the WASD/E/Esc chips were removed at the owner's request
+    // ("remove the control buttons"). Touch players still walk by tapping the floor — the
+    // canvas click-to-walk path — so the contract is now that the pad stays GONE and the
+    // canvas remains the input surface.
+    expect(html, "the touch arrow pad stays removed").not.toContain("data-interior-move");
+    expect(html, "the key-hint chips stay removed").not.toContain("interior-help");
     expect(main).toContain("interiorWorld.enter({");
     expect(main).toContain("store.purchaseUpgrade(key)");
     expect(main).toContain("store.upgradeCeiling()");
@@ -163,7 +168,11 @@ describe("markup contract", () => {
     expect(main).not.toContain('element("#interiorStage").innerHTML');
     expect(main).not.toContain("Math.min(3, level + 1)");
     expect(interior).toContain("INTERIOR_EQUIPMENT_CATALOG");
-    expect(interior).toContain("station.blueprint.visible = level === 0");
+    // The level-0 blueprint was the "hologram on the floor" the owner ordered removed. An
+    // unbought station now renders nothing at all — the Build tray is where buying happens —
+    // so the contract inverts: the room must hide the whole station, not show a ghost of it.
+    expect(interior).toContain("station.root.visible = level > 0");
+    expect(interior).toContain("station.blueprint.visible = false");
     expect(interior).toContain("setMoveInput(direction");
   });
 

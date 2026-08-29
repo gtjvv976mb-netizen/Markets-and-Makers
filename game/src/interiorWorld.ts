@@ -646,6 +646,7 @@ export class InteriorWorld {
   private rebuildObstacles(): void {
     this.obstacles.length = 0;
     for (const key of this.stations.keys()) {
+      if ((this.upgrades[key] ?? 0) <= 0) continue;   // not bought = not there
       const tile = this.tiles[key] ?? DEFAULT_EQUIPMENT_TILES[key as UpgradeKey];
       if (!tile) continue;
       const world = tileToWorld(tile.column, tile.row);
@@ -1057,6 +1058,8 @@ export class InteriorWorld {
     this.upgrades = this.normaliseLevels(levels);
     if (ceilingChanged && this.business) this.buildInterior();
     else for (const station of this.stations.values()) this.updateStationVisual(station);
+    // A newly bought machine has just appeared on the floor; give it its collider.
+    this.rebuildObstacles();
     this.refreshSelection(true);
   }
 
@@ -1469,38 +1472,41 @@ export class InteriorWorld {
       mesh.rotation.z = rotationZ;
       return mesh;
     };
+    // The wall planes, DERIVED. Every window, arch and band below was hardcoded at
+    // z = -5.7..-5.92 — the wall line of the room this file used to build. The room has been
+    // 16 deep and 22 wide for some time, so the entire glazing layer stood better than two
+    // metres inside the floor: a row of frames apparently standing mid-room, which is what
+    // finally got it reported as "the windows and doors are not placed properly".
+    const WALL_Z = -(ROOM_HALF_DEPTH - 0.14);
+    const wx = (x: number): number =>
+      THREE.MathUtils.clamp(x * 1.42, -(ROOM_HALF_WIDTH - 1.3), ROOM_HALF_WIDTH - 1.3);
     const windowBay = (x: number, width: number, height = 3.0, y = 2.12): void => {
-      box([width, height, 0.13], [x, y, -5.92], glass);
-      box([0.13, height + 0.2, 0.27], [x - width / 2, y, -5.84], teal);
-      box([0.13, height + 0.2, 0.27], [x + width / 2, y, -5.84], teal);
-      box([width + 0.12, 0.12, 0.27], [x, y + height / 2, -5.84], teal);
+      box([width, height, 0.13], [wx(x), y, WALL_Z - 0.06], glass);
+      box([0.13, height + 0.2, 0.27], [wx(x) - width / 2, y, WALL_Z], teal);
+      box([0.13, height + 0.2, 0.27], [wx(x) + width / 2, y, WALL_Z], teal);
+      box([width + 0.12, 0.12, 0.27], [wx(x), y + height / 2, WALL_Z], teal);
+      box([width + 0.12, 0.12, 0.27], [wx(x), y - height / 2, WALL_Z], teal);
     };
     const roundWindow = (x: number, y: number, radius: number): void => {
       const pane = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.83, 18), glass);
-      pane.position.set(x, y, -5.91);
+      pane.position.set(wx(x), y, WALL_Z - 0.05);
       this.content.add(pane);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.11, 7, 20), accent);
-      rim.position.set(x, y, -5.79);
+      rim.position.set(wx(x), y, WALL_Z + 0.04);
       this.content.add(rim);
     };
     const arch = (x: number, y: number, radius: number, material: THREE.Material, scaleX = 1): THREE.Mesh => {
       const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.095, 6, 20, Math.PI), material);
-      mesh.position.set(x, y, -5.76);
+      mesh.position.set(wx(x), y, WALL_Z + 0.06);
       mesh.scale.x = scaleX;
       mesh.castShadow = this.renderer.shadowMap.enabled;
       this.content.add(mesh);
       return mesh;
     };
-    /**
-     * Nothing. Kept as a no-op so the fifteen architecture cases below still read as a
-     * set rather than fourteen calls and one gap.
-     *
-     * It used to hang a post and an eleven-metre rail down each side at head height. On
-     * the old narrow floor they framed the room; on the widened one they ran straight
-     * through ground a maker is meant to build on, and they were the main thing making an
-     * interior feel like scaffolding rather than a workshop.
-     */
-    const sideRails = (_material: THREE.Material, _height = 4.55): void => {};
+    /** A vertical post standing on the floor AGAINST the wall — the one non-window feature. */
+    const pilaster = (x: number, material: THREE.Material, height = 3.6): void => {
+      box([0.16, height, 0.26], [wx(x), height / 2, WALL_Z], material);
+    };
 
     // Low, non-negotiable plinths tell the collision boundary without enclosing the
     // camera. Everything above them is business-specific.
@@ -1508,177 +1514,91 @@ export class InteriorWorld {
     box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [-(ROOM_HALF_WIDTH + 0.05), 0.2, 0], stone);
     box([0.5, 0.44, ROOM_HALF_DEPTH * 2 + 0.4], [ROOM_HALF_WIDTH + 0.05, 0.2, 0], stone);
 
+    // Each trade keeps its identity through palette, floor pattern and window rhythm — and
+    // through nothing that hangs in the air. Every roof bar, sawtooth tooth, heliostat fin,
+    // tilted canopy, chevron plank, side rail and rib is gone: the room has no ceiling by
+    // design (that is how the camera stays outside), so anything drawn at height had nothing
+    // to hold it and read as floating scaffolding, not as a building.
     switch (design.architecture) {
       case "living-water-gallery": {
-        sideRails(accent, 4.35);
         for (const x of [-5.7, -3.45, 3.45, 5.7]) roundWindow(x, 2.35, 0.92);
         arch(0, 2.2, 2.15, accent, 1.1);
-        for (const x of [-7.25, 7.25]) {
-          box([0.22, 3.8, 0.22], [x, 2.0, -5.65], accent);
-          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), accent);
-          cap.position.set(x, 4.0, -5.65);
-          this.content.add(cap);
-        }
         break;
       }
       case "heliostat-atrium": {
-        sideRails(teal, 4.75);
         for (const x of [-6.4, -4.2, 4.2, 6.4]) windowBay(x, 1.65, 2.85, 2.05);
-        for (const [x, tilt] of [[-5.3, -0.2], [-3.3, 0.18], [3.3, -0.18], [5.3, 0.2]] as Array<[number, number]>) {
-          const fin = box([1.75, 0.13, 1.15], [x, 4.74, -5.1], teal);
-          fin.rotation.x = 0.16;
-          fin.rotation.z = tilt;
-          box([0.1, 1.25, 0.1], [x, 4.16, -5.45], accent);
-        }
-        box([15.2, 0.18, 0.3], [0, 4.64, -5.75], accent);
         break;
       }
       case "canopy-biome": {
-        sideRails(timber, 4.7);
         for (const x of [-6.15, -3.75, 3.75, 6.15]) windowBay(x, 2.05, 3.4, 2.25);
-        for (const x of [-5.9, -3.65, 3.65, 5.9]) arch(x, 2.35, 1.15, accent, 0.92);
-        // Canopy ribs, ABOVE the room rather than through it.
-        //
-        // These were quarter-torus arcs of radius 2.45 centred at x +-7.35 and y 2.25 — well
-        // inside the 11-unit half-width and low enough that each one swept down across the
-        // floor the player builds on. Rendered in the dark timber material against a pale
-        // floor they read as black scribbles lying over the tiles, not as a roof. Moved out
-        // to the wall line and lifted so they arc overhead, which is what a barrel-biome rib
-        // actually does, and given the lighter trim so they sit back rather than dominate.
-        for (const x of [-10.15, 10.15]) {
-          for (const z of [-4.6, -1.5, 1.6, 4.7]) {
-            const rib = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.055, 5, 14, Math.PI * 0.42), accent);
-            rib.position.set(x, 3.6, z);
-            rib.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
-            rib.rotation.z = x < 0 ? -0.18 : 0.18;
-            this.content.add(rib);
-          }
-        }
+        for (const x of [-6.15, -3.75, 3.75, 6.15]) arch(x, 4.15, 1.05, accent, 0.92);
         break;
       }
       case "reclaimed-strata-vault": {
-        sideRails(timber, 4.0);
-        box([15.5, 2.7, 0.38], [0, 1.55, -5.88], stone);
-        for (const [x, y, scale] of [[-6.8, 3.0, 1.25], [-5.4, 3.35, 0.9], [5.4, 3.35, 0.9], [6.8, 3.0, 1.25]] as Array<[number, number, number]>) {
-          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(scale, 0), stone);
-          rock.position.set(x, y, -5.72);
-          rock.scale.y = 0.72;
-          this.content.add(rock);
-        }
-        for (const x of [-4.55, 4.55]) windowBay(x, 1.35, 1.25, 2.3);
-        box([3.5, 0.25, 0.3], [-2.1, 4.1, -5.62], timber, -0.5);
-        box([3.5, 0.25, 0.3], [2.1, 4.1, -5.62], timber, 0.5);
+        box([ROOM_HALF_WIDTH * 2 - 0.4, 2.7, 0.38], [0, 1.55, WALL_Z - 0.02], stone);
+        for (const x of [-4.55, 4.55]) windowBay(x, 1.35, 1.25, 3.15);
         break;
       }
       case "regrowth-timber-hall": {
-        sideRails(timber, 4.7);
         for (const x of [-5.8, -3.55, 3.55, 5.8]) windowBay(x, 1.75, 3.0, 2.05);
-        for (const x of [-6.1, -3.8, 3.8, 6.1]) {
-          box([2.7, 0.2, 0.28], [x - 0.72, 4.0, -5.68], timber, 0.72);
-          box([2.7, 0.2, 0.28], [x + 0.72, 4.0, -5.68], timber, -0.72);
-        }
-        for (const x of [-7.2, 7.2]) box([0.22, 0.24, 11.6], [x, 4.55, 0], timber);
+        for (const x of [-7.0, 7.0]) pilaster(x, timber, 4.0);
         break;
       }
       case "circular-packhouse": {
-        sideRails(timber, 4.35);
         for (const x of [-6.3, -4.4, 4.4, 6.3]) for (const y of [1.3, 3.15]) {
-          box([1.45, 1.38, 0.13], [x, y, -5.92], glass);
-          box([1.6, 0.1, 0.27], [x, y - 0.75, -5.83], accent);
+          box([1.45, 1.38, 0.13], [wx(x), y, WALL_Z - 0.06], glass);
+          box([1.6, 0.1, 0.27], [wx(x), y - 0.75, WALL_Z], accent);
         }
-        for (const x of [-7.1, -5.3, -3.5, 3.5, 5.3, 7.1]) box([0.1, 4.45, 0.25], [x, 2.25, -5.82], timber);
-        box([15.0, 0.15, 0.27], [0, 4.45, -5.82], accent);
+        for (const x of [-7.1, -5.3, -3.5, 3.5, 5.3, 7.1]) pilaster(x, timber, 4.1);
         break;
       }
       case "sawtooth-atelier": {
-        sideRails(teal, 4.6);
         for (const x of [-6.3, -4.25, 4.25, 6.3]) windowBay(x, 1.6, 2.75, 2.0);
-        const teeth = [-7.3, -4.4, -1.5, 1.5, 4.4, 7.3];
-        for (let i = 0; i < teeth.length - 1; i += 1) {
-          const x = (teeth[i]! + teeth[i + 1]!) / 2;
-          box([3.15, 0.16, 0.28], [x, i % 2 === 0 ? 4.2 : 4.55, -5.7], i % 2 === 0 ? timber : accent, i % 2 === 0 ? 0.25 : -0.25);
-        }
-        for (const x of [-7.2, 7.2]) box([0.16, 0.18, 11.8], [x, 4.45, 0], teal);
+        for (const x of [-7.3, 7.3]) pilaster(x, teal, 3.9);
         break;
       }
       case "clean-forge-hall": {
-        sideRails(teal, 4.9);
         for (const x of [-6.7, -5.0, -3.3, 3.3, 5.0, 6.7]) windowBay(x, 1.05, 1.7, 2.95);
-        for (const x of [-7.4, -5.8, -4.2, 4.2, 5.8, 7.4]) box([0.16, 4.55, 0.3], [x, 2.3, -5.75], teal);
-        box([15.2, 0.26, 0.35], [0, 4.72, -5.68], accent);
-        for (const x of [-6, -2, 2, 6]) box([2.8, 0.1, 0.8], [x, 4.83, -5.1], glass);
+        for (const x of [-7.4, -5.8, 5.8, 7.4]) pilaster(x, teal, 4.1);
         break;
       }
       case "civic-prefab-studio": {
-        sideRails(accent, 4.55);
         for (const x of [-6.4, -4.25, 4.25, 6.4]) windowBay(x, 1.7, 2.55, 2.15);
-        for (const x of [-7.1, -5.1, -3.1, 3.1, 5.1, 7.1]) box([0.14, 4.4, 0.28], [x, 2.25, -5.73], timber);
-        box([15.0, 0.22, 0.34], [0, 4.45, -5.7], accent);
-        for (const x of [-7.0, 7.0]) {
-          box([0.16, 0.18, 11.4], [x, 4.4, 0], accent);
-          box([0.14, 0.14, 11.4], [x, 2.2, 0], timber);
-        }
+        for (const x of [-7.1, 7.1]) pilaster(x, timber, 3.9);
         break;
       }
       case "solar-quay-depot": {
-        sideRails(teal, 4.25);
         windowBay(-5.25, 4.25, 2.85, 2.0);
         windowBay(5.25, 4.25, 2.85, 2.0);
-        for (const x of [-6.8, -4.7, 4.7, 6.8]) arch(x, 3.05, 1.1, accent, 1.15);
-        for (const x of [-6.2, -3.6, 3.6, 6.2]) {
-          const canopy = box([2.3, 0.12, 1.15], [x, 4.45, -5.05], teal);
-          canopy.rotation.x = 0.16;
-        }
+        for (const x of [-6.8, 6.8]) arch(x, 3.05, 1.1, accent, 1.15);
         break;
       }
       case "lantern-market-pavilion": {
-        sideRails(timber, 4.15);
         windowBay(-5.25, 4.25, 3.0, 2.05);
         windowBay(5.25, 4.25, 3.0, 2.05);
-        for (const x of [-6.65, -5.75, -4.85, -3.95, 3.95, 4.85, 5.75, 6.65]) {
-          const awning = box([0.82, 0.12, 1.18], [x, 3.98, -5.15], Math.round(x * 10) % 2 === 0 ? stone : accent);
-          awning.rotation.x = 0.24;
-        }
         arch(0, 2.25, 2.25, timber, 1.05);
         break;
       }
       case "edible-garden-kitchen": {
-        sideRails(timber, 4.55);
         for (const x of [-5.15, 5.15]) {
           windowBay(x, 4.1, 3.25, 2.2);
-          arch(x, 2.2, 2.15, accent, 0.95);
+          arch(x, 4.05, 1.5, accent, 0.95);
         }
-        for (const x of [-7.1, 7.1]) box([0.2, 0.18, 11.6], [x, 4.45, 0], timber);
-        box([15.0, 0.16, 0.3], [0, 4.52, -5.7], accent);
         break;
       }
       case "kinetic-wellness-grove": {
-        sideRails(teal, 4.65);
         for (const x of [-5.35, 5.35]) windowBay(x, 4.0, 3.45, 2.25);
-        for (const x of [-6.4, -4.8, 4.8, 6.4]) {
-          const rib = arch(x, 2.25, 1.45, accent, 0.7);
-          rib.rotation.z = x < 0 ? -0.22 : 0.22;
-        }
-        for (const x of [-7.15, 7.15]) box([0.15, 0.16, 11.5], [x, 4.5, 0], teal);
         break;
       }
       case "lantern-theatre": {
-        sideRails(timber, 4.5);
-        box([15.6, 3.95, 0.36], [0, 2.2, -5.9], stone);
+        box([ROOM_HALF_WIDTH * 2 - 0.4, 3.95, 0.36], [0, 2.2, WALL_Z - 0.04], stone);
         for (const x of [-6.5, -4.8, 4.8, 6.5]) roundWindow(x, 3.0, 0.5);
-        for (const x of [-7.2, -5.8, -4.4, 4.4, 5.8, 7.2]) box([0.18, 3.85, 0.34], [x, 2.15, -5.65], timber, x < 0 ? -0.08 : 0.08);
-        box([15.1, 0.2, 0.4], [0, 4.35, -5.62], accent);
+        for (const x of [-7.2, 7.2]) pilaster(x, timber, 3.9);
         break;
       }
       case "materials-loop-lab": {
-        sideRails(teal, 4.45);
         for (const x of [-6.0, -3.85, 3.85, 6.0]) roundWindow(x, 2.45, 0.88);
-        for (const x of [-6.0, -3.85, 3.85, 6.0]) {
-          box([1.55, 0.13, 0.3], [x, 3.7, -5.72], accent, x < 0 ? -0.14 : 0.14);
-          box([1.55, 0.13, 0.3], [x, 1.2, -5.72], timber, x < 0 ? 0.14 : -0.14);
-        }
         arch(0, 2.25, 2.2, accent, 1.08);
-        for (const x of [-7.1, 7.1]) box([0.16, 0.18, 11.5], [x, 4.35, 0], accent);
         break;
       }
     }
@@ -1807,16 +1727,22 @@ export class InteriorWorld {
       1024,
       256,
     );
-    const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture, transparent: true, depthWrite: false, depthTest: false }));
-    sign.renderOrder = 10;
-    sign.scale.set(6.9, 1.72, 1);
-    sign.position.set(0, 3.72, -5.55);
+    // MOUNTED OVER THE DOOR, in the wall plane — not a seven-metre banner hovering mid-air
+    // in the middle of the room. The header already names the business; inside, the sign is
+    // a fascia board where a building would actually carry one.
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.6, 1.15),
+      new THREE.MeshBasicMaterial({ map: signTexture, transparent: true }),
+    );
+    sign.position.set(0, 4.3, -(ROOM_HALF_DEPTH - 0.18));
     this.content.add(sign);
   }
 
   private createExitDoor(accent: THREE.Color, timber: THREE.Material, teal: THREE.Material): void {
     const root = new THREE.Group();
-    root.position.set(0, 0, -5.73);
+    // In the wall it belongs to, not two metres inside the room. Same authored-for-the-old-
+    // room offset as the windows had.
+    root.position.set(0, 0, -(ROOM_HALF_DEPTH - 0.34));
     root.name = "interior-exit-door";
     this.content.add(root);
 
@@ -1835,12 +1761,11 @@ export class InteriorWorld {
     handle.position.set(0.55, 1.45, 0.38);
     root.add(handle);
 
-    const texture = this.createSignTexture("RETURN OUTSIDE", "E  EXIT BUSINESS", `#${accent.getHexString()}`, 640, 180);
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
-    label.renderOrder = 10;
-    label.scale.set(1.8, 0.5, 1);
-    label.position.set(0, 3.55, 0.2);
-    root.add(label);
+    // No floating label. A door against the wall with a lit frame and a handle is
+    // self-evident, the fascia above it names the place, and the walk-up prompt already says
+    // how to leave. The chip that hung here was drawn with depthTest off, so it painted over
+    // the fascia from most camera angles — one more thing hovering in a room that now
+    // contains nothing unexplained.
 
     this.exitHalo = new THREE.Mesh(
       new THREE.RingGeometry(0.78, 1.05, 28),
@@ -7401,7 +7326,12 @@ export class InteriorWorld {
 
   private updateStationVisual(station: InteriorStation): void {
     const level = this.upgrades[station.definition.key];
-    station.blueprint.visible = level === 0;
+    // A machine nobody has bought is NOT THERE. It used to stand as a translucent blueprint
+    // with a full label over it — a hologram on the floor, in the owner's words — back when
+    // the panel needed something to walk up to. Buying happens in the Build tray now, so an
+    // unbought station renders nothing, collides with nothing, and answers no clicks.
+    station.root.visible = level > 0;
+    station.blueprint.visible = false;
     for (let index = 0; index < station.modules.length; index += 1) station.modules[index].visible = index < level;
     for (let index = 0; index < station.lamps.length; index += 1) {
       const installed = index < level;
@@ -7422,7 +7352,14 @@ export class InteriorWorld {
 
   private pickTarget(): TargetId | null {
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.interactiveObjects, false)[0]?.object;
+    // The raycaster does not honour `visible` by itself, so an unbought station's hitbox
+    // would still answer clicks from an apparently empty patch of floor.
+    const hit = this.raycaster.intersectObjects(this.interactiveObjects, false)
+      .find((entry) => {
+        let node: THREE.Object3D | null = entry.object;
+        while (node) { if (!node.visible) return false; node = node.parent; }
+        return true;
+      })?.object;
     const target = hit?.userData.interiorTarget as TargetId | undefined;
     return target ?? null;
   }

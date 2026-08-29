@@ -5,7 +5,7 @@ import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusin
   cancelMarketListing, type CityDispatch, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
-import { INTERIOR_EQUIPMENT_CATALOG, INTERIOR_ROOMS, InteriorWorld, type InteriorMoveDirection, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
+import { INTERIOR_EQUIPMENT_CATALOG, INTERIOR_ROOMS, InteriorWorld, type InteriorPrompt, type InteriorSelection } from "./interiorWorld";
 import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
@@ -3106,22 +3106,6 @@ element("#leaseAction").dataset.action = "lease";
 element("#buildAction").dataset.action = "build";
 element("#enterAction").dataset.action = "interior";
 element("#closeInterior").addEventListener("click", closeInterior);
-document.querySelectorAll<HTMLButtonElement>("[data-interior-move]").forEach((button) => {
-  const direction = button.dataset.interiorMove as InteriorMoveDirection;
-  const start = (event: PointerEvent): void => {
-    event.preventDefault();
-    button.setPointerCapture?.(event.pointerId);
-    interiorWorld.setMoveInput(direction, true);
-  };
-  const stop = (event: PointerEvent): void => {
-    event.preventDefault();
-    interiorWorld.setMoveInput(direction, false);
-  };
-  button.addEventListener("pointerdown", start);
-  button.addEventListener("pointerup", stop);
-  button.addEventListener("pointercancel", stop);
-  button.addEventListener("lostpointercapture", stop);
-});
 new ResizeObserver(() => {
   if (interiorOpen) interiorWorld.resize();
 }).observe(element("#interiorStage"));
