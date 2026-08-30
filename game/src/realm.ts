@@ -151,6 +151,12 @@ export async function registerBusiness(input: {
   plotId: string; license: string; condition: number;
   upgrades: { yield: number; capacity: number; speed: number; appeal: number };
   /**
+   * Mercedonians on the payroll, so the authority bills the same wages this tab shows.
+   * Omitting it resets the server's payroll to its default and the citizens' purse loses
+   * the wages that fund it.
+   */
+  staff?: number;
+  /**
    * The floor as arranged: tiles, facings and fitting positions, and NOTHING derived.
    *
    * The authority computes what a layout is worth with its own copy of the rule. Sending it

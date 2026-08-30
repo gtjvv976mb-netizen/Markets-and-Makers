@@ -106,6 +106,25 @@ export const PROCUREMENT_SHARE_CAP = 0.005;
 export const PROCUREMENT_DAY_FLOOR = 500;
 
 /** A share of every fee and tax funds the next epoch instead of only draining the vault. */
+/**
+ * Standing charges, payroll and the service counter — mirrors of game/src/data.ts.
+ *
+ * The browser has always billed these; the authority never did, so on a server world the
+ * treasury's return leg did not exist. Same numbers on both sides, pinned by economy.test.ts,
+ * because a business is shown one overhead in the HUD and must be charged that one offline.
+ */
+export const WATER_STANDING_CHARGE = 6;
+export const POWER_STANDING_CHARGE = 8;
+export const UTILITY_PER_CAPACITY = 7;
+export const STAFF_DAILY_WAGE = 14;
+
+/** The absence a business keeps earning — and being billed — for. */
+export const OFFLINE_MAX_HOURS = 26;
+export const OFFLINE_HOURS_PER_CAPACITY = 6;
+
+/** Customers a service can serve in a day before its takings start to decay. */
+export const SERVICE_AUDIENCE_BUDGET = 260;
+
 export const RESERVE_FUNDING_RATE = 0.35;
 /** Peg: one USDT of $MM buys 10,000 Merc Dollars. Must match game/src/data.ts. */
 export const MERC_DOLLARS_PER_USD = 10_000;

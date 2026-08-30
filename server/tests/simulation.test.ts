@@ -38,6 +38,17 @@ suite("forty players, one district, one week", () => {
     await pool!.query("delete from demand_day");
     await pool!.query("delete from market_pressure");
     await pool!.query("delete from contribution_epoch");
+    // The procurement allowance is realm-wide AND derived from the treasury balance, so
+    // without these three lines this simulation measures whatever economy the previously
+    // run suite happened to leave behind. Every number it prints was order-dependent:
+    // the same code printed "early 326 / late 40, paid 28" and "early 933 / late 269,
+    // paid 40" on consecutive runs. A sim you cannot reproduce is not evidence.
+    await pool!.query("delete from procurement_day");
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'government','treasury','MERCS',8000000)
+       on conflict (realm_id, owner_type, owner_id, currency_code)
+       do update set balance = 8000000`, [REALM]);
 
     const N = 40;
     const islands = ["hearth", "quarry", "grove", "tide"];

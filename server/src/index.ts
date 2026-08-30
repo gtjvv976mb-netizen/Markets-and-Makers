@@ -422,6 +422,10 @@ const server = createServer(async (req, res) => {
           license: String(payload.license ?? ""),
           condition: Number(payload.condition ?? 100),
           upgrades: payload.upgrades as never,
+          // Same trap as `floor` below: omit it and every upsert resets the payroll to the
+          // column default, so a business would silently stop paying the wages the citizens'
+          // purse is funded by.
+          staff: payload.staff === undefined ? undefined : Number(payload.staff),
           // Without this line the whole floor feature is inert AND every upsert wipes the
           // column: registerBusiness would sanitise `undefined` to an empty layout and write
           // it over whatever was there. Both ends were built and the route between them was

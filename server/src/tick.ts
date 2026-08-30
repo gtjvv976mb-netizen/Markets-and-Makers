@@ -21,6 +21,11 @@ import { command, moveCurrency, takeItems, MarketError } from "./market.js";
 import { PLOTS_BY_ID } from "./plots.js";
 import { floorEffects, type FloorLayout } from "./floor.js";
 import { TRADES } from "./trades.js";
+import {
+  DEMAND_PRICE_FLOOR, DEMAND_TRANCHE_DECAY, epochIdFor, OFFLINE_HOURS_PER_CAPACITY, OFFLINE_MAX_HOURS,
+  POWER_STANDING_CHARGE, SERVICE_AUDIENCE_BUDGET, STAFF_DAILY_WAGE, UTILITY_PER_CAPACITY,
+  utcDay, WATER_STANDING_CHARGE,
+} from "./catalogue.js";
 
 const REALM = "sunwoven-1";
 const TAX_RATE = 0.05;
@@ -83,6 +88,12 @@ export interface TickReport {
   gross: number;
   spent: number;
   skipped: number;
+  /** Utilities billed back to the treasury this pass. The economy's return leg, measured. */
+  utilities: number;
+  /** Wages paid by owners into the citizens' account this pass. */
+  payroll: number;
+  /** Businesses whose supply was cut for an unpayable bill. */
+  cut: number;
   results: BusinessTick[];
 }
 
@@ -92,6 +103,13 @@ interface BusinessRow {
   /** Raw layout as the owner arranged it. Its worth is derived here, never sent by a client. */
   floor: { tiles?: unknown; facings?: unknown; fittings?: unknown } | null;
   broken: boolean; elapsed_seconds: string;
+  staff: number;
+  supplies_cut: boolean;
+  service_price_index: string;
+  service_day: string | null;
+  service_visits: number;
+  /** Seconds since the meter was last read, for the standing charges. */
+  charges_elapsed_seconds: string;
 }
 
 /**
@@ -221,6 +239,77 @@ async function restock(
 }
 
 /**
+ * Read the meter: rent, utilities and payroll, paid by the owner to the city.
+ *
+ * THIS IS THE RETURN LEG OF THE WHOLE ECONOMY, and until now it existed only in the
+ * browser. `state.ts settleStandingCharges` billed the same charges into
+ * `state.governmentTreasury` — a number in one tab — so on a server world the real
+ * treasury paid 18,000 MERCS a day out in wages and public works and took NOTHING back.
+ * The measured drain was not a balance problem; it was half a circuit.
+ *
+ * Utilities go to the treasury. Payroll goes to the citizens' account, because a wage is
+ * not destroyed: it becomes the money the same Mercedonians spend at the counter. That is
+ * the loop, and both halves of it now move through the ledger.
+ *
+ * Rules are the browser's, exactly:
+ *  - a business that is not working is not billed (a broken line draws no water, and
+ *    billing it is a trap with no door — see the client's own note);
+ *  - whole days only, capped to the same window the tick credits earnings for, so thirty
+ *    days away cannot bill thirty days against 26 hours of earnable work;
+ *  - the meter jumps to now() on settle, so the capped remainder is WAIVED rather than
+ *    re-billed for ever as an instalment plan;
+ *  - an owner who cannot pay has the supply cut, never a debt.
+ */
+async function settleStandingCharges(
+  client: PoolClient, row: BusinessRow, commandId: string,
+): Promise<{ days: number; utilities: number; payroll: number; cut: boolean }> {
+  const idle = { days: 0, utilities: 0, payroll: 0, cut: row.supplies_cut };
+
+  // A stopped line draws nothing. Move the meter on so the stoppage is not billed later.
+  if (row.broken) {
+    await client.query("update business set charges_settled_at = now() where plot_id = $1", [row.plot_id]);
+    return idle;
+  }
+
+  const elapsedSeconds = Number(row.charges_elapsed_seconds);
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return idle;
+
+  const offlineWindowHours = OFFLINE_MAX_HOURS + row.upgrades.capacity * OFFLINE_HOURS_PER_CAPACITY;
+  const days = Math.min(
+    Math.floor(elapsedSeconds / 86_400),
+    Math.max(1, Math.ceil(offlineWindowHours / 24)),
+  );
+  if (days <= 0) return idle;
+
+  const utilities = (WATER_STANDING_CHARGE + POWER_STANDING_CHARGE
+    + row.upgrades.capacity * UTILITY_PER_CAPACITY) * days;
+  const payroll = row.staff * STAFF_DAILY_WAGE * days;
+  const owed = utilities + payroll;
+
+  // Jump to now() either way: see the waiver note above.
+  if (await purse(client, row.owner_player_id) < owed) {
+    await client.query(
+      "update business set charges_settled_at = now(), supplies_cut = true where plot_id = $1",
+      [row.plot_id]);
+    return { days, utilities: 0, payroll: 0, cut: true };
+  }
+
+  if (utilities > 0) {
+    await moveCurrency(client, REALM, keyFor(commandId, "utilities"), utilities,
+      { type: "player", id: row.owner_player_id }, { type: "government", id: "treasury" }, "tick.upkeep");
+  }
+  if (payroll > 0) {
+    // To the citizens, not to the treasury: a wage paid is a customer funded.
+    await moveCurrency(client, REALM, keyFor(commandId, "payroll"), payroll,
+      { type: "player", id: row.owner_player_id }, { type: "player", id: "citizens" }, "tick.upkeep");
+  }
+  await client.query(
+    "update business set charges_settled_at = now(), supplies_cut = false where plot_id = $1",
+    [row.plot_id]);
+  return { days, utilities, payroll, cut: false };
+}
+
+/**
  * Advance production for one business.
  *
  * Deterministic from the licence, the upgrades and the time elapsed — which is the whole
@@ -232,6 +321,12 @@ async function produce(
 ): Promise<number> {
   const trade = TRADES[row.license];
   if (!trade || trade.durationSeconds <= 0) return 0;
+
+  // A service has no output — a restaurant sells the meal, not a crate of them. Running
+  // the cycle anyway took its inputs and created nothing, so freight, restaurant, gym and
+  // cinema burned their stock every pass and had it bought back by restock() on the next.
+  // They earn at the counter (serveService) instead.
+  if (Object.keys(trade.output).length === 0) return 0;
 
   const floor = floorOf(row);
   // Speed shortens a cycle, capacity runs more of them at once.
@@ -286,6 +381,80 @@ async function produce(
 }
 
 /**
+ * Serve the Mercedonians at a service counter — a meal, a haul, a seat, a session.
+ *
+ * A service has no shelf, so nothing is taken from the item ledger: the takings are the
+ * trade. That is the one structural difference from the goods counter, and it is why this
+ * has to price itself rather than going through applySaleWithin.
+ *
+ * It decays exactly as goods prices do. Past the day's audience each tranche fetches
+ * DEMAND_TRANCHE_DECAY less, down to DEMAND_PRICE_FLOOR — without which a thirteen-second
+ * restaurant cycle would run all night and print. The audience resets on the UTC day.
+ *
+ * The one honest divergence from the browser: `dailyAudience()` there scales with career
+ * level and the player's market share, neither of which the authority tracks per business.
+ * The base budget is used instead, which is the client's own floor case. A service owner
+ * is therefore paid slightly less offline than in the tab rather than slightly more —
+ * the safe direction for a number that is money.
+ */
+async function serveService(
+  client: PoolClient, row: BusinessRow, commandId: string, wanted: number,
+): Promise<{ units: number; gross: number; net: number }> {
+  const trade = TRADES[row.license];
+  if (!trade) return { units: 0, gross: 0, net: 0 };
+  const day = utcDay();
+  // A new day is a fresh audience.
+  let visits = row.service_day === day ? Number(row.service_visits ?? 0) : 0;
+
+  // The citizens' account is finite and the column refuses an overdraft, so price the whole
+  // pass against it first: a district that has spent its money simply stops going out.
+  const pool = await client.query<{ balance: string }>(
+    `select balance from currency_account
+      where realm_id=$1 and owner_type='player' and owner_id='citizens' and currency_code='MERCS' for update`,
+    [REALM]);
+  const purseOfCitizens = Number(pool.rows[0]?.balance ?? 0);
+
+  const priceIndex = Math.max(0.1, Number(row.service_price_index ?? 1));
+  const audience = Math.max(8, SERVICE_AUDIENCE_BUDGET);
+  let gross = 0, served = 0;
+  for (let i = 0; i < wanted; i += 1) {
+    const tranche = Math.floor(visits / audience);
+    const decay = Math.max(DEMAND_PRICE_FLOOR, Math.pow(DEMAND_TRANCHE_DECAY, tranche));
+    const price = Math.max(1, Math.round(trade.servicePayout * priceIndex * decay));
+    if (gross + price > purseOfCitizens) break;
+    gross += price;
+    visits += 1;
+    served += 1;
+  }
+  if (served <= 0) return { units: 0, gross: 0, net: 0 };
+
+  const tax = Math.floor(gross * TAX_RATE);
+  const net = gross - tax;
+  await moveCurrency(client, REALM, keyFor(commandId, "svc-pay"), net,
+    { type: "player", id: "citizens" }, { type: "player", id: row.owner_player_id }, "tick.service");
+  if (tax > 0) {
+    await moveCurrency(client, REALM, keyFor(commandId, "svc-tax"), tax,
+      { type: "player", id: "citizens" }, { type: "government", id: "treasury" }, "tick.service");
+  }
+
+  // Unattended trade counts toward the epoch the same way a goods sale does. It cannot
+  // inflate the $MM emission: epochBudget caps at EPOCH_MM_BUDGET and each claim is bounded
+  // by what the epoch has already paid, so a new source redistributes rather than mints.
+  await client.query(
+    `insert into contribution_epoch (realm_id, epoch_id, player_id, contribution)
+     values ($1,$2,$3,$4)
+     on conflict (realm_id, epoch_id, player_id)
+     do update set contribution = contribution_epoch.contribution + excluded.contribution`,
+    [REALM, epochIdFor(), row.owner_player_id, gross * IDLE_CONTRIBUTION_WEIGHT]);
+
+  await client.query(
+    `update business set service_day = $2, service_visits = $3, visitors_served = visitors_served + $4
+      where plot_id = $1`,
+    [row.plot_id, day, visits, served]);
+  return { units: served, gross, net };
+}
+
+/**
  * Sell to the Mercedonians who walked in while nobody was watching.
  *
  * Visits are the corner's footfall times the hours elapsed, so where a shop was built is
@@ -303,6 +472,14 @@ async function serveCounter(
   const appeal = 1 + row.upgrades.appeal * 0.15 * floor.clearance.appeal;
   const wanted = Math.min(MAX_VISITS_PER_PASS, Math.floor(footfall * VISITS_PER_HOUR * appeal * elapsedHours));
   if (wanted <= 0) return { units: 0, gross: 0, net: 0 };
+
+  // A service sells its own trade, not a good off a shelf.
+  //
+  // `servicePayout` was declared on the TradeSpec and read by NO server file: the browser
+  // paid it (state.ts settleCitizenVisit) and the authority did not, so the moment the
+  // world moved onto the server the four service licences earned exactly zero — freight,
+  // restaurant, gym and cinema, 4 of the 15 trades on offer, silently dead.
+  if (trade.servicePayout > 0) return serveService(client, row, commandId, wanted);
 
   // Households buy finished goods. A mine's ore has no counter trade, by design.
   const itemKey = trade.retailItems[0];
@@ -343,13 +520,18 @@ async function serveCounter(
  * shop failing — an empty citizens' account, a bad recipe — cannot roll back the street.
  */
 export async function runWorldTick(now = Date.now()): Promise<TickReport> {
-  const report: TickReport = { businesses: 0, produced: 0, sold: 0, gross: 0, spent: 0, skipped: 0, results: [] };
+  const report: TickReport = {
+    businesses: 0, produced: 0, sold: 0, gross: 0, spent: 0, skipped: 0,
+    utilities: 0, payroll: 0, cut: 0, results: [],
+  };
   if (!pool) return report;
 
   const due = await pool.query<BusinessRow>(
     `select b.plot_id, p.island_id, b.license, b.owner_player_id, b.upgrades, b.floor,
             (b.condition <= 0) as broken,
-            extract(epoch from (now() - b.last_tick_at))::text as elapsed_seconds
+            b.staff, b.supplies_cut, b.service_price_index, b.service_day, b.service_visits,
+            extract(epoch from (now() - b.last_tick_at))::text as elapsed_seconds,
+            extract(epoch from (now() - b.charges_settled_at))::text as charges_elapsed_seconds
        from business b join plot p on p.id = b.plot_id
       where p.realm_id = $1
       order by b.last_tick_at asc
@@ -360,6 +542,13 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
     const elapsedSeconds = Number(row.elapsed_seconds);
     if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < MIN_ELAPSED_SECONDS || row.broken) {
       report.skipped += 1;
+      // A broken line draws no water and needs no shift, so it is not billed — but its
+      // meter still has to move, or the whole breakdown is billed in one go on repair.
+      // The browser waives it outright (state.ts: "not a difficulty curve, it is a trap
+      // with no door"), and the authority must waive the same days.
+      if (row.broken) {
+        await pool.query("update business set charges_settled_at = now() where plot_id = $1", [row.plot_id]);
+      }
       continue;
     }
     const elapsedHours = Math.min(26, elapsedSeconds / 3_600);
@@ -371,8 +560,19 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
 
     try {
       const settled = await command(commandId, "world.tick", row.owner_player_id, async (client) => {
-        const restocked = await restock(client, row, window);
-        const cycles = await produce(client, row, window, elapsedHours);
+        // The meter is read FIRST, before the pass earns anything.
+        //
+        // Order is deliberate and it is the difference between a bill and a tax on takings:
+        // billing after the counter would let a business pay its rent out of money the same
+        // pass created, so a shop that could not afford to operate would never find out.
+        const charges = await settleStandingCharges(client, row, window);
+
+        // A cut supply stops the line. It does not stop the counter: stock already made is
+        // still on the shelf and the Mercedonians still want it, which is exactly how an
+        // owner earns their way back to a payable bill.
+        const cut = charges.cut;
+        const restocked = cut ? 0 : await restock(client, row, window);
+        const cycles = cut ? 0 : await produce(client, row, window, elapsedHours);
         const counter = await serveCounter(client, row, window, elapsedHours, footfall);
 
         // Only bank the clock when the pass actually did something.
@@ -391,7 +591,7 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
         if (cycles > 0 || counter.units > 0 || restocked > 0) {
           await client.query("update business set last_tick_at = now() where plot_id = $1", [row.plot_id]);
         }
-        return { cycles, counter, restocked };
+        return { cycles, counter, restocked, charges };
       });
 
       report.businesses += 1;
@@ -399,6 +599,9 @@ export async function runWorldTick(now = Date.now()): Promise<TickReport> {
       report.sold += settled.counter.units;
       report.gross += settled.counter.gross;
       report.spent += settled.restocked;
+      report.utilities += settled.charges.utilities;
+      report.payroll += settled.charges.payroll;
+      if (settled.charges.cut) report.cut += 1;
       report.results.push({
         plotId: row.plot_id, island: row.island_id, license: row.license,
         ownerPlayerId: row.owner_player_id, footfall,

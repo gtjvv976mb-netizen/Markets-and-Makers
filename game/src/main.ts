@@ -94,6 +94,8 @@ function publishBusiness(): void {
     plotId, license,
     condition: Math.round(store.state.condition),
     upgrades: { ...store.state.upgrades },
+    // The payroll the authority bills, and the wages it pays into the citizens' purse.
+    staff: store.state.staff,
     // Send the LAYOUT, never what it is worth. Until this went in, every fitting a maker had
     // bought and every layout decision they had made counted for nothing the moment they
     // closed the tab: the tick priced production from upgrade levels alone.

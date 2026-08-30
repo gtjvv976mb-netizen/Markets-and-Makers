@@ -38,6 +38,11 @@ export interface BusinessUpsert {
   license: string;
   condition: number;
   upgrades: { yield: number; capacity: number; speed: number; appeal: number };
+  /**
+   * Mercedonians on the payroll. Clamped here, and it is a COST not a benefit — the tick
+   * bills STAFF_DAILY_WAGE a head every day — so a client inflating it only bills itself.
+   */
+  staff?: number;
   /** Raw equipment layout. Multipliers are DERIVED here, never accepted from a client. */
   floor?: unknown;
 }
@@ -189,6 +194,9 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
   const upgrades = sanitiseUpgrades(input.upgrades);
   const condition = Math.min(100, Math.max(0, Math.floor(Number(input.condition) || 0)));
   const floor = sanitiseFloor(input.floor);
+  // 64 is the column's own check. Staff costs money every day and buys nothing here, so
+  // the clamp is about keeping the number sane, not about stopping an exploit.
+  const staff = Math.min(64, Math.max(0, Math.floor(Number(input.staff ?? 1) || 0)));
 
   let upgradesPaid = 0;
   const client = await pool.connect();
@@ -306,16 +314,18 @@ export async function registerBusiness(input: BusinessUpsert): Promise<DistrictB
     }
 
     await client.query(
-      `insert into business (plot_id, owner_player_id, license, condition, upgrades, floor, revision, updated_at)
-       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 1, now())
+      `insert into business (plot_id, owner_player_id, license, condition, upgrades, floor, staff, revision, updated_at)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, 1, now())
        on conflict (plot_id) do update
          set license = excluded.license,
              condition = excluded.condition,
              upgrades = excluded.upgrades,
              floor = excluded.floor,
+             staff = excluded.staff,
              revision = business.revision + 1,
              updated_at = now()`,
-      [input.plotId, input.playerId, input.license, condition, JSON.stringify(upgrades), JSON.stringify(floor)],
+      [input.plotId, input.playerId, input.license, condition, JSON.stringify(upgrades),
+       JSON.stringify(floor), staff],
     );
     await client.query(
       "update plot set owner_player_id = $2, license = $3, updated_at = now() where id = $1",

@@ -34,6 +34,16 @@ suite("shared district economy", () => {
     await pool!.query("delete from market_pressure");
     await pool!.query("delete from contribution_epoch");
     await pool!.query("delete from reserve_funding");
+    // Pin the treasury, because the day's procurement budget is DERIVED from it
+    // (PROCUREMENT_SHARE_CAP of the balance above TREASURY_FLOOR). Without this the
+    // allowance these tests sell against is whatever the previously-run suite happened to
+    // leave in the vault, so the same code passes or fails on test ORDER — which is
+    // exactly how it failed when a new suite landed ahead of it in the alphabet.
+    await pool!.query(
+      `insert into currency_account (realm_id, owner_type, owner_id, currency_code, balance)
+       values ($1,'government','treasury','MERCS',10000000)
+       on conflict (realm_id, owner_type, owner_id, currency_code)
+       do update set balance = 10000000`, [REALM]);
   });
   afterAll(async () => { await closeDatabase(); });
 
