@@ -3706,3 +3706,22 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .interior-modal.show { opacity: 1; }
 .interior-objective { animation: objective-rest .4s ease 10s forwards; }
 @keyframes objective-rest { to { opacity: 0; visibility: hidden; } }
+
+/* --- one thing at a time ---------------------------------------------------------
+   The Mayor walks a new player through nine steps; these rules make the rest of the
+   interface wait its turn. A region is hidden while she is still guiding UNLESS the
+   current step names it — written that way round, rather than hide-all-then-restore,
+   so no rule has to guess a base display value back (grid here, flex there).
+   Nothing is unmounted: her Hide button clears data-guided and the whole UI returns. */
+.app-shell[data-guided="true"]:not([data-show~="nav"]) :is(.maker-nav, .sheet-route),
+.app-shell[data-guided="true"]:not([data-show~="build"]) #buildPanel,
+.app-shell[data-guided="true"]:not([data-show~="ops"]) #businessPanel,
+.app-shell[data-guided="true"]:not([data-show~="market"]) #marketPanel,
+.app-shell[data-guided="true"]:not([data-show~="contracts"]) #contractsPanel,
+.app-shell[data-guided="true"]:not([data-show~="map"]) #mapPanel,
+.app-shell[data-guided="true"] #guidePanel {
+  display: none !important;
+}
+
+/* Step one is "walk". The world, the Mayor, and nothing else. */
+.app-shell[data-guided="true"][data-step="moved"] .control-panel { display: none !important; }
