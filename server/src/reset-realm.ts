@@ -13,13 +13,20 @@
  * delete, MM_RESET_CONFIRM must equal the realm id — a value you have to look up and type,
  * so a stray shell-history arrow-up cannot empty a live realm.
  *
- * RUN IT FROM THE server/ DIRECTORY OF THIS REPO, against the database you mean to reset.
- * On Render's shell the service's own DATABASE_URL is already in the environment, which is
- * the intended way — no production connection string has to be copied anywhere.
+ * IT MUST RUN INSIDE RENDER. The database's ipAllowList is empty, which in Render means
+ * it accepts connections only from the private network — a laptop gets EADDRNOTAVAIL
+ * against 216.24.57.x and should, because the alternative is opening a production database
+ * to the internet to run a one-off script.
  *
- *   # look first — this deletes nothing
+ * On Render's shell the service's own DATABASE_URL is already in the environment, so no
+ * connection string is ever copied anywhere. Two forms, matching migrate's convention:
+ *
+ *   # in Render's shell (devDependencies may be pruned, so use the compiled one)
+ *   npm run reset:realm:deploy
+ *   MM_RESET_CONFIRM=sunwoven-1 npm run reset:realm:deploy
+ *
+ *   # locally, against a local database
  *   npm run reset:realm
- *   # then, deliberately
  *   MM_RESET_CONFIRM=sunwoven-1 npm run reset:realm
  *
  * What it does NOT touch: the plot table's rows (the world's geometry — only ownership is
@@ -87,7 +94,7 @@ try {
 
   if (!live) {
     console.log("\nDRY RUN — nothing was deleted.");
-    console.log(`To do it: MM_RESET_CONFIRM=${REALM} npm run reset:realm`);
+    console.log(`To do it: MM_RESET_CONFIRM=${REALM} ${process.env.RENDER ? "npm run reset:realm:deploy" : "npm run reset:realm"}`);
     process.exit(0);
   }
 
