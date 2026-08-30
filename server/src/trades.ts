@@ -21,13 +21,13 @@ export const TRADES: Record<string, TradeSpec> = {
     "key": "aquaworks",
     "name": "Tideglass AquaWorks",
     "durationSeconds": 18,
-    "labourCost": 8,
+    "labourCost": 12,
     "inputs": {
       "power": 1,
       "part": 1
     },
     "output": {
-      "water": 36
+      "water": 54
     },
     "wastePerCycle": 0,
     "servicePayout": 0,
@@ -36,14 +36,14 @@ export const TRADES: Record<string, TradeSpec> = {
   "sungrid": {
     "key": "sungrid",
     "name": "Sunwell Microgrid",
-    "durationSeconds": 20,
-    "labourCost": 9,
+    "durationSeconds": 24,
+    "labourCost": 18,
     "inputs": {
-      "part": 1,
-      "material": 1
+      "part": 2,
+      "material": 2
     },
     "output": {
-      "power": 49
+      "power": 98
     },
     "wastePerCycle": 0,
     "servicePayout": 0,
@@ -52,16 +52,16 @@ export const TRADES: Record<string, TradeSpec> = {
   "greenhouse": {
     "key": "greenhouse",
     "name": "Greenloom Greenhouse",
-    "durationSeconds": 16,
-    "labourCost": 9,
+    "durationSeconds": 69,
+    "labourCost": 52,
     "inputs": {
-      "water": 2,
-      "power": 1
+      "water": 11,
+      "power": 6
     },
     "output": {
-      "food": 4
+      "food": 23
     },
-    "wastePerCycle": 1,
+    "wastePerCycle": 6,
     "servicePayout": 0,
     "retailItems": [
       "food"
@@ -70,41 +70,41 @@ export const TRADES: Record<string, TradeSpec> = {
   "mine": {
     "key": "mine",
     "name": "Stonewake Mine",
-    "durationSeconds": 20,
-    "labourCost": 11,
+    "durationSeconds": 21,
+    "labourCost": 19,
     "inputs": {
-      "part": 1,
-      "power": 2,
-      "water": 1
+      "part": 2,
+      "power": 3,
+      "water": 2
     },
     "output": {
-      "ore": 14
+      "ore": 24
     },
-    "wastePerCycle": 1,
+    "wastePerCycle": 2,
     "servicePayout": 0,
     "retailItems": []
   },
   "timberworks": {
     "key": "timberworks",
     "name": "Timbercoast Works",
-    "durationSeconds": 18,
-    "labourCost": 10,
+    "durationSeconds": 21,
+    "labourCost": 17,
     "inputs": {
-      "part": 1,
-      "power": 1,
-      "water": 1
+      "part": 2,
+      "power": 2,
+      "water": 2
     },
     "output": {
-      "timber": 14
+      "timber": 24
     },
-    "wastePerCycle": 1,
+    "wastePerCycle": 2,
     "servicePayout": 0,
     "retailItems": []
   },
   "cratemill": {
     "key": "cratemill",
     "name": "Freight Crate Mill",
-    "durationSeconds": 14,
+    "durationSeconds": 12,
     "labourCost": 8,
     "inputs": {
       "timber": 2,
@@ -120,74 +120,74 @@ export const TRADES: Record<string, TradeSpec> = {
   "workshop": {
     "key": "workshop",
     "name": "Maker Workshop",
-    "durationSeconds": 16,
-    "labourCost": 11,
+    "durationSeconds": 22,
+    "labourCost": 20,
     "inputs": {
-      "ore": 2,
-      "crate": 1,
-      "power": 1
+      "ore": 4,
+      "crate": 2,
+      "power": 2
     },
     "output": {
-      "part": 3
+      "part": 5
     },
-    "wastePerCycle": 1,
+    "wastePerCycle": 2,
     "servicePayout": 0,
     "retailItems": []
   },
   "factory": {
     "key": "factory",
     "name": "Mercedonian Factory",
-    "durationSeconds": 24,
-    "labourCost": 16,
+    "durationSeconds": 33,
+    "labourCost": 44,
     "inputs": {
-      "ore": 3,
-      "part": 1,
-      "power": 2,
-      "water": 1
+      "ore": 8,
+      "part": 3,
+      "power": 5,
+      "water": 3
     },
     "output": {
-      "equipment": 3
+      "equipment": 8
     },
-    "wastePerCycle": 2,
+    "wastePerCycle": 5,
     "servicePayout": 0,
     "retailItems": []
   },
   "construction": {
     "key": "construction",
     "name": "Civic Construction Co.",
-    "durationSeconds": 26,
-    "labourCost": 18,
+    "durationSeconds": 36,
+    "labourCost": 54,
     "inputs": {
-      "timber": 2,
-      "part": 2,
-      "equipment": 1
+      "timber": 6,
+      "part": 6,
+      "equipment": 3
     },
     "output": {
-      "material": 8
+      "material": 24
     },
-    "wastePerCycle": 1,
+    "wastePerCycle": 3,
     "servicePayout": 0,
     "retailItems": []
   },
   "freight": {
     "key": "freight",
     "name": "Copper Quay Freight",
-    "durationSeconds": 14,
-    "labourCost": 10,
+    "durationSeconds": 19,
+    "labourCost": 16,
     "inputs": {
-      "crate": 1,
-      "part": 1,
-      "power": 2
+      "crate": 2,
+      "part": 2,
+      "power": 3
     },
     "output": {},
     "wastePerCycle": 0,
-    "servicePayout": 29,
+    "servicePayout": 46,
     "retailItems": []
   },
   "shop": {
     "key": "shop",
     "name": "Supply Shop & Café",
-    "durationSeconds": 14,
+    "durationSeconds": 12,
     "labourCost": 10,
     "inputs": {
       "food": 2,
@@ -207,7 +207,7 @@ export const TRADES: Record<string, TradeSpec> = {
   "restaurant": {
     "key": "restaurant",
     "name": "Sunset Market Kitchen",
-    "durationSeconds": 13,
+    "durationSeconds": 12,
     "labourCost": 12,
     "inputs": {
       "food": 2,
@@ -223,8 +223,8 @@ export const TRADES: Record<string, TradeSpec> = {
   "gym": {
     "key": "gym",
     "name": "Harbor Gym",
-    "durationSeconds": 12,
-    "labourCost": 11,
+    "durationSeconds": 14,
+    "labourCost": 13,
     "inputs": {
       "supply": 1,
       "water": 1,
@@ -232,35 +232,35 @@ export const TRADES: Record<string, TradeSpec> = {
     },
     "output": {},
     "wastePerCycle": 0,
-    "servicePayout": 14,
+    "servicePayout": 16,
     "retailItems": []
   },
   "cinema": {
     "key": "cinema",
     "name": "Lantern Cinema",
-    "durationSeconds": 18,
-    "labourCost": 13,
+    "durationSeconds": 16,
+    "labourCost": 17,
     "inputs": {
-      "supply": 2,
-      "power": 2
+      "supply": 3,
+      "power": 3
     },
     "output": {},
     "wastePerCycle": 0,
-    "servicePayout": 12,
+    "servicePayout": 16,
     "retailItems": []
   },
   "recycler": {
     "key": "recycler",
     "name": "Tideglass Reclamation Hub",
-    "durationSeconds": 20,
-    "labourCost": 12,
+    "durationSeconds": 19,
+    "labourCost": 19,
     "inputs": {
-      "waste": 3,
-      "power": 1
+      "waste": 5,
+      "power": 2
     },
     "output": {
-      "material": 1,
-      "part": 1
+      "material": 2,
+      "part": 2
     },
     "wastePerCycle": 0,
     "servicePayout": 0,
