@@ -118,6 +118,8 @@ export interface GameState {
   saveRevision: number;
   civicPaidAt: number; civicWagesPaid: number;
   mmDeposited: number; mmWithdrawn: number;
+  /** Lifetime $MM credited from real on-chain transfers. See setDepositedMM. */
+  mmFromChain: number;
   sponsoredUntil: number; chartered: boolean;
   operations: Operations; lastTickAt: number; brokenDown: boolean; lastShift: ShiftReport | null;
   portfolio: Record<string, BusinessRecord>;
@@ -293,7 +295,7 @@ export function createFreshState(): GameState {
     epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
     staff: 1, chargesSettledAt: Date.now(), suppliesCut: false, saveRevision: 0,
     civicPaidAt: Date.now(), civicWagesPaid: 0,
-    mmDeposited: 0, mmWithdrawn: 0,
+    mmDeposited: 0, mmWithdrawn: 0, mmFromChain: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
     portfolio: {},
     lastTickAt: Date.now(), brokenDown: false, lastShift: null,
@@ -517,6 +519,8 @@ export function hydrateState(saved: Partial<GameState>): GameState {
       civicWagesPaid: finite(saved.civicWagesPaid, 0),
       mmDeposited: finite(saved.mmDeposited, 0, 0),
       mmWithdrawn: finite(saved.mmWithdrawn, 0, 0),
+      // Persisted so a reload does not re-credit every past transfer as if it were new.
+      mmFromChain: finite(saved.mmFromChain, 0, 0),
       chartered: Boolean(saved.chartered),
       lifetimeContribution: finite(saved.lifetimeContribution, 0),
       lifetimeMMEarned: finite(saved.lifetimeMMEarned, 0),
@@ -1606,6 +1610,29 @@ export class GameStore {
    * Convert token holdings into spending money. The $MM stays in the treasury, which
    * deepens the city's liquidity and pays its citizens.
    */
+  /**
+   * Adopt the authority's record of $MM brought in from a real wallet.
+   *
+   * `total` is a LIFETIME figure the authority owns: it reads each transfer off the chain
+   * and keys it on the transaction signature. Only the DIFFERENCE against what this browser
+   * has already taken credit for is added, which makes the call idempotent — a replayed
+   * credit, a refresh, or a second browser cannot compound one transfer into more $MM than
+   * was ever sent, and spending in between is untouched because mmHoldings falls while the
+   * lifetime figure does not.
+   *
+   * Deliberately NOT `mmDeposited`: that field already means "$MM placed in the in-game
+   * bank" and backs withdrawableCapitalMM. Reusing it made a converted deposit look
+   * refundable, which the tests caught.
+   */
+  setDepositedMM(total: number): void {
+    const units = Math.max(0, Math.floor(Number(total) || 0));
+    const fresh = units - this.state.mmFromChain;
+    if (fresh <= 0) { this.state.mmFromChain = Math.max(this.state.mmFromChain, units); return; }
+    this.state.mmFromChain = units;
+    this.state.mmHoldings += fresh;
+    this.commit(`Mercedonia credited ${fresh} $MM from your wallet.`, "success");
+  }
+
   exchangeMMForMercDollars(units: number): ActionResult {
     const amount = Math.floor(units);
     if (amount <= 0) return this.result(false, "Choose how much $MM to bring in.");

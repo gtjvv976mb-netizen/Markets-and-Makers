@@ -20,6 +20,7 @@ import { redact } from "./treasury.js";
 import { MAX_SAVE_BYTES, readSave, SaveError, writeSave } from "./save.js";
 import { treasuryReport } from "./watch.js";
 import { solvency } from "./solvency.js";
+import { creditDeposit, depositedUnits, DepositError, treasuryAddress } from "./deposit.js";
 import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
@@ -466,6 +467,39 @@ const server = createServer(async (req, res) => {
         json(res, 200, saved);
       } catch (error) {
         if (error instanceof WorldError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
+    // --- bringing real $MM in -------------------------------------------------------------
+    //
+    // Where to send it, and what has been credited. The address is a PUBLIC key and players
+    // need it to send at all; the secret never leaves the process.
+    if (req.method === "GET" && url.pathname === "/api/chain/deposit") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      json(res, 200, {
+        treasury: treasuryAddress(),
+        mint: config.tokenMint || null,
+        deposited: await depositedUnits(REALM_ID, who.playerId),
+        open: config.payoutsEnabled,
+      });
+      return;
+    }
+
+    // Credit a transfer the player has already made. The body carries a SIGNATURE and
+    // nothing else — the amount, the sender and the destination all come from the chain.
+    if (req.method === "POST" && url.pathname === "/api/chain/deposit") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const payload = (await body(req, 2_000)) as { signature?: unknown } | null;
+      if (!payload) { json(res, 400, { error: "body-required" }); return; }
+      try {
+        json(res, 200, await creditDeposit(
+          REALM_ID, who.playerId, who.walletAddress, String(payload.signature ?? "")));
+      } catch (error) {
+        if (error instanceof DepositError) { json(res, 409, { error: error.code, message: error.message }); return; }
         throw error;
       }
       return;

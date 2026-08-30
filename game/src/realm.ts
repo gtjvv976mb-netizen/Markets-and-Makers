@@ -300,6 +300,53 @@ export async function fetchChainMM(owner: string): Promise<number | null> {
   }
 }
 
+export interface DepositDesk {
+  /** The address to send $MM to. A public key. */
+  treasury: string | null;
+  mint: string | null;
+  /** Whole $MM this player has already brought in. */
+  deposited: number;
+  open: boolean;
+}
+
+/** Where to send $MM, and what has been credited so far. */
+export async function fetchDepositDesk(): Promise<DepositDesk | null> {
+  const headers = authHeaders();
+  const base = serverBase();
+  if (!headers || !base) return null;
+  try {
+    const response = await fetch(`${base}/api/chain/deposit`, { headers, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    return await response.json() as DepositDesk;
+  } catch { return null; }
+}
+
+/**
+ * Claim a transfer you have already made.
+ *
+ * The signature is all that is sent. The authority reads the amount, the sender and the
+ * destination off the chain — nothing here can name its own credit.
+ */
+export async function claimDeposit(signature: string): Promise<RealmOutcome<{
+  signature: string; units: number; alreadyCredited: boolean; totalDeposited: number;
+}>> {
+  const headers = authHeaders();
+  const base = serverBase();
+  if (!headers || !base) return { status: "offline" };
+  try {
+    const response = await fetch(`${base}/api/chain/deposit`, {
+      method: "POST", headers, body: JSON.stringify({ signature }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) {
+      return { status: "refused", code: String(payload.error ?? "refused"),
+               message: String(payload.message ?? "That transfer could not be credited.") };
+    }
+    return { status: "ok", value: payload as never };
+  } catch { return { status: "offline" }; }
+}
+
 /** The island's open listings, cheapest first. Public: readable before you sign in. */
 export async function fetchMarketBook(islandId: string, itemKey?: string): Promise<MarketListing[] | null> {
   if (isDemo()) return null;

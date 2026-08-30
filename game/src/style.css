@@ -271,7 +271,23 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .contract-actions { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .contract-actions button.secondary { width: auto; padding: 0 10px; color: var(--ink); background: #e3e4da; }
 .refresh-board { margin-top: 9px; color: #315b56; background: #e2eadf; }
-/* The real $MM backing. Read from the chain by the authority — never a constant. */
+/* Bringing real $MM in: an address to send to, and a signature to hand back. */
+.mm-deposit { margin: 0 0 12px; }
+.mm-deposit p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.deposit-address { display: flex; gap: 6px; align-items: center; margin-bottom: 7px; }
+.deposit-address code { flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 9px; background: rgba(0,0,0,.04); font-size: 11.5px; text-overflow: ellipsis;
+  white-space: nowrap; }
+.deposit-address button, .deposit-claim button { min-height: 36px; padding: 0 13px; border: none;
+  border-radius: 9px; background: #1d5b52; color: #f2f8ef; font-size: 13px; font-weight: 900;
+  white-space: nowrap; }
+.deposit-address button:hover, .deposit-claim button:hover { background: #2c7b63; }
+.deposit-claim { display: flex; gap: 6px; }
+.deposit-claim input { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 9px; font-size: 12.5px; }
+.deposit-total { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+/* The real $MM backing./* The real $MM backing. Read from the chain by the authority — never a constant. */
 .mm-backing { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 8px 14px; padding: 11px 13px; margin: 0 0 10px; border: 1px solid var(--line);
   border-left: 3px solid #3d8f87; border-radius: 12px; background: rgba(61,143,135,.06); }

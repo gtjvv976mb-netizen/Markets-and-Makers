@@ -1,7 +1,7 @@
 import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
-  worldRunsOnServer, fetchCityBooks, fetchChainMM, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
+  worldRunsOnServer, fetchCityBooks, fetchChainMM, fetchDepositDesk, claimDeposit, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
   cancelMarketListing, type CityDispatch, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
@@ -697,6 +697,8 @@ let standing: EpochStanding | null = null;
 let withdrawalDesk: Awaited<ReturnType<typeof fetchWithdrawals>> = null;
 /** Real $MM in the signed-in wallet, or null when it cannot be read. */
 let chainMM: number | null = null;
+/** Where to send $MM to bring it in, and what has been credited. */
+let depositDesk: Awaited<ReturnType<typeof fetchDepositDesk>> = null;
 
 /**
  * Bring this player's city back from the authority, if the authority has a better one.
@@ -740,6 +742,7 @@ async function refreshWallet(): Promise<void> {
   // What the wallet really holds. Best-effort and non-blocking: the HUD omits the figure
   // rather than waiting on an RPC or showing a wrong zero.
   chainMM = principal ? await fetchChainMM(principal.walletAddress) : null;
+  depositDesk = principal ? await fetchDepositDesk() : null;
   if (principal) void restoreCityFromCloud();
   renderAll();
 }
@@ -1458,6 +1461,37 @@ function districtBoardMarkup(): string {
  * Only the authority can read the wallet, so when it has not answered this says so rather
  * than substituting a number. A dash is honest; 50,000,000 was not.
  */
+/**
+ * Bringing real $MM into the game.
+ *
+ * The player sends $MM to the treasury from their own wallet and hands back the signature;
+ * the authority reads the amount off the chain. Deliberately NOT an in-app signing flow:
+ * that needs a Solana library in the bundle and a transaction this code builds on the
+ * player's behalf, and for a first version of a real-money rail, "you send it yourself and
+ * we verify it" is the one where a bug cannot move somebody's tokens.
+ */
+function depositMarkup(): string {
+  if (!depositDesk?.open || !depositDesk.treasury) return "";
+  const held = chainMM;
+  return `<section class="mm-deposit">
+    <div class="drawer-section-label">Bring $MM in</div>
+    <p>Send $MM to the city treasury from your wallet, then paste the transaction signature.
+      The city reads the amount from the chain — ${held !== null ? `you hold ${formatNumber(held)} $MM` : "your wallet balance is not readable right now"}.</p>
+    <div class="deposit-address">
+      <code>${escapeMarkup(depositDesk.treasury)}</code>
+      <button data-action="copy-treasury" data-address="${escapeMarkup(depositDesk.treasury)}">Copy</button>
+    </div>
+    <div class="deposit-claim">
+      <input id="depositSignature" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+        placeholder="Paste the transaction signature" aria-label="Transaction signature" />
+      <button data-action="claim-deposit">Credit it</button>
+    </div>
+    ${depositDesk.deposited > 0
+      ? `<small class="deposit-total">${formatNumber(depositDesk.deposited)} $MM brought in so far.</small>`
+      : ""}
+  </section>`;
+}
+
 function mmBackingMarkup(): string {
   const mm = cityBooks?.books?.mm ?? null;
   if (!mm || mm.status === "off") {
@@ -2635,6 +2669,7 @@ function bankDeskMarkup(): string {
           chainMM === null ? "convert here, or withdraw to your wallet"
             : `${formatNumber(chainMM)} $MM already in your wallet`}</em></span>
       </div>
+      ${depositMarkup()}
       <div class="drawer-section-label">Treasury exchange</div>
       <div class="bank-rate-card">
         <span><small>Bring to the treasury</small><strong>100 $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
@@ -3725,6 +3760,32 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
+  else if (action === "copy-treasury") {
+    void navigator.clipboard?.writeText(button.dataset.address ?? "")
+      .then(() => toast("Treasury address copied."))
+      .catch(() => toast("Could not copy — select the address and copy it by hand."));
+  }
+  else if (action === "claim-deposit") {
+    const field = document.querySelector<HTMLInputElement>("#depositSignature");
+    const signature = (field?.value ?? "").trim();
+    if (!signature) { toast("Paste the transaction signature first."); return; }
+    button.disabled = true;
+    void claimDeposit(signature).then(async (outcome) => {
+      if (outcome.status === "ok") {
+        const { units, alreadyCredited, totalDeposited } = outcome.value;
+        toast(alreadyCredited
+          ? `That transfer was already credited — ${formatNumber(units)} $MM.`
+          : `Credited ${formatNumber(units)} $MM. You have brought in ${formatNumber(totalDeposited)}.`);
+        if (field) field.value = "";
+        // The in-game balance the bank converts. Deposits are the authority's record, so
+        // take its figure rather than adding to a local one.
+        store.setDepositedMM(totalDeposited);
+        depositDesk = await fetchDepositDesk();
+        renderAll();
+      } else if (outcome.status === "refused") toast(outcome.message);
+      else toast("Mercedonia could not be reached. Your transfer is safe — try again.");
+    }).finally(() => { button.disabled = false; });
+  }
   else if (action === "bank-in") report(store.exchangeMMForMercDollars(100));
   else if (action === "bank-out") report(store.exchangeMercDollarsForMM(1000));
   else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);

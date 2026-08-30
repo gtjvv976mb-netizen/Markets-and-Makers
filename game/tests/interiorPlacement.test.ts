@@ -322,3 +322,59 @@ describe("the exchange says what to do, not just what is true", () => {
     expect(advice[0]!.kind).toBe("idle");
   });
 });
+
+describe("bringing real $MM in, then converting it", () => {
+  /**
+   * "$MM is earned, never bought" was wired in as a one-way door: you could claim $MM from
+   * the epoch and withdraw it to a wallet, and there was no way back. A player holding real
+   * pump.fun $MM had nothing the bank would convert, and the button sat dead at 0.
+   *
+   * Deposits are the AUTHORITY's record — it reads them off the chain and keys them on the
+   * transaction signature — so the store adopts its total rather than adding to a local one.
+   */
+  it("credits a deposit and makes it convertible", () => {
+    const store = openBusiness();
+    expect(store.state.mmHoldings).toBe(0);
+    store.setDepositedMM(500);
+    console.log(`AFTER DEPOSIT mmHoldings=${store.state.mmHoldings} fromChain=${store.state.mmFromChain}`);
+    expect(store.state.mmHoldings).toBe(500);
+
+    const before = store.state.wallet;
+    const result = store.exchangeMMForMercDollars(100);
+    console.log(`CONVERT ok=${result.ok} · 100 $MM -> ${store.state.wallet - before} MERCS · $MM left ${store.state.mmHoldings}`);
+    expect(result.ok).toBe(true);
+    expect(store.state.mmHoldings).toBe(400);
+    expect(store.state.wallet).toBeGreaterThan(before);
+  });
+
+  it("does NOT compound when the same total is adopted twice", () => {
+    // A replayed credit, a second browser, or a refresh must not turn one deposit into two.
+    const store = openBusiness();
+    store.setDepositedMM(500);
+    store.setDepositedMM(500);
+    store.setDepositedMM(500);
+    console.log(`THREE ADOPTIONS of the same total: mmHoldings=${store.state.mmHoldings}`);
+    expect(store.state.mmHoldings).toBe(500);
+  });
+
+  it("keeps what has already been converted converted", () => {
+    // The authority's total is a LIFETIME figure. Adopting it again must not refund $MM the
+    // player has already turned into Merc Dollars.
+    const store = openBusiness();
+    store.setDepositedMM(500);
+    store.exchangeMMForMercDollars(300);
+    expect(store.state.mmHoldings).toBe(200);
+    store.setDepositedMM(500);
+    console.log(`RE-ADOPTED after spending 300: mmHoldings=${store.state.mmHoldings} (must stay 200)`);
+    expect(store.state.mmHoldings).toBe(200);
+  });
+
+  it("adds only the new part of a second deposit", () => {
+    const store = openBusiness();
+    store.setDepositedMM(500);
+    store.exchangeMMForMercDollars(300);
+    store.setDepositedMM(800);
+    console.log(`SECOND DEPOSIT 500->800 after spending 300: mmHoldings=${store.state.mmHoldings} (expect 500)`);
+    expect(store.state.mmHoldings).toBe(500);
+  });
+});
