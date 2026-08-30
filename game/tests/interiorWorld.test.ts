@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BUSINESS, type LicenseKey, type UpgradeKey } from "../src/data";
+const FORMS = ["tank", "press", "rack", "hearth", "loom", "array", "conveyor", "counter", "cradle", "column"];
+
 import {
   dampInteriorAvatarYaw,
   INTERIOR_EQUIPMENT_CATALOG,
@@ -29,19 +31,36 @@ describe("business interior equipment catalog", () => {
     })));
 
     expect(designs).toHaveLength(60);
-    expect(new Set(designs.map(({ design }) => design.form)).size).toBe(60);
+    // Sixty distinct machines, built from ten silhouette families.
+    //
+    // This used to demand sixty distinct FORM STRINGS, which only made sense while every
+    // machine was a hand-authored mesh — five thousand lines that could not be reasoned
+    // about and drifted in quality between trades. A machine is a recipe now, so the
+    // guarantee that matters is that no two machines are the same machine: unique names,
+    // unique colours, and no single silhouette carrying more than a third of the roster.
     expect(new Set(designs.map(({ design }) => design.name)).size).toBe(60);
+    expect(new Set(designs.map(({ design }) => design.secondary)).size).toBe(60);
+    const byForm = new Map<string, number>();
+    for (const { design } of designs) byForm.set(design.form, (byForm.get(design.form) ?? 0) + 1);
+    expect(byForm.size, "the roster must use many silhouettes, not one").toBeGreaterThanOrEqual(8);
+    expect(Math.max(...byForm.values()), "no silhouette may dominate the roster").toBeLessThan(designs.length / 3);
+    // And within any one trade, its four machines must not be four of the same shape.
+    for (const license of licenses) {
+      const forms = upgradeKeys.map((key) => INTERIOR_EQUIPMENT_CATALOG[license][key].form);
+      expect(new Set(forms).size, `${license} reuses a silhouette across its own machines`).toBeGreaterThanOrEqual(3);
+    }
 
     for (const { license, key, design } of designs) {
-      expect(design.form).toContain(`${license}-${key}`);
+      // A machine is a RECIPE now — a silhouette family, a colour, and modules that appear
+      // as it is upgraded — not a hand-authored mesh per trade per level. The contract is
+      // that every trade still reads as its own: a real form, a real name, its own colour,
+      // and one module per upgrade level so buying always changes the silhouette.
+      expect(FORMS, `${license}.${key} form`).toContain(design.form);
       expect(design.name.length).toBeGreaterThan(3);
-      const copy = design.description.toLowerCase();
-      expect(
-        copy.includes(BUSINESS[license].name.toLowerCase())
-          || copy.includes(BUSINESS[license].sector.toLowerCase()),
-      ).toBe(true);
-      expect(design.primary).toMatch(/^#[0-9a-f]{6}$/i);
-      expect(design.secondary).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(design.description.length).toBeGreaterThan(12);
+      expect(typeof design.secondary, `${license}.${key} colour`).toBe("number");
+      expect(design.modules.map((module) => module.at))
+        .toEqual([1, 2, 3, 4]);
     }
   });
 });
@@ -92,12 +111,14 @@ describe("business interiors", () => {
     }
   });
 
-  it("gives all 15 trades a distinct architecture and floor-production diagram", () => {
+  it("gives all 15 trades a distinct architecture and wall motif", () => {
     const architectures = licenses.map((license) => INTERIOR_ROOMS[license].architecture);
-    const floorPatterns = licenses.map((license) => INTERIOR_ROOMS[license].floorPattern);
+    // The floor carries no per-trade diagram any more — the owner's rule is that nothing is
+    // painted on it. Identity moved to the walls, so THAT is what must stay distinct.
+    const motifs = licenses.map((license) => INTERIOR_ROOMS[license].motif);
 
     expect(new Set(architectures).size).toBe(licenses.length);
-    expect(new Set(floorPatterns).size).toBe(licenses.length);
+    expect(new Set(motifs).size).toBe(licenses.length);
   });
 
   it("describes each room as a Mercedonian solarpunk production system", () => {

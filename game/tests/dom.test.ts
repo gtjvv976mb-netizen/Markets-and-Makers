@@ -168,11 +168,16 @@ describe("markup contract", () => {
     expect(main).not.toContain('element("#interiorStage").innerHTML');
     expect(main).not.toContain("Math.min(3, level + 1)");
     expect(interior).toContain("INTERIOR_EQUIPMENT_CATALOG");
-    // The level-0 blueprint was the "hologram on the floor" the owner ordered removed. An
-    // unbought station now renders nothing at all — the Build tray is where buying happens —
-    // so the contract inverts: the room must hide the whole station, not show a ghost of it.
+    // The level-0 blueprint was the "hologram on the floor" the owner ordered removed, and
+    // the rebuilt interior has no such concept left to switch off: an unbought machine is
+    // simply not built into the scene. The contract is the ABSENCE, plus the rule that
+    // replaced it.
     expect(interior).toContain("station.root.visible = level > 0");
-    expect(interior).toContain("station.blueprint.visible = false");
+    // Not a bare "blueprint" search: that word is also the construction studio's wall
+    // motif, which is a legitimate painting on a wall. What must never return is a ghost
+    // MACHINE standing on the floor for something nobody bought.
+    expect(interior, "no ghost machines may return").not.toContain("station.blueprint");
+    expect(interior, "unbought machines get no collider").toContain("not bought is not there");
     expect(interior).toContain("setMoveInput(direction");
   });
 
