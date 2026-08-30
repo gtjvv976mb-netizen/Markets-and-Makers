@@ -132,7 +132,9 @@ describe("markup contract", () => {
     // four hundred times if you held more.
     expect(main).toContain("exchangeMMForMercDollars(convertibleMM())");
     expect(main).toContain("Math.floor(store.issuanceHeadroom() / perUnit)");
-    expect(main).toContain("exchangeMercDollarsForMM(1000)");
+    // Redeeming in flat 1,000-MERC chunks floored 0.8 $MM away every press — an 8% tax on
+    // top of the spread, and 490 presses to recover 5,000 $MM.
+    expect(main).toContain("exchangeMercDollarsForMM(redeemableMercs())");
     expect(main).toContain('action === "info-open"');
   });
 

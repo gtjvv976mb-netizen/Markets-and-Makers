@@ -707,6 +707,29 @@ let depositAmount = 100;
  * issuance cap will not cover. The old button offered exactly 100 whether you held 40 or
  * 40,000, so it was either refused or made you press it four hundred times.
  */
+/**
+ * The MERCS to spend to take back every $MM of capital in ONE press.
+ *
+ * The button used to redeem a flat 1,000 MERCS at a time, and mmForMercDollars floors:
+ * 1,000 MERCS is worth 9.8 $MM and returned 9. That 0.8 lost per press is an 8% tax on
+ * top of the 2% spread, and recovering 5,000 $MM took 490 presses and cost 590 $MM.
+ * Asking the store for the answer rather than restating its arithmetic keeps one source
+ * of the rate.
+ */
+function redeemableMercs(): number {
+  const capital = store.withdrawableCapitalMM();
+  const held = purse();
+  if (capital <= 0 || held <= 0) return 0;
+  if (store.mmForMercDollars(held) <= capital) return held;
+  let low = 1;
+  let high = held;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (store.mmForMercDollars(mid) >= capital) high = mid; else low = mid + 1;
+  }
+  return low;
+}
+
 function convertibleMM(): number {
   const held = store.state.mmHoldings;
   const perUnit = store.mercDollarsForMM(1);
@@ -1619,7 +1642,10 @@ function renderMarket(): void {
             : store.state.mmHoldings >= 1
               ? `Bank is full <small>no room to issue until the treasury grows</small>`
               : `Nothing to convert <small>earn or bring in $MM first</small>`}</button>
-        <button class="secondary" data-action="bank-out" ${purse() < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
+        <button class="secondary" data-action="bank-out" ${redeemableMercs() <= 0 ? "disabled" : ""}>Withdraw capital <small>${
+          redeemableMercs() > 0
+            ? `${formatNumber(store.mmForMercDollars(redeemableMercs()))} $MM for ${formatNumber(redeemableMercs())} ${CURRENCY_CODE}`
+            : store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM on deposit, not enough ${CURRENCY_CODE} to redeem` : "nothing on deposit"}</small></button>
       </div>
       <details class="treasury-books">
         <summary>The city's books</summary>
@@ -3871,7 +3897,7 @@ document.body.addEventListener("click", (event) => {
     }).finally(() => { button.disabled = false; });
   }
   else if (action === "bank-in") report(store.exchangeMMForMercDollars(convertibleMM()));
-  else if (action === "bank-out") report(store.exchangeMercDollarsForMM(1000));
+  else if (action === "bank-out") report(store.exchangeMercDollarsForMM(redeemableMercs()));
   else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);
   else if (action === "utility-close") closeUtilityDrawer();
   else if (action === "business-drawer-toggle") {

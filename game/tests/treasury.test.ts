@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import main from "../src/main.ts?raw";
+import dataSource from "../src/data.ts?raw";
 import styles from "../src/style.css?inline";
 import { GameStore } from "../src/state";
 import { BANK_SPREAD, MERC_DOLLARS_PER_USD, MM_REFERENCE_PRICE_USD } from "../src/data";
@@ -39,6 +40,14 @@ describe("bringing $MM into the city", () => {
         .toBeGreaterThan(block.indexOf("treasury-books"));
     }
     expect(styles).toContain(".treasury-books");
+  });
+
+  it("does not name an amount the button will not honour", () => {
+    // The quick-bar chip said "Convert 100 $MM" while the action converted everything a
+    // player held — measured at 40,000 $MM moved by a button promising 100.
+    const treasury = dataSource.slice(dataSource.indexOf("treasury: ["), dataSource.indexOf("]", dataSource.indexOf("treasury: [")));
+    expect(treasury).toContain('action: "bank-in"');
+    expect(treasury).not.toMatch(/label: "Convert \d/);
   });
 
   it("quotes the rate it actually pays", () => {

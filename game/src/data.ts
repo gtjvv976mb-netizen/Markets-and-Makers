@@ -995,7 +995,7 @@ export interface CounterService {
 
 export const COUNTER_SERVICES: Record<string, CounterService[]> = {
   treasury: [
-    { label: "Convert 100 $MM", detail: "Into spendable Merc Dollars at the day's rate", action: "bank-in" },
+    { label: "Convert your $MM", detail: "All the bank has room to take, at the day's rate", action: "bank-in" },
     { label: "Withdraw capital", detail: "Take back what you brought in, as $MM", action: "bank-out" },
     { label: "Claim weekly share", detail: "Your cut of this epoch's distribution", action: "claim-epoch" },
     { label: "Open the exchange", detail: "Rates, reserves and the contribution board", action: "tab", target: "trade" },
