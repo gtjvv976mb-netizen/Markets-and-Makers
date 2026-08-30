@@ -2727,9 +2727,14 @@ function newsDeskMarkup(): string {
 }
 
 function bankDeskMarkup(): string {
+  // The Bank drawer is a second treasury desk, and it had the same two lies as the first:
+  // a button reading "Convert 100 $MM" for an action that converts everything held, and a
+  // "Return 1,000 MERCS" that floored 0.8 $MM away on every press.
   const capital = store.withdrawableCapitalMM();
-  const converted = store.mercDollarsForMM(100);
-  const returned = store.mmForMercDollars(1_000);
+  const offer = convertibleMM();
+  const converted = store.mercDollarsForMM(offer);
+  const redeem = redeemableMercs();
+  const returned = store.mmForMercDollars(redeem);
   return `
     <section class="hud-bank-card">
       <div class="bank-balance-pair">
@@ -2741,19 +2746,21 @@ function bankDeskMarkup(): string {
       ${depositMarkup()}
       <div class="drawer-section-label">Treasury exchange</div>
       <div class="bank-rate-card">
-        <span><small>Bring to the treasury</small><strong>100 $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
+        <span><small>Bring to the treasury</small><strong>${formatNumber(offer)} $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
       </div>
       <div class="hud-bank-actions">
-        <button data-action="bank-in" ${store.state.mmHoldings < 100 || converted > store.issuanceHeadroom() ? "disabled" : ""}><span>Convert 100 $MM</span><small>${
-          store.state.mmHoldings < 100
-            // SAY WHY. This read "Receive 9,800 MERCS" while sitting dead, so a player
-            // with nothing to convert was shown a price and no reason they could not take
-            // it. $MM is earned, never bought — the way in is the weekly share.
-            ? `You hold ${formatNumber(store.state.mmHoldings)} — 100 needed. $MM is earned: claim your weekly share.`
-            : converted > store.issuanceHeadroom()
-              ? "Treasury limit reached"
-              : `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`}</small></button>
-        <button class="secondary" data-action="bank-out" ${purse() < 1_000 || capital <= 0 || returned <= 0 ? "disabled" : ""}><span>Return 1,000 ${CURRENCY_CODE}</span><small>${capital > 0 ? `Up to ${formatNumber(capital)} $MM capital available` : "No deposited capital"}</small></button>
+        <button data-action="bank-in" ${offer < 1 ? "disabled" : ""}><span>${offer >= 1 ? `Convert ${formatNumber(offer)} $MM` : "Convert your $MM"}</span><small>${
+          offer >= 1
+            ? `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`
+            // SAY WHY. This showed a price while sitting dead, so a player with nothing to
+            // convert was given a rate and no reason they could not take it.
+            : store.state.mmHoldings >= 1
+              ? "Treasury limit reached — no room to issue until it grows"
+              : "You hold none yet. $MM is earned: claim your weekly share."}</small></button>
+        <button class="secondary" data-action="bank-out" ${redeem <= 0 || returned <= 0 ? "disabled" : ""}><span>${redeem > 0 ? `Return ${formatNumber(redeem)} ${CURRENCY_CODE}` : `Return ${CURRENCY_CODE}`}</span><small>${
+          redeem > 0
+            ? `Take back ${formatNumber(returned)} $MM`
+            : capital > 0 ? `${formatNumber(capital)} $MM on deposit, not enough ${CURRENCY_CODE} to redeem` : "No deposited capital"}</small></button>
       </div>
       <div class="bank-mini-ledger">
         <span><small>Your capital on deposit</small><strong>${formatNumber(capital)} $MM</strong></span>

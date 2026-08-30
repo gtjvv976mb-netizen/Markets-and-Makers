@@ -50,6 +50,27 @@ describe("bringing $MM into the city", () => {
     expect(treasury).not.toMatch(/label: "Convert \d/);
   });
 
+  it("states the real amount in the Bank drawer too", () => {
+    // There are TWO treasury desks: the Exchange panel and the Bank drawer behind the
+    // quick-bar chip. The drawer kept its own "Convert 100 $MM" / "Return 1,000 MERCS"
+    // labels for actions that move everything, and it was the one still live after the
+    // first fix. Both buttons must name what they will actually move.
+    const drawer = main.slice(main.indexOf("function bankDeskMarkup"));
+    const body = drawer.slice(0, drawer.indexOf("\nfunction "));
+    expect(body).toContain("Convert ${formatNumber(offer)} $MM");
+    expect(body).toContain("Return ${formatNumber(redeem)} ${CURRENCY_CODE}");
+    expect(body).not.toContain("store.state.mmHoldings < 100");
+    expect(body).not.toContain("purse() < 1_000");
+  });
+
+  it("ships no button that names a fixed amount of money", () => {
+    // Checked against the whole rendered source, comments stripped, because the first
+    // pass fixed two of the three places and the third stayed live.
+    const withoutComments = main.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const offenders = withoutComments.match(/(Convert|Return|Bring in) [0-9,]+ ?(\$MM|\$\{CURRENCY_CODE\}|MERCS)/g);
+    expect(offenders ?? []).toEqual([]);
+  });
+
   it("quotes the rate it actually pays", () => {
     const store = new GameStore();
     const perUnit = store.mercDollarsForMM(1);
