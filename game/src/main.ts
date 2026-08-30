@@ -1037,11 +1037,11 @@ const STEP_ACTION: Record<string, { tab: string; label: string; hint: string; sh
   leased:     { tab: "shop",  label: "Pick a plot",  hint: "Choose a glowing plot, then sign the lease.", show: ["build"] },
   licensed:   { tab: "shop",  label: "Choose a trade", hint: "Pick what your business will make.", show: ["build"] },
   built:      { tab: "shop",  label: "Build it",     hint: "Put your building on the plot.", show: ["build"] },
-  produced:   { tab: "shop",  label: "See the floor", hint: "Watch a cycle run. You do not start it.", show: ["ops"] },
-  upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building.", show: ["ops"] },
-  sold:       { tab: "trade", label: "See who buys", hint: "Mercedonians buy what you make.", show: ["ops", "market", "nav"] },
-  contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most.", show: ["ops", "market", "contracts", "nav"] },
-  traveled:   { tab: "world", label: "Use Transit Hall", hint: "Fast-travel to another district.", show: ["ops", "market", "contracts", "map", "nav"] },
+  produced:   { tab: "shop",  label: "See the floor", hint: "Watch a cycle run. You do not start it.", show: ["ops", "quick"] },
+  upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building.", show: ["ops", "quick"] },
+  sold:       { tab: "trade", label: "See who buys", hint: "Mercedonians buy what you make.", show: ["ops", "quick", "market", "nav"] },
+  contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most.", show: ["ops", "quick", "market", "contracts", "nav"] },
+  traveled:   { tab: "world", label: "Use Transit Hall", hint: "Fast-travel to another district.", show: ["ops", "quick", "market", "contracts", "map", "nav"] },
 };
 
 function renderTutorial(): void {

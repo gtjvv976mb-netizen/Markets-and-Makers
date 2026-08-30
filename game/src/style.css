@@ -3713,7 +3713,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
    current step names it — written that way round, rather than hide-all-then-restore,
    so no rule has to guess a base display value back (grid here, flex there).
    Nothing is unmounted: her Hide button clears data-guided and the whole UI returns. */
-.app-shell[data-guided="true"]:not([data-show~="nav"]) :is(.maker-nav, .sheet-route),
+.app-shell[data-guided="true"]:not([data-show~="nav"]) :is(.maker-nav, .sheet-route, .hud-utility-rail),
+.app-shell[data-guided="true"]:not([data-show~="quick"]) #quickAccess,
 .app-shell[data-guided="true"]:not([data-show~="build"]) #buildPanel,
 .app-shell[data-guided="true"]:not([data-show~="ops"]) #businessPanel,
 .app-shell[data-guided="true"]:not([data-show~="market"]) #marketPanel,
@@ -3723,5 +3724,6 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   display: none !important;
 }
 
-/* Step one is "walk". The world, the Mayor, and nothing else. */
-.app-shell[data-guided="true"][data-step="moved"] .control-panel { display: none !important; }
+/* Step one is "walk". The world, the Mayor, and nothing else — the plot and landmark
+   pins come back for step two, which is when a player actually has to pick one. */
+.app-shell[data-guided="true"][data-step="moved"] :is(.control-panel, #worldMarkers) { display: none !important; }
