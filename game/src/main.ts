@@ -43,6 +43,15 @@ let interiorOpen = false;
 let sheetReturnFocus: HTMLElement | null = null;
 let interiorReturnFocus: HTMLElement | null = null;
 let interiorEntryTimer = 0;
+/**
+ * Ticks while the room is open and a crew is fitting something.
+ *
+ * Two things depend on it: the countdown in the header, and — the one that matters — the
+ * machine APPEARING when the crew finishes. settleInstallation runs inside catchUp, and
+ * catchUp is on a 60-second timer, so without this a maker could stand in front of a
+ * finished machine for the best part of a minute watching an empty tile.
+ */
+let interiorFittingTimer = 0;
 let interiorSelection: InteriorSelection | null = null;
 let interiorPrompt: InteriorPrompt | null = null;
 let interiorConsoleSignature = "";
@@ -1850,7 +1859,18 @@ function renderInterior(): void {
   element("#interiorObjectiveTitle").textContent = "Explore the production floor";
   element("#interiorObjectiveCopy").textContent = room.description;
   element("#interiorSystem").textContent = room.regenerativeSystem;
-  element("#interiorLevel").textContent = `Installed modules · ${installed}/${ceiling * 4}`;
+  // What the fitters are doing, IN THE ROOM.
+  //
+  // A machine is bought and then FITTED — the crew takes a minute or so and only then does
+  // it appear. store.installation() was rendered in the world's business drawer and nowhere
+  // else, so a maker who bought a machine by placing it stood on an unchanged floor with no
+  // sign anything had happened. That reads exactly like the placement failing, which is what
+  // it was reported as.
+  const fitting = store.installation();
+  element("#interiorLevel").textContent = fitting
+    ? `Fitting ${UPGRADE_NAMES[fitting.key].name} · ${fitting.progress}% · ${formatDuration(fitting.secondsLeft)} left`
+    : `Installed modules · ${installed}/${ceiling * 4}`;
+  element("#interiorLevel").classList.toggle("fitting", !!fitting);
   renderInteriorPrompt();
 
   const selectedKey = interiorSelection?.kind === "upgrade" ? interiorSelection.key : null;
@@ -1899,7 +1919,9 @@ function renderInterior(): void {
               <span class="ifr-pips" aria-label="Level ${owned} of ${ceiling}">${
                 Array.from({ length: ceiling }, (_, i) => `<b class="${i < owned ? "on" : ""}"></b>`).join("")
               }</span>
-              <span class="ifr-meta">${owned === 0 ? "Not installed \u00b7 drag to place" : "Drag to move"}</span>
+              <span class="ifr-meta">${owned === 0 ? `${formatNumber(UPGRADE_COSTS[1]!.mercDollars)} ${CURRENCY_CODE}${
+                Object.entries(UPGRADE_COSTS[1]!.resources).map(([r, n]) => ` + ${n} ${RESOURCES[r as ResourceKey].short}`).join("")
+              } \u00b7 buy & place` : "Drag to move"}</span>
             </button>
             <button class="interior-move" data-action="interior-turn" data-upgrade="${key}"
               title="Turn ${escapeMarkup(machine.name)} (R)" aria-label="Turn ${escapeMarkup(machine.name)}">${logo("turn")}</button>
@@ -3139,6 +3161,19 @@ function openInterior(): void {
   interiorEntryTimer = 0;
   const license = store.state.license;
   interiorOpen = true;
+  window.clearInterval(interiorFittingTimer);
+  interiorFittingTimer = window.setInterval(() => {
+    if (!interiorOpen) return;
+    const before = store.installation()?.key ?? null;
+    store.catchUp();
+    const after = store.installation()?.key ?? null;
+    // The crew finished: the level has risen, so the room has to be told or the machine
+    // stays invisible until something else happens to re-render it.
+    if (before && !after) {
+      interiorWorld.updateUpgradeLevels(store.state.upgrades, store.upgradeCeiling());
+    }
+    if (before || after) renderInterior();
+  }, 1_000);
   interiorSelection = null;
   interiorPrompt = null;
   interiorConsoleSignature = "";
@@ -3175,12 +3210,35 @@ function openInterior(): void {
       // time and moved thereafter — all three rules (walkway, occupancy, affordability)
       // live in the store with their tests rather than being restated here.
       onPlace: (key, column, row, kind) => {
+        // A MACHINE THAT IS NOT INSTALLED YET IS BOUGHT BY PLACING IT.
+        //
+        // Without this the room was a dead end for every new business. All four stations
+        // start at level 0; applyLevels hides a level-0 station, and resolveSelection skips
+        // one — with a comment saying it "can be selected to BUY, but only from the tray."
+        // The tray never had a buy: its machine rows do `interior-move` and `interior-turn`
+        // and nothing else, and purchaseUpgrade's ONLY call site is onInteract, which needs
+        // a machine you can see and stand next to. So a new maker opened their floor, was
+        // told to "drag to place", dragged, released — and nothing appeared, because they
+        // had placed a machine that does not exist yet and could not be made to exist.
+        //
+        // Buying on placement is the same gesture the fittings in this very tray already
+        // use ("240 MERCS · buy & place"), and it is what the tray copy now promises.
+        // purchaseUpgrade names everything missing in one message, so a maker who cannot
+        // afford it is told the whole bill rather than being ignored.
         const outcome = kind === "fitting"
           ? (store.state.fittings?.[key as FittingKey]
             ? store.moveFitting(key as FittingKey, column, row)
             : store.installFitting(key as FittingKey, column, row))
-          : store.placeEquipment(key as UpgradeKey, column, row);
+          // installEquipmentAt buys a level-0 machine and places it in one move, checking
+          // the tile BEFORE the money — see its note. It falls through to a plain move for
+          // a machine that is already installed.
+          : store.installEquipmentAt(key as UpgradeKey, column, row);
         if (!outcome.ok) toast(outcome.message);
+        // A machine bought by being placed has to become VISIBLE, which is applyLevels'
+        // job and nothing else calls it here.
+        if (outcome.ok && kind === "station") {
+          interiorWorld.updateUpgradeLevels(store.state.upgrades, store.upgradeCeiling());
+        }
         // Tell the authority. publishBusiness fired on boot, on build and on an upgrade, and
         // on nothing else — so moving a machine, turning it, or dropping a fitting never
         // reached the server, and it priced the whole session against the layout the player
@@ -3196,6 +3254,8 @@ function openInterior(): void {
 function closeInterior(): void {
   window.clearInterval(interiorEntryTimer);
   interiorEntryTimer = 0;
+  window.clearInterval(interiorFittingTimer);
+  interiorFittingTimer = 0;
   interiorWorld.exit();
   for (const direction of ["forward", "backward", "left", "right"] as const) {
     interiorWorld.setMoveInput(direction, false);

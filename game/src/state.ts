@@ -1952,15 +1952,28 @@ export class GameStore {
    * and changing your mind would be a move you could not undo.
    */
   canPlaceEquipment(key: UpgradeKey, column: number, row: number): boolean {
-    if (!tileIsBuildable(column, row)) return false;
+    return this.equipmentPlacementRefusal(key, column, row) === null;
+  }
+
+  /**
+   * Why `key` may not stand on this tile, or null if it may. ONE copy of the rule.
+   *
+   * canPlaceEquipment used to hold the fitting check and had ZERO callers, while
+   * placeEquipment — the thing players actually use — checked only the walkway and other
+   * machines. So a station could be dropped straight onto a fitting, which is precisely
+   * what the note below says must not happen. A rule with no caller is not a rule.
+   */
+  private equipmentPlacementRefusal(key: UpgradeKey, column: number, row: number): string | null {
+    if (!tileIsBuildable(column, row)) return "That is the walkway — leave a way through to the back.";
     const occupant = this.equipmentAt(column, row);
-    if (occupant !== null && occupant !== key) return false;
+    if (occupant !== null && occupant !== key) return `${UPGRADE_NAMES[occupant].name} already stands there.`;
     // A machine may not be parked on a fitting. installFitting and moveFitting both refuse a
-    // tile holding either kind, but this checked only for other MACHINES — so a station could
-    // be dropped straight onto a fitting. The authority's sanitiseFloor seats stations first
-    // and then drops any fitting whose tile is taken, so the two engines would have been
-    // pricing DIFFERENT floors: the browser still crediting a fitting the server had binned.
-    return this.fittingAt(column, row) === null;
+    // tile holding either kind, so without this the two engines price DIFFERENT floors: the
+    // authority's sanitiseFloor seats stations first and drops any fitting whose tile is
+    // taken, while the browser goes on crediting a fitting the server has binned.
+    const fitting = this.fittingAt(column, row);
+    if (fitting !== null) return `Your ${FITTINGS[fitting].name} stands there.`;
+    return null;
   }
 
   // ---------------------------------------------------------------------
@@ -2132,16 +2145,41 @@ export class GameStore {
 
   /** Put a machine on a tile. */
   placeEquipment(key: UpgradeKey, column: number, row: number): ActionResult {
-    if (!tileIsBuildable(column, row)) {
-      return this.result(false, "That is the walkway — leave a way through to the back.");
-    }
-    const occupant = this.equipmentAt(column, row);
-    if (occupant !== null && occupant !== key) {
-      return this.result(false, `${UPGRADE_NAMES[occupant].name} already stands there.`);
-    }
+    const refusal = this.equipmentPlacementRefusal(key, column, row);
+    if (refusal) return this.result(false, refusal);
     this.state.equipmentTiles = { ...this.state.equipmentTiles, [key]: { column, row } };
     this.commit(`${UPGRADE_NAMES[key].name} moved.`, "success");
     return this.result(true, "Placed.");
+  }
+
+  /**
+   * Buy a machine and stand it on a tile, in one gesture.
+   *
+   * A business opens with all four stations at level 0, and a level-0 station is invisible
+   * in the room and skipped by its selection — so the only path to purchaseUpgrade, which
+   * is "stand next to the machine and press E", could never be reached. The Build tray
+   * offered "drag to place", placing set a tile on a machine that does not exist, and
+   * nothing appeared. The floor was a dead end for every new maker.
+   *
+   * ORDER MATTERS AND IS THE WHOLE POINT: the tile is checked BEFORE the money moves. The
+   * room commits a placement wherever the ghost was released without asking whether it is
+   * legal, so buying first would take payment for a machine that then had nowhere to go.
+   * Same shape as installFitting, which has always got this right.
+   */
+  installEquipmentAt(key: UpgradeKey, column: number, row: number): ActionResult {
+    // Owned, or bought and still with the fitters: either way this is a MOVE. Without the
+    // second half, dragging a machine whose crew had not finished tried to buy it a second
+    // time and came back "the fitters are still installing your X" — refusing a move for a
+    // reason that has nothing to do with moving.
+    const beingFitted = this.state.installation?.key === key;
+    if (this.state.upgrades[key] > 0 || beingFitted) return this.placeEquipment(key, column, row);
+    const refusal = this.equipmentPlacementRefusal(key, column, row);
+    if (refusal) return this.result(false, refusal);
+    const bought = this.purchaseUpgrade(key);
+    if (!bought.ok) return bought;
+    this.state.equipmentTiles = { ...this.state.equipmentTiles, [key]: { column, row } };
+    this.commit(`${UPGRADE_NAMES[key].name} installed.`, "success");
+    return this.result(true, "Installed.");
   }
 
   /**

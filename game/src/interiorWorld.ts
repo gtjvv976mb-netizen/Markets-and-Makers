@@ -975,14 +975,24 @@ export class InteriorWorld {
   private showGrid(visible: boolean): void {
     if (visible && !this.grid) {
       const group = new THREE.Group();
-      const ok = new THREE.MeshBasicMaterial({ color: 0x8ecb69, transparent: true, opacity: 0.26, depthWrite: false });
-      const no = new THREE.MeshBasicMaterial({ color: 0xb0503a, transparent: true, opacity: 0.16, depthWrite: false });
+      // Read at a glance, or it is not an aid.
+      //
+      // These were 0.26 and 0.16 over a mid-tan floor that already carries a tile texture,
+      // and the result was invisible: standing in the room with a machine in hand and
+      // looking for the grid, there was nothing to see. A player being told to "drag onto
+      // a tile" could not tell which tiles were tiles, nor that the walkway was refused.
+      const ok = new THREE.MeshBasicMaterial({ color: 0x9fe07a, transparent: true, opacity: 0.42, depthWrite: false });
+      const no = new THREE.MeshBasicMaterial({ color: 0xd15b3c, transparent: true, opacity: 0.44, depthWrite: false });
       for (let row = 0; row < FLOOR_ROWS; row += 1) for (let column = 0; column < FLOOR_COLUMNS; column += 1) {
+        const buildable = tileIsBuildable(column, row);
         const world = tileToWorld(column, row);
-        const pad = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_TILE * 0.9, FLOOR_TILE * 0.9),
-          tileIsBuildable(column, row) ? ok : no);
+        // A gap between pads is what makes them read as separate TILES rather than as one
+        // green wash over the floor.
+        const pad = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_TILE * 0.82, FLOOR_TILE * 0.82),
+          buildable ? ok : no);
         pad.rotation.x = -Math.PI / 2;
         pad.position.set(world.x, 0.03, world.z);
+        pad.renderOrder = 2;
         group.add(pad);
       }
       this.grid = group;
@@ -997,7 +1007,7 @@ export class InteriorWorld {
     const size = kind === "fitting" ? 0.8 : 1.1;
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(size, kind === "fitting" ? 0.9 : 1.4, size),
-      new THREE.MeshBasicMaterial({ color: 0x8ecb69, transparent: true, opacity: 0.45, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0x9fe07a, transparent: true, opacity: 0.72, depthWrite: false }),
     );
     mesh.position.y = kind === "fitting" ? 0.45 : 0.7;
     group.add(mesh);
@@ -1025,7 +1035,7 @@ export class InteriorWorld {
     const allowed = tileIsBuildable(column, row) && !stationClash && !fittingClash;
     this.ghost.traverse((node) => {
       if (node instanceof THREE.Mesh && node.material instanceof THREE.MeshBasicMaterial) {
-        node.material.color.set(allowed ? 0x8ecb69 : 0xb0503a);
+        node.material.color.set(allowed ? 0x9fe07a : 0xd15b3c);
       }
     });
   }
