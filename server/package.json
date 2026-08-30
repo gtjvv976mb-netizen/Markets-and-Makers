@@ -13,6 +13,7 @@
     "migrate": "tsx src/migrate.ts",
     "reset:realm": "tsx src/reset-realm.ts",
     "reset:realm:deploy": "node dist/reset-realm.js",
+    "verify:reset": "tsx src/verify-reset.ts",
     "migrate:deploy": "node dist/migrate.js",
     "test": "vitest run"
   },

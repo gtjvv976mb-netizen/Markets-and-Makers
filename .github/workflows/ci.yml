@@ -29,6 +29,11 @@ jobs:
           cache-dependency-path: game/package-lock.json
       - run: npm ci
       - run: npm test
+      # The realm reset is a destructive operational script, not a suite member: it empties
+      # `player` and everything referencing it. It gets its own database and its own step.
+      # It also self-checks — if the original ordering stops raising
+      # plot_owner_player_id_fkey, it fails rather than passing vacuously.
+      - run: npm run verify:reset
       - run: npm run build
 
   authority-server:

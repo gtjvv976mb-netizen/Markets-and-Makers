@@ -15,6 +15,22 @@
  *
  * Refusing loudly rather than skipping quietly is deliberate: a silent skip would hide
  * that the suite never ran, which is its own way to lose.
+ *
+ * A NOTE ON THE URL YOU CHOOSE LOCALLY, because it costs hours otherwise. Prefer the Unix
+ * socket:
+ *
+ *     DATABASE_URL="postgresql:///mm_test?host=/tmp"
+ *
+ * Over TCP (`postgres://you@127.0.0.1:5432/mm_test`) these suites open enough short-lived
+ * connections that macOS runs out of ephemeral ports after a few full runs — 8,600+ sockets
+ * in TIME_WAIT, and then random tests fail with
+ * "connect EADDRNOTAVAIL 127.0.0.1:5432 - Local (0.0.0.0:0)". That is the LOCAL socket
+ * failing to bind; it has nothing to do with Postgres, and it looks exactly like
+ * order-dependent flakiness. Measured on the same machine, same commit: three runs over TCP
+ * gave 309, 309, then 19 failures; three over the socket gave 309, 309, 309.
+ *
+ * The guard below accepts the socket form — an empty hostname with a database name
+ * containing "test" passes the second condition.
  */
 
 const url = process.env.DATABASE_URL;
