@@ -1874,6 +1874,41 @@ export class GameStore {
 
   upgradeCeiling(): number { return this.state.chartered ? MAX_UPGRADE_LEVEL : 3; }
 
+  /**
+   * Everything this business needs and does not have — not just what a CYCLE consumes.
+   *
+   * The market's "Needed now" filter is the default view and it listed the licence's
+   * production inputs and nothing else. So the interior would say "This upgrade needs 1
+   * Material Crate and 1 Utility Part. Buy what you are short of on the Market tab", the
+   * maker would open the Market tab, and neither a crate nor a part was in it — while both
+   * were on sale the whole time, one filter click away, under "All goods". A filter called
+   * "Needed now" that hides what the game just said you need is worse than no filter.
+   *
+   * Three sources, all of them things the player has actually been told to get:
+   *   - what a production cycle consumes;
+   *   - what the next level of any machine costs, where they are short;
+   *   - the parts a breakdown repair needs, while the line is down.
+   */
+  shoppingList(): ResourceKey[] {
+    const wanted = new Set<ResourceKey>();
+    if (this.state.license) {
+      for (const key of Object.keys(BUSINESS[this.state.license].inputs) as ResourceKey[]) wanted.add(key);
+    }
+    if (this.state.buildingPlaced) {
+      for (const key of Object.keys(UPGRADE_NAMES) as UpgradeKey[]) {
+        const next = this.state.upgrades[key] + 1;
+        if (next > this.upgradeCeiling()) continue;
+        const cost = UPGRADE_COSTS[next];
+        if (!cost) continue;
+        for (const [resource, needed] of Object.entries(cost.resources) as Array<[ResourceKey, number]>) {
+          if (this.state.inventory[resource] < needed) wanted.add(resource);
+        }
+      }
+    }
+    if (this.state.brokenDown && this.state.inventory.part < BREAKDOWN_REPAIR_PARTS) wanted.add("part");
+    return [...wanted];
+  }
+
   /** Deeds a player has bought outright, on top of the allowance civic standing grants. */
   deedAllowance(): number { return this.state.deeds; }
 

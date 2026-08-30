@@ -11,7 +11,7 @@
  * they can be checked without a WebGL context.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { FITTINGS, FLOOR_WALKWAY_COLUMN, PLOTS, UPGRADE_COSTS, type ResourceKey } from "../src/data";
+import { BUSINESS, FITTINGS, FLOOR_WALKWAY_COLUMN, PLOTS, UPGRADE_COSTS, type ResourceKey } from "../src/data";
 import { GameStore } from "../src/state";
 
 class MemoryStorage implements Storage {
@@ -181,5 +181,67 @@ describe("a machine may not be parked on a fitting", () => {
     expect(result.ok).toBe(false);
     expect(store.fittingAt(tile.column, tile.row)).toBe(fitting);
     expect(store.canPlaceEquipment("yield", tile.column, tile.row)).toBe(false);
+  });
+});
+
+describe("the market's 'Needed now' shows what the game just told you to buy", () => {
+  /**
+   * The interior refuses an unaffordable machine with "This upgrade needs 1 Material Crate
+   * and 1 Utility Part. Buy what you are short of on the Market tab." The Market tab opens
+   * on "Needed now" — which listed the licence's production inputs and nothing else, so
+   * neither a crate nor a part was in it. Both were on sale the whole time, one filter click
+   * away under "All goods". A filter that hides what the game just named is worse than none.
+   */
+  it("lists the licence's production inputs", () => {
+    const store = openBusiness();
+    const list = store.shoppingList();
+    console.log(`SHOPPING LIST (fresh greenhouse): ${JSON.stringify(list)}`);
+    for (const input of Object.keys(BUSINESS.greenhouse.inputs)) {
+      expect(list).toContain(input);
+    }
+  });
+
+  it("ALSO lists what the next upgrade is short of", () => {
+    const store = openBusiness();
+    // openBusiness stocks the upgrade materials; an empty larder is the case that matters.
+    for (const key of Object.keys(UPGRADE_COSTS[1]!.resources)) {
+      store.state.inventory[key as ResourceKey] = 0;
+    }
+    const list = store.shoppingList();
+    console.log(`WITH NOTHING IN THE LARDER: ${JSON.stringify(list)}`);
+    for (const needed of Object.keys(UPGRADE_COSTS[1]!.resources)) {
+      expect(list, `the market must offer ${needed}`).toContain(needed);
+    }
+  });
+
+  it("stops listing an upgrade material once the maker holds enough", () => {
+    const store = openBusiness();
+    const stocked = store.shoppingList();
+    const [material] = Object.keys(UPGRADE_COSTS[1]!.resources) as ResourceKey[];
+    console.log(`ALREADY STOCKED: ${material} in list? ${stocked.includes(material!)}`);
+    // openBusiness stocks 4x what the first level needs, so it must not be asked for.
+    expect(stocked).not.toContain(material);
+  });
+
+  it("asks for repair parts while the line is down", () => {
+    const store = openBusiness();
+    store.state.inventory.part = 0;
+    store.state.brokenDown = true;
+    console.log(`BROKEN DOWN: ${JSON.stringify(store.shoppingList())}`);
+    expect(store.shoppingList()).toContain("part");
+  });
+
+  it("names something a maker can actually buy from the civic supplier", () => {
+    // The whole fix rests on these being purchasable. Only `waste` is excluded
+    // (civicSupply: false); everything else the supplier sells.
+    const store = openBusiness();
+    for (const key of Object.keys(UPGRADE_COSTS[1]!.resources) as ResourceKey[]) {
+      store.state.inventory[key] = 0;
+    }
+    store.state.wallet = 5_000;
+    const bought = (Object.keys(UPGRADE_COSTS[1]!.resources) as ResourceKey[])
+      .map((key) => ({ key, ok: store.buyResource(key, 1).ok }));
+    console.log(`CIVIC SUPPLIER: ${JSON.stringify(bought)}`);
+    expect(bought.every((entry) => entry.ok)).toBe(true);
   });
 });

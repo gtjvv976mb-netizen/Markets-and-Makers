@@ -1360,7 +1360,10 @@ function renderMarket(): void {
   const confidence = store.consumerConfidenceIndex();
   const priceIndex = store.marketPriceIndex();
   const allKeys = Object.keys(RESOURCES) as ResourceKey[];
-  const neededKeys = store.state.license ? Object.keys(BUSINESS[store.state.license].inputs) as ResourceKey[] : [];
+  // Everything the game has told this maker to get, not only what a cycle burns. See
+  // store.shoppingList: the interior says "buy what you are short of on the Market tab",
+  // and this default view used to open without the crate and part it had just named.
+  const neededKeys = store.shoppingList();
   const visibleKeys = marketFilter === "needed"
     ? allKeys.filter((key) => neededKeys.includes(key))
     : marketFilter === "owned"
