@@ -31,7 +31,7 @@ jobs:
         env:
           VITE_GAME_SERVER_URL: ${{ vars.VITE_GAME_SERVER_URL }}
       - name: Deploy immutable client and GLB assets
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
