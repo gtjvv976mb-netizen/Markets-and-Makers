@@ -34,6 +34,13 @@ suite("shared district economy", () => {
     await pool!.query("delete from market_pressure");
     await pool!.query("delete from contribution_epoch");
     await pool!.query("delete from reserve_funding");
+    // Pin the DISTRICT too, not just its prices. unitPriceAt takes the number of
+    // businesses in the district as its depth term, so a suite that ran earlier and left
+    // shops standing changes the price this one measures — which is why "pushes the price
+    // up when players buy" passed in a full run and failed on its own. Files run
+    // sequentially (see vitest.config.ts), so clearing them here is safe.
+    await pool!.query("delete from business");
+    await pool!.query("update plot set owner_player_id = null, license = null");
     // Pin the treasury, because the day's procurement budget is DERIVED from it
     // (PROCUREMENT_SHARE_CAP of the balance above TREASURY_FLOOR). Without this the
     // allowance these tests sell against is whatever the previously-run suite happened to
@@ -85,9 +92,20 @@ suite("shared district economy", () => {
   });
 
   it("pushes the price up when players buy from the civic supplier", async () => {
+    // Buy repeatedly rather than once.
+    //
+    // A single 50-unit purchase moves pressure 1 -> 1.0344, and the ask is a ROUNDED
+    // integer: ore prices 11 at both, so the assertion below was false with an empty
+    // district and true only when an earlier suite had left businesses standing (their
+    // chain premium lifts the ask over the boundary). That is why this passed in a full
+    // run and failed on its own. Pushing pressure past a whole unit of price makes the
+    // mechanism observable instead of the rounding.
     const before = await quote(REALM, "hearth", "ore");
-    await recordPurchase({ realmId: REALM, islandId: "hearth", itemKey: "ore", quantity: 50 });
+    for (let i = 0; i < 6; i += 1) {
+      await recordPurchase({ realmId: REALM, islandId: "hearth", itemKey: "ore", quantity: 50 });
+    }
     const after = await quote(REALM, "hearth", "ore");
+    console.log(`BUY PRESSURE ${before.pressure} -> ${after.pressure} · price ${before.buy} -> ${after.buy}`);
     expect(after.pressure).toBeGreaterThan(before.pressure);
     expect(after.buy).toBeGreaterThan(before.buy);
   });

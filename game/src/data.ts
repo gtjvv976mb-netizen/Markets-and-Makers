@@ -298,11 +298,60 @@ export const PLOTS: PlotConfig[] = HIGHLANDS_PLOTS.map((plot) => ({ ...plot }));
  * number decide who citizens walk to on screen AND settle trade while the player is
  * away and nothing is being rendered at all.
  */
+/**
+ * How far a district's own draw carries, measured from where its plots actually are.
+ *
+ * A district's declared `radius` is a label on the map, not the extent of the land sold in
+ * it: Lantern Civic Row calls itself 42 across and has plots 152 out. Using the label meant
+ * two thirds of the world still sat at the bare floor after being given a centre at all,
+ * because most plots were simply outside it.
+ *
+ * The reach is the district's own 90th-percentile plot distance, so the gradient spans the
+ * land that exists rather than the label — the outermost tenth sits at the floor, which is
+ * what an outskirt should be. Memoised: pure, and called once per plot per export.
+ */
+const districtReachCache = new Map<string, number>();
+export function districtReach(island: string): number {
+  const cached = districtReachCache.get(island);
+  if (cached !== undefined) return cached;
+  const district = ISLANDS.find((entry) => entry.id === island);
+  const plots = PLOTS.filter((entry) => entry.island === island);
+  if (!district || !plots.length) return FOOTFALL_LANDMARK_REACH;
+  const distances = plots
+    .map((entry) => Math.hypot(entry.x - district.x, entry.z - district.z))
+    .sort((a, b) => a - b);
+  const p90 = distances[Math.floor(0.9 * (distances.length - 1))]!;
+  // Never shorter than the declared radius: a district with a handful of plots clustered on
+  // its centre should still draw across the area it claims.
+  const reach = Math.max(district.radius, p90);
+  districtReachCache.set(island, reach);
+  return reach;
+}
+
 export function plotFootfall(plotId: string): number {
   const plot = PLOTS.find((entry) => entry.id === plotId);
   if (!plot) return 0;
   const landmarks = CIVIC_BUILDINGS.filter((entry) => entry.island === plot.island);
-  if (landmarks.length === 0) return FOOTFALL_FLOOR;
+  if (landmarks.length === 0) {
+    // EVERY DISTRICT HAS A HEART, even the eight the government never built in.
+    //
+    // All nine civic buildings stand in Hearthmarket, and this returned the bare floor for
+    // any district without one — so 281 of the world's 298 plots scored an identical 0.080
+    // and "where you build matters", the mechanic the whole map is arranged around, was
+    // true in one district out of nine. A shop on Lantern Civic Row, a quarter whose own
+    // description is "shops, dining, cinema and hospitality", drew the same crowd as a
+    // hillside in Kitecrest.
+    //
+    // A district's centre is its market cross whether or not there is a City Hall on it,
+    // so footfall falls off from there. The draw is deliberately smaller than a civic
+    // landmark's: Hearthmarket is the seat of government and stays the busiest address in
+    // Mercedonia, which is what its plot prices already assume.
+    const district = ISLANDS.find((entry) => entry.id === plot.island);
+    if (!district) return FOOTFALL_FLOOR;
+    const distance = Math.hypot(plot.x - district.x, plot.z - district.z);
+    const proximity = Math.max(0, 1 - distance / districtReach(plot.island));
+    return Math.min(1, FOOTFALL_FLOOR + proximity * FOOTFALL_DISTRICT_HEART_DRAW);
+  }
 
   // The nearest landmark carries most of it: a shop beside the City Hall sees the queue.
   const nearest = Math.min(...landmarks.map((entry) => Math.hypot(plot.x - entry.x, plot.z - entry.z)));
@@ -741,6 +790,15 @@ export const CONTRIBUTION_WEIGHT = { contract: 1, household: 0.3, idle: 0.18, ci
 export const FOOTFALL_FLOOR = 0.08;
 /** How far a civic landmark's queue spills onto neighbouring plots, in metres. */
 export const FOOTFALL_LANDMARK_REACH = 55;
+
+/**
+ * What a district's own centre is worth to a corner, where no civic building stands.
+ *
+ * Below what a civic landmark draws, on purpose: Hearthmarket has nine of them and reaches
+ * 0.51, so the seat of government stays the best address in the realm and the plot prices
+ * that already assume it stay honest.
+ */
+export const FOOTFALL_DISTRICT_HEART_DRAW = 0.30;
 /** Customers an hour at a corner scoring 1.0, before appeal upgrades. */
 export const OFFLINE_VISITS_PER_HOUR = 4;
 /** Ceiling on a single catch-up, so a fortnight away cannot empty the citizens' pool. */

@@ -242,16 +242,28 @@ suite("the city bills what it supplies", () => {
     }
 
     const total = await totalCurrency();
-    let utilities = 0, payroll = 0;
+    const citizensStart = await balance("player", "citizens");
+    const treasuryStart = await balance("government", "treasury");
+    let utilities = 0, payroll = 0, sold = 0;
     for (let day = 0; day < 7; day += 1) {
       for (const plot of plots) await age(plot, 26);
       const report = await runWorldTick();
       utilities += report.utilities;
       payroll += report.payroll;
+      sold += report.sold;
     }
-    console.log(`SEVEN DAYS, TEN SHOPS: utilities to treasury ${utilities} · payroll to citizens ${payroll}`);
+    const citizensEnd = await balance("player", "citizens");
+    const treasuryEnd = await balance("government", "treasury");
+    console.log(`SEVEN DAYS, TEN SHOPS: utilities to treasury ${utilities} · payroll to citizens ${payroll}`
+      + ` · ${sold} sold at the counter`);
+    console.log(`  citizens ${citizensStart} -> ${citizensEnd} (${citizensEnd - citizensStart})`);
+    console.log(`  treasury ${treasuryStart} -> ${treasuryEnd} (${treasuryEnd - treasuryStart})`);
     expect(utilities).toBeGreaterThan(0);
     expect(payroll).toBeGreaterThan(0);
+    // The citizens' purse must survive a week of being shopped in. It is finite and the
+    // column refuses an overdraft, so a purse that empties does not error — the shops just
+    // quietly stop selling, which is the failure that would hide.
+    expect(citizensEnd).toBeGreaterThan(0);
     // Conservation over the whole week, which is the property that matters most here:
     // every leg of the loop is a transfer.
     console.log(`TOTAL MERCS ${total} -> ${await totalCurrency()}`);

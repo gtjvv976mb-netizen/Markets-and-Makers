@@ -41,42 +41,42 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "lantern-walk",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.3643
   },
   {
     "id": "nightmarket-row",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.3687
   },
   {
     "id": "greenloom-field",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1394
   },
   {
     "id": "orchard-bend",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1021
   },
   {
     "id": "tidepool-works",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.3595
   },
   {
     "id": "glassmere",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.3652
   },
   {
     "id": "solar-terrace",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1205
   },
   {
     "id": "batteryside",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.0815
   },
   {
     "id": "pulsegrove-court",
@@ -101,122 +101,122 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "WF01",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3406
   },
   {
     "id": "WF02",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3596
   },
   {
     "id": "WF03",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3367
   },
   {
     "id": "WF04",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3368
   },
   {
     "id": "WF05",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3529
   },
   {
     "id": "WF06",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3332
   },
   {
     "id": "EF01",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3382
   },
   {
     "id": "EF02",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3584
   },
   {
     "id": "EF03",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3254
   },
   {
     "id": "EF04",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3341
   },
   {
     "id": "EF05",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3512
   },
   {
     "id": "EF06",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.3222
   },
   {
     "id": "NV01",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.3225
   },
   {
     "id": "NV02",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.3746
   },
   {
     "id": "NV03",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.3149
   },
   {
     "id": "forge-lane",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.2879
   },
   {
     "id": "cinderworks",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.2987
   },
   {
     "id": "NV06",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.2987
   },
   {
     "id": "kitecrest-loft",
     "island": "kite",
-    "footfall": 0.08
+    "footfall": 0.2922
   },
   {
     "id": "updraft-yard",
     "island": "kite",
-    "footfall": 0.08
+    "footfall": 0.3517
   },
   {
     "id": "FH03",
     "island": "kite",
-    "footfall": 0.08
+    "footfall": 0.2816
   },
   {
     "id": "FH04",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.352
   },
   {
     "id": "FH05",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.3636
   },
   {
     "id": "FH06",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.3301
   },
   {
     "id": "GX001",
@@ -236,12 +236,12 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX004",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.091
   },
   {
     "id": "GX006",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1255
   },
   {
     "id": "GX007",
@@ -256,57 +256,57 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX009",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.101
   },
   {
     "id": "GX010",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1147
   },
   {
     "id": "GX011",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1554
   },
   {
     "id": "GX012",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1662
   },
   {
     "id": "GX013",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1803
   },
   {
     "id": "GX014",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1912
   },
   {
     "id": "GX015",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1822
   },
   {
     "id": "GX016",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1689
   },
   {
     "id": "GX017",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1443
   },
   {
     "id": "GX018",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1218
   },
   {
     "id": "GX019",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.0882
   },
   {
     "id": "GX020",
@@ -331,47 +331,47 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX024",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.0877
   },
   {
     "id": "GX025",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1067
   },
   {
     "id": "GX026",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1299
   },
   {
     "id": "GX027",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1453
   },
   {
     "id": "GX028",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1624
   },
   {
     "id": "GX029",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2127
   },
   {
     "id": "GX030",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.171
   },
   {
     "id": "GX031",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.146
   },
   {
     "id": "GX032",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1093
   },
   {
     "id": "GX033",
@@ -386,7 +386,7 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX035",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1899
   },
   {
     "id": "GX036",
@@ -411,7 +411,7 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX040",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1752
   },
   {
     "id": "GX041",
@@ -421,27 +421,27 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX043",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1253
   },
   {
     "id": "GX044",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1504
   },
   {
     "id": "GX045",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1673
   },
   {
     "id": "GX046",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1863
   },
   {
     "id": "GX047",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1973
   },
   {
     "id": "GX048",
@@ -456,32 +456,32 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX050",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2156
   },
   {
     "id": "GX051",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2538
   },
   {
     "id": "GX052",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2022
   },
   {
     "id": "GX053",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1734
   },
   {
     "id": "GX054",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1326
   },
   {
     "id": "GX055",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1009
   },
   {
     "id": "GX056",
@@ -491,7 +491,7 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX057",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1058
   },
   {
     "id": "GX058",
@@ -511,37 +511,37 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX061",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.0901
   },
   {
     "id": "GX062",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1489
   },
   {
     "id": "GX063",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1755
   },
   {
     "id": "GX064",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1946
   },
   {
     "id": "GX065",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2168
   },
   {
     "id": "GX066",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.23
   },
   {
     "id": "GX067",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2409
   },
   {
     "id": "GX068",
@@ -571,47 +571,47 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX073",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2554
   },
   {
     "id": "GX074",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2816
   },
   {
     "id": "GX075",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2816
   },
   {
     "id": "GX076",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2207
   },
   {
     "id": "GX077",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1891
   },
   {
     "id": "GX078",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1455
   },
   {
     "id": "GX079",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1123
   },
   {
     "id": "GX080",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.122
   },
   {
     "id": "GX081",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.0954
   },
   {
     "id": "GX082",
@@ -626,42 +626,42 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX084",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.1921
   },
   {
     "id": "GX085",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2131
   },
   {
     "id": "GX086",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2381
   },
   {
     "id": "GX087",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2536
   },
   {
     "id": "GX088",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.095
   },
   {
     "id": "GX089",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1155
   },
   {
     "id": "GX090",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.141
   },
   {
     "id": "GX091",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2737
   },
   {
     "id": "GX092",
@@ -671,37 +671,37 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX093",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.3085
   },
   {
     "id": "GX094",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2357
   },
   {
     "id": "GX095",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2014
   },
   {
     "id": "GX096",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.1555
   },
   {
     "id": "GX097",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1739
   },
   {
     "id": "GX098",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1541
   },
   {
     "id": "GX099",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1035
   },
   {
     "id": "GX100",
@@ -711,317 +711,317 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX101",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.111
   },
   {
     "id": "GX102",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1329
   },
   {
     "id": "GX103",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1603
   },
   {
     "id": "GX104",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2206
   },
   {
     "id": "GX105",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2337
   },
   {
     "id": "GX106",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2631
   },
   {
     "id": "GX107",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2824
   },
   {
     "id": "GX108",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2968
   },
   {
     "id": "GX109",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.3128
   },
   {
     "id": "GX110",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2378
   },
   {
     "id": "GX111",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2031
   },
   {
     "id": "GX112",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2119
   },
   {
     "id": "GX113",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.199
   },
   {
     "id": "GX114",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1767
   },
   {
     "id": "GX116",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1196
   },
   {
     "id": "GX117",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.0947
   },
   {
     "id": "GX118",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2283
   },
   {
     "id": "GX119",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2458
   },
   {
     "id": "GX120",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2538
   },
   {
     "id": "GX121",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.2777
   },
   {
     "id": "GX122",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.3005
   },
   {
     "id": "GX123",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.0969
   },
   {
     "id": "GX124",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1294
   },
   {
     "id": "GX125",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.153
   },
   {
     "id": "GX126",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1833
   },
   {
     "id": "GX127",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2936
   },
   {
     "id": "GX128",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.263
   },
   {
     "id": "GX129",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2601
   },
   {
     "id": "GX130",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2464
   },
   {
     "id": "GX131",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2305
   },
   {
     "id": "GX132",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2041
   },
   {
     "id": "GX133",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1373
   },
   {
     "id": "GX134",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1109
   },
   {
     "id": "GX135",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1067
   },
   {
     "id": "GX136",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1405
   },
   {
     "id": "GX137",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1654
   },
   {
     "id": "GX138",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1977
   },
   {
     "id": "GX139",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2208
   },
   {
     "id": "GX140",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2781
   },
   {
     "id": "GX141",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2888
   },
   {
     "id": "GX142",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2915
   },
   {
     "id": "GX143",
     "island": "lantern",
-    "footfall": 0.08
+    "footfall": 0.3146
   },
   {
     "id": "GX144",
     "island": "tide",
-    "footfall": 0.08
+    "footfall": 0.2682
   },
   {
     "id": "GX145",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2916
   },
   {
     "id": "GX146",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2878
   },
   {
     "id": "GX147",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2706
   },
   {
     "id": "GX148",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2516
   },
   {
     "id": "GX149",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1474
   },
   {
     "id": "GX150",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1199
   },
   {
     "id": "GX151",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1161
   },
   {
     "id": "GX152",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1513
   },
   {
     "id": "GX153",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1775
   },
   {
     "id": "GX154",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.212
   },
   {
     "id": "GX155",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2375
   },
   {
     "id": "GX156",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2784
   },
   {
     "id": "GX157",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1558
   },
   {
     "id": "GX158",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1274
   },
   {
     "id": "GX159",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.12
   },
   {
     "id": "GX160",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1558
   },
   {
     "id": "GX161",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1826
   },
   {
     "id": "GX162",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2183
   },
   {
     "id": "GX163",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2449
   },
   {
     "id": "GX164",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2891
   },
   {
     "id": "GX165",
@@ -1031,92 +1031,92 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX166",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1579
   },
   {
     "id": "GX167",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1293
   },
   {
     "id": "GX168",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1569
   },
   {
     "id": "GX169",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1839
   },
   {
     "id": "GX170",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2198
   },
   {
     "id": "GX171",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2467
   },
   {
     "id": "GX172",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2891
   },
   {
     "id": "GX173",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1551
   },
   {
     "id": "GX174",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1267
   },
   {
     "id": "GX175",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1539
   },
   {
     "id": "GX176",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1805
   },
   {
     "id": "GX177",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2157
   },
   {
     "id": "GX178",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2418
   },
   {
     "id": "GX179",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2824
   },
   {
     "id": "GX180",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1834
   },
   {
     "id": "GX181",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2072
   },
   {
     "id": "GX182",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2228
   },
   {
     "id": "GX183",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2195
   },
   {
     "id": "GX184",
@@ -1126,187 +1126,187 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX185",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.1202
   },
   {
     "id": "GX186",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.1473
   },
   {
     "id": "GX187",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2092
   },
   {
     "id": "GX188",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3035
   },
   {
     "id": "GX189",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.3035
   },
   {
     "id": "GX190",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1904
   },
   {
     "id": "GX191",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1488
   },
   {
     "id": "GX192",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.1083
   },
   {
     "id": "GX193",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.1728
   },
   {
     "id": "GX194",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.2122
   },
   {
     "id": "GX195",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1451
   },
   {
     "id": "GX196",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1706
   },
   {
     "id": "GX197",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2038
   },
   {
     "id": "GX198",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2279
   },
   {
     "id": "GX199",
     "island": "kiln",
-    "footfall": 0.08
+    "footfall": 0.242
   },
   {
     "id": "GX200",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2964
   },
   {
     "id": "GX201",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2924
   },
   {
     "id": "GX202",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2745
   },
   {
     "id": "GX203",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2549
   },
   {
     "id": "GX204",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2243
   },
   {
     "id": "GX205",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1817
   },
   {
     "id": "GX206",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1694
   },
   {
     "id": "GX207",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1354
   },
   {
     "id": "GX208",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1353
   },
   {
     "id": "GX209",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1596
   },
   {
     "id": "GX210",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1908
   },
   {
     "id": "GX211",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.213
   },
   {
     "id": "GX212",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2663
   },
   {
     "id": "GX213",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2757
   },
   {
     "id": "GX215",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2342
   },
   {
     "id": "GX216",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.2073
   },
   {
     "id": "GX217",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1916
   },
   {
     "id": "GX218",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.122
   },
   {
     "id": "GX219",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.097
   },
   {
     "id": "GX221",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1183
   },
   {
     "id": "GX222",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1409
   },
   {
     "id": "GX223",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1693
   },
   {
     "id": "GX224",
@@ -1316,42 +1316,42 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX226",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2091
   },
   {
     "id": "GX227",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2167
   },
   {
     "id": "GX228",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2202
   },
   {
     "id": "GX229",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.2176
   },
   {
     "id": "GX230",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1505
   },
   {
     "id": "GX231",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1954
   },
   {
     "id": "GX232",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2542
   },
   {
     "id": "GX235",
     "island": "sun",
-    "footfall": 0.08
+    "footfall": 0.1006
   },
   {
     "id": "GX236",
@@ -1361,17 +1361,17 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX237",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1032
   },
   {
     "id": "GX238",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1244
   },
   {
     "id": "GX239",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1508
   },
   {
     "id": "GX240",
@@ -1381,22 +1381,22 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX242",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.1843
   },
   {
     "id": "GX244",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1836
   },
   {
     "id": "GX245",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1902
   },
   {
     "id": "GX246",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1932
   },
   {
     "id": "GX247",
@@ -1406,22 +1406,22 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX248",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1378
   },
   {
     "id": "GX249",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.1799
   },
   {
     "id": "GX250",
     "island": "pulse",
-    "footfall": 0.08
+    "footfall": 0.2324
   },
   {
     "id": "GX254",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.0921
   },
   {
     "id": "GX255",
@@ -1431,17 +1431,17 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX256",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.0804
   },
   {
     "id": "GX257",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.0999
   },
   {
     "id": "GX258",
     "island": "green",
-    "footfall": 0.08
+    "footfall": 0.1238
   },
   {
     "id": "GX264",
@@ -1451,12 +1451,12 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX265",
     "island": "kite",
-    "footfall": 0.08
+    "footfall": 0.0876
   },
   {
     "id": "GX267",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.1076
   },
   {
     "id": "GX268",
@@ -1481,12 +1481,12 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX276",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.1093
   },
   {
     "id": "GX277",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.0815
   },
   {
     "id": "GX278",
@@ -1496,7 +1496,7 @@ export const PLOTS: readonly PlotSpec[] = [
   {
     "id": "GX279",
     "island": "copper",
-    "footfall": 0.08
+    "footfall": 0.0887
   }
 ];
 
