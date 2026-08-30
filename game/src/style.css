@@ -274,6 +274,22 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 /* Bringing real $MM in: an address to send to, and a signature to hand back. */
 .mm-deposit { margin: 0 0 12px; }
 .mm-deposit p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.deposit-amounts { display: flex; gap: 6px; margin-bottom: 8px; }
+.deposit-amounts button { flex: 1; min-height: 36px; border: 1px solid var(--line); border-radius: 9px;
+  background: white; font-size: 13px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.deposit-amounts button.active { border-color: #1d5b52; background: rgba(29,91,82,.1); color: #14453e; }
+.deposit-amounts button:disabled { opacity: .4; }
+.deposit-buy { display: block; width: 100%; min-height: 48px; padding: 8px 14px; border: none;
+  border-radius: 11px; background: #1d5b52; color: #f2f8ef; text-align: left; }
+.deposit-buy span { display: block; font-size: 14.5px; font-weight: 950; }
+.deposit-buy small { display: block; margin-top: 2px; color: rgba(242,248,239,.72); font-size: 12px; }
+.deposit-buy:hover:not(:disabled) { background: #2c7b63; }
+.deposit-buy:disabled { opacity: .55; }
+.deposit-manual { margin-top: 9px; }
+.deposit-manual summary { color: var(--muted); font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.deposit-manual p { margin: 7px 0; font-size: 12px; }
+.deposit-manual code { padding: 2px 5px; border-radius: 5px; background: rgba(0,0,0,.06);
+  font-size: 11px; word-break: break-all; }
 .deposit-address { display: flex; gap: 6px; align-items: center; margin-bottom: 7px; }
 .deposit-address code { flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line);
   border-radius: 9px; background: rgba(0,0,0,.04); font-size: 11.5px; text-overflow: ellipsis;

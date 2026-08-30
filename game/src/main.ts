@@ -10,7 +10,7 @@ import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
-import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
+import { currentPrincipal, fetchStanding, purchaseMM, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
 import { flushCloudSave, markHydrated, pullCloudSave, pushCloudSave, resetCloudSave } from "./cloudSave";
 
 function element<T extends HTMLElement>(selector: string): T {
@@ -699,6 +699,8 @@ let withdrawalDesk: Awaited<ReturnType<typeof fetchWithdrawals>> = null;
 let chainMM: number | null = null;
 /** Where to send $MM to bring it in, and what has been credited. */
 let depositDesk: Awaited<ReturnType<typeof fetchDepositDesk>> = null;
+/** How much the buy button will bring in. */
+let depositAmount = 100;
 
 /**
  * Bring this player's city back from the authority, if the authority has a better one.
@@ -1473,19 +1475,34 @@ function districtBoardMarkup(): string {
 function depositMarkup(): string {
   if (!depositDesk?.open || !depositDesk.treasury) return "";
   const held = chainMM;
+  const canAfford = held === null || held >= depositAmount;
   return `<section class="mm-deposit">
     <div class="drawer-section-label">Bring $MM in</div>
-    <p>Send $MM to the city treasury from your wallet, then paste the transaction signature.
-      The city reads the amount from the chain — ${held !== null ? `you hold ${formatNumber(held)} $MM` : "your wallet balance is not readable right now"}.</p>
-    <div class="deposit-address">
-      <code>${escapeMarkup(depositDesk.treasury)}</code>
-      <button data-action="copy-treasury" data-address="${escapeMarkup(depositDesk.treasury)}">Copy</button>
+    <p>Your wallet sends $MM to the city treasury and the city credits it — one approval, in
+      the page. ${held !== null
+        ? `You hold ${formatNumber(held)} $MM.`
+        : "Your wallet balance is not readable right now, but a purchase will still work."}</p>
+    <div class="deposit-amounts">
+      ${[100, 500, 1_000, 5_000].map((amount) => `
+        <button class="${amount === depositAmount ? "active" : ""}" data-action="deposit-amount" data-units="${amount}"
+          ${held !== null && held < amount ? "disabled" : ""}>${formatNumber(amount)}</button>`).join("")}
     </div>
-    <div class="deposit-claim">
-      <input id="depositSignature" type="text" inputmode="text" autocomplete="off" spellcheck="false"
-        placeholder="Paste the transaction signature" aria-label="Transaction signature" />
-      <button data-action="claim-deposit">Credit it</button>
-    </div>
+    <button class="deposit-buy" data-action="buy-mm" ${canAfford ? "" : "disabled"}>
+      <span>Bring in ${formatNumber(depositAmount)} $MM</span>
+      <small>${canAfford
+        ? `≈ ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE} once converted`
+        : `You hold ${formatNumber(held ?? 0)} $MM`}</small>
+    </button>
+    <details class="deposit-manual">
+      <summary>Sent it yourself?</summary>
+      <p>Send to <code>${escapeMarkup(depositDesk.treasury)}</code> and paste the signature —
+        the city credits whatever actually arrived.</p>
+      <div class="deposit-claim">
+        <input id="depositSignature" type="text" autocomplete="off" spellcheck="false"
+          placeholder="Transaction signature" aria-label="Transaction signature" />
+        <button data-action="claim-deposit">Credit it</button>
+      </div>
+    </details>
     ${depositDesk.deposited > 0
       ? `<small class="deposit-total">${formatNumber(depositDesk.deposited)} $MM brought in so far.</small>`
       : ""}
@@ -3760,6 +3777,40 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
+  else if (action === "deposit-amount") {
+    depositAmount = Math.max(1, Number(button.dataset.units ?? 100));
+    renderUtilityDrawer();
+  }
+  else if (action === "buy-mm") {
+    // Two steps on purpose. The transfer is REAL the moment the chain accepts it, so the
+    // signature is captured before anything else can fail — a credit that does not land
+    // here is still claimable, and the manual box below exists for exactly that.
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Approve it in your wallet\u2026";
+    void purchaseMM(depositAmount)
+      .then(async ({ signature }) => {
+        toast("Sent. Waiting for Solana to finalise it\u2026");
+        // Finalisation takes a few seconds; the authority refuses anything unrooted, so
+        // retry rather than making the player press again.
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const outcome = await claimDeposit(signature);
+          if (outcome.status === "ok") {
+            store.setDepositedMM(outcome.value.totalDeposited);
+            depositDesk = await fetchDepositDesk();
+            chainMM = principal ? await fetchChainMM(principal.walletAddress) : chainMM;
+            toast(`${formatNumber(outcome.value.units)} $MM is yours to convert.`);
+            renderAll();
+            return;
+          }
+          if (outcome.status === "refused" && outcome.code !== "not-final") { toast(outcome.message); return; }
+          await new Promise((resolve) => window.setTimeout(resolve, 2_500));
+        }
+        toast("It is on-chain but still finalising. Open this panel again shortly and it will credit.");
+      })
+      .catch((error: Error) => toast(error.message))
+      .finally(() => { button.disabled = false; if (label) button.textContent = label; });
+  }
   else if (action === "copy-treasury") {
     void navigator.clipboard?.writeText(button.dataset.address ?? "")
       .then(() => toast("Treasury address copied."))

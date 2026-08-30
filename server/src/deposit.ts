@@ -17,11 +17,14 @@
  *    be reorganised away;
  *  - and the signature is the primary key, so a replay credits once.
  */
-import { PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { PublicKey, Transaction } from "@solana/web3.js";
+import {
+  createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { config } from "./config.js";
 import { pool } from "./database.js";
-import { connection, parseTreasuryKey, resolveMint, type MintFacts } from "./treasury.js";
+import { connection, parseTreasuryKey, resolveMint, toRawUnits, type MintFacts } from "./treasury.js";
 
 export class DepositError extends Error {
   constructor(public code: string, message: string) { super(message); this.name = "DepositError"; }
@@ -51,6 +54,62 @@ export function treasuryAddress(): string | null {
 }
 
 let mintFacts: MintFacts | null = null;
+
+/**
+ * Build the transfer the PLAYER will sign — unsigned, and never signable by us.
+ *
+ * The authority assembles it so the client needs no knowledge of mints, decimals or
+ * associated token accounts, and so the destination cannot be tampered with in the browser:
+ * it is derived here from the treasury's own public key. What comes back is bytes the
+ * player's wallet shows them and they approve or reject. This process holds no key that
+ * could sign it — feePayer and the transfer authority are both the player.
+ *
+ * The amount is still re-read from the chain when the signature comes back. This function
+ * is a convenience, not a source of truth: a player who edits it, signs something else, or
+ * sends by hand ends up in exactly the same verification.
+ */
+export async function prepareDeposit(
+  walletAddress: string, units: number,
+): Promise<{ transaction: string; units: number; treasury: string; lastValidBlockHeight: number }> {
+  if (!config.tokenMint) throw new DepositError("chain-not-configured", "No token mint is configured.");
+  const treasury = treasuryAddress();
+  if (!treasury) throw new DepositError("chain-not-configured", "The treasury wallet is not configured.");
+  if (!Number.isSafeInteger(units) || units <= 0) {
+    throw new DepositError("bad-amount", "Choose a whole number of $MM to bring in.");
+  }
+
+  const conn = connection();
+  if (!mintFacts) mintFacts = await resolveMint(conn, config.tokenMint);
+  const mint = mintFacts;
+
+  let payer: PublicKey;
+  try { payer = new PublicKey(walletAddress); }
+  catch { throw new DepositError("bad-address", "The session's wallet address does not parse."); }
+  const treasuryKey = new PublicKey(treasury);
+
+  const from = getAssociatedTokenAddressSync(mint.address, payer, false, mint.programId);
+  const to = getAssociatedTokenAddressSync(mint.address, treasuryKey, false, mint.programId);
+
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  const tx = new Transaction({ feePayer: payer, blockhash, lastValidBlockHeight });
+  tx.add(
+    // Idempotent, and paid for by the player: if the treasury has somehow never held this
+    // mint, the account is created rather than the transfer failing in their wallet.
+    createAssociatedTokenAccountIdempotentInstruction(payer, to, treasuryKey, mint.address, mint.programId),
+    // transferChecked: the mint and decimals ride in the instruction and the program
+    // verifies them on-chain, so a decimals mistake fails loudly instead of moving a
+    // millionth or a million times the intended amount.
+    createTransferCheckedInstruction(
+      from, mint.address, to, payer, toRawUnits(units, mint.decimals), mint.decimals, [], mint.programId),
+  );
+
+  return {
+    // Unsigned: requireAllSignatures false, because the only signature this needs is the
+    // player's and it does not exist yet.
+    transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
+    units, treasury, lastValidBlockHeight,
+  };
+}
 
 /**
  * Verify a transfer on-chain and credit it, once.

@@ -36,6 +36,8 @@ interface SolanaProvider {
   connect(options?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: { toString(): string } }>;
   disconnect?(): Promise<void>;
   signMessage(message: Uint8Array, encoding?: string): Promise<{ signature: Uint8Array }>;
+  /** Phantom and every compatible wallet: sign a transaction AND submit it. */
+  signAndSendTransaction?(transaction: unknown): Promise<{ signature: string }>;
 }
 
 function provider(): SolanaProvider | null {
@@ -162,6 +164,54 @@ export async function currentPrincipal(): Promise<Principal | null> {
     localStorage.setItem(WALLET_KEY, principal.walletAddress);
     return principal;
   } catch { return null; }
+}
+
+/**
+ * Placed after currentPrincipal on purpose: walletgate.test.ts slices this file from signIn
+ * to currentPrincipal and asserts the sign-in path bounds exactly two requests, none under
+ * 20s. A purchase has nothing to do with signing in and must not land inside that slice.
+ */
+/**
+ * Buy $MM into the game: the wallet signs and sends, in one approval.
+ *
+ * The authority builds the transfer (it knows the mint, the decimals and the treasury's
+ * token account, and deriving the destination there means the browser cannot point it
+ * somewhere else). The wallet shows the player exactly what it does and they approve or
+ * reject. Nothing here can move tokens without that approval — this code holds no key.
+ *
+ * @solana/web3.js is imported DYNAMICALLY, so a couple of hundred kilobytes of Solana
+ * library never touches the first load of a game most players will never buy $MM in.
+ *
+ * Returns the signature; crediting is a separate call, because the transfer is real the
+ * moment the chain accepts it and must be claimable even if this tab dies here.
+ */
+export async function purchaseMM(units: number): Promise<{ signature: string }> {
+  const wallet = provider();
+  if (!wallet) throw new Error("No Solana wallet is connected.");
+  if (!wallet.signAndSendTransaction) {
+    throw new Error("This wallet cannot sign transactions in the page. Open the game in your wallet's browser.");
+  }
+  const base = serverBase();
+  const token = sessionToken();
+  if (!base || !token) throw new Error("Sign in before bringing $MM in.");
+
+  const prepared = await fetch(`${base}/api/chain/deposit/prepare`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ units }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const payload = await prepared.json().catch(() => ({})) as { transaction?: string; message?: string };
+  if (!prepared.ok || !payload.transaction) {
+    throw new Error(payload.message ?? "Mercedonia could not prepare that purchase.");
+  }
+
+  const { Transaction } = await import("@solana/web3.js");
+  const bytes = Uint8Array.from(atob(payload.transaction), (c) => c.charCodeAt(0));
+  const transaction = Transaction.from(bytes);
+  const { signature } = await wallet.signAndSendTransaction(transaction);
+  if (!signature) throw new Error("The wallet did not return a signature.");
+  return { signature };
 }
 
 /** The real epoch standing: your contribution against everyone else's, from the server. */

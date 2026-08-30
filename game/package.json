@@ -17,6 +17,7 @@
     "export:plots": "vite-node ../scripts/export-plots.ts"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "three": "^0.180.0"
   },
   "devDependencies": {

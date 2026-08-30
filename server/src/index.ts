@@ -20,7 +20,7 @@ import { redact } from "./treasury.js";
 import { MAX_SAVE_BYTES, readSave, SaveError, writeSave } from "./save.js";
 import { treasuryReport } from "./watch.js";
 import { solvency } from "./solvency.js";
-import { creditDeposit, depositedUnits, DepositError, treasuryAddress } from "./deposit.js";
+import { creditDeposit, depositedUnits, DepositError, prepareDeposit, treasuryAddress } from "./deposit.js";
 import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
@@ -485,6 +485,23 @@ const server = createServer(async (req, res) => {
         deposited: await depositedUnits(REALM_ID, who.playerId),
         open: config.payoutsEnabled,
       });
+      return;
+    }
+
+    // Build the transfer for the player's wallet to sign. Returns unsigned bytes: this
+    // process holds no key that could sign them, and the amount is re-read from the chain
+    // when the signature comes back, so this is a convenience and not a source of truth.
+    if (req.method === "POST" && url.pathname === "/api/chain/deposit/prepare") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const payload = (await body(req, 2_000)) as { units?: unknown } | null;
+      if (!payload) { json(res, 400, { error: "body-required" }); return; }
+      try {
+        json(res, 200, await prepareDeposit(who.walletAddress, Math.floor(Number(payload.units))));
+      } catch (error) {
+        if (error instanceof DepositError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
       return;
     }
 
