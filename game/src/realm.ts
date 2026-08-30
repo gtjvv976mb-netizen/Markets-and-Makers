@@ -255,15 +255,24 @@ export async function fetchIdentity(): Promise<{ playerId: string; walletAddress
  * refused, so the market offers what the ledger reports rather than what the browser
  * believes.
  */
-export async function fetchHoldings(): Promise<{ wallet: number; inventory: Record<string, number> } | null> {
+export async function fetchHoldings(): Promise<
+  { wallet: number; hasAccount: boolean; inventory: Record<string, number> } | null
+> {
   const headers = authHeaders();
   const base = serverBase();
   if (!headers || !base) return null;
   try {
     const response = await fetch(`${base}/api/world/me`, { headers, signal: AbortSignal.timeout(6000) });
     if (!response.ok) return null;
-    const payload = await response.json() as { wallet?: number; inventory?: Record<string, number> };
-    return { wallet: Number(payload.wallet ?? 0), inventory: payload.inventory ?? {} };
+    const payload = await response.json() as
+      { wallet?: number; hasAccount?: boolean; inventory?: Record<string, number> };
+    return {
+      wallet: Number(payload.wallet ?? 0),
+      // Absent on an older authority: treat that as "has an account", which is what every
+      // caller assumed before this field existed.
+      hasAccount: payload.hasAccount !== false,
+      inventory: payload.inventory ?? {},
+    };
   } catch {
     return null;
   }

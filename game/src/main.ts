@@ -106,7 +106,16 @@ function publishBusiness(): void {
       fittings: store.state.fittings ?? {},
     },
   }).then((outcome) => {
-    if (outcome.status === "refused") console.warn(`registry refused ${plotId}: ${outcome.message}`);
+    if (outcome.status !== "refused") return;
+    // A refusal used to go to console.warn and nowhere else, so a player whose shop the
+    // shared world would not accept carried on playing a city that existed only in their
+    // own tab. Say it out loud, and re-read the registry so the map stops offering the
+    // corner that was just refused.
+    console.warn(`registry refused ${plotId}: ${outcome.message}`);
+    toast(outcome.code === "plot-taken"
+      ? "Another Mercedonian holds that corner — the city will not register your shop there."
+      : `Mercedonia would not register your shop: ${outcome.message}`);
+    void refreshDistrict();
   });
 }
 
@@ -247,6 +256,9 @@ function makerName(playerId: string): string {
   return `${clean.slice(0, 4)}…${clean.slice(-4)}`;
 }
 
+/** Corners the registry says another maker holds. Refreshed with the district. */
+let plotsHeldByOthers: ReadonlySet<string> = new Set();
+
 function markerModels(): MarkerModel[] {
   const state = store.state;
   const island = ISLANDS.find((entry) => entry.id === state.island) ?? ISLANDS[0]!;
@@ -311,7 +323,7 @@ function markerModels(): MarkerModel[] {
   }
 
   return models.concat(propertyMarkerModels(
-    state,
+    { ...state, heldByOthers: plotsHeldByOthers },
     (resource) => store.marketBuyPrice(resource),
     (plotId) => world.buildingBannerY(plotId),
   ));
@@ -585,17 +597,24 @@ function showAwayReport(shift: ReturnType<typeof store.catchUp>): void {
   document.addEventListener("pointerdown", dismiss, true);
   window.setTimeout(dismiss, 20_000);
 }
-showAwayReport(store.catchUp());
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   showAwayReport(store.catchUp());
   renderAll();
 });
-// Who owns the district decides whether this client settles its own footfall. Asked
-// once at boot, before any catch-up runs, so a returning player is not paid twice for
-// a night the authority already settled.
+// Who owns the district decides whether this client settles its own footfall, so the
+// boot catch-up WAITS for the answer.
+//
+// It did not. `showAwayReport(store.catchUp())` sat above this call, and the comment here
+// said it ran "before any catch-up runs" — which was the intention and not the code.
+// refreshWorldOwner is asynchronous and worldOwner starts null, so worldRunsOnServer()
+// was false for the whole of boot: every returning player was credited a night of
+// production, wages and broker sales that the authority's tick had already settled, and
+// the away report they were shown counted it twice. The one line of comment claiming
+// otherwise is why it survived. Now the catch-up happens inside the .then.
 void refreshWorldOwner().then((owner) => {
   if (owner === "server") console.info("world: the authority is running this district");
+  showAwayReport(store.catchUp());
   publishBusiness();
 });
 
@@ -609,6 +628,10 @@ async function refreshDistrict(): Promise<void> {
   if (!listed) return;
   districtShopCount = listed.length;
   const others = listed.filter((entry) => !entry.mine);
+  // What the registry says is taken, so the lease button can refuse before it charges
+  // rather than after the authority does.
+  plotsHeldByOthers = new Set(others.map((entry) => entry.plotId));
+  store.setPlotsHeldByOthers(others.map((entry) => entry.plotId));
   // Neighbours are customers, not just scenery. Every business in the district buys the
   // goods above it in the chain, so the count feeds straight into how deep the local
   // market is — which is the whole reason a busy district pays better than an empty one.
@@ -1515,7 +1538,14 @@ async function refreshMakerMarket(): Promise<void> {
     fetchHoldings(),
   ]);
   if (book) makerListings = book;
-  if (holdings) { makerHoldings = holdings.inventory; serverWallet = holdings.wallet; }
+  if (holdings) {
+    makerHoldings = holdings.inventory;
+    // Only take the authority's figure once the authority HAS one. A maker who has signed
+    // in but not yet built has no ledger account, and reading its absence as a balance of
+    // zero showed them 0 MERCS on screen while the browser's own 750 was what every
+    // purchase spent — two purses, one of them invisible, and the visible one wrong.
+    serverWallet = holdings.hasAccount ? holdings.wallet : null;
+  }
   if (myPlayerId === null) myPlayerId = (await fetchIdentity())?.playerId ?? null;
   renderMakerMarket();
 }

@@ -896,10 +896,33 @@ export class GameStore {
   savePosition(): void { this.commit(); }
   selectPlot(plotId: string): void { if (PLOTS.some((plot) => plot.id === plotId)) { this.state.selectedPlotId = plotId; this.commit(); } }
 
+  /**
+   * Plots the shared world says somebody else already holds.
+   *
+   * Kept out of the save on purpose: it is a view of the world, refreshed from the
+   * registry, and a stale copy of it must never be what decides who owns what. The
+   * authority is still the thing that refuses — this only stops a player paying for a
+   * refusal they could have been told about first.
+   */
+  private heldByOthers = new Set<string>();
+  setPlotsHeldByOthers(plotIds: readonly string[]): void {
+    this.heldByOthers = new Set(plotIds);
+  }
+
   leaseSelectedPlot(): ActionResult {
     const plot = PLOTS.find((entry) => entry.id === this.state.selectedPlotId);
     if (!plot) return this.result(false, "Select a starter plot first.");
     if (this.state.portfolio[plot.id]) return this.result(false, "You already hold that plot.");
+    // ASK THE REGISTRY BEFORE TAKING THE MONEY.
+    //
+    // This checked only the local portfolio, so two players in two browsers could each
+    // lease the same corner: the second paid the price, took the plot into their own
+    // portfolio, built on it — and the authority then refused the registration with
+    // "Another maker already holds that plot" into console.warn, where no player has ever
+    // looked. They were charged for a shop that does not exist in the shared world.
+    if (this.heldByOthers.has(plot.id)) {
+      return this.result(false, "Another Mercedonian already holds that corner. Pick a plot that is still free.");
+    }
     const held = this.ownedPlotIds().length;
     if (held >= this.plotAllowance()) return this.result(false, `Your civic standing supports ${this.plotAllowance()} plot${this.plotAllowance() === 1 ? "" : "s"}. Reach ${this.nextCareerLevel()?.name ?? "the next career level"} to lease another.`);
     if (this.state.island !== plot.island) return this.result(false, "Travel to the plot's district before leasing it.");

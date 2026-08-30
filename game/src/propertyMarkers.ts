@@ -18,6 +18,15 @@ export interface MarkerModel {
 interface PropertyMarkerState {
   island: string;
   portfolio: Record<string, BusinessRecord>;
+  /**
+   * Corners the registry says another maker holds, by plot id.
+   *
+   * The world already builds a 3D shop on a neighbour's plot (world.showNeighbours), but
+   * these banners read only the local portfolio — so another player's business stood in
+   * the street under a "For lease" sign quoting a price, inviting anyone who walked past
+   * to buy a corner that is not for sale.
+   */
+  heldByOthers?: ReadonlySet<string>;
 }
 
 const PLAYER_BUILDING_FALLBACK_Y = 7.2;
@@ -55,18 +64,19 @@ export function propertyMarkerModels(
       const record = state.portfolio[plot.id];
       const plotName = plot.name.replace(/ Plot$/, "");
       if (!record) {
+        const neighbour = state.heldByOthers?.has(plot.id) ?? false;
         return {
           id: plot.id,
-          kind: "vacant",
-          label: "For lease",
+          kind: neighbour ? "neighbour" : "vacant",
+          label: neighbour ? "Another maker's shop" : "For lease",
           title: plotName,
-          detail: `${plot.price} ${CURRENCY_CODE}`,
+          detail: neighbour ? "Held in the shared registry" : `${plot.price} ${CURRENCY_CODE}`,
           x: plot.x,
           y: PLOT_BANNER_Y,
           z: plot.z,
           building: false,
-          icon: "⌂",
-          accent: "#edb742",
+          icon: neighbour ? "\u25A3" : "⌂",
+          accent: neighbour ? "#7f9dbd" : "#edb742",
         };
       }
       if (!record.license) {

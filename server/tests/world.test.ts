@@ -3,7 +3,7 @@ import { closeDatabase, pool } from "../src/database.js";
 import { ISLAND_IDS, PLOTS, PLOTS_BY_ID } from "../src/plots.js";
 import {
   allBusinesses, districtBusinesses, FOUNDERS_ADVANCE, MAX_UPGRADE_LEVEL, registerBusiness,
-  releaseBusiness, seedPlots, UPGRADE_COST_MERCS, WorldError,
+  makerHoldings, releaseBusiness, seedPlots, UPGRADE_COST_MERCS, WorldError,
 } from "../src/world.js";
 import { live as liveDatabase } from "./live-database.js";
 
@@ -365,5 +365,24 @@ suite("the world registry", () => {
       expect(entry.footfall).toBe(PLOTS_BY_ID.get(entry.plotId)!.footfall);
       expect(entry.owner).toMatch(/^[0-9a-f-]{36}$/i);   // the real id, for crediting
     }
+  });
+
+  it("tells an unbuilt maker apart from a broke one", async () => {
+    // "No ledger account" and "an account holding nothing" are the same number and
+    // completely different facts. The founder's advance moves on the FIRST registration,
+    // so a maker who has signed in and not yet built has no account — and reporting that
+    // as a balance of 0 made the client show 0 MERCS while the browser's own 750 was what
+    // every purchase actually spent.
+    const newcomer = await player("never-built");
+    const before = await makerHoldings(REALM, newcomer);
+    console.log(`UNBUILT hasAccount=${before.hasAccount} wallet=${before.wallet}`);
+    expect(before.hasAccount).toBe(false);
+
+    await registerBusiness({ realmId: REALM, playerId: newcomer, plotId: "GX072", license: "shop",
+      condition: 100, upgrades: { yield: 0, capacity: 0, speed: 0, appeal: 0 } });
+    const after = await makerHoldings(REALM, newcomer);
+    console.log(`AFTER BUILDING hasAccount=${after.hasAccount} wallet=${after.wallet}`);
+    expect(after.hasAccount).toBe(true);
+    expect(after.wallet).toBe(FOUNDERS_ADVANCE);
   });
 });

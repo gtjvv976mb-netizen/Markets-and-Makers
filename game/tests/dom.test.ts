@@ -218,3 +218,31 @@ describe("markup contract", () => {
     expect(main).not.toMatch(/Maker market|Demo Maker|maker · (?:private|local)|Other makers here/);
   });
 });
+
+describe("the boot catch-up waits for the world's owner", () => {
+  /**
+   * A source assertion, because the bug is an ORDERING one and the thing that hid it was a
+   * comment claiming the order was already right.
+   *
+   * refreshWorldOwner is asynchronous and worldOwner starts null, so any catchUp() that
+   * runs before it resolves sees worldRunsOnServer() === false and settles a night the
+   * authority's tick has already paid for. The player is credited twice and the away
+   * report shows the doubled figure.
+   */
+  it("does not settle a shift before refreshWorldOwner has answered", () => {
+    const boot = main.indexOf("void refreshWorldOwner()");
+    expect(boot).toBeGreaterThan(-1);
+    // Only a TOP-LEVEL call is the bug: one at column 0 runs during boot, before the
+    // answer arrives. The identical call inside the visibilitychange listener is fine —
+    // that fires when a player returns to the tab, long after the owner is known.
+    const before = main.slice(0, boot);
+    const topLevel = before.match(/^showAwayReport\(store\.catchUp\(\)\);/m) ?? [];
+    expect(topLevel).toHaveLength(0);
+  });
+
+  it("settles the boot shift inside the refreshWorldOwner callback", () => {
+    const boot = main.indexOf("void refreshWorldOwner()");
+    const tail = main.slice(boot, boot + 900);
+    expect(tail).toContain("showAwayReport(store.catchUp())");
+  });
+});

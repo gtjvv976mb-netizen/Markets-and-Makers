@@ -446,6 +446,16 @@ export async function allBusinesses(realmId: string, client?: PoolClient): Promi
 
 export interface MakerHoldings {
   wallet: number;
+  /**
+   * Whether this maker has a ledger account at all.
+   *
+   * "No account" and "an account holding nothing" are the same number and completely
+   * different facts. A maker who has signed in but not yet built has no account — the
+   * founder's advance is moved on their first registration — and reporting a bare 0 made
+   * the client display 0 MERCS while the browser's own 750 was what every purchase
+   * actually spent. Two purses on one screen, one of them invisible.
+   */
+  hasAccount: boolean;
   inventory: Record<string, number>;
   businesses: DistrictBusiness[];
 }
@@ -459,7 +469,7 @@ export interface MakerHoldings {
  * goods and selling them while the tab was shut. This is the truth to reconcile against.
  */
 export async function makerHoldings(realmId: string, playerId: string): Promise<MakerHoldings> {
-  if (!pool) return { wallet: 0, inventory: {}, businesses: [] };
+  if (!pool) return { wallet: 0, hasAccount: false, inventory: {}, businesses: [] };
 
   const [money, goods, owned] = await Promise.all([
     pool.query<{ balance: string }>(
@@ -485,5 +495,9 @@ export async function makerHoldings(realmId: string, playerId: string): Promise<
     businesses.push(...listed.filter((entry) => entry.mine));
   }
 
-  return { wallet: Number(money.rows[0]?.balance ?? 0), inventory, businesses };
+  return {
+    wallet: Number(money.rows[0]?.balance ?? 0),
+    hasAccount: (money.rowCount ?? 0) > 0,
+    inventory, businesses,
+  };
 }
