@@ -17,6 +17,7 @@ import { buyListing, cancelListing, listItem, readBook, MarketError } from "./ma
 import { claimEpoch, epochStanding, islandBoard, EconomyError } from "./economy.js";
 import { PayoutError, payoutsOf, requestPayout, runPayoutWorker, withdrawableOf } from "./payout.js";
 import { redact } from "./treasury.js";
+import { MAX_SAVE_BYTES, readSave, SaveError, writeSave } from "./save.js";
 import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
@@ -435,6 +436,38 @@ const server = createServer(async (req, res) => {
         json(res, 200, saved);
       } catch (error) {
         if (error instanceof WorldError) { json(res, 409, { error: error.code, message: error.message }); return; }
+        throw error;
+      }
+      return;
+    }
+
+    // --- the player's city, kept by the authority ----------------------------------------
+    //
+    // Progress only. See save.ts: the authority never reads the payload, and no balance is
+    // ever derived from it — money is the ledger's, not the save's.
+    if (req.method === "GET" && url.pathname === "/api/world/save") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      const stored = await readSave(REALM_ID, who.playerId);
+      json(res, 200, stored ?? { revision: 0, payload: null, updatedAt: null });
+      return;
+    }
+
+    if (req.method === "PUT" && url.pathname === "/api/world/save") {
+      const who = await authenticate(bearerFrom(req.headers.authorization));
+      if (!who) { json(res, 401, { error: "unauthenticated" }); return; }
+      // The read cap is the save cap plus room for the envelope, so an oversized save is
+      // refused by save.ts with a message the player can act on rather than being cut off
+      // mid-body and arriving as unparseable JSON.
+      const payload = (await body(req, MAX_SAVE_BYTES + 4_096)) as
+        { revision?: unknown; payload?: unknown } | null;
+      if (!payload) { json(res, 400, { error: "body-required" }); return; }
+      try {
+        const result = await writeSave(
+          REALM_ID, who.playerId, Number(payload.revision ?? 0), payload.payload);
+        json(res, 200, result);
+      } catch (error) {
+        if (error instanceof SaveError) { json(res, 409, { error: error.code, message: error.message }); return; }
         throw error;
       }
       return;

@@ -1,6 +1,19 @@
 import { serverBase } from "./network";
 
 const TOKEN_KEY = "markets-makers-session";
+/**
+ * The signed-in wallet, remembered so the save key can be scoped to it SYNCHRONOUSLY.
+ *
+ * `currentPrincipal()` asks the server, and loadState() runs long before any request comes
+ * back — so without this the first save of a session is written to whatever key was last
+ * used. That is how two wallets in one browser came to share one city.
+ */
+const WALLET_KEY = "markets-makers-wallet";
+
+/** The wallet this browser is signed in as, or null. Never a promise: the loader needs it now. */
+export function linkedWallet(): string | null {
+  return sessionToken() ? localStorage.getItem(WALLET_KEY) : null;
+}
 
 export interface Principal { playerId: string; walletAddress: string }
 export interface EpochClaimResult {
@@ -130,6 +143,7 @@ export async function signIn(): Promise<Principal> {
   }
   const session = await verifyResponse.json() as { token: string; playerId: string; walletAddress: string };
   localStorage.setItem(TOKEN_KEY, session.token);
+  localStorage.setItem(WALLET_KEY, session.walletAddress);
   return { playerId: session.playerId, walletAddress: session.walletAddress };
 }
 
@@ -138,8 +152,15 @@ export async function currentPrincipal(): Promise<Principal | null> {
   if (!base || !sessionToken()) return null;
   try {
     const response = await fetch(`${base}/api/auth/me`, { headers: authHeaders(), signal: AbortSignal.timeout(6000) });
-    if (!response.ok) { if (response.status === 401) localStorage.removeItem(TOKEN_KEY); return null; }
-    return await response.json() as Principal;
+    if (!response.ok) {
+      if (response.status === 401) { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(WALLET_KEY); }
+      return null;
+    }
+    const principal = await response.json() as Principal;
+    // Trust the server's answer over the remembered one: a token that resolves to a
+    // different wallet must not keep writing to the previous wallet's city.
+    localStorage.setItem(WALLET_KEY, principal.walletAddress);
+    return principal;
   } catch { return null; }
 }
 
@@ -227,6 +248,10 @@ export async function signOut(): Promise<void> {
   const base = serverBase();
   const token = sessionToken();
   localStorage.removeItem(TOKEN_KEY);
+  // The city stays in this browser under its own wallet's key, so signing back in finds
+  // it — but the NEXT player to sign in here must not inherit it, which is exactly what
+  // happened while one unscoped key held whoever had played last.
+  localStorage.removeItem(WALLET_KEY);
   if (base && token) {
     await fetch(`${base}/api/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
   }

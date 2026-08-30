@@ -11,6 +11,7 @@ import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
 import { currentPrincipal, fetchStanding, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
+import { flushCloudSave, markHydrated, pullCloudSave, pushCloudSave, resetCloudSave } from "./cloudSave";
 
 function element<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -663,13 +664,52 @@ let principal: Principal | null = null;
 let standing: EpochStanding | null = null;
 let withdrawalDesk: Awaited<ReturnType<typeof fetchWithdrawals>> = null;
 
+/**
+ * Bring this player's city back from the authority, if the authority has a better one.
+ *
+ * The rule is the only one that matters here: A RESTORE MUST NEVER SILENTLY DISCARD A
+ * BIGGER LOCAL CITY. Revisions are counted writes, so "bigger" means "has done more work",
+ * and a tie is resolved in favour of what is already on screen. When the local save is
+ * ahead — the ordinary case for the device you actually play on — nothing is restored and
+ * the local city is pushed up instead.
+ *
+ * Runs once per sign-in. Everything about it is best-effort: no session, no network or a
+ * server error and the game carries on out of localStorage exactly as it did before.
+ */
+let cloudRestoreDone = false;
+async function restoreCityFromCloud(): Promise<void> {
+  if (cloudRestoreDone || !principal || isDemo()) return;
+  cloudRestoreDone = true;
+  const stored = await pullCloudSave();
+  const localRevision = store.state.saveRevision ?? 0;
+
+  if (stored && stored.revision > localRevision) {
+    // The authority is ahead: this is a new browser, a cleared cache, or another device.
+    store.replaceState(stored.payload);
+    markHydrated();
+    renderAll();
+    toast(localRevision > 0
+      ? "Restored your city from Mercedonia — this browser was behind."
+      : "Welcome back. Your city has been restored.");
+    return;
+  }
+
+  // Local is ahead, level, or the authority has nothing: keep what is here and publish it.
+  markHydrated();
+  await pushCloudSave(store.state);
+}
+
 async function refreshWallet(): Promise<void> {
   principal = await currentPrincipal();
   standing = principal ? await fetchStanding() : null;
   withdrawalDesk = principal ? await fetchWithdrawals() : null;
+  if (principal) void restoreCityFromCloud();
   renderAll();
 }
 void refreshWallet();
+// A tab being closed is the moment a save is most likely to be lost, and the debounce
+// means the last few edits may not have gone out yet.
+window.addEventListener("pagehide", () => { void flushCloudSave(); });
 window.setInterval(() => { if (principal) void refreshWallet(); }, 60_000);
 let districtIsland = "";
 
@@ -3443,7 +3483,14 @@ document.body.addEventListener("click", (event) => {
       .finally(() => { button.disabled = false; if (linkLabel) button.textContent = linkLabel; });
   }
   else if (action === "wallet-disconnect") {
-    void signOut().then(() => { principal = null; standing = null; serverWallet = null; withdrawalDesk = null; makerHoldings = {}; toast("Wallet unlinked."); renderAll(); });
+    void flushCloudSave().then(() => signOut()).then(() => {
+      principal = null; standing = null; serverWallet = null; withdrawalDesk = null; makerHoldings = {};
+      // Forget the queue AND the fact a restore happened, so signing in as somebody else
+      // cannot push this player's city up under the next player's name.
+      resetCloudSave();
+      cloudRestoreDone = false;
+      toast("Wallet unlinked."); renderAll();
+    });
   }
   else if (action === "operation") {
     const key = button.dataset.operation as "autoProduce" | "autoBuy" | "autoSell";

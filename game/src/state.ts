@@ -23,6 +23,8 @@ import { floorEffects, type FloorLayout } from "./floorEffects";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, productChainDepth, productsOf, type Product } from "./products";
 import { citizenPopulation, customerAppeal, type CitizenEconomyActivity } from "./citizenSimulation";
 import { worldRunsOnServer } from "./realm";
+import { linkedWallet } from "./wallet";
+import { queueCloudSave } from "./cloudSave";
 
 export interface ProductionJob { license: LicenseKey; startedAt: number; completeAt: number; cycles: number; laborCost: number; }
 export interface UnitEconomics { inputCost: number; laborCost: number; expectedRevenue: number; expectedTax: number; expectedProfit: number; visitors: number; }
@@ -108,6 +110,12 @@ export interface GameState {
   epoch: EpochProgress; lifetimeContribution: number; lifetimeMMEarned: number;
   bankTreasuryMM: number; epochIssued: number; deeds: number; mmBurned: number;
   staff: number; chargesSettledAt: number; suppliesCut: boolean;
+  /**
+   * How many times this city has been written. Counted, never clocked — the authority
+   * keeps the highest it has seen, so the save that has done more work wins a conflict
+   * rather than the one on the faster clock.
+   */
+  saveRevision: number;
   civicPaidAt: number; civicWagesPaid: number;
   mmDeposited: number; mmWithdrawn: number;
   sponsoredUntil: number; chartered: boolean;
@@ -283,7 +291,7 @@ export function createFreshState(): GameState {
     epoch: { id: epochId(), contribution: 0, claimed: false },
     bankTreasuryMM: BANK_TREASURY_MM,
     epochIssued: 0, deeds: 0, mmBurned: 0, sponsoredUntil: 0, chartered: false,
-    staff: 1, chargesSettledAt: Date.now(), suppliesCut: false,
+    staff: 1, chargesSettledAt: Date.now(), suppliesCut: false, saveRevision: 0,
     civicPaidAt: Date.now(), civicWagesPaid: 0,
     mmDeposited: 0, mmWithdrawn: 0,
     operations: { autoProduce: true, autoBuy: true, autoSell: true },
@@ -357,12 +365,30 @@ function canonicalizeSavedCopy(value: string): string {
     .replace(/\b(?:MD|SM|MERC)\b/g, CURRENCY_CODE);
 }
 
-export function loadState(): GameState {
+/**
+ * Where this browser keeps a city, scoped to whoever is signed in.
+ *
+ * One unscoped key meant two wallets used in one browser shared a single city, and signing
+ * out left the previous player's save for the next one to open. A signed-in player gets
+ * their own key; an anonymous one keeps the original, so a city built before signing in is
+ * still there afterwards (see adoptAnonymousSave).
+ */
+export function saveKeyFor(wallet: string | null = linkedWallet()): string {
+  return wallet ? `${SAVE_KEY}:${wallet}` : SAVE_KEY;
+}
+
+/**
+ * Turn a saved city into a playable one, clamping every field on the way in.
+ *
+ * Split out of loadState so that a city RESTORED FROM THE AUTHORITY goes through exactly
+ * the same door as one read from localStorage. The server stores the blob without reading
+ * it, so a restore is the least trustworthy input the game has — it is the one that most
+ * needs the defaults for fields added since it was written and the rejection of impossible
+ * values, not the one that should skip them.
+ */
+export function hydrateState(saved: Partial<GameState>): GameState {
   const fresh = createFreshState();
   try {
-    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem("markets-makers-3d-browser-v4");
-    if (!raw) return fresh;
-    const saved = JSON.parse(raw) as Partial<GameState>;
     const island = ISLANDS.some((entry) => entry.id === saved.island) ? saved.island! : fresh.island;
     const islandConfig = ISLANDS.find((entry) => entry.id === island)!;
     const inventory = blankInventory();
@@ -486,6 +512,7 @@ export function loadState(): GameState {
       staff: Math.floor(finite(saved.staff, 1, 0, 200)),
       chargesSettledAt: finite(saved.chargesSettledAt, Date.now()),
       suppliesCut: Boolean(saved.suppliesCut),
+      saveRevision: Math.max(0, Math.floor(finite(saved.saveRevision, 0, 0, Number.MAX_SAFE_INTEGER))),
       civicPaidAt: finite(saved.civicPaidAt, Date.now()),
       civicWagesPaid: finite(saved.civicWagesPaid, 0),
       mmDeposited: finite(saved.mmDeposited, 0, 0),
@@ -585,6 +612,22 @@ export function loadState(): GameState {
     };
   } catch {
     return fresh;
+  }
+}
+
+export function loadState(): GameState {
+  try {
+    const wallet = linkedWallet();
+    const raw = wallet
+      // A player signing in for the first time on a browser they have already played in
+      // keeps that city: their own key is empty, so the unscoped one is adopted. It is
+      // read, never deleted — the anonymous save stays put for an anonymous session.
+      ? (localStorage.getItem(saveKeyFor(wallet)) ?? localStorage.getItem(SAVE_KEY))
+      : (localStorage.getItem(SAVE_KEY) ?? localStorage.getItem("markets-makers-3d-browser-v4"));
+    if (!raw) return createFreshState();
+    return hydrateState(JSON.parse(raw) as Partial<GameState>);
+  } catch {
+    return createFreshState();
   }
 }
 
@@ -812,7 +855,14 @@ export class GameStore {
     // in, must not overwrite the profile already sitting in this browser. Nothing is
     // written at all — which also means a demo can never be laundered into a real account,
     // because there is no file to promote.
-    if (!demoMode) localStorage.setItem(SAVE_KEY, JSON.stringify(this.state));
+    if (!demoMode) {
+      // Counted, not clocked: the authority keeps the HIGHEST revision it has seen, so two
+      // tabs on one account resolve by which has done more, not by which machine's clock
+      // is set fastest.
+      this.state.saveRevision = (this.state.saveRevision ?? 0) + 1;
+      localStorage.setItem(saveKeyFor(), JSON.stringify(this.state));
+      queueCloudSave(this.state);
+    }
     this.listeners.forEach((listener) => listener());
   }
 
@@ -2384,6 +2434,21 @@ export class GameStore {
     startDemo();
     this.state = createFreshState();
     this.commit("Demo city opened. Nothing here is saved.", "normal");
+  }
+
+  /**
+   * Adopt a city restored from the authority.
+   *
+   * The payload goes through the SAME loader every localStorage save does rather than
+   * being trusted as-is: it arrives as opaque JSON from a store that never validated it,
+   * so it gets the same clamping, the same defaults for fields added since it was written,
+   * and the same rejection of impossible values. A restore is not a reason to skip the
+   * checks — it is the case that most needs them.
+   */
+  replaceState(payload: unknown): void {
+    if (!payload || typeof payload !== "object") return;
+    this.state = hydrateState(payload as Partial<GameState>);
+    this.commit();
   }
 
   /**
