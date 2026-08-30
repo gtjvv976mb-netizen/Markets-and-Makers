@@ -1624,13 +1624,15 @@ export class GameStore {
    * bank" and backs withdrawableCapitalMM. Reusing it made a converted deposit look
    * refundable, which the tests caught.
    */
-  setDepositedMM(total: number): void {
+  /** Returns how much of the total was NEW, so the caller can convert exactly that. */
+  setDepositedMM(total: number): number {
     const units = Math.max(0, Math.floor(Number(total) || 0));
     const fresh = units - this.state.mmFromChain;
-    if (fresh <= 0) { this.state.mmFromChain = Math.max(this.state.mmFromChain, units); return; }
+    if (fresh <= 0) { this.state.mmFromChain = Math.max(this.state.mmFromChain, units); return 0; }
     this.state.mmFromChain = units;
     this.state.mmHoldings += fresh;
     this.commit(`Mercedonia credited ${fresh} $MM from your wallet.`, "success");
+    return fresh;
   }
 
   exchangeMMForMercDollars(units: number): ActionResult {

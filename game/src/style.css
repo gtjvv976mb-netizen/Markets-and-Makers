@@ -3773,3 +3773,46 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 /* Step one is "walk". The world, the Mayor, and nothing else — the plot and landmark
    pins come back for step two, which is when a player actually has to pick one. */
 .app-shell[data-guided="true"][data-step="moved"] :is(.control-panel, #worldMarkers) { display: none !important; }
+
+/* --- the treasury, said plainly ---------------------------------------------------
+   What a player needs to act is what they hold, what it is worth, and one button. The
+   money supply, the epoch's issuance and the civic wage bill are the city's books, not
+   the player's decision, so they sit behind a disclosure instead of above the button. */
+.treasury-now {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.treasury-now > div {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  background: rgba(255,255,255,.05);
+}
+.treasury-now small { display: block; margin-bottom: 2px; opacity: .66; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.treasury-now strong { font-size: 18px; font-weight: 900; letter-spacing: -.01em; }
+
+.treasury-books { margin-top: 12px; }
+.treasury-books > summary {
+  padding: 7px 2px;
+  opacity: .72;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.treasury-books > summary::-webkit-details-marker { display: none; }
+.treasury-books > summary::before { content: "▸ "; display: inline-block; width: 1em; transition: transform .18s ease; }
+.treasury-books[open] > summary::before { content: "▾ "; }
+.treasury-books > summary:hover { opacity: 1; }
+.treasury-books > p { margin: 4px 0 10px; opacity: .74; font-size: 12.5px; line-height: 1.5; }
+
+/* The primary action is a decision, so give it the room a decision needs. */
+.bank-desk .reserve-actions > button:first-child { min-height: 52px; font-size: 15px; }
+@media (max-height: 560px) {
+  .treasury-now { margin: 6px 0 8px; gap: 6px; }
+  .treasury-now > div { padding: 7px 9px; }
+  .treasury-now strong { font-size: 15px; }
+  .bank-desk .reserve-actions > button:first-child { min-height: 44px; font-size: 14px; }
+}

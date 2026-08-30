@@ -703,6 +703,18 @@ let depositDesk: Awaited<ReturnType<typeof fetchDepositDesk>> = null;
 let depositAmount = 100;
 
 /**
+ * The most $MM the bank can take right now: everything held, less whatever the epoch's
+ * issuance cap will not cover. The old button offered exactly 100 whether you held 40 or
+ * 40,000, so it was either refused or made you press it four hundred times.
+ */
+function convertibleMM(): number {
+  const held = store.state.mmHoldings;
+  const perUnit = store.mercDollarsForMM(1);
+  if (held <= 0 || perUnit <= 0) return 0;
+  return Math.max(0, Math.min(held, Math.floor(store.issuanceHeadroom() / perUnit)));
+}
+
+/**
  * Bring this player's city back from the authority, if the authority has a better one.
  *
  * The rule is the only one that matters here: A RESTORE MUST NEVER SILENTLY DISCARD A
@@ -1490,7 +1502,7 @@ function depositMarkup(): string {
     <button class="deposit-buy" data-action="buy-mm" ${canAfford ? "" : "disabled"}>
       <span>Bring in ${formatNumber(depositAmount)} $MM</span>
       <small>${canAfford
-        ? `≈ ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE} once converted`
+        ? `straight into ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}`
         : `You hold ${formatNumber(held ?? 0)} $MM`}</small>
     </button>
     <details class="deposit-manual">
@@ -1594,30 +1606,42 @@ function renderMarket(): void {
       <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM backing</small><strong>${cityBooks?.books?.mm?.held != null ? `${formatNumber(cityBooks.books.mm.held)} $MM` : "—"}</strong><span>${cityBooks?.books?.mm ? "held by the treasury on Solana" : "asking the authority"}</span></div></div>
     </details>
     <section class="bank-desk">
-      ${mmBackingMarkup()}
-      <div class="reserve-heading"><div><small>Government Bank</small><strong>Merc Dollar issuance</strong></div></div>
-      <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}. Bringing earned $MM to the bank issues Merc Dollars against it; the bank stops issuing when the city's own headroom runs out.</p>
-      <div class="reserve-balance">
-        <div><small>Money supply</small><strong>${formatNumber(store.mercDollarSupply())} ${CURRENCY_CODE}</strong></div>
-        <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></div>
-        <div><small>Issued this epoch</small><strong>${formatNumber(store.state.epochIssued)} ${CURRENCY_CODE}</strong></div>
-        <div><small>Rate</small><strong>$1 = ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}</strong></div>
-        <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
+      <div class="reserve-heading"><div><small>Government Bank</small><strong>Turn $MM into ${CURRENCY_CODE}</strong></div>
+        <span>1 $MM = ${formatNumber(store.mercDollarsForMM(1))} ${CURRENCY_CODE}</span></div>
+      <div class="treasury-now">
+        <div><small>You hold</small><strong>${formatNumber(store.state.mmHoldings)} $MM</strong></div>
+        <div><small>Worth</small><strong>${formatNumber(store.mercDollarsForMM(store.state.mmHoldings))} ${CURRENCY_CODE}</strong></div>
       </div>
       <div class="reserve-actions">
-        <button data-action="bank-in" ${store.state.mmHoldings < 1 ? "disabled" : ""}>Bring in 100 $MM <small>get ${formatNumber(store.mercDollarsForMM(100))} ${CURRENCY_CODE}</small></button>
+        <button data-action="bank-in" ${convertibleMM() < 1 ? "disabled" : ""}>${
+          convertibleMM() >= 1
+            ? `Convert ${formatNumber(convertibleMM())} $MM <small>get ${formatNumber(store.mercDollarsForMM(convertibleMM()))} ${CURRENCY_CODE}</small>`
+            : store.state.mmHoldings >= 1
+              ? `Bank is full <small>no room to issue until the treasury grows</small>`
+              : `Nothing to convert <small>earn or bring in $MM first</small>`}</button>
         <button class="secondary" data-action="bank-out" ${purse() < 1000 || store.withdrawableCapitalMM() <= 0 ? "disabled" : ""}>Withdraw capital <small>${store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM available` : "nothing on deposit"}</small></button>
       </div>
-      <div class="city-strip">
-        <div><small>Mercedonians</small><strong>${formatNumber(store.mercedonianPopulation())}</strong></div>
-        <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${CURRENCY_CODE}/day</strong></div>
-        <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${CURRENCY_CODE}/day</strong></div>
-        <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${CURRENCY_CODE}</strong></div>
-        <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${CURRENCY_CODE}</strong></div>
-        <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${CURRENCY_CODE}</strong></div>
-      </div>
-      <small class="city-note">Mercedonia pays every household a civic wage each day, and that money becomes the custom in your shop. When collections fall short the city pays less — austerity is a real state here, which is why a healthy treasury matters to you.</small>
-      <small class="reserve-boundary">This bank is a mechanic inside the game. Moving $MM here converts it to ${CURRENCY_CODE} for use in the city, and the conversion runs in both directions while the treasury has room — but nothing here leaves the game, and none of it is a deposit, a claim, or a promise of anything outside Mercedonia. The one economic guarantee is arithmetic: no in-game activity creates ${CURRENCY_CODE} out of nothing.</small>
+      <details class="treasury-books">
+        <summary>The city's books</summary>
+        <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}, less the bank's spread. The bank issues Merc Dollars against the $MM it holds and stops when the city's headroom runs out.</p>
+        ${mmBackingMarkup()}
+        <div class="reserve-balance">
+          <div><small>Money supply</small><strong>${formatNumber(store.mercDollarSupply())} ${CURRENCY_CODE}</strong></div>
+          <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></div>
+          <div><small>Issued this epoch</small><strong>${formatNumber(store.state.epochIssued)} ${CURRENCY_CODE}</strong></div>
+          <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
+        </div>
+        <div class="city-strip">
+          <div><small>Mercedonians</small><strong>${formatNumber(store.mercedonianPopulation())}</strong></div>
+          <div><small>Civic wage</small><strong>${store.civicDailyWage()} ${CURRENCY_CODE}/day</strong></div>
+          <div><small>City wage bill</small><strong>${formatNumber(store.civicWageBill())} ${CURRENCY_CODE}/day</strong></div>
+          <div><small>They will spend</small><strong>${formatNumber(store.citizenSpendingPower())} ${CURRENCY_CODE}</strong></div>
+          <div><small>Paid to date</small><strong>${formatNumber(Math.round(store.state.civicWagesPaid))} ${CURRENCY_CODE}</strong></div>
+          <div><small>Citizen purses</small><strong>${formatNumber(Math.round(store.state.citizenPool))} ${CURRENCY_CODE}</strong></div>
+        </div>
+        <small class="city-note">Mercedonia pays every household a civic wage each day, and that money becomes the custom in your shop.</small>
+        <small class="reserve-boundary">This bank is a mechanic inside the game. Moving $MM here converts it to ${CURRENCY_CODE} for use in the city.</small>
+      </details>
     </section>
 
     ${withdrawalDesk ? `
@@ -1677,13 +1701,15 @@ function renderMarket(): void {
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
     ${districtBoardMarkup()}
-    <div class="section-title">Ledger health</div>
+    <details class="treasury-books ledger-health">
+      <summary>Ledger health</summary>
     <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonian spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Payroll returned to Mercedonians</small><strong>${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>$MM held by the treasury</small><strong>${
       cityBooks?.books?.mm?.held != null ? formatNumber(cityBooks.books.mm.held) : "—"
     }</strong></div><div class="stat"><small>$MM owed to makers</small><strong>${
       cityBooks?.books?.mm ? formatNumber(cityBooks.books.mm.outstanding) : "—"
     }</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
+    </details>
   `;
 }
 
@@ -3796,10 +3822,17 @@ document.body.addEventListener("click", (event) => {
         for (let attempt = 0; attempt < 12; attempt += 1) {
           const outcome = await claimDeposit(signature);
           if (outcome.status === "ok") {
-            store.setDepositedMM(outcome.value.totalDeposited);
+            // Deposit AND convert, in the one press. Leaving the player holding $MM they
+            // then had to bring to a second desk was the whole complaint: nobody sends
+            // real money to a treasury in order to own a receipt.
+            const fresh = store.setDepositedMM(outcome.value.totalDeposited);
+            const issued = fresh > 0 ? store.exchangeMMForMercDollars(fresh) : null;
             depositDesk = await fetchDepositDesk();
             chainMM = principal ? await fetchChainMM(principal.walletAddress) : chainMM;
-            toast(`${formatNumber(outcome.value.units)} $MM is yours to convert.`);
+            toast(issued?.ok
+              ? `${formatNumber(fresh)} $MM in — ${formatNumber(store.mercDollarsForMM(fresh))} ${CURRENCY_CODE} added.`
+              // The cap refused it, so the $MM is still theirs and still convertible later.
+              : `${formatNumber(outcome.value.units)} $MM is yours. ${issued?.message ?? "Convert it when the bank has room."}`);
             renderAll();
             return;
           }
@@ -3837,7 +3870,7 @@ document.body.addEventListener("click", (event) => {
       else toast("Mercedonia could not be reached. Your transfer is safe — try again.");
     }).finally(() => { button.disabled = false; });
   }
-  else if (action === "bank-in") report(store.exchangeMMForMercDollars(100));
+  else if (action === "bank-in") report(store.exchangeMMForMercDollars(convertibleMM()));
   else if (action === "bank-out") report(store.exchangeMercDollarsForMM(1000));
   else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);
   else if (action === "utility-close") closeUtilityDrawer();

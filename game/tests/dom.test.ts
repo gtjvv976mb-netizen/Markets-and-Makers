@@ -127,7 +127,11 @@ describe("markup contract", () => {
     expect(main).toContain("escapeMarkup(lead!.headline)");
     expect(main).toContain("escapeMarkup(lead!.body)");
     expect(main).toContain("AI-written from measured city ledger figures");
-    expect(main).toContain("exchangeMMForMercDollars(100)");
+    // The bank takes what the player actually holds, within the epoch's issuance cap —
+    // not a hard-coded hundred, which was refused if you held less and needed pressing
+    // four hundred times if you held more.
+    expect(main).toContain("exchangeMMForMercDollars(convertibleMM())");
+    expect(main).toContain("Math.floor(store.issuanceHeadroom() / perUnit)");
     expect(main).toContain("exchangeMercDollarsForMM(1000)");
     expect(main).toContain('action === "info-open"');
   });
