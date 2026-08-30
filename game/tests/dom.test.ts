@@ -96,7 +96,9 @@ describe("markup contract", () => {
     expect(main).toContain("const total = peerCount + 1");
     expect(main).not.toContain("districtShopCount + 1");
     expect(main).toContain("<small>MERCS</small>");
-    expect(main).toContain("<small>$MM</small>");
+    // "$MM earned" now, to tell it apart from the real balance in the player's wallet —
+    // two different things that were both just called $MM.
+    expect(main).toContain("<small>$MM earned</small>");
 
     for (const label of [
       "Production",

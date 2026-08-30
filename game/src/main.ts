@@ -1,7 +1,7 @@
 import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
-  worldRunsOnServer, fetchCityBooks, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
+  worldRunsOnServer, fetchCityBooks, fetchChainMM, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
   cancelMarketListing, type CityDispatch, type MarketListing } from "./realm";
 import { GameStore, isDemo, type ActionResult } from "./state";
 import { World3D } from "./world";
@@ -695,6 +695,8 @@ let districtBoard: DistrictQuote[] | null = null;
 let principal: Principal | null = null;
 let standing: EpochStanding | null = null;
 let withdrawalDesk: Awaited<ReturnType<typeof fetchWithdrawals>> = null;
+/** Real $MM in the signed-in wallet, or null when it cannot be read. */
+let chainMM: number | null = null;
 
 /**
  * Bring this player's city back from the authority, if the authority has a better one.
@@ -735,6 +737,9 @@ async function refreshWallet(): Promise<void> {
   principal = await currentPrincipal();
   standing = principal ? await fetchStanding() : null;
   withdrawalDesk = principal ? await fetchWithdrawals() : null;
+  // What the wallet really holds. Best-effort and non-blocking: the HUD omits the figure
+  // rather than waiting on an RPC or showing a wrong zero.
+  chainMM = principal ? await fetchChainMM(principal.walletAddress) : null;
   if (principal) void restoreCityFromCloud();
   renderAll();
 }
@@ -888,7 +893,16 @@ const SHEET_TITLE: Record<string, string> = {
   info: "Everything at a glance",
 };
 
-type UiIconName = "enterprise" | "exchange" | "world" | "rank";
+/**
+ * Every `#mm-icon-*` symbol index.html actually defines.
+ *
+ * This listed four of the seventeen, so anything reaching for a real icon outside that
+ * handful failed to typecheck and got cast around instead. The list is the sprite sheet.
+ */
+type UiIconName =
+  | "bank" | "build" | "business" | "close" | "compass" | "enter" | "enterprise"
+  | "exchange" | "info" | "network" | "news" | "profile" | "property" | "rank"
+  | "reset" | "wallet" | "world";
 
 function uiIcon(name: UiIconName): string {
   return `<svg class="mm-icon" aria-hidden="true" focusable="false"><use href="#mm-icon-${name}"></use></svg>`;
@@ -900,6 +914,60 @@ const SHEET_META: Record<string, { icon: UiIconName; kicker: string }> = {
   world: { icon: "world", kicker: "World atlas" },
   info: { icon: "rank", kicker: "Information desk" },
 };
+
+/**
+ * Go straight to a thing, not to the tab that contains it.
+ *
+ * Everything a maker needs lives inside two tabs, stacked: the Exchange holds the City
+ * Hall's orders, the makers' marketplace AND the bank desk one after another, so
+ * converting $MM meant opening a tab and scrolling past two other panels to find it. A tab
+ * is a filing cabinet; this opens the drawer AND points at the folder.
+ */
+const PANEL_TAB: Record<string, string> = {
+  businessPanel: "shop", buildPanel: "shop",
+  contractsPanel: "trade", makerMarketPanel: "trade", marketPanel: "trade",
+  mapPanel: "world", guidePanel: "world",
+};
+
+function gotoPanel(panelId: string): void {
+  const tab = PANEL_TAB[panelId];
+  if (!tab) return;
+  switchTab(tab);
+  // Two frames, then measure: switchTab opens the sheet and swaps the active panel, and a
+  // scroll computed before that lands on the old geometry. Measured doing exactly that —
+  // the tab changed and the panel stayed 1,472px down the scroller.
+  // setTimeout, NOT requestAnimationFrame.
+  //
+  // rAF does not fire while the tab is hidden or backgrounded, so the navigation silently
+  // did nothing — measured: after a click the scroller sat at 0, while setting scrollTop by
+  // hand half a second later stuck at 2,571 and was never reset. Nothing was overwriting
+  // the scroll; the callback was never running. A timer is throttled in a hidden tab but it
+  // still fires, and a player returning to the tab should find the panel they asked for.
+  //
+  // Three attempts, and they are idempotent: once immediately for the common case where the
+  // sheet is already open and laid out, then twice more as the sheet finishes opening.
+  const land = (): void => {
+    const panel = document.querySelector<HTMLElement>(`#${panelId}`);
+    const scroller = panel?.closest<HTMLElement>(".panel-scroll");
+    if (!panel || !scroller) return;
+    // Explicit offset arithmetic, set instantly.
+    //
+    // Two things this deliberately does NOT do. It does not use scrollIntoView: the panel
+    // sits inside a nested scroller and that is not a bet worth taking on a navigation. And
+    // it does not animate: a smooth 2,600px glide had simply not arrived by the time
+    // anything looked, and a jump to the thing you asked for is the whole point.
+    //
+    // It also does not gate on the scroller having a clientHeight. An earlier version did,
+    // to be careful, and that guard was itself the bug — the container reports 0 while the
+    // pane is hidden, so the "careful" branch retried twenty times and gave up. scrollTop
+    // is settable regardless, because scrollHeight is what bounds it.
+    const delta = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + delta - 8);
+  };
+  land();
+  window.setTimeout(land, 0);
+  window.setTimeout(land, 140);
+}
 
 function switchTab(requested: string): void {
   const tab = TAB_FOR.get(requested) ?? requested;
@@ -2510,15 +2578,25 @@ function bankDeskMarkup(): string {
   return `
     <section class="hud-bank-card">
       <div class="bank-balance-pair">
-        <span><small>MERCS</small><strong>${formatNumber(purse())}</strong><em>in-game operating balance</em></span>
-        <span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong><em>internal prototype balance</em></span>
+        <span><small>MERCS</small><strong>${formatNumber(purse())}</strong><em>what you trade with, in game</em></span>
+        <span><small>$MM earned</small><strong>${formatNumber(store.state.mmHoldings)}</strong><em>${
+          chainMM === null ? "convert here, or withdraw to your wallet"
+            : `${formatNumber(chainMM)} $MM already in your wallet`}</em></span>
       </div>
       <div class="drawer-section-label">Treasury exchange</div>
       <div class="bank-rate-card">
         <span><small>Bring to the treasury</small><strong>100 $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
       </div>
       <div class="hud-bank-actions">
-        <button data-action="bank-in" ${store.state.mmHoldings < 100 || converted > store.issuanceHeadroom() ? "disabled" : ""}><span>Convert 100 $MM</span><small>${converted > store.issuanceHeadroom() ? "Treasury limit reached" : `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`}</small></button>
+        <button data-action="bank-in" ${store.state.mmHoldings < 100 || converted > store.issuanceHeadroom() ? "disabled" : ""}><span>Convert 100 $MM</span><small>${
+          store.state.mmHoldings < 100
+            // SAY WHY. This read "Receive 9,800 MERCS" while sitting dead, so a player
+            // with nothing to convert was shown a price and no reason they could not take
+            // it. $MM is earned, never bought — the way in is the weekly share.
+            ? `You hold ${formatNumber(store.state.mmHoldings)} — 100 needed. $MM is earned: claim your weekly share.`
+            : converted > store.issuanceHeadroom()
+              ? "Treasury limit reached"
+              : `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`}</small></button>
         <button class="secondary" data-action="bank-out" ${purse() < 1_000 || capital <= 0 || returned <= 0 ? "disabled" : ""}><span>Return 1,000 ${CURRENCY_CODE}</span><small>${capital > 0 ? `Up to ${formatNumber(capital)} $MM capital available` : "No deposited capital"}</small></button>
       </div>
       <div class="bank-mini-ledger">
@@ -2526,7 +2604,9 @@ function bankDeskMarkup(): string {
         <span><small>Issuance room</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></span>
         <span><small>1,000 ${CURRENCY_CODE} returns</small><strong>${formatNumber(returned)} $MM</strong></span>
       </div>
-      <p class="bank-boundary">Prototype exchange only: no blockchain transfer, no withdrawal, no redemption, and no promise of profit. Every balance on this screen is part of the game and stays inside it.</p>
+      <p class="bank-boundary">MERCS stay in the game. $MM you have earned can be withdrawn to
+        your Solana wallet from the Exchange, and is earned in play — never bought. Nothing here is
+        a deposit, a claim, or a promise of profit or price.</p>
       <button class="drawer-link-button" data-action="tab" data-target="trade">Open the full Exchange <span aria-hidden="true">→</span></button>
     </section>`;
 }
@@ -2799,17 +2879,60 @@ function renderQuickBar(): void {
 }
 
 
-/** TOP — only presence and the two balances that change moment to moment. */
+/**
+ * TOP — presence, the balances, and a way into everything.
+ *
+ * The balances are BUTTONS now. Both were inert readouts, while the bank that converts one
+ * into the other sat third in a stacked tab behind the orders board and the makers'
+ * market: the number was on screen and the thing you do with it was four interactions away.
+ *
+ * The $MM pill also shows what the WALLET holds, which the game could not see at all —
+ * /api/chain/balance was built on the authority and called by no client code. Two figures,
+ * labelled, because they are genuinely different things: `earned` is the in-game balance
+ * the bank converts and the epoch pays; `wallet` is real Token-2022 $MM on mainnet. $MM is
+ * earned, never bought, so the wallet figure is where withdrawals LAND, not a purse the
+ * game can spend from.
+ */
 function renderVitals(): void {
   const node = document.querySelector<HTMLElement>("#hudVitals");
   if (!node) return;
+  const wallet = chainMM === null ? "" :
+    `<em class="mm-onchain" title="Real $MM in your Solana wallet">${formatNumber(chainMM)} in wallet</em>`;
   node.innerHTML = `
-    <div class="hud-balance-pill merc-balance" title="Merc Dollars — in-game operating balance">
+    <button class="hud-balance-pill merc-balance" data-action="goto" data-panel="marketPanel"
+      title="Merc Dollars — what you trade with. Opens the market.">
       <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>MERCS</small><strong>${formatNumber(purse())}</strong></span>
-    </div>
-    <div class="hud-balance-pill mm-balance" title="$MM — internal prototype balance">
-      <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong></span>
-    </div>`;
+    </button>
+    <button class="hud-balance-pill mm-balance" data-action="goto" data-panel="marketPanel"
+      title="$MM you have earned in game. Opens the Government Bank, where it converts to MERCS.">
+      <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM earned</small><strong>${formatNumber(store.state.mmHoldings)}</strong>${wallet}</span>
+    </button>`;
+}
+
+/**
+ * The six things a maker actually needs, one press each.
+ *
+ * Every one of these existed and every one was two or three interactions deep: open the
+ * sheet, pick the right tab of four, then scroll past whatever else that tab stacks above
+ * it. Naming them on screen is the difference between a game with these features and a
+ * game where a player can find them.
+ */
+const QUICK_ACCESS: ReadonlyArray<{ panel: string; icon: UiIconName; label: string; hint: string }> = [
+  { panel: "marketPanel", icon: "bank", label: "Bank", hint: "Convert $MM to MERCS, and back" },
+  { panel: "businessPanel", icon: "business", label: "Business", hint: "Your enterprise, rate, costs and takings" },
+  { panel: "businessPanel", icon: "property", label: "Products", hint: "What you make, and what it sells for" },
+  { panel: "contractsPanel", icon: "rank", label: "Paid tasks", hint: "City Hall and household orders" },
+  { panel: "makerMarketPanel", icon: "network", label: "Marketplace", hint: "Buy and sell with other Mercedonians" },
+  { panel: "marketPanel", icon: "world", label: "Goods", hint: "The district's prices" },
+];
+
+function renderQuickAccess(): void {
+  const node = document.querySelector<HTMLElement>("#quickAccess");
+  if (!node) return;
+  node.innerHTML = QUICK_ACCESS.map((entry) => `
+    <button data-action="goto" data-panel="${entry.panel}" title="${escapeMarkup(entry.hint)}">
+      <i>${uiIcon(entry.icon)}</i><span>${escapeMarkup(entry.label)}</span>
+    </button>`).join("");
 }
 
 /**
@@ -3149,6 +3272,7 @@ function renderAll(): void {
   renderHeader();
   renderWalletSlot();
   renderVitals();
+  renderQuickAccess();
   renderBusinessPanel();
   renderWorldStrip();
   renderCounterPrompt();
@@ -3658,6 +3782,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "travel") travelTo(button.dataset.island ?? "");
   else if (action === "interior") openInterior();
   else if (action === "tab") switchTab(button.dataset.target ?? "guide");
+  else if (action === "goto") gotoPanel(button.dataset.panel ?? "");
   else if (action === "walk-plaza") world.walkTo(0, 0);
   else if (action === "business-filter") {
     activeBusinessStage = button.dataset.filter as "Recommended" | BusinessStage;

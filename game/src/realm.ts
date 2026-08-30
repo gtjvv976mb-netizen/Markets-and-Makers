@@ -278,6 +278,28 @@ export async function fetchHoldings(): Promise<
   }
 }
 
+/**
+ * The real $MM this wallet holds on Solana.
+ *
+ * The authority has served this since the chain layer went in and NO client code has ever
+ * called it, so a player's actual token balance was invisible inside the game that pays it
+ * out. Read-only and best-effort: null when there is no wallet, no chain configured, or the
+ * RPC is unhappy, and the HUD simply omits the figure rather than showing a wrong zero.
+ */
+export async function fetchChainMM(owner: string): Promise<number | null> {
+  const base = serverBase();
+  if (!base || !owner) return null;
+  try {
+    const response = await fetch(`${base}/api/chain/balance?owner=${encodeURIComponent(owner)}`,
+      { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    const payload = await response.json() as { uiAmount?: number };
+    return typeof payload.uiAmount === "number" ? payload.uiAmount : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The island's open listings, cheapest first. Public: readable before you sign in. */
 export async function fetchMarketBook(islandId: string, itemKey?: string): Promise<MarketListing[] | null> {
   if (isDemo()) return null;
