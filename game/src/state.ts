@@ -1874,6 +1874,115 @@ export class GameStore {
 
   upgradeCeiling(): number { return this.state.chartered ? MAX_UPGRADE_LEVEL : 3; }
 
+  /** "1 Material Crate" but "3 Crates" — the rule purchaseUpgrade's bill already uses. */
+  private countedResource(key: ResourceKey, amount: number): string {
+    return `${amount} ${amount === 1 ? RESOURCES[key].name : RESOURCES[key].short}`;
+  }
+
+  /**
+   * What to actually DO in the exchange, in order, with the numbers filled in.
+   *
+   * The Exchange opened on a central bank: money supply, room to issue, treasury depth,
+   * civic wage bill, contribution share — roughly two and a half thousand characters of
+   * monetary policy before the four rows a player can press. Every number on the screen
+   * was true and none of them answered "what do I do here". This does.
+   *
+   * Each entry is a real, currently-available action with its own price attached, so the
+   * panel can render it as a button rather than as advice the player has to translate.
+   * Ordered by what earns or unblocks the most, and it says so plainly when there is
+   * nothing worth doing — an empty list is an answer too.
+   */
+  marketAdvice(): Array<{ kind: "order" | "sell" | "buy" | "idle"; text: string; detail: string;
+                          resource?: ResourceKey; quantity?: number }> {
+    const advice: Array<{ kind: "order" | "sell" | "buy" | "idle"; text: string; detail: string;
+                          resource?: ResourceKey; quantity?: number }> = [];
+    if (!this.state.license || !this.state.buildingPlaced) {
+      advice.push({ kind: "idle", text: "Lease a plot and choose a trade first",
+        detail: "The exchange prices what your business makes and needs; until you have one there is nothing here for you." });
+      return advice;
+    }
+
+    // 1. A named buyer's order, which is worth several times dumping stock on the city.
+    const active = this.state.activeContract;
+    if (active) {
+      const short = Math.max(0, active.quantity - this.state.inventory[active.resource]);
+      advice.push(short > 0
+        ? { kind: "buy", resource: active.resource, quantity: short,
+            text: `Buy ${this.countedResource(active.resource, short)} to finish your order`,
+            detail: `${active.buyerName} pays ${active.grossReward} ${CURRENCY_CODE} once you hold ${active.quantity}. Buying the shortfall costs ${short * this.marketBuyPrice(active.resource)} ${CURRENCY_CODE}.` }
+        : { kind: "order", text: `Deliver your order to ${active.buyerName}`,
+            detail: `${active.quantity} ${RESOURCES[active.resource].short} is ready. It pays ${active.grossReward} ${CURRENCY_CODE} — several times what the same stock fetches loose.` });
+    } else {
+      // Only an order they could actually begin. Leading with "take this 516 MERCS order"
+      // when the shelf holds none of it is a number, not an instruction — and it pushed the
+      // things they COULD do off the card.
+      const best = this.contractOffers()
+        .filter((offer) => this.state.inventory[offer.resource] >= Math.ceil(offer.quantity / 2))
+        .sort((a, b) => b.grossReward - a.grossReward)[0];
+      if (best) {
+        advice.push({ kind: "order",
+          text: `Take ${best.buyerName}'s order — ${best.grossReward} ${CURRENCY_CODE}`,
+          detail: `${best.quantity} ${RESOURCES[best.resource].short} and you already hold ${this.state.inventory[best.resource]}. An order pays far more than selling the same goods loose.` });
+      }
+    }
+
+    // 2. Finished goods sitting on the shelf earn nothing there.
+    const output = Object.keys(BUSINESS[this.state.license].output) as ResourceKey[];
+    for (const key of output) {
+      const held = this.state.inventory[key];
+      if (held <= 0) continue;
+      const gross = this.demandSaleGross(key, held).gross;
+      if (gross <= 0) continue;
+      advice.push({ kind: "sell", resource: key, quantity: held,
+        text: `Sell ${this.countedResource(key, held)} · about ${gross} ${CURRENCY_CODE}`,
+        detail: `The district's appetite fades as you sell, so the first units fetch the most. ${this.procurementRemaining(key)} left at full price today.` });
+    }
+
+    // 3. What the next machine is waiting on. shoppingList already knows.
+    for (const key of this.shoppingList()) {
+      const needed = this.upgradeShortfall(key);
+      if (needed <= 0) continue;
+      const next = this.cheapestNextUpgrade();
+      advice.push({ kind: "buy", resource: key, quantity: needed,
+        text: `Buy ${this.countedResource(key, needed)} · ${needed * this.marketBuyPrice(key)} ${CURRENCY_CODE}`,
+        detail: next
+          ? `${UPGRADE_NAMES[next.key].name} level ${next.level} needs ${needed} more. Drag it onto your floor from the Build tray once you have them.`
+          : `Your next machine needs ${needed} more.` });
+    }
+
+    if (!advice.length) {
+      advice.push({ kind: "idle", text: "Nothing needs buying or selling right now",
+        detail: "Your shelves are clear, your machines are fed and no order is waiting. Let the line run and come back when there is stock to move." });
+    }
+    return advice.slice(0, 4);
+  }
+
+  /**
+   * The next machine a maker is most likely to actually install: the cheapest one open
+   * to them. Advice built on the DEAREST upgrade told a new greenhouse to buy 3 Parts,
+   * 2 Equipment and 2 Modules — 432 MERCS of shopping for a level they were nowhere near,
+   * while the level-1 crate and part sitting in front of them went unmentioned.
+   */
+  private cheapestNextUpgrade(): { key: UpgradeKey; level: number } | null {
+    let best: { key: UpgradeKey; level: number; cost: number } | null = null;
+    for (const station of Object.keys(UPGRADE_NAMES) as UpgradeKey[]) {
+      const next = this.state.upgrades[station] + 1;
+      if (next > this.upgradeCeiling()) continue;
+      const cost = UPGRADE_COSTS[next]?.mercDollars ?? Infinity;
+      if (!best || cost < best.cost) best = { key: station, level: next, cost };
+    }
+    return best ? { key: best.key, level: best.level } : null;
+  }
+
+  /** How many more of `key` that next machine still wants. */
+  private upgradeShortfall(key: ResourceKey): number {
+    if (!this.state.buildingPlaced) return 0;
+    const next = this.cheapestNextUpgrade();
+    if (!next) return 0;
+    const wanted = UPGRADE_COSTS[next.level]?.resources[key] ?? 0;
+    return Math.max(0, wanted - this.state.inventory[key]);
+  }
+
   /**
    * Everything this business needs and does not have — not just what a CYCLE consumes.
    *

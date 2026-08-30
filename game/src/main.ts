@@ -1356,6 +1356,29 @@ function districtBoardMarkup(): string {
   </section>`;
 }
 
+/**
+ * The market itself: the filter, the legend and the tradeable rows.
+ *
+ * Lifted out of the panel body so it can be rendered FIRST. It used to sit eighth, under
+ * the bank desk, the withdrawal desk, the contribution board and the $MM sinks — the only
+ * part of the exchange a player can press, behind everything they cannot.
+ */
+function marketListMarkup(neededKeys: ResourceKey[], visibleKeys: ResourceKey[]): string {
+  return `
+    <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
+    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${CURRENCY_CODE}</span><span>Trade</span></div>
+    <div class="card-list market-list">
+      ${visibleKeys.map((key) => {
+        const resource = RESOURCES[key];
+        const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
+        const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
+        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="errand-buy" data-resource="${key}" ${store.errand() ? "disabled" : ""}>${store.errand() ? "Hands full" : "Order 1"}</button><span class="market-auto" title="Mercedonians and the trades below you buy this as they need it">bought by demand</span></div></div>`;
+      }).join("")}
+      ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
+    </div>
+  `;
+}
+
 function renderMarket(): void {
   const confidence = store.consumerConfidenceIndex();
   const priceIndex = store.marketPriceIndex();
@@ -1369,8 +1392,36 @@ function renderMarket(): void {
     : marketFilter === "owned"
       ? allKeys.filter((key) => store.state.inventory[key] > 0)
       : allKeys;
+  // WHAT TO DO, BEFORE WHAT TO KNOW.
+  //
+  // The exchange opened on a central bank — money supply, room to issue, treasury depth,
+  // civic wage bill, contribution share — and the four rows a player can actually press
+  // were the eighth section down, past roughly 2,500 characters of monetary policy. Every
+  // number was true and none of them answered "what do I do here". Each line below is a
+  // real action at today's price with its own button; store.marketAdvice picks them.
+  const advice = store.marketAdvice();
+  const adviceMarkup = `
+    <section class="market-advice">
+      <div class="section-title">What to do here</div>
+      ${advice.map((entry) => {
+        const action = entry.kind === "sell" && entry.resource
+          ? `<button data-action="sell-stock" data-resource="${entry.resource}" data-quantity="${entry.quantity ?? 1}">Sell</button>`
+          : entry.kind === "buy" && entry.resource
+            ? `<button data-action="quick-buy" data-resource="${entry.resource}" data-quantity="${entry.quantity ?? 1}">Buy</button>`
+            : entry.kind === "order"
+              ? `<button data-action="tab" data-target="trade">Orders</button>`
+              : "";
+        return `<article class="advice-row advice-${entry.kind}">
+          <div><strong>${escapeMarkup(entry.text)}</strong><small>${escapeMarkup(entry.detail)}</small></div>
+          ${action}
+        </article>`;
+      }).join("")}
+    </section>`;
+
   element("#marketPanel").innerHTML = `
     <h2>Buy &amp; sell</h2>
+    ${adviceMarkup}
+    ${marketListMarkup(neededKeys, visibleKeys)}
     <details class="journey-details"><summary>Market conditions</summary>
       <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
     </details>
@@ -1459,17 +1510,6 @@ function renderMarket(): void {
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
     ${districtBoardMarkup()}
-    <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
-    <div class="market-legend"><span>Item &amp; economic role</span><span>Local quote · ${CURRENCY_CODE}</span><span>Trade</span></div>
-    <div class="card-list market-list">
-      ${visibleKeys.map((key) => {
-        const resource = RESOURCES[key];
-        const pressure = Math.round((store.state.marketPressure[key] - 1) * 100);
-        const trend = pressure > 4 ? "scarce" : pressure < -4 ? "surplus" : "stable";
-        return `<div class="market-row" style="--resource-color:${resource.color}"><i>${resource.icon}</i><div class="market-name"><strong>${resource.name}</strong><small>${resource.tier} · ${resource.buyer === "citizens" ? "Households" : "Civic"} ${store.procurementRemaining(key)}/${store.dailyQuota(key)} at full price</small></div><div class="market-quote"><strong>${store.marketBuyPrice(key)} ${CURRENCY_CODE} <small>buy</small></strong><span>${store.marketSellPrice(key)} ${CURRENCY_CODE} sell · hold ${store.state.inventory[key]}</span><em class="${trend}">${pressure > 0 ? "+" : ""}${pressure}% ${trend}</em></div><div class="market-actions"><button data-action="errand-buy" data-resource="${key}" ${store.errand() ? "disabled" : ""}>${store.errand() ? "Hands full" : "Order 1"}</button><span class="market-auto" title="Mercedonians and the trades below you buy this as they need it">bought by demand</span></div></div>`;
-      }).join("")}
-      ${visibleKeys.length ? "" : `<div class="empty-state"><i>⇄</i><strong>No goods in this view</strong><p>${marketFilter === "needed" ? "Choose a business license to reveal its required inputs." : "Produce or buy something to build your stock."}</p><button data-action="market-filter" data-filter="all">Show all goods</button></div>`}
-    </div>
     <div class="section-title">Ledger health</div>
     <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonian spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Payroll returned to Mercedonians</small><strong>${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
@@ -1923,7 +1963,8 @@ function renderInterior(): void {
                 Array.from({ length: ceiling }, (_, i) => `<b class="${i < owned ? "on" : ""}"></b>`).join("")
               }</span>
               <span class="ifr-meta">${owned === 0 ? `${formatNumber(UPGRADE_COSTS[1]!.mercDollars)} ${CURRENCY_CODE}${
-                Object.entries(UPGRADE_COSTS[1]!.resources).map(([r, n]) => ` + ${n} ${RESOURCES[r as ResourceKey].short}`).join("")
+                Object.entries(UPGRADE_COSTS[1]!.resources).map(([r, n]) =>
+                  ` + ${n} ${n === 1 ? RESOURCES[r as ResourceKey].name : RESOURCES[r as ResourceKey].short}`).join("")
               } \u00b7 buy & place` : "Drag to move"}</span>
             </button>
             <button class="interior-move" data-action="interior-turn" data-upgrade="${key}"
@@ -3413,6 +3454,15 @@ document.body.addEventListener("click", (event) => {
   else if (action === "collect-job") report(store.collectJob());
   else if (action === "maintain") report(store.maintainBusiness());
   else if (action === "quick-buy") report(store.buyResource(button.dataset.resource as ResourceKey, Number(button.dataset.quantity ?? 1)));
+  else if (action === "sell-stock") {
+    // The exchange's "what to do" card offers to sell the whole shelf at once, so it goes
+    // through the same shared-world settlement a single sale does rather than the local
+    // simulation — otherwise the one-click version would quietly be the offline one.
+    const key = button.dataset.resource as ResourceKey;
+    const quantity = Math.max(1, Number(button.dataset.quantity ?? 1));
+    void tradeThroughRealm("sell", key, quantity)
+      .then((handled) => { if (!handled) report(store.sellResource(key, quantity)); });
+  }
   else if (action === "errand-buy") {
     const key = button.dataset.resource as ResourceKey;
     const spec = RESOURCES[key];

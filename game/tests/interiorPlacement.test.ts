@@ -245,3 +245,80 @@ describe("the market's 'Needed now' shows what the game just told you to buy", (
     expect(bought.every((entry) => entry.ok)).toBe(true);
   });
 });
+
+describe("the exchange says what to do, not just what is true", () => {
+  /**
+   * The Exchange opened on a central bank — money supply, room to issue, treasury depth,
+   * contribution share — with the four rows a player can press sitting eighth, past ~2,500
+   * characters of monetary policy. Every number was correct and none answered "what do I
+   * do here". These check the answer is specific, priced, and achievable.
+   */
+  it("tells an unbuilt maker to get a business first, and nothing else", () => {
+    const store = new GameStore();
+    const advice = store.marketAdvice();
+    console.log(`NO BUSINESS: ${JSON.stringify(advice.map(a => a.text))}`);
+    expect(advice).toHaveLength(1);
+    expect(advice[0]!.kind).toBe("idle");
+    expect(advice[0]!.text).toMatch(/lease a plot/i);
+  });
+
+  it("names the CHEAPEST next machine's shopping, not the dearest", () => {
+    // Built on the dearest upgrade this told a brand-new greenhouse to buy 3 Parts,
+    // 2 Equipment and 2 Modules — 432 MERCS for a level it was nowhere near — while the
+    // level-1 crate and part in front of it went unmentioned.
+    const store = openBusiness();
+    for (const key of Object.keys(UPGRADE_COSTS[1]!.resources)) store.state.inventory[key as ResourceKey] = 0;
+    // One machine pushed far ahead, so "dearest" and "cheapest" genuinely disagree.
+    store.state.upgrades.appeal = 3;
+    const buys = store.marketAdvice().filter((a) => a.kind === "buy");
+    console.log(`SHOPPING: ${JSON.stringify(buys.map(b => b.text))}`);
+    const named = buys.map((b) => b.resource);
+    for (const key of Object.keys(UPGRADE_COSTS[1]!.resources)) expect(named).toContain(key);
+    // Nothing from the level-4 bill should appear while a level-1 is still open.
+    expect(named).not.toContain("equipment");
+  });
+
+  it("puts a price and a quantity on every action", () => {
+    const store = openBusiness();
+    for (const key of Object.keys(UPGRADE_COSTS[1]!.resources)) store.state.inventory[key as ResourceKey] = 0;
+    for (const entry of store.marketAdvice()) {
+      if (entry.kind === "idle") continue;
+      console.log(`ACTIONABLE: "${entry.text}"`);
+      expect(entry.text, "every line names a number").toMatch(/\d/);
+      expect(entry.detail.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("offers to sell finished goods that are sitting on the shelf", () => {
+    const store = openBusiness();
+    store.state.inventory.food = 40;
+    const sell = store.marketAdvice().find((a) => a.kind === "sell");
+    console.log(`SELL LINE: ${sell?.text}`);
+    expect(sell).toBeTruthy();
+    expect(sell!.resource).toBe("food");
+    expect(sell!.quantity).toBe(40);
+  });
+
+  it("does not push an order the maker cannot begin to fill", () => {
+    // "Take this 516 MERCS order" while the shelf holds 0 of 46 is a number, not an
+    // instruction, and it pushed everything actionable off the card.
+    const store = openBusiness();
+    for (const key of Object.keys(store.state.inventory) as ResourceKey[]) store.state.inventory[key] = 0;
+    const orders = store.marketAdvice().filter((a) => a.kind === "order");
+    console.log(`EMPTY SHELVES, order lines: ${orders.length}`);
+    expect(orders).toHaveLength(0);
+  });
+
+  it("says plainly when there is nothing to do", () => {
+    const store = openBusiness();
+    for (const key of Object.keys(store.state.inventory) as ResourceKey[]) store.state.inventory[key] = 0;
+    // Every machine maxed, so no shopping is outstanding either.
+    for (const key of Object.keys(store.state.upgrades) as Array<keyof typeof store.state.upgrades>) {
+      store.state.upgrades[key] = store.upgradeCeiling();
+    }
+    const advice = store.marketAdvice();
+    console.log(`NOTHING TO DO: ${JSON.stringify(advice.map(a => a.text))}`);
+    expect(advice).toHaveLength(1);
+    expect(advice[0]!.kind).toBe("idle");
+  });
+});
