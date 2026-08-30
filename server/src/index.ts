@@ -18,6 +18,7 @@ import { claimEpoch, epochStanding, islandBoard, EconomyError } from "./economy.
 import { PayoutError, payoutsOf, requestPayout, runPayoutWorker, withdrawableOf } from "./payout.js";
 import { redact } from "./treasury.js";
 import { MAX_SAVE_BYTES, readSave, SaveError, writeSave } from "./save.js";
+import { treasuryReport } from "./watch.js";
 import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
@@ -131,10 +132,16 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === "GET" && url.pathname === "/health") {
       const database = await databaseHealth();
+      // The treasury's solvency, on the URL a monitor is already watching. A slow drain
+      // never errors and never 500s, so without this the health check stays green the
+      // whole way down and the first person to notice is a player who cannot get paid.
+      const treasury = database === "unavailable" ? null : await treasuryReport().catch(() => null);
       json(res, database === "unavailable" ? 503 : 200, {
-        status: database === "unavailable" ? "degraded" : "ok",
+        status: database === "unavailable" ? "degraded"
+          : treasury?.status === "critical" ? "treasury-critical" : "ok",
         service: "markets-and-makers-authority",
         database,
+        treasury: treasury ?? undefined,
         realtime: "ready",
         chain: config.heliusApiKey && config.tokenMint ? "read-only-ready" : "not-configured",
         // Which build is actually answering. Without this the only way to tell whether a
@@ -733,6 +740,9 @@ server.listen(config.port, "0.0.0.0", async () => {
             console.log(`world tick: ${report.businesses} businesses, ${report.produced} cycles, ${report.sold} sold for ${report.gross}`);
           }
         })
+        // Sampled on the tick as well as on /health, so the drain window is filled by the
+        // world running rather than only by somebody watching it.
+        .then(() => treasuryReport())
         .then(() => writeDispatch())
         .then((dispatch) => {
           // A missing dispatch is unremarkable: no key, or the last one is still recent.

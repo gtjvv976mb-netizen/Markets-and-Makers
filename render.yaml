@@ -68,6 +68,20 @@ services:
         value: 0
       - key: MM_PAYOUTS_MAINNET
         value: 0
+      # --- Declared here so they SURVIVE. Both are dashboard-provided (sync: false keeps
+      # the value out of git); the point of naming them is that a blueprint re-apply, a
+      # environment rebuild or a new region does not silently come up without them.
+      #
+      # MM_ADMIN_KEY gates every operator route. Unset means those routes are CLOSED, not
+      # open — but it also means the kill switch is unavailable in the incident where it
+      # is wanted, which is the whole reason it must not go missing by accident.
+      - key: MM_ADMIN_KEY
+        sync: false
+      # The cabinet is an LLM: without this key the government still runs on its standing
+      # formula, but it stops REASONING about the treasury — no directives, no addresses,
+      # and the wage and works dials sit wherever they were last smoothed to.
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 databases:
   - name: markets-and-makers-db

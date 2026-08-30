@@ -39,4 +39,9 @@ alter table business
 
 -- Businesses that predate this migration have never been billed. Starting their meter at
 -- now() rather than at their creation means the change bills nobody for the past.
+--
+-- This is a DATA statement, not DDL, so it is not self-idempotent the way the columns above
+-- are: running it again would waive another day of everybody's charges. It is safe only
+-- because migrate.ts records each file and never replays it. Do not add a data statement to
+-- a migration without checking that is still true.
 update business set charges_settled_at = now() where charges_settled_at < now() - interval '1 day';

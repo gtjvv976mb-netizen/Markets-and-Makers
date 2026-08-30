@@ -37,6 +37,27 @@ jobs:
     defaults:
       run:
         working-directory: server
+    # Without a database, 148 of the server's 297 tests are describe.skip — every economy,
+    # tick, world, policy, market, settlement and simulation suite. `npm test` went green
+    # having run barely half of itself, and the half it skipped is the half that decides
+    # what players are paid. The database name contains "test" so live-database.ts's guard
+    # recognises it as disposable.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: markets
+          POSTGRES_PASSWORD: markets
+          POSTGRES_DB: markets_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://markets:markets@127.0.0.1:5432/markets_test
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
@@ -45,5 +66,17 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
+      # The suites read a schema they do not create.
+      - run: npm run migrate
       - run: npm test
+      # A run that quietly skipped the database suites would still be green, which is the
+      # exact failure this job just fixed. Fail loudly instead if the count collapses.
+      - name: Assert the database suites actually ran
+        run: |
+          COUNT=$(npx vitest run --reporter=json --outputFile=/tmp/r.json >/dev/null 2>&1;                   node -e "const r=require('/tmp/r.json');console.log(r.numTotalTests-r.numPendingTests)")
+          echo "tests actually executed: $COUNT"
+          if [ "$COUNT" -lt 250 ]; then
+            echo "::error::Only $COUNT tests ran — the database suites were skipped."
+            exit 1
+          fi
       - run: npm run build
