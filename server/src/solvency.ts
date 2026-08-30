@@ -23,7 +23,7 @@ import { PublicKey } from "@solana/web3.js";
 import { config } from "./config.js";
 import { pool } from "./database.js";
 import {
-  connection, parseTreasuryKey, resolveMint, treasuryTokenUnits, type MintFacts,
+  connection, parseTreasuryKey, resolveMint, treasuryLamports, treasuryTokenUnits, type MintFacts,
 } from "./treasury.js";
 
 /** How long a sampled on-chain balance is trusted before it is read again. */
@@ -36,15 +36,26 @@ export interface SolvencyReport {
   outstanding: number;
   /** held - outstanding. Null when the balance is unknown. */
   headroom: number | null;
-  status: "ok" | "thin" | "insolvent" | "unknown" | "off";
+  /**
+   * The treasury's SOL, in lamports. The OTHER way payouts stop dead: every transfer pays
+   * a signature fee and a first-time recipient's token account costs ~2,040,000 lamports of
+   * rent, both from this wallet. The worker refuses to sign below MIN_TREASURY_LAMPORTS
+   * rather than failing every payout five times — so an empty tank is a silent halt unless
+   * something reports it.
+   */
+  lamports: number | null;
+  status: "ok" | "thin" | "insolvent" | "unknown" | "off" | "no-fees";
 }
 
-let cached: { at: number; held: number | null } = { at: 0, held: null };
+/** Enough for a signature and one first-time recipient's rent, with room to spare. */
+const LOW_LAMPORTS = 20_000_000;
+
+let cached: { at: number; held: number | null; lamports: number | null } = { at: 0, held: null, lamports: null };
 let mintFacts: MintFacts | null = null;
 
 /** Reset the sampler. Tests only. */
 export function forgetSolvencySample(): void {
-  cached = { at: 0, held: null };
+  cached = { at: 0, held: null, lamports: null };
   mintFacts = null;
 }
 
@@ -69,30 +80,39 @@ export async function outstandingLiability(realmId: string): Promise<number> {
  * emission — an RPC hiccup must not silently halt the economy, and it must not silently
  * license unlimited issuance either. Callers decide which way to fail; see epochCeiling.
  */
-async function heldOnChain(now: number): Promise<number | null> {
-  if (!config.tokenMint || !config.payoutTreasurySecret) return null;
-  if (now - cached.at < BALANCE_TTL_MS) return cached.held;
+async function heldOnChain(now: number): Promise<{ held: number | null; lamports: number | null }> {
+  if (!config.tokenMint || !config.payoutTreasurySecret) return { held: null, lamports: null };
+  if (now - cached.at < BALANCE_TTL_MS) return { held: cached.held, lamports: cached.lamports };
   try {
     const conn = connection();
     if (!mintFacts) mintFacts = await resolveMint(conn, config.tokenMint);
     const owner = parseTreasuryKey(config.payoutTreasurySecret).publicKey;
     const held = await treasuryTokenUnits(conn, mintFacts, owner);
-    cached = { at: now, held };
-    return held;
+    const lamports = await treasuryLamports(conn, owner);
+    cached = { at: now, held, lamports };
+    return { held, lamports };
   } catch {
-    cached = { at: now, held: null };
-    return null;
+    cached = { at: now, held: null, lamports: null };
+    return { held: null, lamports: null };
   }
 }
 
 export async function solvency(realmId: string, now = Date.now()): Promise<SolvencyReport> {
   const outstanding = await outstandingLiability(realmId);
-  if (!config.payoutsEnabled) return { held: null, outstanding, headroom: null, status: "off" };
-  const held = await heldOnChain(now);
-  if (held === null) return { held: null, outstanding, headroom: null, status: "unknown" };
+  if (!config.payoutsEnabled) {
+    return { held: null, outstanding, headroom: null, lamports: null, status: "off" };
+  }
+  const { held, lamports } = await heldOnChain(now);
+  if (held === null) {
+    return { held: null, outstanding, headroom: null, lamports, status: "unknown" };
+  }
   const headroom = held - outstanding;
-  const status = headroom < 0 ? "insolvent" : headroom < outstanding * 0.2 ? "thin" : "ok";
-  return { held, outstanding, headroom, status };
+  // Out of SOL is reported ahead of a healthy token balance: a full vault the worker
+  // cannot pay a signature fee from is still a halt, and it looks like nothing is wrong.
+  const status = headroom < 0 ? "insolvent"
+    : lamports !== null && lamports < LOW_LAMPORTS ? "no-fees"
+    : headroom < outstanding * 0.2 ? "thin" : "ok";
+  return { held, outstanding, headroom, lamports, status };
 }
 
 /**

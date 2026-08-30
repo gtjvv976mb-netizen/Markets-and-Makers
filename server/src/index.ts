@@ -143,6 +143,7 @@ const server = createServer(async (req, res) => {
       json(res, database === "unavailable" ? 503 : 200, {
         status: database === "unavailable" ? "degraded"
           : backing?.status === "insolvent" ? "mm-insolvent"
+          : backing?.status === "no-fees" ? "mm-no-fees"
           : treasury?.status === "critical" ? "treasury-critical" : "ok",
         service: "markets-and-makers-authority",
         database,
@@ -169,7 +170,11 @@ const server = createServer(async (req, res) => {
         tickRate: 10,
         chainNetwork: config.solanaNetwork,
         tokenMint: config.tokenMint || null,
-        tokenMode: "read-only",
+        // Whether $MM can actually LEAVE the game. This was the string "read-only",
+        // hardcoded — so the one field a client, a monitor or an operator would read to
+        // answer "are withdrawals live?" said no for ever, including at the exact moment
+        // the flags were flipped and somebody needed to confirm they had taken.
+        tokenMode: config.payoutsEnabled ? "withdrawals-open" : "read-only",
         marketRoutes: config.marketRoutes ? "enabled" : "disabled",
         // Whether the authority is running the district itself. The client reads this
         // to decide whether to settle its own footfall or to render what the server has

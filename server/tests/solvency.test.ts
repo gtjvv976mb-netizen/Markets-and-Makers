@@ -100,6 +100,7 @@ suite("the realm cannot promise $MM it does not hold", () => {
       const report = await solvency(REALM);
       console.log(`PAYOUTS ON, no treasury key: status=${report.status} ceiling=${ceiling}`);
       expect(report.status).toBe("unknown");
+      expect(report.lamports).toBeNull();
       expect(ceiling).toBe(0);
     } finally {
       (config as { payoutsEnabled: boolean }).payoutsEnabled = previous;
