@@ -44,18 +44,29 @@ export interface SolvencyReport {
    * something reports it.
    */
   lamports: number | null;
+  /**
+   * The treasury's PUBLIC address, so an operator knows where to send SOL and $MM.
+   *
+   * A public key, and deliberately so: this wallet is identifiable on-chain the moment it
+   * signs its first payout, a token project's treasury address is ordinarily published for
+   * exactly the transparency reason, and the alternative is an operator who can see the
+   * tank is empty and cannot tell where to fill it. The SECRET never leaves the process —
+   * parseTreasuryKey returns only a Keypair and nothing here stringifies it back.
+   */
+  address: string | null;
   status: "ok" | "thin" | "insolvent" | "unknown" | "off" | "no-fees";
 }
 
 /** Enough for a signature and one first-time recipient's rent, with room to spare. */
 const LOW_LAMPORTS = 20_000_000;
 
-let cached: { at: number; held: number | null; lamports: number | null } = { at: 0, held: null, lamports: null };
+let cached: { at: number; held: number | null; lamports: number | null; address: string | null } =
+  { at: 0, held: null, lamports: null, address: null };
 let mintFacts: MintFacts | null = null;
 
 /** Reset the sampler. Tests only. */
 export function forgetSolvencySample(): void {
-  cached = { at: 0, held: null, lamports: null };
+  cached = { at: 0, held: null, lamports: null, address: null };
   mintFacts = null;
 }
 
@@ -80,31 +91,35 @@ export async function outstandingLiability(realmId: string): Promise<number> {
  * emission — an RPC hiccup must not silently halt the economy, and it must not silently
  * license unlimited issuance either. Callers decide which way to fail; see epochCeiling.
  */
-async function heldOnChain(now: number): Promise<{ held: number | null; lamports: number | null }> {
-  if (!config.tokenMint || !config.payoutTreasurySecret) return { held: null, lamports: null };
-  if (now - cached.at < BALANCE_TTL_MS) return { held: cached.held, lamports: cached.lamports };
+type Sample = { held: number | null; lamports: number | null; address: string | null };
+async function heldOnChain(now: number): Promise<Sample> {
+  if (!config.tokenMint || !config.payoutTreasurySecret) return { held: null, lamports: null, address: null };
+  if (now - cached.at < BALANCE_TTL_MS) {
+    return { held: cached.held, lamports: cached.lamports, address: cached.address };
+  }
   try {
     const conn = connection();
     if (!mintFacts) mintFacts = await resolveMint(conn, config.tokenMint);
     const owner = parseTreasuryKey(config.payoutTreasurySecret).publicKey;
+    const address = owner.toBase58();
     const held = await treasuryTokenUnits(conn, mintFacts, owner);
     const lamports = await treasuryLamports(conn, owner);
-    cached = { at: now, held, lamports };
-    return { held, lamports };
+    cached = { at: now, held, lamports, address };
+    return { held, lamports, address };
   } catch {
-    cached = { at: now, held: null, lamports: null };
-    return { held: null, lamports: null };
+    cached = { at: now, held: null, lamports: null, address: null };
+    return { held: null, lamports: null, address: null };
   }
 }
 
 export async function solvency(realmId: string, now = Date.now()): Promise<SolvencyReport> {
   const outstanding = await outstandingLiability(realmId);
   if (!config.payoutsEnabled) {
-    return { held: null, outstanding, headroom: null, lamports: null, status: "off" };
+    return { held: null, outstanding, headroom: null, lamports: null, address: null, status: "off" };
   }
-  const { held, lamports } = await heldOnChain(now);
+  const { held, lamports, address } = await heldOnChain(now);
   if (held === null) {
-    return { held: null, outstanding, headroom: null, lamports, status: "unknown" };
+    return { held: null, outstanding, headroom: null, lamports, address, status: "unknown" };
   }
   const headroom = held - outstanding;
   // Out of SOL is reported ahead of a healthy token balance: a full vault the worker
@@ -112,7 +127,7 @@ export async function solvency(realmId: string, now = Date.now()): Promise<Solve
   const status = headroom < 0 ? "insolvent"
     : lamports !== null && lamports < LOW_LAMPORTS ? "no-fees"
     : headroom < outstanding * 0.2 ? "thin" : "ok";
-  return { held, outstanding, headroom, lamports, status };
+  return { held, outstanding, headroom, lamports, address, status };
 }
 
 /**
