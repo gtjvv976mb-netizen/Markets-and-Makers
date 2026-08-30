@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { pool } from "./database.js";
 import { TREASURY_FLOOR } from "./minds.js";
+import { epochCeiling } from "./solvency.js";
 import { command } from "./market.js";
 import {
   CITIZEN_DEMAND_BUDGET, CIVIC_DEMAND_BUDGET, DEMAND_PRICE_FLOOR, DEMAND_TIER_WEIGHT, DEMAND_TRANCHE_DECAY,
@@ -437,7 +438,18 @@ export async function epochBudget(
   const reserveMM = Math.floor(mercDollars / MERC_DOLLARS_PER_MM);
   const rawEndowment = Math.max(Math.min(EPOCH_MM_FLOOR, remaining), Math.floor(remaining * EPOCH_EMISSION_RATE));
   const endowment = Math.min(rawEndowment, Math.max(0, EPOCH_MM_BUDGET - reserveMM));
-  return Math.min(EPOCH_MM_BUDGET, endowment + reserveMM);
+  const budget = Math.min(EPOCH_MM_BUDGET, endowment + reserveMM);
+
+  // AND NEVER MORE THAN THE TREASURY CAN ACTUALLY PAY.
+  //
+  // Every bound above this line is an in-game one: a constant pool, an emission rate, a
+  // ceiling. None of them has any idea what the treasury WALLET holds. That was harmless
+  // while $MM was a score; the moment withdrawals open it becomes a claim on a real
+  // Token-2022 balance, and a budget computed from constants can promise tokens that do
+  // not exist. epochCeiling returns Infinity while payouts are off, so nothing changes
+  // before launch.
+  const ceiling = await epochCeiling(realmId);
+  return Math.min(budget, ceiling);
 }
 
 /**

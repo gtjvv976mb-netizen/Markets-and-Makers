@@ -541,8 +541,13 @@ export const EPOCH_LENGTH_DAYS = 7;
  */
 export const EPOCH_EMISSION_RATE = 0.003;
 export const EPOCH_MM_FLOOR = 8_000;
-/** Kept as the display reference for the first epoch. */
-export const EPOCH_MM_BUDGET = 60_000;
+/**
+ * Mirrors server/src/catalogue.ts. The authority computes every real budget and the client
+ * reads it off the standing endpoint, so nothing here uses this — which is exactly why it
+ * had drifted to 60,000 while the authority emitted 75,000. An unused constant that
+ * disagrees with the server is a trap for whoever reaches for it next.
+ */
+export const EPOCH_MM_BUDGET = 75_000;
 
 /**
  * $MM must have somewhere to GO. Emission with no sink is pure sell pressure, which is

@@ -164,6 +164,29 @@ export async function treasuryLamports(connection: Connection, owner: PublicKey)
 }
 
 let cachedConnection: Connection | null = null;
+/**
+ * The treasury's own $MM, in WHOLE tokens, as the chain reports it.
+ *
+ * Read from the associated token account the payout worker actually spends from — the same
+ * derivation buildTransfer uses — so this is the balance that will really be there when a
+ * transfer is signed, not an approximation of it. Returns 0 when the account does not exist
+ * yet, which is the honest answer: an unfunded treasury holds nothing.
+ */
+export async function treasuryTokenUnits(
+  connection: Connection, mint: MintFacts, owner: PublicKey,
+): Promise<number> {
+  const ata = getAssociatedTokenAddressSync(mint.address, owner, false, mint.programId);
+  try {
+    const balance = await connection.getTokenAccountBalance(ata, "confirmed");
+    // uiAmount is a float and this is money; take the raw string and divide in integers.
+    const raw = BigInt(balance.value.amount);
+    return Number(raw / 10n ** BigInt(mint.decimals));
+  } catch {
+    // No account, or the RPC could not say. Both mean "do not assume there is money here".
+    return 0;
+  }
+}
+
 export function connection(): Connection {
   if (!cachedConnection) {
     // The Helius key routes through config like every other credential; with none set,

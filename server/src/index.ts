@@ -19,6 +19,7 @@ import { PayoutError, payoutsOf, requestPayout, runPayoutWorker, withdrawableOf 
 import { redact } from "./treasury.js";
 import { MAX_SAVE_BYTES, readSave, SaveError, writeSave } from "./save.js";
 import { treasuryReport } from "./watch.js";
+import { solvency } from "./solvency.js";
 import { pool } from "./database.js";
 import { buyFromCivic, sellToDistrict } from "./settlement.js";
 import { authenticate, bearerFrom, createChallenge, revokeSession, verifyChallenge, AuthError, type Principal } from "./auth.js";
@@ -136,12 +137,17 @@ const server = createServer(async (req, res) => {
       // never errors and never 500s, so without this the health check stays green the
       // whole way down and the first person to notice is a player who cannot get paid.
       const treasury = database === "unavailable" ? null : await treasuryReport().catch(() => null);
+      // Whether the realm can pay what it has promised in $MM. "off" until withdrawals
+      // open; after that this is the number that matters most on the whole endpoint.
+      const backing = database === "unavailable" ? null : await solvency(REALM_ID).catch(() => null);
       json(res, database === "unavailable" ? 503 : 200, {
         status: database === "unavailable" ? "degraded"
+          : backing?.status === "insolvent" ? "mm-insolvent"
           : treasury?.status === "critical" ? "treasury-critical" : "ok",
         service: "markets-and-makers-authority",
         database,
         treasury: treasury ?? undefined,
+        mmBacking: backing ?? undefined,
         realtime: "ready",
         chain: config.heliusApiKey && config.tokenMint ? "read-only-ready" : "not-configured",
         // Which build is actually answering. Without this the only way to tell whether a
