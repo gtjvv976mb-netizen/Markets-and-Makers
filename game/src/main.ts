@@ -1447,6 +1447,39 @@ function districtBoardMarkup(): string {
  * the bank desk, the withdrawal desk, the contribution board and the $MM sinks — the only
  * part of the exchange a player can press, behind everything they cannot.
  */
+/**
+ * What the treasury REALLY holds, read from the chain by the authority.
+ *
+ * This panel used to print BANK_TREASURY_MM — 50,000,000 — as the treasury behind $MM, and
+ * a collateral ratio of "10000% covered", both invented in the browser. Harmless while $MM
+ * was a score; the moment withdrawals opened on mainnet it was telling players that the
+ * backing behind a real token was fifty times the wallet's actual balance.
+ *
+ * Only the authority can read the wallet, so when it has not answered this says so rather
+ * than substituting a number. A dash is honest; 50,000,000 was not.
+ */
+function mmBackingMarkup(): string {
+  const mm = cityBooks?.books?.mm ?? null;
+  if (!mm || mm.status === "off") {
+    return `<div class="mm-backing off"><div><small>$MM backing</small><strong>Withdrawals closed</strong></div>
+      <span>$MM is earned in play and stays in the game for now.</span></div>`;
+  }
+  if (mm.held === null) {
+    return `<div class="mm-backing unknown"><div><small>$MM backing</small><strong>Not readable</strong></div>
+      <span>The authority could not read the treasury wallet just now.</span></div>`;
+  }
+  const owed = mm.outstanding;
+  const cover = owed > 0 ? Math.round((mm.held / owed) * 100) : null;
+  return `<div class="mm-backing ${mm.status}">
+    <div><small>Treasury holds</small><strong>${formatNumber(mm.held)} $MM</strong></div>
+    <div><small>Owed to makers</small><strong>${formatNumber(owed)} $MM</strong></div>
+    <div><small>Headroom</small><strong>${formatNumber(mm.headroom ?? 0)} $MM</strong></div>
+    <span>${owed === 0
+      ? "Every $MM earned so far has been withdrawn or none is owed yet. Real balance, read from Solana."
+      : `${cover}% of what makers are owed is held on Solana right now.`}</span>
+  </div>`;
+}
+
 function marketListMarkup(neededKeys: ResourceKey[], visibleKeys: ResourceKey[]): string {
   return `
     <div class="filter-strip market-filter" aria-label="Market inventory filter"><button class="${marketFilter === "all" ? "active" : ""}" data-action="market-filter" data-filter="all">All goods</button><button class="${marketFilter === "needed" ? "active" : ""}" data-action="market-filter" data-filter="needed">Needed now${neededKeys.length ? ` · ${neededKeys.length}` : ""}</button><button class="${marketFilter === "owned" ? "active" : ""}" data-action="market-filter" data-filter="owned">My stock</button></div>
@@ -1507,18 +1540,17 @@ function renderMarket(): void {
     ${adviceMarkup}
     ${marketListMarkup(neededKeys, visibleKeys)}
     <details class="journey-details"><summary>Market conditions</summary>
-      <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM cover</small><strong>${store.reserveBackingRatio().toFixed(1)}%</strong><span>${store.monetaryPolicyPhase()}</span></div></div>
+      <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM backing</small><strong>${cityBooks?.books?.mm?.held != null ? `${formatNumber(cityBooks.books.mm.held)} $MM` : "—"}</strong><span>${cityBooks?.books?.mm ? "held by the treasury on Solana" : "asking the authority"}</span></div></div>
     </details>
     <section class="bank-desk">
-      <div class="reserve-heading"><div><small>Government Bank</small><strong>Treasury &amp; exchange</strong></div><span>${Number.isFinite(store.collateralRatio()) ? Math.round(store.collateralRatio() * 100) : 100}% covered</span></div>
-      <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}. The $MM stays in the treasury, deepening the city's liquidity and paying Mercedonians. The bank only issues while it holds several times what it owes, which is what keeps the rate safe in a downturn.</p>
+      ${mmBackingMarkup()}
+      <div class="reserve-heading"><div><small>Government Bank</small><strong>Merc Dollar issuance</strong></div></div>
+      <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}. Bringing earned $MM to the bank issues Merc Dollars against it; the bank stops issuing when the city's own headroom runs out.</p>
       <div class="reserve-balance">
-        <div><small>Treasury</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
         <div><small>Money supply</small><strong>${formatNumber(store.mercDollarSupply())} ${CURRENCY_CODE}</strong></div>
         <div><small>Room to issue</small><strong>${formatNumber(store.issuanceHeadroom())} ${CURRENCY_CODE}</strong></div>
         <div><small>Issued this epoch</small><strong>${formatNumber(store.state.epochIssued)} ${CURRENCY_CODE}</strong></div>
         <div><small>Rate</small><strong>$1 = ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}</strong></div>
-        <div><small>Treasury depth</small><strong>${formatNumber(store.state.bankTreasuryMM)} $MM</strong></div>
         <div><small>Your capital here</small><strong>${formatNumber(store.withdrawableCapitalMM())} $MM</strong></div>
       </div>
       <div class="reserve-actions">
@@ -1595,7 +1627,11 @@ function renderMarket(): void {
     </section>
     ${districtBoardMarkup()}
     <div class="section-title">Ledger health</div>
-    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonian spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Payroll returned to Mercedonians</small><strong>${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>$MM accounted in game</small><strong>${formatNumber(store.totalMMInGameVaults())}</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
+    <div class="stat-grid"><div class="stat"><small>Civic treasury</small><strong>${formatNumber(store.state.governmentTreasury)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Mercedonian spending pool</small><strong>${formatNumber(store.state.citizenPool)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Payroll returned to Mercedonians</small><strong>${formatNumber(store.state.laborPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>Your tax paid</small><strong>${formatNumber(store.state.taxPaid)} ${CURRENCY_CODE}</strong></div><div class="stat"><small>$MM held by the treasury</small><strong>${
+      cityBooks?.books?.mm?.held != null ? formatNumber(cityBooks.books.mm.held) : "—"
+    }</strong></div><div class="stat"><small>$MM owed to makers</small><strong>${
+      cityBooks?.books?.mm ? formatNumber(cityBooks.books.mm.outstanding) : "—"
+    }</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
   `;
 }

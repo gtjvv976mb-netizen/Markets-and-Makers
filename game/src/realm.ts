@@ -338,7 +338,25 @@ export function cancelMarketListing(listingId: string): Promise<RealmOutcome<Mar
 // whether it was healthy, what it was spending, or what the AI government had decided to
 // do about it.
 
+/** What the authority reports about the REAL token behind $MM. Null before withdrawals open. */
+export interface MMBacking {
+  /** Whole $MM the treasury wallet holds on-chain. Null when it cannot be read. */
+  held: number | null;
+  /** Whole $MM players have claimed and not yet withdrawn — what the realm owes. */
+  outstanding: number;
+  headroom: number | null;
+  status: "ok" | "thin" | "insolvent" | "unknown" | "off" | "no-fees";
+}
+
 export interface CityBooks {
+  /**
+   * The real backing, read from the chain by the authority.
+   *
+   * The bank panel used to print BANK_TREASURY_MM — 50,000,000, a constant in this
+   * browser — as the treasury behind $MM. Only the authority can read the wallet, so this
+   * is the only honest source for it.
+   */
+  mm: MMBacking | null;
   treasury: number;
   citizensPurse: number;
   makersHolding: number;

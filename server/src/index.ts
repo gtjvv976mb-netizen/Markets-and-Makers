@@ -363,10 +363,22 @@ const server = createServer(async (req, res) => {
     // them, and it is the only way to see from outside that the world tick is running at
     // all — wages leaving the treasury and arriving in Mercedonian pockets is the pulse.
     if (req.method === "GET" && url.pathname === "/api/world/economy") {
+      // The REAL $MM backing, on the endpoint the client already polls.
+      //
+      // The bank panel printed a treasury of 50,000,000 $MM and "10000% covered" from
+      // BANK_TREASURY_MM, a constant in the browser. That was a harmless fiction while $MM
+      // was a score. It stopped being harmless the moment withdrawals opened on mainnet:
+      // the game was telling players the treasury behind a real token was fifty times what
+      // the wallet actually holds. A client cannot know this number — only the authority
+      // can read the chain — so the authority has to send it.
+      const mm = await solvency(REALM_ID).catch(() => null);
       json(res, 200, withMercCurrency({
         realmName: REALM_NAME,
         worldTick: config.worldTick ? "server" : "client",
         measuredAt: new Date().toISOString(),
+        // Deliberately not the treasury's ADDRESS or its SOL: this is a public endpoint and
+        // players need the backing, not the operator's wallet detail.
+        mm: mm ? { held: mm.held, outstanding: mm.outstanding, headroom: mm.headroom, status: mm.status } : null,
         ...(await readEconomy()),
       }));
       return;

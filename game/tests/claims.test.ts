@@ -89,3 +89,30 @@ describe("the disclosures a player must be able to find before signing in", () =
     expect(gate).toMatch(/may be reset/i);
   });
 });
+
+describe("the $MM backing shown to players is the real one", () => {
+  /**
+   * The bank panel printed BANK_TREASURY_MM — 50,000,000 — as the treasury behind $MM, and
+   * "10000% covered" from collateralRatio(). Both were constants in this browser. That was
+   * a harmless fiction while $MM was a score, and became a false statement about a real
+   * asset the moment withdrawals opened on mainnet: it told players the backing was fifty
+   * times what the wallet actually holds.
+   *
+   * Only the authority can read the wallet, so the only honest source is the server.
+   */
+  it("never renders an invented treasury balance or collateral ratio", () => {
+    for (const fiction of [/store\.state\.bankTreasuryMM/, /store\.collateralRatio\(\)/, /store\.reserveBackingRatio\(\)/]) {
+      expect(main, `the UI must not print ${fiction} as $MM backing`).not.toMatch(fiction);
+    }
+  });
+
+  it("takes the backing figures from the authority", () => {
+    // cityBooks.books.mm is served by /api/world/economy and read from the chain.
+    expect(main).toMatch(/cityBooks\?\.books\?\.mm/);
+  });
+
+  it("says so plainly when the authority has not answered, instead of guessing", () => {
+    expect(main).toContain("Not readable");
+    expect(main).toContain("could not read the treasury wallet");
+  });
+});
