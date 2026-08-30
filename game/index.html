@@ -97,7 +97,7 @@
             <ul>
               <li>Trade with other Mercedonians</li>
               <li>Your contribution is recorded by the city</li>
-              <li>Your progress is stored in this browser</li>
+              <li>Your city is saved to your wallet, on any device</li>
             </ul>
           </div>
           <div>
@@ -115,7 +115,7 @@
           <div class="boot-terms-body">
             <p><strong>Markets &amp; Makers is a game.</strong> Everything you earn inside it &mdash; Merc Dollars, $MM, businesses, upgrades &mdash; is part of the game and currently stays inside it. $MM cannot be withdrawn, sold, or exchanged for anything outside Mercedonia, and whether it ever will be is undecided.</p>
             <p><strong>This is not an investment.</strong> There is no return, no yield, no redemption, and no promise of profit. Do not spend money on the expectation of getting money back &mdash; there is no mechanism by which you could.</p>
-            <p><strong>Your progress lives in this browser.</strong> It is stored locally. Clearing your site data, switching browsers, or using a different device will lose your city. Signing in with a wallet identifies you to the shared world; it does not back up your game.</p>
+            <p><strong>Signing in saves your city.</strong> While you are signed in, Mercedonia keeps a copy of your city against your wallet, so clearing your site data or picking up another device does not lose it &mdash; sign in there and it comes back. Play without signing in and your city is stored only in this browser, where clearing site data will lose it.</p>
             <p><strong>Your wallet.</strong> Signing in proves you hold an address by signing a message. It never moves funds, never requests a transaction, and never asks for a seed phrase or private key. We will never ask you for one.</p>
             <p><strong>You must be 18 or older</strong> to sign in with a wallet. The demo has no such requirement, because it touches nothing outside your browser.</p>
             <p><strong>This is a prototype.</strong> The world is under active development. Economies get rebalanced, features change, and progress may be reset.</p>
@@ -207,6 +207,34 @@
               </div>
             </aside>
 
+            <!-- The Mayor's first-run guidance.
+                 This lived inside .hud-internal-data, which is `display: none !important`
+                 and aria-hidden — so the whole onboarding, the step counter, everything
+                 Perenna Vale says and the reason underneath it, was written on every
+                 render and shown to nobody. The renderer was complete and correct; it was
+                 pointed at a hidden box. The classes matter too: .next-step and
+                 .mayor-card are styled in style.css and #nextStep carried NEITHER, so even
+                 unhidden it would have arrived unstyled. (.mayor-card is the three-column
+                 variant with a portrait; this card has none, so it keeps .next-step's own
+                 copy-plus-actions grid.) The .hud-guide wrapper is not decoration: the
+                 HUD grid declares a `guide` area and style.css labels it "<- the Mayor",
+                 but .hud-guide is what claims it. Without the zone the card fell into an
+                 implicit cell and rendered 26px wide by 459px tall. -->
+            <div class="hud-zone hud-guide">
+            <div class="next-step" id="nextStep" role="status">
+              <div class="mayor-copy">
+                <span id="nextLabel"></span><strong id="nextTitle"></strong>
+                <span id="nextHint"></span><em id="nextBecause"></em>
+              </div>
+              <div class="mayor-actions">
+                <button class="next-go" id="nextGo"></button>
+                <button class="mayor-dismiss" id="nextDismiss" data-action="mayor-toggle">Hide</button>
+              </div>
+              <span class="next-meter"><span id="nextMeter"></span></span>
+            </div>
+            <button class="mayor-recall" id="mayorRecall" data-action="mayor-toggle" hidden>Mayor</button>
+            </div>
+
             <div class="hud-context-actions" aria-label="Current world action">
               <button class="world-action primary" id="leaseAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg></i><span><small>Property</small><strong>Lease plot</strong></span></button>
               <button class="world-action" id="buildAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-build" /></svg></i><span><small>Enterprise</small><strong>Build business</strong></span></button>
@@ -218,8 +246,6 @@
             <div class="hud-internal-data" aria-hidden="true">
               <span id="districtLabel">Civic heart</span><span id="islandLabel">Hearthmarket</span><span id="islandEconomy"></span>
               <div id="hudWorld"></div><div id="quickBar" hidden></div><footer id="resourceDock"></footer>
-              <div id="nextStep"><span id="nextLabel"></span><strong id="nextTitle"></strong><span id="nextHint"></span><em id="nextBecause"></em><button id="nextGo"></button><button id="nextDismiss" data-action="mayor-toggle"></button><span id="nextMeter"></span></div>
-              <button id="mayorRecall" data-action="mayor-toggle" hidden></button>
               <nav class="maker-nav" aria-label="Mercedonian Compass">
                 <button data-tab="shop">Enterprise <kbd>⌥1</kbd></button><button data-tab="trade">Exchange <kbd>⌥2</kbd></button><button data-tab="world">World <kbd>⌥3</kbd></button>
               </nav>

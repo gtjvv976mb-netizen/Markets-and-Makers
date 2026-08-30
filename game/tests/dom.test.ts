@@ -246,3 +246,37 @@ describe("the boot catch-up waits for the world's owner", () => {
     expect(tail).toContain("showAwayReport(store.catchUp())");
   });
 });
+
+describe("the Mayor is actually on screen", () => {
+  /**
+   * The onboarding was written, rendered and shown to nobody.
+   *
+   * #nextStep lived inside .hud-internal-data — `display: none !important` and
+   * aria-hidden="true" — so every render wrote Perenna Vale's name, the step counter, what
+   * she says and the reason underneath it into a box the stylesheet had switched off. The
+   * renderer was complete and correct the whole time, which is why nothing looked broken.
+   */
+  it("does not render the first-run guidance inside the hidden data sheet", () => {
+    const start = html.indexOf('class="hud-internal-data"');
+    expect(start).toBeGreaterThan(-1);
+    const sheet = html.slice(start, html.indexOf("</div>", html.indexOf("<nav", start)));
+    expect(sheet).not.toContain('id="nextStep"');
+    expect(sheet).not.toContain('id="mayorRecall"');
+  });
+
+  it("gives the card the class its own stylesheet targets", () => {
+    // Unhiding it is not enough: .next-step carries the whole card design and #nextStep
+    // carried no class at all, so it would have arrived on screen unstyled.
+    const card = html.match(/<div class="([^"]*)" id="nextStep"/);
+    expect(card).not.toBeNull();
+    expect(card![1]).toContain("next-step");
+  });
+
+  it("keeps every element the renderer writes into", () => {
+    // Moving markup is exactly how a renderer starts throwing on a null element.
+    for (const id of ["nextLabel", "nextTitle", "nextHint", "nextBecause",
+                      "nextGo", "nextDismiss", "nextMeter", "mayorRecall"]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+  });
+});

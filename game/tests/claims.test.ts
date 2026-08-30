@@ -17,12 +17,21 @@ describe("no promise of money out", () => {
   it("does not offer to earn $MM on the first screen", () => {
     const gate = html.slice(html.indexOf('id="bootGate"'), html.indexOf('id="rotateGate"'));
     expect(gate).not.toMatch(/Earn a share of the weekly/i);
-    expect(gate, "and says plainly where progress lives").toMatch(/stored in this browser/i);
+    // The gate must still say plainly where a city lives — the claim just changed, because
+    // the authority now keeps one (server/src/save.ts). Both halves have to be there: what
+    // signing in gets you, AND what playing without it does not.
+    expect(gate, "and says plainly that signing in saves the city").toMatch(/signing in saves your city/i);
+    expect(gate, "and that an unsigned city is browser-only").toMatch(/only in this browser/i);
   });
 
-  it("never claims the city is saved to the realm", () => {
-    // localStorage is the only persistence: state.ts writes SAVE_KEY and nothing else.
-    expect(visible).not.toMatch(/saved to the realm/i);
+  it("promises a saved city only where one is actually kept", () => {
+    // This read "never claims the city is saved to the realm", because localStorage was
+    // the only persistence there was. The authority now keeps a copy per wallet, so the
+    // claim is true — but ONLY for a signed-in player. A demo writes nothing at all (the
+    // demo seal in state.ts commit), and an anonymous session never uploads, so any
+    // unconditional promise on those paths would be a lie.
+    const demo = html.slice(html.indexOf('id="bootGate"'), html.indexOf('id="rotateGate"'));
+    expect(demo).toMatch(/Nothing is saved when you close the tab/i);
   });
 
   it("carries no redemption or deposit-return language", () => {
@@ -56,9 +65,13 @@ describe("the disclosures a player must be able to find before signing in", () =
     expect(gate).toMatch(/no promise of profit/i);
   });
 
-  it("warns that progress is local and can be lost", () => {
-    expect(gate).toMatch(/stored locally/i);
-    expect(gate).toMatch(/lose your city/i);
+  it("still warns that an unsigned city can be lost", () => {
+    // The authority keeps a signed-in player's city now, so the blanket "stored locally"
+    // warning became false. The warning it replaces must not be softened away, though:
+    // playing without signing in is still browser-only, and that has to be stated in the
+    // same breath as the promise, not buried somewhere kinder.
+    expect(gate).toMatch(/only in this browser/i);
+    expect(gate).toMatch(/lose it/i);
   });
 
   it("carries an age statement", () => {
