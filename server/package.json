@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "migrate": "tsx src/migrate.ts",
+    "reset:realm": "tsx scripts/reset-realm.ts",
     "migrate:deploy": "node dist/migrate.js",
     "test": "vitest run"
   },

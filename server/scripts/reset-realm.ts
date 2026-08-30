@@ -13,10 +13,14 @@
  * delete, MM_RESET_CONFIRM must equal the realm id — a value you have to look up and type,
  * so a stray shell-history arrow-up cannot empty a live realm.
  *
- *   # look first
- *   DATABASE_URL=... npx tsx scripts/reset-realm.ts
+ * RUN IT FROM THE server/ DIRECTORY OF THIS REPO, against the database you mean to reset.
+ * On Render's shell the service's own DATABASE_URL is already in the environment, which is
+ * the intended way — no production connection string has to be copied anywhere.
+ *
+ *   # look first — this deletes nothing
+ *   npm run reset:realm
  *   # then, deliberately
- *   DATABASE_URL=... MM_RESET_CONFIRM=sunwoven-1 npx tsx scripts/reset-realm.ts
+ *   MM_RESET_CONFIRM=sunwoven-1 npm run reset:realm
  *
  * What it does NOT touch: the plot table's rows (the world's geometry — only ownership is
  * cleared), the civic supplier's stock (world state that refills itself, and starting it
@@ -83,7 +87,7 @@ try {
 
   if (!live) {
     console.log("\nDRY RUN — nothing was deleted.");
-    console.log(`To do it: MM_RESET_CONFIRM=${REALM} npx tsx scripts/reset-realm.ts`);
+    console.log(`To do it: MM_RESET_CONFIRM=${REALM} npm run reset:realm`);
     process.exit(0);
   }
 
