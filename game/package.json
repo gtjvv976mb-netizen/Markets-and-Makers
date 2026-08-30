@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
-    "three": "^0.180.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/three": "^0.180.0",
