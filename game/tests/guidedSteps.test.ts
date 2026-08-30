@@ -52,6 +52,19 @@ describe("the guided first run", () => {
     expect([...ids].filter((id) => !html.includes(`id="${id}"`))).toEqual([]);
   });
 
+  it("never hides the player's money, at any step", () => {
+    // A stated requirement: MERCS and the $MM balance stay on screen the whole way
+    // through. It currently holds by accident — no rule happens to name them — so this
+    // is what makes it hold on purpose the next time these rules are edited.
+    const guided = styles.slice(styles.indexOf('.app-shell[data-guided="true"]'));
+    const rules = guided.split("}").filter((r) => /display:\s*none/.test(r));
+    const selectors = rules.map((r) => r.split("{")[0] ?? "").join(" ");
+    for (const vital of ["hud-vitals", "hudVitals", "wallet-slot", "walletSlot"]) {
+      expect(selectors, `a guided rule hides ${vital}`).not.toContain(vital);
+    }
+    expect(html).toContain('id="hudVitals"');
+  });
+
   it("stops guiding when the Mayor is dismissed", () => {
     // One switch, not two. Her Hide button already means "stop guiding me".
     expect(main).toContain("!store.state.mayorHidden");
