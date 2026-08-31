@@ -3864,3 +3864,60 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .amount-max { min-height: 30px; }
   .amount-worth { margin-bottom: 6px; font-size: 11.5px; }
 }
+
+/* --- compact the HUD -------------------------------------------------------------
+   Measured on the live build at the opening plaza: twelve panels and forty-seven
+   buttons on screen at once, on a game whose target device is a phone held sideways.
+   Nothing here removes a control; it stops each one taking more room than it earns. */
+
+/* The Mayor said her piece in a 159px-tall block across the middle of the view. Two
+   lines is enough to act on; the full text is still there when it matters, and she is
+   still one tap from gone. */
+.hud-zone #nextStep #nextHint {
+  /* display MUST be -webkit-box or the clamp is inert, and the base rule sets block. */
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Who you are is one line, not two. The rank and the name said the same thing twice. */
+.wallet-slot .profile-sub,
+.wallet-slot small + small { display: none; }
+
+@media (max-width: 900px), (max-height: 620px) {
+  /* Phone landscape is the target. Everything above the world gets tighter. */
+  /* The Mayor's card was 560px wide on an 829px phone — two thirds of the view, for two
+     lines of text. !important because the HUD grid sizes this track itself. */
+  .hud-zone #nextStep { max-width: min(52vw, 400px) !important; }
+  /* Three, not two. The Mayor puts the flavour first and the instruction last, so
+     clamping to two lines cut "Walk anywhere on the ground" — the only part a player
+     actually needs. Eighteen pixels is a fair price for the sentence that tells them
+     what to do. */
+  .hud-zone #nextStep #nextHint { -webkit-line-clamp: 3; line-clamp: 3; font-size: 12px; }
+  #nextBecause { display: none; }          /* the reasoning, not the instruction */
+  #nextStep .mayor-copy strong { font-size: 15px; }
+
+  /* Landscape height is the scarce dimension, so the card loses padding and its
+     progress meter before it loses any of the instruction. */
+  .hud-zone #nextStep { padding: 8px 10px; gap: 4px; }
+  .hud-zone #nextStep .next-meter { display: none; }
+  .hud-zone #nextStep .mayor-actions { gap: 4px; }
+  .hud-zone #nextStep .mayor-actions button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+
+  .hud-vitals { gap: 6px; }
+  .hud-vitals strong { font-size: 14px; }
+  .hud-vitals small { font-size: 9.5px; letter-spacing: .06em; }
+
+  .wallet-slot { max-width: 132px; }
+  .wallet-slot strong { font-size: 11.5px; }
+
+  #quickAccess { gap: 4px; }
+  #quickAccess button { padding: 0 8px; font-size: 11px; }
+  .hud-utility-rail button { width: 34px; height: 34px; }
+
+  /* World labels shrink hardest: they sit over the thing the player came to look at. */
+  .marker-pin { font-size: 10.5px; }
+  .marker-pin small, .marker-pin .marker-detail { display: none; }
+}

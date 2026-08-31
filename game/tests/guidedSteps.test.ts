@@ -56,9 +56,14 @@ describe("the guided first run", () => {
     // A stated requirement: MERCS and the $MM balance stay on screen the whole way
     // through. It currently holds by accident — no rule happens to name them — so this
     // is what makes it hold on purpose the next time these rules are edited.
-    const guided = styles.slice(styles.indexOf('.app-shell[data-guided="true"]'));
-    const rules = guided.split("}").filter((r) => /display:\s*none/.test(r));
-    const selectors = rules.map((r) => r.split("{")[0] ?? "").join(" ");
+    // Only rules that ACTUALLY gate on the guide. Slicing to end-of-file swept in later,
+    // unrelated rules and made this fail on a global compaction that hides a subtitle.
+    const selectors = styles
+      .split("}")
+      .filter((rule) => /display:\s*none/.test(rule) && rule.includes("data-guided"))
+      .map((rule) => rule.split("{")[0] ?? "")
+      .join(" ");
+    expect(selectors, "no guided hide rules found — has the mechanism moved?").toContain("data-guided");
     for (const vital of ["hud-vitals", "hudVitals", "wallet-slot", "walletSlot"]) {
       expect(selectors, `a guided rule hides ${vital}`).not.toContain(vital);
     }

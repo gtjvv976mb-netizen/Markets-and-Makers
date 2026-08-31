@@ -331,11 +331,38 @@ function markerModels(): MarkerModel[] {
     });
   }
 
-  return models.concat(propertyMarkerModels(
+  return nearestFew(models.concat(propertyMarkerModels(
     { ...state, heldByOthers: plotsHeldByOthers },
     (resource) => store.marketBuyPrice(resource),
     (plotId) => world.buildingBannerY(plotId),
-  ));
+  )));
+}
+
+/**
+ * A label on every building is a city you cannot see through. Measured on the live build
+ * at the opening plaza: 28 floating pins, most of them other people's shopfronts quoting
+ * prices for goods the player does not have yet.
+ *
+ * What survives is what is the player's own or is asking for them — their plots, a
+ * finished job, a breakdown — plus the handful of everything else that is actually near.
+ * The rest are still there in the world; they simply stop shouting from across the map.
+ */
+const MARKER_ALWAYS = new Set(["owned", "ready", "alert"]);
+const MARKERS_NEARBY = 5;
+
+function nearestFew(models: MarkerModel[]): MarkerModel[] {
+  const mine = models.filter((m) => MARKER_ALWAYS.has(m.kind));
+  const rest = models.filter((m) => !MARKER_ALWAYS.has(m.kind));
+  if (rest.length <= MARKERS_NEARBY) return models;
+  const { x, z } = store.state.player;
+  const near = rest
+    .map((m) => ({ m, d: Math.hypot(m.x - x, m.z - z) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, MARKERS_NEARBY)
+    .map((entry) => entry.m);
+  // Keep the authored order so pins do not jump about as the player walks.
+  const keep = new Set([...mine, ...near]);
+  return models.filter((m) => keep.has(m));
 }
 
 let markerSignature = "";
