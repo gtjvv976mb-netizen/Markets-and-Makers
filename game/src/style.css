@@ -3921,3 +3921,41 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   .marker-pin { font-size: 10.5px; }
   .marker-pin small, .marker-pin .marker-detail { display: none; }
 }
+
+/* --- pick a wallet ---------------------------------------------------------------
+   Shown only when more than one answered. One wallet, and it stays a single button
+   naming that wallet, because a list of one is a decision nobody asked for. */
+.boot-wallets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.boot-wallet {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 14px;
+  color: inherit;
+  background: rgba(255,255,255,.07);
+  font-size: 13.5px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.boot-wallet:hover { border-color: rgba(255,217,119,.5); background: rgba(255,255,255,.11); }
+.boot-wallet:active { transform: translateY(1px); }
+.boot-wallet img, .boot-wallet i {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,.1);
+  font-style: normal; font-weight: 900;
+}
+.boot-wallet span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-height: 560px) {
+  .boot-wallets { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 6px; }
+  .boot-wallet { min-height: 38px; font-size: 12px; }
+}

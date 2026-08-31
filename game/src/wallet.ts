@@ -40,12 +40,159 @@ interface SolanaProvider {
   signAndSendTransaction?(transaction: unknown): Promise<{ signature: string }>;
 }
 
-function provider(): SolanaProvider | null {
-  const injected = (window as unknown as { phantom?: { solana?: SolanaProvider }; solana?: SolanaProvider });
-  return injected.phantom?.solana ?? injected.solana ?? null;
+/** One wallet the player could sign in with. */
+export interface WalletChoice {
+  id: string;
+  name: string;
+  /** A data: URI the wallet supplies. Absent for legacy injected providers. */
+  icon?: string;
+  provider: SolanaProvider;
 }
 
-export const walletAvailable = (): boolean => provider() !== null;
+const CHOICE_KEY = "markets-makers-wallet-choice";
+
+// --- Wallet Standard ---------------------------------------------------------------
+//
+// Reading window.solana finds whichever extension won the race to claim it, which is how
+// "install Phantom" ended up being the only real answer on a page that should take any
+// Solana wallet. Every current wallet instead ANNOUNCES itself over the Wallet Standard,
+// so the app listens for those announcements and asks the ones that appear.
+//
+// Implemented directly rather than through @solana/wallet-adapter: the adapter set is
+// React-shaped and would add megabytes to a first load for a handshake that is three
+// events and two feature calls.
+
+interface StandardAccount { address: string; publicKey: Uint8Array }
+interface StandardWallet {
+  name: string;
+  icon?: string;
+  chains: readonly string[];
+  accounts: readonly StandardAccount[];
+  features: Record<string, unknown>;
+}
+
+const announced: StandardWallet[] = [];
+let listening = false;
+
+function listenForWallets(): void {
+  if (listening || typeof window === "undefined") return;
+  listening = true;
+  const register = (...wallets: StandardWallet[]): (() => void) => {
+    for (const wallet of wallets) {
+      if (!announced.some((seen) => seen.name === wallet.name)) announced.push(wallet);
+    }
+    return () => undefined;
+  };
+  const api = { register };
+  window.addEventListener("wallet-standard:register-wallet",
+    (event) => (event as CustomEvent<(api: unknown) => void>).detail?.(api));
+  // Wallets that registered before this ran are re-announced in response to app-ready.
+  window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: api }));
+}
+
+/** Wrap a Wallet Standard wallet in the small surface the rest of this file expects. */
+function adaptStandard(wallet: StandardWallet): SolanaProvider | null {
+  type Connect = { connect(): Promise<{ accounts: readonly StandardAccount[] }> };
+  type SignMessage = { signMessage(input: { account: StandardAccount; message: Uint8Array }):
+    Promise<readonly { signature: Uint8Array }[]> };
+  type SignAndSend = { signAndSendTransaction(input: {
+    account: StandardAccount; transaction: Uint8Array; chain: string }):
+    Promise<readonly { signature: Uint8Array }[]> };
+
+  const connectFeature = wallet.features["standard:connect"] as Connect | undefined;
+  const signFeature = wallet.features["solana:signMessage"] as SignMessage | undefined;
+  const sendFeature = wallet.features["solana:signAndSendTransaction"] as SignAndSend | undefined;
+  // Signing a message IS the login, so a wallet that cannot do it cannot be offered.
+  if (!connectFeature || !signFeature) return null;
+
+  const chain = wallet.chains.find((entry) => entry.startsWith("solana:")) ?? "solana:mainnet";
+  let account: StandardAccount | null = wallet.accounts[0] ?? null;
+
+  return {
+    get publicKey() { return account ? { toString: () => account!.address } : null; },
+    async connect() {
+      const result = await connectFeature.connect();
+      account = result.accounts[0] ?? wallet.accounts[0] ?? null;
+      if (!account) throw new Error(`${wallet.name} connected without returning an account.`);
+      return { publicKey: { toString: () => account!.address } };
+    },
+    async signMessage(message: Uint8Array) {
+      if (!account) throw new Error(`${wallet.name} is not connected.`);
+      const [signed] = await signFeature.signMessage({ account, message });
+      if (!signed) throw new Error(`${wallet.name} returned no signature.`);
+      return { signature: signed.signature };
+    },
+    signAndSendTransaction: sendFeature
+      ? async (transaction: unknown) => {
+        if (!account) throw new Error(`${wallet.name} is not connected.`);
+        // purchaseMM hands over a web3.js Transaction; the standard wants the bytes.
+        const serialize = (transaction as { serialize?: (options?: unknown) => Uint8Array }).serialize;
+        const bytes = typeof serialize === "function"
+          ? serialize.call(transaction, { requireAllSignatures: false, verifySignatures: false })
+          : (transaction as Uint8Array);
+        const [sent] = await sendFeature.signAndSendTransaction({ account, transaction: bytes, chain });
+        if (!sent) throw new Error(`${wallet.name} did not return a signature.`);
+        return { signature: base58(sent.signature) };
+      }
+      : undefined,
+  };
+}
+
+/**
+ * Wallets that inject a global instead of announcing themselves. Older builds and a few
+ * in-app browsers still only do this, and dropping them would sign out real players.
+ */
+const LEGACY: Array<{ id: string; name: string; at: () => SolanaProvider | undefined }> = [
+  { id: "phantom", name: "Phantom", at: () => (window as never as { phantom?: { solana?: SolanaProvider } }).phantom?.solana },
+  { id: "solflare", name: "Solflare", at: () => (window as never as { solflare?: SolanaProvider }).solflare },
+  { id: "backpack", name: "Backpack", at: () => (window as never as { backpack?: SolanaProvider }).backpack },
+  { id: "glow", name: "Glow", at: () => (window as never as { glow?: SolanaProvider }).glow },
+  { id: "exodus", name: "Exodus", at: () => (window as never as { exodus?: { solana?: SolanaProvider } }).exodus?.solana },
+  { id: "coinbase", name: "Coinbase Wallet", at: () => (window as never as { coinbaseSolana?: SolanaProvider }).coinbaseSolana },
+  { id: "trust", name: "Trust", at: () => (window as never as { trustwallet?: { solana?: SolanaProvider } }).trustwallet?.solana },
+  { id: "magiceden", name: "Magic Eden", at: () => (window as never as { magicEden?: { solana?: SolanaProvider } }).magicEden?.solana },
+];
+
+/** Every wallet this browser can actually sign with, announced ones first. */
+export function availableWallets(): WalletChoice[] {
+  listenForWallets();
+  const found: WalletChoice[] = [];
+  for (const wallet of announced) {
+    const adapted = adaptStandard(wallet);
+    if (adapted) found.push({ id: `standard:${wallet.name}`, name: wallet.name, icon: wallet.icon, provider: adapted });
+  }
+  for (const entry of LEGACY) {
+    const injected = entry.at();
+    if (!injected || typeof injected.signMessage !== "function") continue;
+    if (found.some((seen) => seen.name.toLowerCase() === entry.name.toLowerCase())) continue;
+    found.push({ id: entry.id, name: entry.name, provider: injected });
+  }
+  // Last resort: something claimed window.solana and named itself nothing recognisable.
+  const generic = (window as never as { solana?: SolanaProvider }).solana;
+  if (generic && typeof generic.signMessage === "function" && found.length === 0) {
+    found.push({ id: "injected", name: "Browser wallet", provider: generic });
+  }
+  return found;
+}
+
+/** Remember which one the player picked, so the next visit does not ask again. */
+export function chooseWallet(id: string): void {
+  try { localStorage.setItem(CHOICE_KEY, id); } catch { /* private mode */ }
+}
+
+export function chosenWalletId(): string | null {
+  try { return localStorage.getItem(CHOICE_KEY); } catch { return null; }
+}
+
+function provider(): SolanaProvider | null {
+  const wallets = availableWallets();
+  if (wallets.length === 0) return null;
+  const chosen = chosenWalletId();
+  return (chosen ? wallets.find((wallet) => wallet.id === chosen) : undefined)?.provider
+    ?? wallets[0]!.provider;
+}
+
+export const walletAvailable = (): boolean => availableWallets().length > 0;
 
 export const sessionToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 
@@ -81,7 +228,7 @@ export async function signIn(): Promise<Principal> {
   const base = serverBase();
   if (!base) throw new Error("This build has no authority server configured.");
   const wallet = provider();
-  if (!wallet) throw new Error("No Solana wallet found. Install Phantom to link an account.");
+  if (!wallet) throw new Error("No Solana wallet answered. Install one, or open this page in your wallet's own browser.");
 
   // A rejected prompt throws with the wallet's own wording — fine. But a wallet that never
   // answers AT ALL — locked, wedged, or its popup lost behind a window — used to hang this

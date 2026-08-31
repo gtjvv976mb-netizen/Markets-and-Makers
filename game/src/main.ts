@@ -10,7 +10,7 @@ import { plotArrival } from "./highlandsWorld";
 import { propertyMarkerModels, type MarkerModel } from "./propertyMarkers";
 import { BusinessTurntable } from "./businessTurntable";
 import { detectDeployment, fetchDistrictBoard, RealmConnection, type DistrictQuote, type RealmStatus } from "./network";
-import { currentPrincipal, fetchStanding, purchaseMM, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
+import { availableWallets, chooseWallet, currentPrincipal, fetchStanding, purchaseMM, signIn, signOut, walletAvailable, type EpochStanding, type Principal, claimEpochOnServer, fetchWithdrawals, requestWithdrawal} from "./wallet";
 import { flushCloudSave, markHydrated, pullCloudSave, pushCloudSave, resetCloudSave } from "./cloudSave";
 
 function element<T extends HTMLElement>(selector: string): T {
@@ -3003,13 +3003,23 @@ function renderBootGate(): void {
   if (!choices) return;
   const canConnect = walletAvailable();
   if (!canConnect) watchForWallet();
+  // Name the wallets that actually answered. A single "Connect Solana wallet" button hands
+  // the sign-in to whichever extension won the race for window.solana, which is not a
+  // choice — a player with two wallets installed could never reach the second one.
+  const wallets = availableWallets();
   choices.innerHTML = `
-    ${canConnect
-      ? `<button class="boot-primary" data-action="gate-connect">Connect Solana wallet</button>`
-      : `<a class="boot-primary" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener">Get a Solana wallet</a>
-         <small class="boot-hint">Already have one? It may still be waking up \u2014 this button becomes
-           <b>Connect Solana wallet</b> the moment your wallet answers. On a phone, open this page inside
-           your wallet's own browser to sign in.</small>`}
+    ${wallets.length > 1
+      ? `<div class="boot-wallets">${wallets.map((wallet) => `
+          <button class="boot-wallet" data-action="gate-connect" data-wallet="${escapeMarkup(wallet.id)}">
+            ${wallet.icon ? `<img src="${escapeMarkup(wallet.icon)}" alt="" />` : `<i aria-hidden="true">${escapeMarkup(wallet.name.slice(0, 1))}</i>`}
+            <span>${escapeMarkup(wallet.name)}</span>
+          </button>`).join("")}</div>`
+      : canConnect
+        ? `<button class="boot-primary" data-action="gate-connect" data-wallet="${escapeMarkup(wallets[0]!.id)}">Connect ${escapeMarkup(wallets[0]!.name)}</button>`
+        : `<a class="boot-primary" href="https://phantom.app/download" target="_blank" rel="noreferrer noopener">Get a Solana wallet</a>
+           <small class="boot-hint">Already have one? It may still be waking up — this becomes a
+             <b>Connect</b> button the moment any wallet answers. On a phone, open this page inside
+             your wallet's own browser to sign in.</small>`}
     <button class="boot-secondary" data-action="gate-demo">Play the demo</button>`;
 }
 
@@ -4032,6 +4042,8 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "gate-demo") { serverWallet = null; store.startDemoSession(); closeBootGate(); toast("Demo: nothing here is saved, and the shared market is closed."); }
   else if (action === "gate-connect") {
+    // Remember the pick BEFORE signIn(), which resolves the provider from it.
+    if (button.dataset.wallet) chooseWallet(button.dataset.wallet);
     // A demo is never promoted in place. Signing in from one would carry the demo's city
     // into the real account — a player would "keep" a city that was never theirs, and the
     // sealed session would quietly become an unsealed one. Reload instead, so the real
