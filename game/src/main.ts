@@ -1,4 +1,4 @@
-import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, RIDE_MINIMUM_FARE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
+import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchCityBooks, fetchChainMM, fetchDepositDesk, claimDeposit, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -3457,13 +3457,67 @@ function nearbyTaxi(): { id: number; distance: number } | null {
   return best;
 }
 
-/** Everywhere a cab will take you from here, and what it costs. */
-function taxiDestinations(): Array<{ id: string; name: string; role: string; fare: number }> {
-  return CIVIC_BUILDINGS
-    .filter((site) => site.island === store.state.island)
-    .map((site) => ({ id: site.id, name: site.name, role: site.role, fare: store.rideFare(site.id) }))
-    .filter((entry) => entry.fare > RIDE_MINIMUM_FARE)   // already there: walk
-    .sort((a, b) => a.fare - b.fare);
+/** Somewhere a cab will take you, and what it costs from where you stand. */
+interface Stop { id: string; name: string; role: string; x: number; z: number; fare: number; group: "yours" | "civic" | "plot" }
+
+let taxiFilter = "";
+
+/**
+ * Everywhere on this island, not nine addresses.
+ *
+ * The old list was CIVIC_BUILDINGS minus anything closer than the minimum fare, so a
+ * player standing in the middle of their own city was told "everything is within a short
+ * walk" and given nothing to ride to. A cab that only serves the far edge of the map is
+ * not a taxi. Every plot is an address now, and a short hop simply costs the minimum.
+ */
+function taxiDestinations(): Stop[] {
+  const island = store.state.island;
+  const { x, z } = store.state.player;
+  const owned = new Set(store.ownedPlotIds());
+
+  const civic: Stop[] = CIVIC_BUILDINGS
+    .filter((site) => site.island === island)
+    .map((site) => ({ id: `civic:${site.id}`, name: site.name, role: site.role,
+      x: site.x, z: site.z, fare: store.rideFareToPoint(site.x, site.z), group: "civic" as const }));
+
+  const plots: Stop[] = PLOTS
+    .filter((plot) => plot.island === island)
+    .map((plot) => ({
+      id: `plot:${plot.id}`, name: plot.name,
+      role: owned.has(plot.id) ? "Your plot" : `Plot · ${plot.width} × ${plot.depth} m`,
+      x: plot.x, z: plot.z, fare: store.rideFareToPoint(plot.x, plot.z),
+      group: owned.has(plot.id) ? "yours" as const : "plot" as const,
+    }));
+
+  const all = [...civic, ...plots];
+  const needle = taxiFilter.trim().toLowerCase();
+  const matching = needle
+    ? all.filter((stop) => stop.name.toLowerCase().includes(needle) || stop.role.toLowerCase().includes(needle))
+    : all;
+  // Nearest first: the fare board should open on the places you might actually be going.
+  return matching.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+}
+
+/** The fare board's list, rebuilt on its own so typing never loses the caret. */
+function taxiStopsMarkup(): string {
+  const stops = taxiDestinations();
+  if (stops.length === 0) {
+    return `<div class="empty-state"><i>▸</i><strong>Nothing by that name</strong><p>Try part of a plot or building name.</p></div>`;
+  }
+  const groups: Array<[Stop["group"], string]> = [["yours", "Your places"], ["civic", "Civic"], ["plot", "Plots"]];
+  // A whole island of addresses is a scroll, not a decision. Show the nearest of each.
+  const LIMIT = taxiFilter.trim() ? 24 : 8;
+  return groups.map(([group, heading]) => {
+    const inGroup = stops.filter((stop) => stop.group === group).slice(0, LIMIT);
+    if (inGroup.length === 0) return "";
+    return `<div class="taxi-group">${escapeMarkup(heading)}</div>
+      <ul class="counter-services">${inGroup.map((stop) => `<li><button data-action="taxi-go"
+        data-x="${stop.x}" data-z="${stop.z}" data-label="${escapeMarkup(stop.name)}"
+        ${purse() < stop.fare ? "disabled" : ""}>
+        <strong>${escapeMarkup(stop.name)}</strong>
+        <small>${escapeMarkup(stop.role)}</small>
+        <b class="taxi-fare">${stop.fare} ${CURRENCY_CODE}</b></button></li>`).join("")}</ul>`;
+  }).join("");
 }
 
 function renderTaxi(): void {
@@ -3472,30 +3526,28 @@ function renderTaxi(): void {
   if (!prompt || !panel) return;
   const near = nearbyTaxi();
 
-  // Cabs drive off. If yours has, the fare board goes with it.
-  if (hailedTaxi !== null && (!near || near.id !== hailedTaxi)) hailedTaxi = null;
-
-  prompt.hidden = !near || hailedTaxi !== null;
-  if (near && hailedTaxi === null) {
-    prompt.innerHTML = `<kbd>E</kbd><span><strong>Hail this cab</strong><small>Fares are paid to the city</small></span>`;
+  // Standing next to a cab is one way in, not the only way. Chasing a moving car around
+  // the block to reach a menu is not a control scheme.
+  prompt.hidden = hailedTaxi !== null;
+  if (hailedTaxi === null) {
+    prompt.innerHTML = near
+      ? `<kbd>E</kbd><span><strong>Hail this cab</strong><small>Fares are paid to the city</small></span>`
+      : `<button class="taxi-call" data-action="taxi-call"><i aria-hidden="true">▸</i><span><strong>Call a cab</strong><small>Ride anywhere on the island</small></span></button>`;
   }
 
   panel.hidden = hailedTaxi === null;
   if (hailedTaxi === null) return;
-  const stops = taxiDestinations();
   panel.innerHTML = `
     <div class="counter-head" style="--counter-color:#4eaeb7">
       <i aria-hidden="true">▸</i>
       <span><strong>Where to?</strong><small>Walking is free. This is not.</small></span>
       <button class="counter-close" data-action="taxi-close" aria-label="Wave the cab on">✕</button>
     </div>
-    ${stops.length === 0
-      ? `<div class="empty-state"><i>▸</i><strong>Everything is within a short walk</strong><p>No fare worth paying from here.</p></div>`
-      : `<ul class="counter-services">${stops.map((stop) => `<li><button data-action="taxi-go" data-to="${escapeMarkup(stop.id)}"
-          ${purse() < stop.fare ? "disabled" : ""}>
-          <strong>${escapeMarkup(stop.name)}</strong>
-          <small>${escapeMarkup(stop.role)}</small>
-          <b class="taxi-fare">${stop.fare} ${CURRENCY_CODE}</b></button></li>`).join("")}</ul>`}`;
+    <div class="amount-field taxi-search">
+      <input id="taxiSearch" type="search" placeholder="Search plots and buildings" value="${escapeMarkup(taxiFilter)}"
+        data-action="taxi-filter" autocomplete="off" />
+    </div>
+    <div id="taxiStops">${taxiStopsMarkup()}</div>`;
 }
 
 function renderAll(): void {
@@ -4012,10 +4064,11 @@ document.body.addEventListener("click", (event) => {
     else switchTab("trade");
   }
   else if (action === "taxi-close") { hailedTaxi = null; renderTaxi(); }
+  else if (action === "taxi-call") { hailedTaxi = -1; taxiFilter = ""; renderTaxi(); }
   else if (action === "taxi-go") {
-    const result = store.rideTo(button.dataset.to ?? "treasury");
+    const result = store.rideToPoint(Number(button.dataset.x ?? 0), Number(button.dataset.z ?? 0), button.dataset.label ?? "your stop");
     report(result);
-    if (result.ok) { hailedTaxi = null; world.teleportToState(store.state); renderAll(); }
+    if (result.ok) { hailedTaxi = null; taxiFilter = ""; world.teleportToState(store.state); renderAll(); }
   }
   else if (action === "counter-close") { counterOpenFor = null; renderCounterPrompt(); renderErrandPill(); }
   else if (action === "ride") report(store.rideTo(button.dataset.to ?? "treasury"));
@@ -4143,6 +4196,13 @@ document.body.addEventListener("input", (event) => {
             : `Receive ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}`;
       }
     }
+    return;
+  }
+
+  if (field.dataset.action === "taxi-filter") {
+    taxiFilter = field.value;
+    const list = document.querySelector("#taxiStops");
+    if (list) list.innerHTML = taxiStopsMarkup();
     return;
   }
 

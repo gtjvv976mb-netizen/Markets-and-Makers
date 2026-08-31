@@ -46,8 +46,11 @@ describe("the guided first run", () => {
   });
 
   it("only gates regions that exist in the markup", () => {
-    const guided = styles.slice(styles.indexOf('.app-shell[data-guided="true"]'));
-    const ids = new Set([...guided.matchAll(/#([A-Za-z][\w-]*)/g)].map((m) => m[1]!));
+    // Only ids named INSIDE a guided rule. Slicing to end-of-file swept in every later
+    // rule in the stylesheet, including ones for markup built at runtime.
+    const guidedRules = styles.split("}").filter((rule) => rule.includes("data-guided"));
+    const ids = new Set(guidedRules.flatMap((rule) =>
+      [...(rule.split("{")[0] ?? "").matchAll(/#([A-Za-z][\w-]*)/g)].map((m) => m[1]!)));
     expect(ids.size).toBeGreaterThan(3);
     expect([...ids].filter((id) => !html.includes(`id="${id}"`))).toEqual([]);
   });

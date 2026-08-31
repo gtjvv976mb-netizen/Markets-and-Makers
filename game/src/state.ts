@@ -2705,6 +2705,33 @@ export class GameStore {
     return Math.max(RIDE_MINIMUM_FARE, Math.round(metres * RIDE_FARE_PER_METRE));
   }
 
+  /**
+   * The fare to any point on the island, not only to a civic address.
+   *
+   * The cab used to know nine buildings, and refused any of them that was closer than the
+   * minimum fare — so standing in the middle of the city there was nowhere it would go,
+   * and it said "everything is within a short walk" to a player who wanted a ride.
+   */
+  rideFareToPoint(x: number, z: number): number {
+    const metres = Math.hypot(x - this.state.player.x, z - this.state.player.z);
+    return Math.max(RIDE_MINIMUM_FARE, Math.round(metres * RIDE_FARE_PER_METRE));
+  }
+
+  /** Take a cab to a coordinate. The fare is a sink: it leaves circulation for the city. */
+  rideToPoint(x: number, z: number, label: string): ActionResult {
+    this.rollCalendar();
+    const fare = this.rideFareToPoint(x, z);
+    if (this.state.wallet < fare) {
+      return this.result(false, `The fare is ${fare} ${CURRENCY_CODE} and you hold ${this.state.wallet}. Walking there is free.`);
+    }
+    this.state.wallet -= fare;
+    this.state.governmentTreasury += fare;
+    this.state.todayExpenses += fare;
+    this.state.player = { x, z: z + RIDE_DROP_OFF };
+    this.commit(`Rode to ${label} for ${fare} ${CURRENCY_CODE}.`, "success");
+    return this.result(true, `Dropped off at ${label}.`);
+  }
+
   rideTo(destinationId: string): ActionResult {
     this.rollCalendar();
     const site = CIVIC_BUILDINGS.find((entry) => entry.id === destinationId && entry.island === this.state.island);
