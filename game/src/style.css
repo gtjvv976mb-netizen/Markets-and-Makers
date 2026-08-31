@@ -4021,3 +4021,10 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   font-weight: 900;
   white-space: nowrap;
 }
+
+/* The Mayor's card sets `display: grid`, and an author rule beats the browser's
+   `[hidden] { display: none }` — so `element("#nextStep").hidden = true` set the property
+   and changed nothing on screen. Hide did nothing, and finishing the tutorial did nothing:
+   one missing line, both symptoms. Nine other components in this file already carry the
+   same guard. */
+.next-step[hidden] { display: none !important; }

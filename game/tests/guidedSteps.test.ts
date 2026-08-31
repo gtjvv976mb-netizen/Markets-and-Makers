@@ -73,6 +73,35 @@ describe("the guided first run", () => {
     expect(html).toContain('id="hudVitals"');
   });
 
+  it("can actually be hidden, and goes away when the guide is done", () => {
+    // renderTutorial sets `element("#nextStep").hidden`, but `.next-step` sets
+    // `display: grid` and an author rule beats the browser's `[hidden] { display: none }`.
+    // Without a guard the Hide button set a property and changed nothing on screen — and
+    // so did finishing the tutorial, which sets the same flag.
+    expect(main).toContain('element("#nextStep").hidden = hidden;');
+    expect(styles).toMatch(/\.next-step\[hidden\]\s*\{[^}]*display:\s*none/);
+  });
+
+  it("guards every element it hides with a display rule", () => {
+    // The class of bug above, for the whole HUD: anything toggled through `.hidden` needs
+    // a `[hidden]` rule if its own class sets a display, or the toggle is inert.
+    const toggled = new Set([...main.matchAll(/element(?:<[^>]*>)?\("#([A-Za-z][\w-]*)"\)\.hidden\s*=/g)].map((m) => m[1]!));
+    expect(toggled.size).toBeGreaterThan(0);
+    const unguarded: string[] = [];
+    for (const id of toggled) {
+      // Which class does the markup give it? Only classed elements can carry a display rule.
+      const tag = new RegExp(`id="${id}"[^>]*class="([^"]+)"|class="([^"]+)"[^>]*id="${id}"`).exec(html);
+      const classes = (tag?.[1] ?? tag?.[2] ?? "").split(/\s+/).filter(Boolean);
+      for (const cls of classes) {
+        const setsDisplay = new RegExp(`\\.${cls}\\s*\\{[^}]*display:`).test(styles);
+        const guarded = new RegExp(`\\.${cls}\\[hidden\\]`).test(styles)
+          || new RegExp(`#${id}\\[hidden\\]`).test(styles);
+        if (setsDisplay && !guarded) unguarded.push(`#${id} (.${cls})`);
+      }
+    }
+    expect(unguarded).toEqual([]);
+  });
+
   it("stops guiding when the Mayor is dismissed", () => {
     // One switch, not two. Her Hide button already means "stop guiding me".
     expect(main).toContain("!store.state.mayorHidden");
