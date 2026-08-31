@@ -303,7 +303,7 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   border: 1px solid var(--line); border-radius: 9px; font-size: 12.5px; }
 .deposit-total { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
 
-/* ── THE HUD, REDESIGNED ────────────────────────────────────────────────────────────
+/* ── THE HUD, REDESIGNED/* ── THE HUD, REDESIGNED ────────────────────────────────────────────────────────────
    Laid out from the questions a player asks, not from what happened to be built first. */
 
 /* ANCHORED, NOT TEMPLATED, and deliberately so.
@@ -1232,10 +1232,15 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 .sheet-close { position: absolute; z-index: 3; top: 16px; right: 16px; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.18); border-radius: 14px 14px 18px 14px; color: #08383d; background: #fff6d8; box-shadow: 0 4px 0 #9b6426; }
 .sheet-close .mm-icon { width: 17px; height: 17px; margin: auto; }
 .sheet-close:hover { background: #f4c45f; }
-.sheet-route { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin: 0 0 9px; padding: 5px; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; background: #052f34; }
-.sheet-route button { display: flex; min-width: 0; min-height: 43px; align-items: center; justify-content: center; gap: 6px; padding: 6px 7px; border: 1px solid transparent; border-radius: 13px 13px 17px 13px; color: rgba(255,255,255,.52); background: transparent; font-size: 10px; font-weight: 900; }
-.sheet-route button i { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px 9px 12px 9px; color: #08383d; background: #f1edcb; }
-.sheet-route button i .mm-icon { width: 15px; height: 15px; }
+/* FOUR tabs, four columns. It said repeat(3,1fr) with four buttons in it, so Info wrapped
+   onto a row of its own — on every screen, at every width, since the fourth tab was added. */
+.sheet-route { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; margin: 0 0 9px; padding: 4px; border: 1px solid rgba(255,255,255,.09); border-radius: 15px; background: #052f34; }
+.sheet-route button { display: flex; flex-direction: column; min-width: 0; min-height: 46px;
+  align-items: center; justify-content: center; gap: 3px; padding: 5px 3px; border: 1px solid transparent;
+  border-radius: 12px; color: rgba(255,255,255,.55); background: transparent; font-size: 10.5px;
+  font-weight: 900; letter-spacing: .01em; }
+.sheet-route button i { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; color: #08383d; background: #f1edcb; }
+.sheet-route button i .mm-icon { width: 13px; height: 13px; }
 .sheet-route button.active { color: #fff8df; border-color: rgba(244,190,85,.42); background: rgba(255,255,255,.1); box-shadow: none; }
 .sheet-route button.active i { background: #f3be55; box-shadow: 0 3px 0 #78531f; }
 .panel-scroll { flex: 1 1 auto; min-height: 0; height: auto; overflow-y: auto; border: 0; border-radius: 20px 20px 29px 20px; color: var(--ink); background-color: var(--paper); background-image: linear-gradient(rgba(43,104,89,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(43,104,89,.05) 1px,transparent 1px); background-size: 30px 30px; scrollbar-color: var(--teal) var(--paper-2); }
@@ -4137,3 +4142,40 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
    one missing line, both symptoms. Nine other components in this file already carry the
    same guard. */
 .next-step[hidden] { display: none !important; }
+
+/* ── THE SHEET, TIGHTENED ───────────────────────────────────────────────────────────
+   The panels were sized like a slide deck: 18px padding, a 24px display heading and stat
+   cards nine pixels tall inside twelve of padding, so three read-only figures took a third
+   of a phone screen before the first thing you could press. Everything here is a density
+   change — nothing is removed, it just stops shouting. */
+.panel { padding: 13px; }
+.panel h2 { font-size: 20px; margin-bottom: 2px; }
+.panel > p, .panel .lead { font-size: 13px; line-height: 1.45; }
+.section-title { margin: 14px 0 6px; font-size: 11.5px; letter-spacing: .09em; }
+
+/* Read-only context. Useful, not the point of the screen: one compact strip. */
+.economic-dashboard { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 5px;
+  margin: 8px 0 10px; }
+.economic-dashboard > div { padding: 7px 9px; border-radius: 10px; }
+.economic-dashboard small { font-size: 10px; font-weight: 900; letter-spacing: .07em;
+  text-transform: uppercase; }
+.economic-dashboard strong { margin: 1px 0 0; font-size: 15px; }
+.economic-dashboard span { font-size: 11px; }
+
+/* Cards: the things you actually act on. Tighter, so more than one fits on screen. */
+.contract-card, .market-row, .card-list > article { border-radius: 11px; }
+.contract-card { padding: 10px 11px; margin-bottom: 7px; }
+.contract-head strong { font-size: 14.5px; line-height: 1.2; }
+.contract-head small { font-size: 10px; letter-spacing: .07em; }
+.contract-value { gap: 6px; margin-top: 7px; }
+.contract-value span { font-size: 11px; }
+.contract-actions { gap: 6px; margin-top: 8px; }
+.contract-actions button, .contract-supply { min-height: 40px; font-size: 13px; }
+.active-contract { padding: 10px 11px; }
+
+@media (max-width: 760px) {
+  .panel { padding: 11px; }
+  .panel h2 { font-size: 18px; }
+  /* Two up rather than one: three stacked cards is most of a phone screen. */
+  .economic-dashboard { grid-template-columns: repeat(2, 1fr); }
+}
