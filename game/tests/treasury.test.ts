@@ -1,19 +1,45 @@
 import { describe, expect, it } from "vitest";
 import main from "../src/main.ts?raw";
 import dataSource from "../src/data.ts?raw";
+import state from "../src/state.ts?raw";
 import styles from "../src/style.css?inline";
 import { GameStore } from "../src/state";
 import { BANK_SPREAD, MERC_DOLLARS_PER_USD, MM_REFERENCE_PRICE_USD } from "../src/data";
 
 describe("bringing $MM into the city", () => {
-  it("converts a deposit in the same press that makes it", () => {
-    // The old flow credited $MM and then asked the player to walk to a second desk and
-    // convert it. Nobody sends real money to a treasury in order to own a receipt.
+  it("does NOT convert a deposit, because the MERCS would be unspendable", () => {
+    // This asserts the absence of something I shipped and had to take back out.
+    //
+    // exchangeMMForMercDollars credits store.state.wallet. A signed-in player with a
+    // business spends from serverWallet — purse() is `serverWallet ?? state.wallet` —
+    // and server/src/deposit.ts records mm_deposit without ever touching
+    // currency_account. So converting inside the deposit press turned a real, irreversible
+    // transfer into MERCS the authority did not recognise: invisible in the HUD, unspendable,
+    // and recoverable only at roughly 11% of the deposit.
+    //
+    // Auto-converting is still the right shape. It needs the AUTHORITY to issue the MERCS in
+    // the same transaction that records the deposit. Delete this test when it does — not before.
     const buy = main.slice(main.indexOf('action === "buy-mm"'));
     const body = buy.slice(0, buy.indexOf('else if (action ==='));
     expect(body).toContain("store.setDepositedMM(outcome.value.totalDeposited)");
-    expect(body).toContain("store.exchangeMMForMercDollars(fresh)");
-    expect(body).not.toContain("yours to convert");
+    // Comments stripped: the explanation above names the very call it forbids.
+    const code = body.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toContain("exchangeMMForMercDollars(");
+  });
+
+  it("leaves deposited $MM able to buy the things priced in $MM", () => {
+    // Deeds, charters and sponsorships are paid straight out of mmHoldings, so a deposit
+    // that converted itself pinned that balance at zero and a player who sent exactly the
+    // price of a deed could no longer buy the deed they sent the money for.
+    const stateSource = state;
+    for (const sink of ["SPONSORSHIP_COST_MM", "CHARTER_COST_MM", "DEED_COST_MM"]) {
+      expect(stateSource, `${sink} should still be paid from mmHoldings`).toContain(sink);
+    }
+    expect(stateSource).toContain("this.state.mmHoldings <");
+    // and the deposit path must not be what empties it
+    const buy = main.slice(main.indexOf('action === "buy-mm"'));
+    const code = buy.slice(0, buy.indexOf('else if (action ===')).replace(/\/\/[^\n]*/g, "");
+    expect(code).not.toContain("exchangeMMForMercDollars(");
   });
 
   it("offers what the player holds, not a fixed hundred", () => {

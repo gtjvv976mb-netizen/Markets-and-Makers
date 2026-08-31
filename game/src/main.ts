@@ -1525,7 +1525,7 @@ function depositMarkup(): string {
     <button class="deposit-buy" data-action="buy-mm" ${canAfford ? "" : "disabled"}>
       <span>Bring in ${formatNumber(depositAmount)} $MM</span>
       <small>${canAfford
-        ? `straight into ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}`
+        ? `worth ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE} once converted`
         : `You hold ${formatNumber(held ?? 0)} $MM`}</small>
     </button>
     <details class="deposit-manual">
@@ -3858,14 +3858,26 @@ document.body.addEventListener("click", (event) => {
             // Deposit AND convert, in the one press. Leaving the player holding $MM they
             // then had to bring to a second desk was the whole complaint: nobody sends
             // real money to a treasury in order to own a receipt.
+            // A deposit lands as $MM, and converting is a separate, deliberate press.
+            //
+            // It converted automatically here for one build, which was wrong in a way that
+            // cost real money: exchangeMMForMercDollars credits state.wallet, but a signed-in
+            // player with a business spends from serverWallet — purse() is
+            // `serverWallet ?? state.wallet` — and the authority never learns about a local
+            // credit (server/src/deposit.ts writes mm_deposit and never touches
+            // currency_account). So a real transfer became MERCS the player could not see or
+            // spend, and the only way back cost ~11% of the deposit.
+            //
+            // Converting on deposit is still the right shape; it needs the AUTHORITY to issue
+            // the MERCS in the same transaction that records the deposit. Until it does, the
+            // $MM stays $MM: visible, spendable on deeds and charters, and withdrawable.
             const fresh = store.setDepositedMM(outcome.value.totalDeposited);
-            const issued = fresh > 0 ? store.exchangeMMForMercDollars(fresh) : null;
             depositDesk = await fetchDepositDesk();
             chainMM = principal ? await fetchChainMM(principal.walletAddress) : chainMM;
-            toast(issued?.ok
-              ? `${formatNumber(fresh)} $MM in — ${formatNumber(store.mercDollarsForMM(fresh))} ${CURRENCY_CODE} added.`
-              // The cap refused it, so the $MM is still theirs and still convertible later.
-              : `${formatNumber(outcome.value.units)} $MM is yours. ${issued?.message ?? "Convert it when the bank has room."}`);
+            toast(fresh > 0
+              ? `${formatNumber(fresh)} $MM is in the city — worth ${formatNumber(store.mercDollarsForMM(fresh))} ${CURRENCY_CODE} when you convert it.`
+              // Nothing new landed: this signature was already credited on an earlier pass.
+              : "That transfer was already credited — nothing new to add.");
             renderAll();
             return;
           }
