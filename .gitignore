@@ -11,3 +11,14 @@
 *.pyc
 outputs/
 work/
+
+# Private keys, never. A stray `ssh-keygen` in game/ left an OPENSSH PRIVATE KEY sitting
+# untracked and unignored on 2026-08-31 — one `git add -A` from a public remote, with
+# several sessions committing to this repo. Patterns, not filenames, because the accident
+# names the file after whatever the shell mangled.
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+*OPENSSH*
+ssh-keygen*
