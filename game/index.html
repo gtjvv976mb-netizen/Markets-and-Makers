@@ -156,24 +156,29 @@
           <!-- Minimal HUD: persistent controls stay as small edge tabs. The two detailed
                surfaces are closed by default, so the world remains the dominant layer. -->
           <div class="hud-grid" id="gameHud">
-            <div class="hud-top" aria-label="Presence and balances">
+            <!-- MONEY, TOP LEFT. The most-read thing in a business sim gets the prime
+                 corner. It used to sit centred in the top strip, where the six-button
+                 access bar was laid over it — measured: the bar spanned 0,0 to 1280x34 and
+                 the balances sat at 634,8, underneath it. -->
+            <div class="hud-purse" id="hudVitals" aria-label="Your money"></div>
+
+            <!-- WHO YOU ARE, AND ANYTHING SHOUTING. Identity, presence and the one
+                 attention channel, together in the opposite corner. -->
+            <div class="hud-identity">
               <div class="online-pill" id="onlinePill" hidden></div>
-              <div class="hud-vitals" id="hudVitals"></div>
+              <div class="wallet-slot" id="walletSlot"><span class="profile-loading" aria-hidden="true"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span></div>
             </div>
 
-            <div class="wallet-slot" id="walletSlot"><span class="profile-loading" aria-hidden="true"><img src="/assets/brand/mm-maker-crest.svg" alt="" /></span></div>
+            <!-- ONE DOCK. This replaces two competing navigations: a left rail holding
+                 News/Bank/Info and a full-width bar holding six more, which duplicated Bank
+                 and covered the balances. Everything you can open lives here, in the order
+                 you need it: your business first, money last. -->
+            <nav class="hud-dock" id="quickAccess" aria-label="Go to"></nav>
 
-            <nav class="hud-utility-rail" aria-label="City desks">
-              <button data-action="utility-open" data-utility="news" aria-label="News" aria-controls="hudUtilityDrawer" aria-expanded="false">
-                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-news" /></svg><span>News</span>
-              </button>
-              <button data-action="utility-open" data-utility="bank" aria-label="Bank" aria-controls="hudUtilityDrawer" aria-expanded="false">
-                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-bank" /></svg><span>Bank</span>
-              </button>
-              <button data-action="info-open" aria-label="Info" aria-controls="sheet" aria-expanded="false">
-                <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-info" /></svg><span>Info</span>
-              </button>
-            </nav>
+            <!-- YOUR BUSINESS, ALWAYS ON SCREEN. In a game about running one, its state
+                 should never be behind a toggle: what it is, what it is doing, and whether
+                 it needs you. The drawer still holds the full desk. -->
+            <aside class="hud-business-card" id="businessCard" aria-label="Your business"></aside>
 
             <button class="business-edge-tab" id="businessDrawerToggle" data-action="business-drawer-toggle"
               aria-controls="hudBusinessDrawer" aria-expanded="false">
@@ -238,7 +243,6 @@
             <!-- The six things a maker needs, one press each. Every one of them existed
                  and every one was two or three interactions deep — open the sheet, pick a
                  tab of four, scroll past whatever that tab stacks above it. -->
-            <nav class="quick-access" id="quickAccess" aria-label="Go to"></nav>
 
             <div class="hud-context-actions" aria-label="Current world action">
               <button class="world-action primary" id="leaseAction"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-property" /></svg></i><span><small>Property</small><strong>Lease plot</strong></span></button>

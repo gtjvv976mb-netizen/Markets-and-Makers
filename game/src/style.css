@@ -303,7 +303,106 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   border: 1px solid var(--line); border-radius: 9px; font-size: 12.5px; }
 .deposit-total { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
 
-/* The real $MM backing./* The real $MM backing. Read from the chain by the authority — never a constant. */
+/* ── THE HUD, REDESIGNED ────────────────────────────────────────────────────────────
+   Laid out from the questions a player asks, not from what happened to be built first. */
+
+/* ANCHORED, NOT TEMPLATED, and deliberately so.
+   .hud-grid declares grid-template-areas twice in this file and then a later pass sets
+   `display: block` on it — so the template has been inert for some time and every child
+   positions itself. Rather than revive a template three rules already override and hope
+   nothing else depended on the old flow, each zone states where it is. Corners cannot
+   collide, which is the property the previous layout lost. */
+.hud-grid > .hud-purse,
+.hud-grid > .hud-identity,
+.hud-grid > .hud-dock,
+.hud-grid > .hud-business-card { position: absolute; pointer-events: auto; }
+
+.hud-grid > .hud-purse    { top: var(--hud-safe-top, 12px); left: 12px; }
+.hud-grid > .hud-identity { top: var(--hud-safe-top, 12px); right: 12px;
+                            display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* Below the purse, so the two left-hand things stack rather than fight. */
+.hud-grid > .hud-dock     { top: calc(var(--hud-safe-top, 12px) + 62px); left: 12px;
+                            max-height: calc(100% - 190px); overflow: auto; }
+/* Below identity on the right, clear of the bottom action row. */
+.hud-grid > .hud-business-card { top: calc(var(--hud-safe-top, 12px) + 58px); right: 12px; }
+
+/* --- MONEY. The number the whole game turns on, in the corner the eye starts at. --- */
+.hud-purse { display: flex; align-items: stretch; gap: 2px; padding: 0; border: none;
+  background: none; pointer-events: auto; }
+.hud-purse button { display: flex; gap: 9px; align-items: center; padding: 9px 13px;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(12,38,36,.82); color: #eef5ea;
+  backdrop-filter: blur(10px); cursor: pointer; text-align: left; }
+.hud-purse button:first-child { border-radius: 13px 4px 4px 13px; }
+.hud-purse button:last-child  { border-radius: 4px 13px 13px 4px; }
+.hud-purse button:only-child  { border-radius: 13px; }
+.hud-purse button:hover { background: rgba(24,62,56,.92); border-color: rgba(255,255,255,.3); }
+.hud-purse img, .hud-purse .mm-icon { width: 19px; height: 19px; flex: none; opacity: .95; }
+.hud-purse small { display: block; color: rgba(238,245,234,.6); font-size: 10px; font-weight: 900;
+  letter-spacing: .1em; text-transform: uppercase; }
+.hud-purse strong { display: block; margin-top: 1px; font-size: 18px; font-weight: 950;
+  font-variant-numeric: tabular-nums; line-height: 1.1; }
+.hud-purse em { display: block; margin-top: 1px; color: rgba(238,245,234,.5); font-size: 10.5px;
+  font-style: normal; font-weight: 800; }
+
+/* --- ONE DOCK. Every destination, in the order the loop needs them. --- */
+.hud-dock { display: flex; flex-direction: column; gap: 4px; padding: 5px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 15px; background: rgba(12,38,36,.7);
+  backdrop-filter: blur(10px); pointer-events: auto; }
+.hud-dock button { display: flex; gap: 9px; align-items: center; width: 100%; min-height: 38px;
+  padding: 0 12px 0 9px; border: none; border-radius: 10px; background: none; color: #dfeadb;
+  font-size: 13px; font-weight: 850; text-align: left; white-space: nowrap; cursor: pointer; }
+.hud-dock button:hover { background: rgba(255,255,255,.11); color: #fff; }
+.hud-dock button .mm-icon { width: 17px; height: 17px; flex: none; opacity: .82; }
+.hud-dock button:hover .mm-icon { opacity: 1; }
+.hud-dock .dock-split { height: 1px; margin: 3px 8px; background: rgba(255,255,255,.11); }
+/* A count riding on a dock row — an order ready, an alert waiting. */
+.hud-dock button b { margin-left: auto; min-width: 19px; padding: 1px 6px; border-radius: 999px;
+  background: #c9a24a; color: #17332c; font-size: 11px; font-weight: 950; text-align: center; }
+
+/* --- THE BUSINESS, ALWAYS THERE. --- */
+.hud-business-card { width: 232px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.13);
+  border-radius: 15px; background: rgba(12,38,36,.82); color: #eef5ea; backdrop-filter: blur(10px);
+  pointer-events: auto; cursor: pointer; }
+.hud-business-card:hover { border-color: rgba(255,255,255,.28); }
+.hud-business-card .bc-head { display: flex; gap: 9px; align-items: center; }
+.hud-business-card .bc-head i { display: grid; place-items: center; width: 30px; height: 30px;
+  flex: none; border-radius: 9px; background: var(--bc-accent, #3d8f87); font-size: 15px; }
+.hud-business-card .bc-head small { display: block; color: rgba(238,245,234,.58); font-size: 10px;
+  font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.hud-business-card .bc-head strong { display: block; font-size: 14px; line-height: 1.2; }
+.hud-business-card .bc-meter { height: 4px; margin: 9px 0 7px; border-radius: 999px;
+  background: rgba(255,255,255,.13); overflow: hidden; }
+.hud-business-card .bc-meter span { display: block; height: 100%; background: #9fe07a;
+  transition: width .4s ease; }
+.hud-business-card .bc-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.hud-business-card .bc-rows div small { display: block; color: rgba(238,245,234,.55);
+  font-size: 10px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.hud-business-card .bc-rows div strong { display: block; font-size: 13.5px;
+  font-variant-numeric: tabular-nums; }
+.hud-business-card .bc-need { display: block; margin-top: 8px; padding: 6px 8px; border-radius: 8px;
+  background: rgba(201,162,74,.18); color: #f2dfa8; font-size: 11.5px; font-weight: 800; }
+.hud-business-card .bc-open { display: block; margin-top: 9px; padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,.1); color: rgba(238,245,234,.55); font-size: 11px;
+  font-weight: 850; letter-spacing: .04em; }
+.hud-business-card:hover .bc-open { color: rgba(238,245,234,.85); }
+/* One way in, not two: the edge tab was the ONLY way to your business and is now a
+   duplicate of the card beside it. It returns on phones, where the card is hidden. */
+.hud-grid .business-edge-tab { display: none; }
+@media (max-width: 760px) { .hud-grid .business-edge-tab { display: flex; } }
+.hud-business-card.idle   { --bc-accent: #7d7566; }
+.hud-business-card.broken { --bc-accent: #c0503a; }
+
+/* Phones: the dock keeps its icons and loses its words; the business card goes to the
+   drawer it already has, because 232px of it is a third of the screen. */
+@media (max-width: 760px) {
+  .hud-dock button span { display: none; }
+  .hud-dock button { padding: 0; justify-content: center; }
+  .hud-business-card { display: none; }
+  .hud-purse strong { font-size: 16px; }
+  .hud-purse em { display: none; }
+}
+
+/* The real $MM backing./* The real $MM backing./* The real $MM backing. Read from the chain by the authority — never a constant. */
 .mm-backing { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 8px 14px; padding: 11px 13px; margin: 0 0 10px; border: 1px solid var(--line);
   border-left: 3px solid #3d8f87; border-radius: 12px; background: rgba(61,143,135,.06); }
@@ -2016,15 +2115,23 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   inset: 0;
   z-index: 6;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+  /* Five zones, and each one answers a question the player asks constantly.
+     purse    — how much have I got?          (top left, the prime corner)
+     identity — who am I, is anything wrong?  (top right)
+     dock     — where do I go?                (left, one column)
+     business — what is my shop doing?        (right, never hidden)
+     guide    — what should I do next?        (bottom centre, above the action)
+     The old grid had a full-width "top" row that the money and a six-button bar both
+     tried to occupy, and they overlapped. Corners cannot collide. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: auto 1fr auto auto;
   grid-template-areas:
-    "top      top    top"
-    "rail     .      business"
-    "guide    guide  business"
+    "purse    .      identity"
+    "dock     .      business"
+    "guide    guide  guide"
     "world    world  world";
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 12px;
   /* The world must stay clickable through the gaps; each control opts back in. */
   pointer-events: none;
 }
@@ -2742,8 +2849,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   pointer-events: none;
   overflow: visible;
 }
-.hud-grid :where(button, a, .hud-top, .wallet-slot, .hud-utility-rail, .hud-drawer,
-  .business-edge-tab, .hud-context-actions) { pointer-events: auto; }
+.hud-grid :where(button, a, .hud-top, .wallet-slot, .hud-drawer, .hud-purse, .hud-dock,
+  .hud-identity, .hud-business-card, .business-edge-tab, .hud-context-actions) { pointer-events: auto; }
 .hud-internal-data { display: none !important; }
 .selected-card { display: none !important; }
 
@@ -3759,8 +3866,10 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
    current step names it — written that way round, rather than hide-all-then-restore,
    so no rule has to guess a base display value back (grid here, flex there).
    Nothing is unmounted: her Hide button clears data-guided and the whole UI returns. */
-.app-shell[data-guided="true"]:not([data-show~="nav"]) :is(.maker-nav, .sheet-route, .hud-utility-rail),
+.app-shell[data-guided="true"]:not([data-show~="nav"]) :is(.maker-nav, .sheet-route),
+/* #quickAccess is the dock now — one navigation instead of a rail plus a top bar. */
 .app-shell[data-guided="true"]:not([data-show~="quick"]) #quickAccess,
+.app-shell[data-guided="true"]:not([data-show~="ops"]) #businessCard,
 .app-shell[data-guided="true"]:not([data-show~="build"]) #buildPanel,
 .app-shell[data-guided="true"]:not([data-show~="ops"]) #businessPanel,
 .app-shell[data-guided="true"]:not([data-show~="market"]) #marketPanel,

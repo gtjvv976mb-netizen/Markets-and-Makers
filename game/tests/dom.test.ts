@@ -72,15 +72,25 @@ describe("markup contract", () => {
   });
 
   it("keeps the minimalist HUD closed, labelled, and clear of the mobile playfield", () => {
-    const rail = html.match(/<nav class="hud-utility-rail"[\s\S]*?<\/nav>/)?.[0] ?? "";
-    expect(rail.match(/<button/g) ?? []).toHaveLength(3);
-    expect(rail).toContain('data-utility="news" aria-label="News"');
-    expect(rail).toContain('data-utility="bank" aria-label="Bank"');
-    expect(rail).toContain('data-action="info-open" aria-label="Info"');
+    // The rail and the six-button top bar became ONE dock (#quickAccess), because they had
+    // grown separately, duplicated Bank, and the bar was laid over the balances. The
+    // destinations are what matters, so they are asserted where they now live: the dock
+    // table in main.ts, rendered into the nav below.
+    expect(html).toContain('class="hud-dock" id="quickAccess"');
+    const dock = main.match(/const HUD_DOCK: readonly DockEntry\[\] = \[[\s\S]*?\n\];/)?.[0] ?? "";
+    expect(dock, "the dock table must exist").not.toBe("");
+    for (const destination of ["News", "Bank", "Info", "Business", "Market", "Orders", "Map"]) {
+      expect(dock, `${destination} must be reachable from the dock`).toContain(`label: "${destination}"`);
+    }
+    // Nothing may appear twice: the old pair had Bank on both.
+    const labels = [...dock.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
+    expect(new Set(labels).size, `a destination is listed twice: ${labels.join(", ")}`).toBe(labels.length);
 
     expect(html).toContain('id="hudUtilityDrawer" data-open="false" aria-hidden="true" inert');
     expect(html).toContain('id="hudBusinessDrawer" data-open="false" aria-hidden="true" inert');
-    expect(html).toContain('aria-controls="hudUtilityDrawer"');
+    // The drawer buttons moved into the rendered dock, so the relationship is asserted
+    // where it is now written rather than in the static markup.
+    expect(main).toContain('aria-controls="hudUtilityDrawer"');
     expect(html).toContain('aria-controls="hudBusinessDrawer"');
     expect(html).toContain('id="onlinePill"');
     expect(html).toContain('id="hudVitals"');

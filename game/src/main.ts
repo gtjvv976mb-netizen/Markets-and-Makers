@@ -1002,6 +1002,7 @@ const PANEL_TAB: Record<string, string> = {
   businessPanel: "shop", buildPanel: "shop",
   contractsPanel: "trade", makerMarketPanel: "trade", marketPanel: "trade",
   mapPanel: "world", guidePanel: "world",
+  infoPanel: "info",
 };
 
 function gotoPanel(panelId: string): void {
@@ -3126,16 +3127,17 @@ function renderQuickBar(): void {
 function renderVitals(): void {
   const node = document.querySelector<HTMLElement>("#hudVitals");
   if (!node) return;
-  const wallet = chainMM === null ? "" :
-    `<em class="mm-onchain" title="Real $MM in your Solana wallet">${formatNumber(chainMM)} in wallet</em>`;
+  const wallet = chainMM === null ? "" : `<em>${formatNumber(chainMM)} in wallet</em>`;
   node.innerHTML = `
-    <button class="hud-balance-pill merc-balance" data-action="goto" data-panel="marketPanel"
+    <button data-action="goto" data-panel="marketPanel"
       title="Merc Dollars — what you trade with. Opens the market.">
-      <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" /><span><small>MERCS</small><strong>${formatNumber(purse())}</strong></span>
+      <img src="/assets/brand/merc-dollars.png" alt="" decoding="async" />
+      <span><small>Merc Dollars</small><strong>${formatNumber(purse())}</strong></span>
     </button>
-    <button class="hud-balance-pill mm-balance" data-action="goto" data-panel="marketPanel"
-      title="$MM you have earned in game. Opens the Government Bank, where it converts to MERCS.">
-      <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg><span><small>$MM earned</small><strong>${formatNumber(store.state.mmHoldings)}</strong>${wallet}</span>
+    <button data-action="utility-open" data-utility="bank"
+      title="$MM you have earned. Opens the Government Bank.">
+      <svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg>
+      <span><small>$MM</small><strong>${formatNumber(store.state.mmHoldings)}</strong>${wallet}</span>
     </button>`;
 }
 
@@ -3147,22 +3149,117 @@ function renderVitals(): void {
  * it. Naming them on screen is the difference between a game with these features and a
  * game where a player can find them.
  */
-const QUICK_ACCESS: ReadonlyArray<{ panel: string; icon: UiIconName; label: string; hint: string }> = [
-  { panel: "marketPanel", icon: "bank", label: "Bank", hint: "Convert $MM to MERCS, and back" },
-  { panel: "businessPanel", icon: "business", label: "Business", hint: "Your enterprise, rate, costs and takings" },
-  { panel: "businessPanel", icon: "property", label: "Products", hint: "What you make, and what it sells for" },
-  { panel: "contractsPanel", icon: "rank", label: "Paid tasks", hint: "City Hall and household orders" },
-  { panel: "makerMarketPanel", icon: "network", label: "Marketplace", hint: "Buy and sell with other Mercedonians" },
-  { panel: "marketPanel", icon: "world", label: "Goods", hint: "The district's prices" },
+/**
+ * Every destination, in the order the loop actually needs them.
+ *
+ * This replaces two navigations that had grown separately and fought: a left rail holding
+ * News, Bank and Info, and a full-width bar across the top holding six more. They
+ * duplicated Bank, and the bar was laid over the balances — measured at 0,0 by 1280x34
+ * with the money at 634,8, underneath it.
+ *
+ * Order is the player's day: what you run, what it makes, where you sell it, who is buying,
+ * then money, then the world, then reading matter. `drawer` opens a side desk, `panel`
+ * jumps into the sheet.
+ */
+type DockEntry =
+  | { kind: "panel"; panel: string; icon: UiIconName; label: string; hint: string }
+  | { kind: "drawer"; utility: string; icon: UiIconName; label: string; hint: string }
+  | { kind: "split" };
+
+const HUD_DOCK: readonly DockEntry[] = [
+  { kind: "panel", panel: "businessPanel", icon: "business", label: "Business", hint: "Your enterprise: rate, costs and takings" },
+  { kind: "panel", panel: "buildPanel", icon: "build", label: "Products", hint: "What you make, and what it sells for" },
+  { kind: "split" },
+  { kind: "panel", panel: "marketPanel", icon: "world", label: "Market", hint: "Buy and sell with the district" },
+  { kind: "panel", panel: "makerMarketPanel", icon: "network", label: "Traders", hint: "Buy and sell with other Mercedonians" },
+  { kind: "panel", panel: "contractsPanel", icon: "rank", label: "Orders", hint: "City Hall and household orders — they pay most" },
+  { kind: "split" },
+  { kind: "drawer", utility: "bank", icon: "bank", label: "Bank", hint: "Convert $MM to Merc Dollars, and back" },
+  { kind: "panel", panel: "mapPanel", icon: "compass", label: "Map", hint: "The districts, and how to travel" },
+  { kind: "drawer", utility: "news", icon: "news", label: "News", hint: "The city dispatch" },
+  { kind: "panel", panel: "infoPanel", icon: "info", label: "Info", hint: "How Mercedonia works, and where you stand" },
 ];
 
 function renderQuickAccess(): void {
   const node = document.querySelector<HTMLElement>("#quickAccess");
   if (!node) return;
-  node.innerHTML = QUICK_ACCESS.map((entry) => `
-    <button data-action="goto" data-panel="${entry.panel}" title="${escapeMarkup(entry.hint)}">
-      <i>${uiIcon(entry.icon)}</i><span>${escapeMarkup(entry.label)}</span>
-    </button>`).join("");
+  // An order you could deliver right now is worth a number on the dock rather than a trip
+  // into the panel to discover it.
+  const active = store.state.activeContract;
+  const ready = active && store.state.inventory[active.resource] >= active.quantity ? 1 : 0;
+  node.innerHTML = HUD_DOCK.map((entry) => {
+    if (entry.kind === "split") return `<span class="dock-split" aria-hidden="true"></span>`;
+    const badge = entry.kind === "panel" && entry.panel === "contractsPanel" && ready
+      ? `<b title="An order is ready to deliver">1</b>` : "";
+    // aria-controls survives the move off the old rail: a screen reader still needs to be
+    // told which drawer or sheet a dock button opens.
+    const attrs = entry.kind === "panel"
+      ? `data-action="goto" data-panel="${entry.panel}" aria-controls="sheet" aria-expanded="false"`
+      : `data-action="utility-open" data-utility="${entry.utility}" aria-controls="hudUtilityDrawer" aria-expanded="false"`;
+    return `<button ${attrs} title="${escapeMarkup(entry.hint)}">
+      ${uiIcon(entry.icon)}<span>${escapeMarkup(entry.label)}</span>${badge}
+    </button>`;
+  }).join("");
+}
+
+/**
+ * Your business, on screen, always.
+ *
+ * This game is about running one. Its state was behind a toggle, so the answer to "is it
+ * working?" cost a click and a read. Status, progress, what is on the shelf and what it
+ * took today — and the one thing stopping it, when something is.
+ */
+function renderBusinessCard(): void {
+  const node = document.querySelector<HTMLElement>("#businessCard");
+  if (!node) return;
+  const licence = store.state.license;
+  if (!licence || !store.state.buildingPlaced) {
+    node.hidden = true;
+    return;
+  }
+  node.hidden = false;
+  // The card IS the way in. The floating edge tab that used to be the only way in still
+  // exists for phones, where the card is too wide to keep on screen.
+  node.setAttribute("data-action", "business-drawer-toggle");
+  node.setAttribute("role", "button");
+  node.setAttribute("tabindex", "0");
+  const config = BUSINESS[licence];
+  const fitting = store.installation();
+  const job = store.state.job;
+  const broken = store.state.brokenDown;
+  const cut = store.state.suppliesCut;
+
+  const state = broken ? "broken" : cut || !job ? "idle" : "working";
+  node.className = `hud-business-card ${state}`;
+  node.style.setProperty("--bc-accent", config.color);
+
+  const status = broken ? "Broken down"
+    : cut ? "Supply cut"
+    : fitting ? `Fitting ${UPGRADE_NAMES[fitting.key].name}`
+    : job ? "Producing" : "Idle";
+  const progress = fitting ? fitting.progress
+    : job ? Math.min(100, Math.round(((Date.now() - job.startedAt) / Math.max(1, job.completeAt - job.startedAt)) * 100))
+    : 0;
+
+  const need = broken ? "Repair it to start the line again"
+    : cut ? "Settle the standing charges to reconnect"
+    : !job && !fitting ? "Nothing running — open it and start a cycle"
+    : "";
+
+  node.innerHTML = `
+    <div class="bc-head">
+      <i aria-hidden="true">${config.icon}</i>
+      <div><small>${escapeMarkup(status)}</small><strong>${escapeMarkup(config.name)}</strong></div>
+    </div>
+    <div class="bc-meter"><span style="width:${progress}%"></span></div>
+    <div class="bc-rows">
+      <div><small>On the shelf</small><strong>${formatNumber(store.storedUnits())}</strong></div>
+      <div><small>Took today</small><strong>${formatNumber(store.state.todayRevenue)}</strong></div>
+      <div><small>Condition</small><strong>${Math.round(store.state.condition)}%</strong></div>
+      <div><small>Costs/day</small><strong>${formatNumber(store.dailyOverhead())}</strong></div>
+    </div>
+    ${need ? `<b class="bc-need">${escapeMarkup(need)}</b>` : ""}
+    <span class="bc-open">Open the desk</span>`;
 }
 
 /**
@@ -3555,6 +3652,7 @@ function renderAll(): void {
   renderWalletSlot();
   renderVitals();
   renderQuickAccess();
+  renderBusinessCard();
   renderBusinessPanel();
   renderWorldStrip();
   renderCounterPrompt();
