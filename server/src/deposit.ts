@@ -23,7 +23,9 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { config } from "./config.js";
+import { MERCS_PER_MM_DEPOSIT } from "./catalogue.js";
 import { pool } from "./database.js";
+import { moveCurrency, MarketError } from "./market.js";
 import { connection, parseTreasuryKey, resolveMint, toRawUnits, type MintFacts } from "./treasury.js";
 
 export class DepositError extends Error {
@@ -35,13 +37,17 @@ export interface DepositReceipt {
   units: number;
   alreadyCredited: boolean;
   totalDeposited: number;
+  /** MERCS issued for this deposit on arrival. 0 means it is still held as $MM. */
+  mercs: number;
 }
 
 /** Every whole $MM this player has brought in and not yet spent in game. */
 export async function depositedUnits(realmId: string, playerId: string): Promise<number> {
   if (!pool) return 0;
+  // Deposits converted on arrival are MERCS now, and counting them here as well would
+  // hand the player the same tokens twice.
   const row = await pool.query<{ n: string }>(
-    "select coalesce(sum(units),0)::text as n from mm_deposit where realm_id=$1 and player_id=$2",
+    "select coalesce(sum(units),0)::text as n from mm_deposit where realm_id=$1 and player_id=$2 and mercs = 0",
     [realmId, playerId]);
   return Number(row.rows[0]!.n);
 }
@@ -131,14 +137,15 @@ export async function creditDeposit(
   // when the RPC is unreachable or the treasury key has been rotated out — the credit is
   // already a fact in the ledger, and re-deriving it from the chain to hand it back would
   // make a settled deposit look unsettled the moment the chain was unavailable.
-  const seen = await pool.query<{ units: string; player_id: string }>(
-    "select units::text, player_id from mm_deposit where signature=$1", [signature]);
+  const seen = await pool.query<{ units: string; player_id: string; mercs: string }>(
+    "select units::text, player_id, mercs::text from mm_deposit where signature=$1", [signature]);
   if (seen.rowCount) {
     if (seen.rows[0]!.player_id !== playerId) {
       throw new DepositError("not-yours", "That transfer has already been credited to another maker.");
     }
     return {
       signature, units: Number(seen.rows[0]!.units), alreadyCredited: true,
+      mercs: Number(seen.rows[0]!.mercs),
       totalDeposited: await depositedUnits(realmId, playerId),
     };
   }
@@ -201,13 +208,44 @@ export async function creditDeposit(
       "That transaction does not contain a $MM transfer from your wallet to the city treasury.");
   }
 
-  await pool.query(
-    `insert into mm_deposit (signature, realm_id, player_id, units, from_wallet)
-     values ($1,$2,$3,$4,$5) on conflict (signature) do nothing`,
-    [signature, realmId, playerId, credited, walletAddress]);
+  // Record the deposit and issue the MERCS for it in ONE transaction, so the player never
+  // ends up with tokens in the treasury and nothing in their purse.
+  //
+  // The signature carries the idempotency: `on conflict (signature) do nothing` means a
+  // replayed confirm inserts no row, and the credit only runs when a row was genuinely
+  // written. currency_ledger's unique (command_id, debit, credit) is the second guard.
+  const client = await pool.connect();
+  let issued = 0;
+  try {
+    await client.query("begin");
+    const inserted = await client.query(
+      `insert into mm_deposit (signature, realm_id, player_id, units, from_wallet)
+       values ($1,$2,$3,$4,$5) on conflict (signature) do nothing`,
+      [signature, realmId, playerId, credited, walletAddress]);
+
+    if (inserted.rowCount) {
+      const owed = credited * MERCS_PER_MM_DEPOSIT;
+      try {
+        await moveCurrency(client, realmId, `deposit:${signature}`, owed,
+          { type: "government", id: "treasury" }, { type: "player", id: playerId }, "chain.deposit");
+        await client.query("update mm_deposit set mercs = $1 where signature = $2", [owed, signature]);
+        issued = owed;
+      } catch (error) {
+        // A treasury too thin to issue must not lose the deposit. The row stays, mercs
+        // stays 0, and the units remain the player's $MM to convert when the bank can.
+        if (!(error instanceof MarketError)) throw error;
+      }
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 
   return {
-    signature, units: credited, alreadyCredited: false,
+    signature, units: credited, alreadyCredited: false, mercs: issued,
     totalDeposited: await depositedUnits(realmId, playerId),
   };
 }

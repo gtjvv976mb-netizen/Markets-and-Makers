@@ -701,6 +701,7 @@ let chainMM: number | null = null;
 let depositDesk: Awaited<ReturnType<typeof fetchDepositDesk>> = null;
 /** How much the buy button will bring in. */
 let depositAmount = 100;
+let convertAmount = 0;   // 0 means 'all of it', which is what the button offers by default
 
 /**
  * The most $MM the bank can take right now: everything held, less whatever the epoch's
@@ -728,6 +729,13 @@ function redeemableMercs(): number {
     if (store.mmForMercDollars(mid) >= capital) high = mid; else low = mid + 1;
   }
   return low;
+}
+
+/** What the player typed, clamped to what the bank can actually take. 0 means "all". */
+function convertAsked(): number {
+  const most = convertibleMM();
+  if (convertAmount <= 0) return most;
+  return Math.max(0, Math.min(convertAmount, most));
 }
 
 function convertibleMM(): number {
@@ -1517,16 +1525,22 @@ function depositMarkup(): string {
       the page. ${held !== null
         ? `You hold ${formatNumber(held)} $MM.`
         : "Your wallet balance is not readable right now, but a purchase will still work."}</p>
-    <div class="deposit-amounts">
-      ${[100, 500, 1_000, 5_000].map((amount) => `
-        <button class="${amount === depositAmount ? "active" : ""}" data-action="deposit-amount" data-units="${amount}"
-          ${held !== null && held < amount ? "disabled" : ""}>${formatNumber(amount)}</button>`).join("")}
+    <div class="amount-field">
+      <label for="depositUnits">Amount</label>
+      <input id="depositUnits" type="number" inputmode="numeric" min="1" step="1"
+        ${held !== null ? `max="${Math.floor(held)}"` : ""} value="${depositAmount}"
+        data-action="deposit-amount" aria-describedby="depositWorth" />
+      <span class="amount-unit">$MM</span>
+      ${held !== null ? `<button class="amount-max" data-action="deposit-max">Max</button>` : ""}
     </div>
-    <button class="deposit-buy" data-action="buy-mm" ${canAfford ? "" : "disabled"}>
-      <span>Bring in ${formatNumber(depositAmount)} $MM</span>
-      <small>${canAfford
-        ? `worth ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE} once converted`
-        : `You hold ${formatNumber(held ?? 0)} $MM`}</small>
+    <p class="amount-worth" id="depositWorth">= ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}, credited on arrival</p>
+    <button class="deposit-buy" data-action="buy-mm" ${canAfford && depositAmount >= 1 ? "" : "disabled"}>
+      <span>Send ${formatNumber(depositAmount)} $MM</span>
+      <small>${depositAmount < 1
+        ? "Enter an amount"
+        : canAfford
+          ? `Receive ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}`
+          : `You hold ${formatNumber(held ?? 0)} $MM`}</small>
     </button>
     <details class="deposit-manual">
       <summary>Sent it yourself?</summary>
@@ -1635,10 +1649,18 @@ function renderMarket(): void {
         <div><small>You hold</small><strong>${formatNumber(store.state.mmHoldings)} $MM</strong></div>
         <div><small>Worth</small><strong>${formatNumber(store.mercDollarsForMM(store.state.mmHoldings))} ${CURRENCY_CODE}</strong></div>
       </div>
+      ${convertibleMM() >= 1 ? `<div class="amount-field">
+        <label for="convertUnitsDesk">Convert</label>
+        <input id="convertUnitsDesk" type="number" inputmode="numeric" min="1" step="1" max="${convertibleMM()}"
+          value="${convertAsked()}" data-action="convert-amount" />
+        <span class="amount-unit">$MM</span>
+        <button class="amount-max" data-action="convert-max">All</button>
+      </div>
+      <p class="amount-worth" data-convert-worth>= ${formatNumber(store.mercDollarsForMM(convertAsked()))} ${CURRENCY_CODE}</p>` : ""}
       <div class="reserve-actions">
         <button data-action="bank-in" ${convertibleMM() < 1 ? "disabled" : ""}>${
           convertibleMM() >= 1
-            ? `Convert ${formatNumber(convertibleMM())} $MM <small>get ${formatNumber(store.mercDollarsForMM(convertibleMM()))} ${CURRENCY_CODE}</small>`
+            ? `<span>Convert ${formatNumber(convertAsked())} $MM</span> <small>get ${formatNumber(store.mercDollarsForMM(convertAsked()))} ${CURRENCY_CODE}</small>`
             : store.state.mmHoldings >= 1
               ? `Bank is full <small>no room to issue until the treasury grows</small>`
               : `Nothing to convert <small>earn or bring in $MM first</small>`}</button>
@@ -2732,7 +2754,7 @@ function bankDeskMarkup(): string {
   // "Return 1,000 MERCS" that floored 0.8 $MM away on every press.
   const capital = store.withdrawableCapitalMM();
   const offer = convertibleMM();
-  const converted = store.mercDollarsForMM(offer);
+  const converted = store.mercDollarsForMM(convertAsked());
   const redeem = redeemableMercs();
   const returned = store.mmForMercDollars(redeem);
   return `
@@ -2748,8 +2770,16 @@ function bankDeskMarkup(): string {
       <div class="bank-rate-card">
         <span><small>Bring to the treasury</small><strong>${formatNumber(offer)} $MM</strong></span><b aria-hidden="true">→</b><span><small>Receive</small><strong>${formatNumber(converted)} ${CURRENCY_CODE}</strong></span>
       </div>
+      ${convertibleMM() >= 1 ? `<div class="amount-field">
+        <label for="convertUnitsDrawer">Convert</label>
+        <input id="convertUnitsDrawer" type="number" inputmode="numeric" min="1" step="1" max="${convertibleMM()}"
+          value="${convertAsked()}" data-action="convert-amount" />
+        <span class="amount-unit">$MM</span>
+        <button class="amount-max" data-action="convert-max">All</button>
+      </div>
+      <p class="amount-worth" data-convert-worth>= ${formatNumber(store.mercDollarsForMM(convertAsked()))} ${CURRENCY_CODE}</p>` : ""}
       <div class="hud-bank-actions">
-        <button data-action="bank-in" ${offer < 1 ? "disabled" : ""}><span>${offer >= 1 ? `Convert ${formatNumber(offer)} $MM` : "Convert your $MM"}</span><small>${
+        <button data-action="bank-in" ${offer < 1 ? "disabled" : ""}><span>${offer >= 1 ? `Convert ${formatNumber(convertAsked())} $MM` : "Convert your $MM"}</span><small>${
           offer >= 1
             ? `Receive ${formatNumber(converted)} ${CURRENCY_CODE}`
             // SAY WHY. This showed a price while sitting dead, so a player with nothing to
@@ -3836,10 +3866,11 @@ document.body.addEventListener("click", (event) => {
   else if (action === "buy-deed") report(store.purchaseDeed());
   else if (action === "buy-sponsor") report(store.purchaseSponsorship());
   else if (action === "buy-charter") report(store.purchaseCharter());
-  else if (action === "deposit-amount") {
-    depositAmount = Math.max(1, Number(button.dataset.units ?? 100));
+  else if (action === "deposit-max") {
+    depositAmount = Math.max(1, Math.floor(chainMM ?? depositAmount));
     renderUtilityDrawer();
   }
+  else if (action === "convert-max") { convertAmount = 0; renderAll(); }
   else if (action === "buy-mm") {
     // Two steps on purpose. The transfer is REAL the moment the chain accepts it, so the
     // signature is captured before anything else can fail — a credit that does not land
@@ -3871,13 +3902,19 @@ document.body.addEventListener("click", (event) => {
             // Converting on deposit is still the right shape; it needs the AUTHORITY to issue
             // the MERCS in the same transaction that records the deposit. Until it does, the
             // $MM stays $MM: visible, spendable on deeds and charters, and withdrawable.
-            const fresh = store.setDepositedMM(outcome.value.totalDeposited);
+            // The AUTHORITY converts now, inside the transaction that records the deposit
+            // (server/src/deposit.ts). It reports what it issued; the client only tells the
+            // player. Units it could not convert stay $MM and come back in totalDeposited.
+            const issued = outcome.value.mercs ?? 0;
+            store.setDepositedMM(outcome.value.totalDeposited);
             depositDesk = await fetchDepositDesk();
             chainMM = principal ? await fetchChainMM(principal.walletAddress) : chainMM;
-            toast(fresh > 0
-              ? `${formatNumber(fresh)} $MM is in the city — worth ${formatNumber(store.mercDollarsForMM(fresh))} ${CURRENCY_CODE} when you convert it.`
-              // Nothing new landed: this signature was already credited on an earlier pass.
-              : "That transfer was already credited — nothing new to add.");
+            // The MERCS landed in the authority's ledger, so re-read the purse or the HUD
+            // shows the old number until the 30s refresh.
+            await refreshMakerMarket();
+            toast(issued > 0
+              ? `${formatNumber(outcome.value.units)} $MM in — ${formatNumber(issued)} ${CURRENCY_CODE} added.`
+              : `${formatNumber(outcome.value.units)} $MM is in the city, held as $MM. Convert it when the bank has room.`);
             renderAll();
             return;
           }
@@ -3915,7 +3952,7 @@ document.body.addEventListener("click", (event) => {
       else toast("Mercedonia could not be reached. Your transfer is safe — try again.");
     }).finally(() => { button.disabled = false; });
   }
-  else if (action === "bank-in") report(store.exchangeMMForMercDollars(convertibleMM()));
+  else if (action === "bank-in") { report(store.exchangeMMForMercDollars(convertAsked())); convertAmount = 0; }
   else if (action === "bank-out") report(store.exchangeMercDollarsForMM(redeemableMercs()));
   else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);
   else if (action === "utility-close") closeUtilityDrawer();
@@ -4040,6 +4077,46 @@ element("#resetButton").addEventListener("click", () => {
   if (!window.confirm("Reset the current local world and begin again?")) return;
   store.reset();
   window.location.reload();
+});
+
+// Typing an amount must NOT re-render: this app rebuilds its markup on every state
+// change, which would replace the input under the caret on each keystroke. So the value
+// is captured and only the two labels that depend on it are rewritten in place.
+document.body.addEventListener("input", (event) => {
+  const field = (event.target as HTMLElement | null)?.closest<HTMLInputElement>("input[data-action]");
+  if (!field) return;
+  const typed = Math.max(0, Math.floor(Number(field.value) || 0));
+
+  if (field.dataset.action === "deposit-amount") {
+    const held = chainMM === null ? typed : Math.floor(chainMM);
+    depositAmount = Math.min(typed, held);
+    const worth = document.querySelector("#depositWorth");
+    if (worth) worth.textContent = `= ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}, credited on arrival`;
+    const buy = document.querySelector<HTMLButtonElement>('[data-action="buy-mm"]');
+    if (buy) {
+      buy.disabled = depositAmount < 1 || depositAmount > held;
+      const label = buy.querySelector("span");
+      const note = buy.querySelector("small");
+      if (label) label.textContent = `Send ${formatNumber(depositAmount)} $MM`;
+      if (note) {
+        note.textContent = depositAmount < 1 ? "Enter an amount"
+          : depositAmount > held ? `You hold ${formatNumber(held)} $MM`
+            : `Receive ${formatNumber(store.mercDollarsForMM(depositAmount))} ${CURRENCY_CODE}`;
+      }
+    }
+    return;
+  }
+
+  if (field.dataset.action === "convert-amount") {
+    convertAmount = Math.min(typed, convertibleMM());
+    const asked = convertAsked();
+    for (const worth of document.querySelectorAll("[data-convert-worth]")) {
+      worth.textContent = `= ${formatNumber(store.mercDollarsForMM(asked))} ${CURRENCY_CODE}`;
+    }
+    for (const label of document.querySelectorAll('[data-action="bank-in"] span')) {
+      label.textContent = asked >= 1 ? `Convert ${formatNumber(asked)} $MM` : "Convert your $MM";
+    }
+  }
 });
 
 store.subscribe(renderAll);

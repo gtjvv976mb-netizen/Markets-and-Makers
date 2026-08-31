@@ -329,6 +329,8 @@ export async function fetchDepositDesk(): Promise<DepositDesk | null> {
  */
 export async function claimDeposit(signature: string): Promise<RealmOutcome<{
   signature: string; units: number; alreadyCredited: boolean; totalDeposited: number;
+  /** MERCS the authority issued for this deposit on arrival. 0 = still held as $MM. */
+  mercs?: number;
 }>> {
   const headers = authHeaders();
   const base = serverBase();

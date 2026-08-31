@@ -132,6 +132,14 @@ export const MM_REFERENCE_PRICE_USD = 0.01;
 /** Merc Dollars per $MM at the reference price. Fees are collected in MERCS, budgets in $MM. */
 export const MERC_DOLLARS_PER_MM = MERC_DOLLARS_PER_USD * MM_REFERENCE_PRICE_USD;
 
+/**
+ * The bank's cut, matching the client's BANK_SPREAD. A deposit is quoted in the page as
+ * "worth N MERCS", and this is what makes the authority pay exactly that number rather
+ * than a different one the player then has to reconcile.
+ */
+export const BANK_SPREAD = 0.02;
+export const MERCS_PER_MM_DEPOSIT = Math.floor(MERC_DOLLARS_PER_MM * (1 - BANK_SPREAD));
+
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 export const epochIdFor = (at = Date.now()): number => Math.floor(at / (EPOCH_LENGTH_DAYS * 86_400_000));
 export const utcDay = (at = Date.now()): string => new Date(at).toISOString().slice(0, 10);

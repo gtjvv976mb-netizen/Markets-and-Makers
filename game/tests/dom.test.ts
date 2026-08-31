@@ -130,7 +130,7 @@ describe("markup contract", () => {
     // The bank takes what the player actually holds, within the epoch's issuance cap —
     // not a hard-coded hundred, which was refused if you held less and needed pressing
     // four hundred times if you held more.
-    expect(main).toContain("exchangeMMForMercDollars(convertibleMM())");
+    expect(main).toContain("exchangeMMForMercDollars(convertAsked())");
     expect(main).toContain("Math.floor(store.issuanceHeadroom() / perUnit)");
     // Redeeming in flat 1,000-MERC chunks floored 0.8 $MM away every press — an 8% tax on
     // top of the spread, and 490 presses to recover 5,000 $MM.

@@ -7,8 +7,9 @@ import { GameStore } from "../src/state";
 import { BANK_SPREAD, MERC_DOLLARS_PER_USD, MM_REFERENCE_PRICE_USD } from "../src/data";
 
 describe("bringing $MM into the city", () => {
-  it("does NOT convert a deposit, because the MERCS would be unspendable", () => {
-    // This asserts the absence of something I shipped and had to take back out.
+  it("leaves the conversion to the authority, never the browser", () => {
+    // The deposit DOES convert — server/src/deposit.ts issues the MERCS inside the
+    // transaction that records it. What must never come back is doing it HERE.
     //
     // exchangeMMForMercDollars credits store.state.wallet. A signed-in player with a
     // business spends from serverWallet — purse() is `serverWallet ?? state.wallet` —
@@ -17,8 +18,8 @@ describe("bringing $MM into the city", () => {
     // transfer into MERCS the authority did not recognise: invisible in the HUD, unspendable,
     // and recoverable only at roughly 11% of the deposit.
     //
-    // Auto-converting is still the right shape. It needs the AUTHORITY to issue the MERCS in
-    // the same transaction that records the deposit. Delete this test when it does — not before.
+    // The client's job is to report what the authority issued (outcome.value.mercs) and
+    // re-read the purse, never to credit it.
     const buy = main.slice(main.indexOf('action === "buy-mm"'));
     const body = buy.slice(0, buy.indexOf('else if (action ==='));
     expect(body).toContain("store.setDepositedMM(outcome.value.totalDeposited)");
@@ -43,7 +44,9 @@ describe("bringing $MM into the city", () => {
   });
 
   it("offers what the player holds, not a fixed hundred", () => {
-    expect(main).toContain("exchangeMMForMercDollars(convertibleMM())");
+    // The bank takes the amount the player typed, defaulting to everything it can take.
+    expect(main).toContain("exchangeMMForMercDollars(convertAsked())");
+    expect(main).toContain('data-action="convert-amount"');
     expect(main).not.toContain("exchangeMMForMercDollars(100)");
     expect(main).not.toContain("Bring in 100 $MM");
   });
@@ -83,7 +86,7 @@ describe("bringing $MM into the city", () => {
     // first fix. Both buttons must name what they will actually move.
     const drawer = main.slice(main.indexOf("function bankDeskMarkup"));
     const body = drawer.slice(0, drawer.indexOf("\nfunction "));
-    expect(body).toContain("Convert ${formatNumber(offer)} $MM");
+    expect(body).toContain("Convert ${formatNumber(convertAsked())} $MM");
     expect(body).toContain("Return ${formatNumber(redeem)} ${CURRENCY_CODE}");
     expect(body).not.toContain("store.state.mmHoldings < 100");
     expect(body).not.toContain("purse() < 1_000");
