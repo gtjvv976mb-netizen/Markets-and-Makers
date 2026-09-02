@@ -173,7 +173,7 @@
                  News/Bank/Info and a full-width bar holding six more, which duplicated Bank
                  and covered the balances. Everything you can open lives here, in the order
                  you need it: your business first, money last. -->
-            <nav class="hud-dock" id="quickAccess" aria-label="Go to"></nav>
+            <nav class="hud-dock" id="quickAccess" role="tablist" aria-label="Game areas" aria-label="Go to"></nav>
 
             <!-- YOUR BUSINESS, ALWAYS ON SCREEN. In a game about running one, its state
                  should never be behind a toggle: what it is, what it is doing, and whether
@@ -255,9 +255,6 @@
             <div class="hud-internal-data" aria-hidden="true">
               <span id="districtLabel">Civic heart</span><span id="islandLabel">Hearthmarket</span><span id="islandEconomy"></span>
               <div id="hudWorld"></div><div id="quickBar" hidden></div><footer id="resourceDock"></footer>
-              <nav class="maker-nav" aria-label="Mercedonian Compass">
-                <button data-tab="shop">Enterprise <kbd>⌥1</kbd></button><button data-tab="trade">Exchange <kbd>⌥2</kbd></button><button data-tab="world">World <kbd>⌥3</kbd></button>
-              </nav>
             </div>
           </div>
           <!-- Walk up to a building and it offers its counter. See renderCounterPrompt. -->
@@ -282,27 +279,22 @@
             <div class="sheet-emblem" id="sheetEmblem"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enterprise" /></svg></div>
             <div><small id="sheetKicker">Enterprise desk</small><div class="sheet-title" id="sheetTitle">Your business</div></div>
           </header>
-          <div class="sheet-route" role="tablist" aria-label="Game areas">
-            <button class="active" id="sheet-tab-shop" role="tab" data-tab="shop" aria-selected="true" aria-controls="panel-shop"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-enterprise" /></svg></i><span>Enterprise</span></button>
-            <button id="sheet-tab-trade" role="tab" data-tab="trade" aria-selected="false" aria-controls="panel-trade"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-exchange" /></svg></i><span>Exchange</span></button>
-            <button id="sheet-tab-world" role="tab" data-tab="world" aria-selected="false" aria-controls="panel-world"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-world" /></svg></i><span>World</span></button>
-            <button id="sheet-tab-info" role="tab" data-tab="info" aria-selected="false" aria-controls="panel-info"><i><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-rank" /></svg></i><span>Info</span></button>
-          </div>
           <div class="panel-scroll">
-            <section class="panel active" id="panel-shop" role="tabpanel" aria-labelledby="sheet-tab-shop" data-panel="shop">
-              <div id="buildPanel"></div>
-              <div id="businessPanel"></div>
-            </section>
-            <section class="panel" id="panel-trade" role="tabpanel" aria-labelledby="sheet-tab-trade" data-panel="trade">
-              <div id="contractsPanel"></div>
-              <div id="makerMarketPanel"></div>
-              <div id="marketPanel"></div>
-            </section>
-            <section class="panel" id="panel-world" role="tabpanel" aria-labelledby="sheet-tab-world" data-panel="world">
-              <div id="mapPanel"></div>
-              <div id="guidePanel"></div>
-            </section>
-            <section class="panel" id="panel-info" role="tabpanel" aria-labelledby="sheet-tab-info" data-panel="info">
+            <!-- ONE PANEL PER PURPOSE. The Exchange tab alone used to stack the orders board,
+                 the traders' market and a mega-panel holding the market, the bank, the
+                 treasury's books, withdrawals, the rewards pool, the $MM sinks, the district
+                 board and ledger health — seven purposes in one scroll. Each is its own
+                 destination now, and the dock on the left is the only navigation. -->
+            <section class="panel active" id="panel-business" role="tabpanel" data-panel="business"><div id="businessPanel"></div></section>
+            <section class="panel" id="panel-products" role="tabpanel" data-panel="products"><div id="buildPanel"></div></section>
+            <section class="panel" id="panel-market" role="tabpanel" data-panel="market"><div id="marketPanel"></div></section>
+            <section class="panel" id="panel-orders" role="tabpanel" data-panel="orders"><div id="contractsPanel"></div></section>
+            <section class="panel" id="panel-traders" role="tabpanel" data-panel="traders"><div id="makerMarketPanel"></div></section>
+            <section class="panel" id="panel-bank" role="tabpanel" data-panel="bank"><div id="bankPanel"></div></section>
+            <section class="panel" id="panel-rewards" role="tabpanel" data-panel="rewards"><div id="rewardsPanel"></div></section>
+            <section class="panel" id="panel-city" role="tabpanel" data-panel="city"><div id="cityPanel"></div></section>
+            <section class="panel" id="panel-map" role="tabpanel" data-panel="map"><div id="mapPanel"></div><div id="guidePanel"></div></section>
+            <section class="panel" id="panel-info" role="tabpanel" data-panel="info">
               <div class="info-tabs" role="tablist" aria-label="Information">
                 <button class="active" data-action="info-tab" data-info="you">You</button>
                 <button data-action="info-tab" data-info="business">Business</button>

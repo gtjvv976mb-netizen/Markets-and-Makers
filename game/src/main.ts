@@ -1,4 +1,4 @@
-import { FITTINGS, type FittingKey, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, MERC_DOLLARS_PER_USD, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
+import { FITTINGS, type FittingKey, MERC_DOLLARS_PER_USD, BREAKDOWN_REPAIR_COST, BREAKDOWN_REPAIR_PARTS, BUSINESS, CHARTER_COST_MM, CIVIC_BUILDINGS, DEED_COST_MM, MAX_UPGRADE_LEVEL, MM_BURN_RATE, SPONSORSHIP_COST_MM, BUSINESS_STAGES, DAILY_GOALS, ISLANDS, MM_TOTAL_SUPPLY, PLOTS, RESOURCES, SPECIALIZATIONS, CAREER_LEVELS, COUNTER_SERVICES, CURRENCY_CODE, MAYOR, MAYOR_SCRIPT, TUTORIAL, UPGRADE_COSTS, UPGRADE_NAMES, type BusinessStage, type LicenseKey, type ResourceKey, type SpecializationKey, type UpgradeKey , ERRAND_VERB} from "./data";
 import { BUSINESS_TIER, PRODUCTS_BY_ID, TIER_NAMES } from "./products";
 import { buyFromCivic, fetchDistrict, isSynced, refreshWorldOwner, registerBusiness, sellToDistrict,
   worldRunsOnServer, fetchCityBooks, fetchChainMM, fetchDepositDesk, claimDeposit, fetchDispatches, fetchMarketBook, fetchHoldings, fetchIdentity, listOnMarket, buyMarketListing,
@@ -38,7 +38,7 @@ const interiorPromptNode = element<HTMLElement>("#interiorPrompt");
 const interiorInteractButton = element<HTMLButtonElement>("#interiorInteract");
 const businessTurntable = new BusinessTurntable(element<HTMLCanvasElement>("#businessTurntable"));
 
-let activeTab = "shop";
+let activeTab = "business";
 let interiorOpen = false;
 let sheetReturnFocus: HTMLElement | null = null;
 let interiorReturnFocus: HTMLElement | null = null;
@@ -185,19 +185,6 @@ function closeUtilityDrawer(restoreFocus = true): void {
   if (restoreFocus && focusWasInside) (utilityReturnFocus?.isConnected ? utilityReturnFocus : canvas).focus({ preventScroll: true });
 }
 
-function openUtilityDrawer(mode: "news" | "bank", trigger?: HTMLElement): void {
-  utilityMode = mode;
-  utilityReturnFocus = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  closeSheet(false);
-  if (isCompactHud()) closeBusinessDrawer(false);
-  setHudDrawerOpen(utilityDrawer, true);
-  document.querySelectorAll<HTMLButtonElement>("[data-action='utility-open']").forEach((button) => {
-    const active = button.dataset.utility === mode;
-    button.setAttribute("aria-expanded", String(active));
-    button.classList.toggle("active", active);
-  });
-  renderUtilityDrawer();
-}
 
 function closeBusinessDrawer(restoreFocus = true): void {
   const focusWasInside = businessDrawer.contains(document.activeElement);
@@ -698,7 +685,6 @@ window.setInterval(() => { void refreshCityBooks(); }, 60_000);
 async function refreshDispatch(): Promise<void> {
   dispatches = await fetchDispatches(7);
   dispatchLoaded = true;
-  if (utilityDrawer.dataset.open === "true" && utilityMode === "news") renderUtilityDrawer();
 }
 void refreshDispatch();
 window.setInterval(() => { void refreshDispatch(); }, 60_000);
@@ -713,7 +699,6 @@ window.setInterval(() => {
   renderVitals();
   renderBusinessPanel();
   renderAlerts();
-  if (utilityDrawer.dataset.open === "true" && utilityMode === "bank") renderUtilityDrawer();
 }, 1_500);
 
 let peerCount = 0;
@@ -962,10 +947,16 @@ function report(result: ActionResult): void {
 }
 
 const SHEET_TITLE: Record<string, string> = {
-  shop: "Your enterprise",
-  trade: "Mercedonian exchange",
-  world: "Explore Mercedonia",
-  info: "Everything at a glance",
+  business: "Your business",
+  products: "What you make",
+  market: "The district market",
+  orders: "Orders",
+  traders: "Traders' market",
+  bank: "Government Bank",
+  rewards: "Weekly $MM share",
+  city: "The city",
+  map: "Mercedonia",
+  info: "Information",
 };
 
 /**
@@ -984,10 +975,16 @@ function uiIcon(name: UiIconName): string {
 }
 
 const SHEET_META: Record<string, { icon: UiIconName; kicker: string }> = {
-  shop: { icon: "enterprise", kicker: "Enterprise desk" },
-  trade: { icon: "exchange", kicker: "Exchange hall" },
-  world: { icon: "world", kicker: "World atlas" },
-  info: { icon: "rank", kicker: "Information desk" },
+  business: { icon: "business", kicker: "Enterprise desk" },
+  products: { icon: "build", kicker: "Production" },
+  market: { icon: "world", kicker: "Buy & sell" },
+  orders: { icon: "rank", kicker: "Contracts" },
+  traders: { icon: "network", kicker: "Player market" },
+  bank: { icon: "bank", kicker: "$MM and Merc Dollars" },
+  rewards: { icon: "exchange", kicker: "Contribution board" },
+  city: { icon: "news", kicker: "Treasury, government, press" },
+  map: { icon: "compass", kicker: "World atlas" },
+  info: { icon: "info", kicker: "How it works" },
 };
 
 /**
@@ -998,51 +995,16 @@ const SHEET_META: Record<string, { icon: UiIconName; kicker: string }> = {
  * converting $MM meant opening a tab and scrolling past two other panels to find it. A tab
  * is a filing cabinet; this opens the drawer AND points at the folder.
  */
+// One panel per tab, so the tab IS the panel.
 const PANEL_TAB: Record<string, string> = {
-  businessPanel: "shop", buildPanel: "shop",
-  contractsPanel: "trade", makerMarketPanel: "trade", marketPanel: "trade",
-  mapPanel: "world", guidePanel: "world",
-  infoPanel: "info",
+  businessPanel: "business", buildPanel: "products", marketPanel: "market",
+  contractsPanel: "orders", makerMarketPanel: "traders", bankPanel: "bank",
+  rewardsPanel: "rewards", cityPanel: "city", mapPanel: "map", guidePanel: "map", infoPanel: "info",
 };
 
 function gotoPanel(panelId: string): void {
   const tab = PANEL_TAB[panelId];
-  if (!tab) return;
-  switchTab(tab);
-  // Two frames, then measure: switchTab opens the sheet and swaps the active panel, and a
-  // scroll computed before that lands on the old geometry. Measured doing exactly that —
-  // the tab changed and the panel stayed 1,472px down the scroller.
-  // setTimeout, NOT requestAnimationFrame.
-  //
-  // rAF does not fire while the tab is hidden or backgrounded, so the navigation silently
-  // did nothing — measured: after a click the scroller sat at 0, while setting scrollTop by
-  // hand half a second later stuck at 2,571 and was never reset. Nothing was overwriting
-  // the scroll; the callback was never running. A timer is throttled in a hidden tab but it
-  // still fires, and a player returning to the tab should find the panel they asked for.
-  //
-  // Three attempts, and they are idempotent: once immediately for the common case where the
-  // sheet is already open and laid out, then twice more as the sheet finishes opening.
-  const land = (): void => {
-    const panel = document.querySelector<HTMLElement>(`#${panelId}`);
-    const scroller = panel?.closest<HTMLElement>(".panel-scroll");
-    if (!panel || !scroller) return;
-    // Explicit offset arithmetic, set instantly.
-    //
-    // Two things this deliberately does NOT do. It does not use scrollIntoView: the panel
-    // sits inside a nested scroller and that is not a bet worth taking on a navigation. And
-    // it does not animate: a smooth 2,600px glide had simply not arrived by the time
-    // anything looked, and a jump to the thing you asked for is the whole point.
-    //
-    // It also does not gate on the scroller having a clientHeight. An earlier version did,
-    // to be careful, and that guard was itself the bug — the container reports 0 while the
-    // pane is hidden, so the "careful" branch retried twenty times and gave up. scrollTop
-    // is settable regardless, because scrollHeight is what bounds it.
-    const delta = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop + delta - 8);
-  };
-  land();
-  window.setTimeout(land, 0);
-  window.setTimeout(land, 140);
+  if (tab) switchTab(tab);
 }
 
 function switchTab(requested: string): void {
@@ -1050,7 +1012,7 @@ function switchTab(requested: string): void {
   activeTab = tab;
   const title = document.querySelector("#sheetTitle");
   if (title) title.textContent = SHEET_TITLE[tab] ?? "Your business";
-  const meta = SHEET_META[tab] ?? SHEET_META.shop;
+  const meta = SHEET_META[tab] ?? SHEET_META.business;
   element("#sheetEmblem").innerHTML = uiIcon(meta.icon);
   element("#sheetKicker").textContent = meta.kicker;
   openSheet();
@@ -1093,10 +1055,10 @@ function renderHeader(): void {
   element("#islandEconomy").textContent = island.economy;
 }
 
+// Every panel is its own tab now; this only keeps old callers' names working.
 const TAB_FOR = new Map<string, string>([
-  ["build", "shop"], ["business", "shop"],
-  ["market", "trade"], ["contracts", "trade"],
-  ["map", "world"], ["guide", "world"],
+  ["shop", "business"], ["build", "products"], ["trade", "market"],
+  ["contracts", "orders"], ["world", "map"], ["guide", "map"],
 ]);
 
 /** One instruction at a time: what to do, where, and a button that takes you there. */
@@ -1109,15 +1071,15 @@ const TAB_FOR = new Map<string, string>([
  * "click the ground to walk", before owning anything at all.
  */
 const STEP_ACTION: Record<string, { tab: string; label: string; hint: string; show: string[] }> = {
-  moved:      { tab: "shop",  label: "Show me",      hint: "Click the ground to walk there.", show: [] },
-  leased:     { tab: "shop",  label: "Pick a plot",  hint: "Choose a glowing plot, then sign the lease.", show: ["build"] },
-  licensed:   { tab: "shop",  label: "Choose a trade", hint: "Pick what your business will make.", show: ["build"] },
-  built:      { tab: "shop",  label: "Build it",     hint: "Put your building on the plot.", show: ["build"] },
-  produced:   { tab: "shop",  label: "See the floor", hint: "Watch a cycle run. You do not start it.", show: ["ops", "quick"] },
-  upgraded:   { tab: "shop",  label: "Upgrade",      hint: "Install one improvement in your building.", show: ["ops", "quick"] },
-  sold:       { tab: "trade", label: "See who buys", hint: "Mercedonians buy what you make.", show: ["ops", "quick", "market", "nav"] },
-  contracted: { tab: "trade", label: "Take an order", hint: "Fill a buyer's order — it pays the most.", show: ["ops", "quick", "market", "contracts", "nav"] },
-  traveled:   { tab: "world", label: "Use Transit Hall", hint: "Fast-travel to another district.", show: ["ops", "quick", "market", "contracts", "map", "nav"] },
+  moved:      { tab: "products",  label: "Show me",      hint: "Click the ground to walk there.", show: [] },
+  leased:     { tab: "products",  label: "Pick a plot",  hint: "Choose a glowing plot, then sign the lease.", show: ["build"] },
+  licensed:   { tab: "products",  label: "Choose a trade", hint: "Pick what your business will make.", show: ["build"] },
+  built:      { tab: "products",  label: "Build it",     hint: "Put your building on the plot.", show: ["build"] },
+  produced:   { tab: "business",  label: "See the floor", hint: "Watch a cycle run. You do not start it.", show: ["ops", "quick"] },
+  upgraded:   { tab: "business",  label: "Upgrade",      hint: "Install one improvement in your building.", show: ["ops", "quick"] },
+  sold:       { tab: "market", label: "See who buys", hint: "Mercedonians buy what you make.", show: ["ops", "quick", "market", "nav"] },
+  contracted: { tab: "orders", label: "Take an order", hint: "Fill a buyer's order — it pays the most.", show: ["ops", "quick", "market", "contracts", "nav"] },
+  traveled:   { tab: "map", label: "Use Transit Hall", hint: "Fast-travel to another district.", show: ["ops", "quick", "market", "contracts", "map", "nav"] },
 };
 
 function renderTutorial(): void {
@@ -1374,7 +1336,24 @@ function productionMarkup(): string {
 
 function renderBusiness(): void {
   const state = store.state;
-  if (!state.buildingPlaced || !state.license) { element("#businessPanel").innerHTML = ""; return; }
+  // Business is its own tab now. Before there is a business it used to render nothing — a
+  // blank screen that was invisible while it shared a tab with Products. Say what comes next.
+  if (!state.buildingPlaced || !state.license) {
+    const step = !state.ownedPlotId
+      ? { title: "No business yet", body: "Lease a plot first. Glowing plots in the world are open; click one to see its terms.", cta: "Find a plot" }
+      : !state.license
+        ? { title: "Your plot is waiting", body: "Choose the trade your business will run. Each trade buys different inputs and sells to different Mercedonians.", cta: "Choose a trade" }
+        : { title: "Licensed, not built", body: "Put the building on your plot. Production starts on its own once it stands.", cta: "Build it" };
+    element("#businessPanel").innerHTML = `
+      <div class="hud-drawer-empty">
+        ${uiIcon("business")}
+        <strong>${step.title}</strong>
+        <p>${step.body}</p>
+        <p>This tab will show your rate, costs, stock, customers and takings once the business runs.</p>
+        <button data-action="tab" data-target="products">${step.cta}</button>
+      </div>`;
+    return;
+  }
 
   const config = BUSINESS[state.license];
   const cycles = 1 + state.upgrades.capacity;
@@ -1391,7 +1370,7 @@ function renderBusiness(): void {
 
   // Everything except the thing you act on right now is folded away.
   element("#businessPanel").innerHTML = `
-    <h2>${config.name}</h2>
+    <h2 class="panel-heading">${config.name}</h2>
     ${portfolioMarkup()}
     <section class="game-card citizen-flow-card" aria-label="Live customer economy">
       <div class="citizen-flow-heading"><span aria-hidden="true">◎</span><div><small>Live customer economy</small><strong>${latestCustomerActivity ? `${latestCustomerActivity.kind === "service" ? `${latestCustomerActivity.visitors} customer visits` : `${latestCustomerActivity.visitors} units bought`} recorded` : "Mercedonians are choosing destinations"}</strong></div></div>
@@ -1654,7 +1633,7 @@ function renderMarket(): void {
           : entry.kind === "buy" && entry.resource
             ? `<button data-action="quick-buy" data-resource="${entry.resource}" data-quantity="${entry.quantity ?? 1}">Buy</button>`
             : entry.kind === "order"
-              ? `<button data-action="tab" data-target="trade">Orders</button>`
+              ? `<button data-action="tab" data-target="orders">Orders</button>`
               : "";
         return `<article class="advice-row advice-${entry.kind}">
           <div><strong>${escapeMarkup(entry.text)}</strong><small>${escapeMarkup(entry.detail)}</small></div>
@@ -1670,33 +1649,23 @@ function renderMarket(): void {
     <details class="journey-details"><summary>Market conditions</summary>
       <div class="economic-dashboard"><div><small>Price index</small><strong>${priceIndex}</strong><span>${priceIndex > 100 ? "+" : ""}${priceIndex - 100}% vs opening</span></div><div><small>Confidence</small><strong>${confidence}</strong><span>How freely Mercedonians spend</span></div><div><small>Cycle</small><strong>${store.economicPhase()}</strong><span>${store.economyTrend()}</span></div><div><small>$MM backing</small><strong>${cityBooks?.books?.mm?.held != null ? `${formatNumber(cityBooks.books.mm.held)} $MM` : "—"}</strong><span>${cityBooks?.books?.mm ? "held by the treasury on Solana" : "asking the authority"}</span></div></div>
     </details>
+  `;
+}
+
+/**
+ * ONE bank. There were two: this panel's inline desk and the drawer's bankDeskMarkup, each
+ * with its own copy of the same rules, and each needing the same fixes twice. The drawer's
+ * is the complete one — it carries the purchase — so it is the one that survives.
+ */
+function renderBank(): void {
+  const node = document.querySelector<HTMLElement>("#bankPanel");
+  if (!node) return;
+  node.innerHTML = `
+    <h2>Government Bank</h2>
+    <p class="lead">Earned $MM converts to Merc Dollars here, and Merc Dollars convert back. Real $MM in
+      your wallet can be brought in, and earned $MM can be withdrawn to it.</p>
     <section class="bank-desk">
-      <div class="reserve-heading"><div><small>Government Bank</small><strong>Turn $MM into ${CURRENCY_CODE}</strong></div>
-        <span>1 $MM = ${formatNumber(store.mercDollarsForMM(1))} ${CURRENCY_CODE}</span></div>
-      <div class="treasury-now">
-        <div><small>You hold</small><strong>${formatNumber(store.state.mmHoldings)} $MM</strong></div>
-        <div><small>Worth</small><strong>${formatNumber(store.mercDollarsForMM(store.state.mmHoldings))} ${CURRENCY_CODE}</strong></div>
-      </div>
-      ${convertibleMM() >= 1 ? `<div class="amount-field">
-        <label for="convertUnitsDesk">Convert</label>
-        <input id="convertUnitsDesk" type="number" inputmode="numeric" min="1" step="1" max="${convertibleMM()}"
-          value="${convertAsked()}" data-action="convert-amount" />
-        <span class="amount-unit">$MM</span>
-        <button class="amount-max" data-action="convert-max">All</button>
-      </div>
-      <p class="amount-worth" data-convert-worth>= ${formatNumber(store.mercDollarsForMM(convertAsked()))} ${CURRENCY_CODE}</p>` : ""}
-      <div class="reserve-actions">
-        <button data-action="bank-in" ${convertibleMM() < 1 ? "disabled" : ""}>${
-          convertibleMM() >= 1
-            ? `<span>Convert ${formatNumber(convertAsked())} $MM</span> <small>get ${formatNumber(store.mercDollarsForMM(convertAsked()))} ${CURRENCY_CODE}</small>`
-            : store.state.mmHoldings >= 1
-              ? `Bank is full <small>no room to issue until the treasury grows</small>`
-              : `Nothing to convert <small>earn or bring in $MM first</small>`}</button>
-        <button class="secondary" data-action="bank-out" ${redeemableMercs() <= 0 ? "disabled" : ""}>Withdraw capital <small>${
-          redeemableMercs() > 0
-            ? `${formatNumber(store.mmForMercDollars(redeemableMercs()))} $MM for ${formatNumber(redeemableMercs())} ${CURRENCY_CODE}`
-            : store.withdrawableCapitalMM() > 0 ? `${formatNumber(store.withdrawableCapitalMM())} $MM on deposit, not enough ${CURRENCY_CODE} to redeem` : "nothing on deposit"}</small></button>
-      </div>
+      ${bankDeskMarkup()}
       <details class="treasury-books">
         <summary>The city's books</summary>
         <p>One dollar of $MM buys ${formatNumber(MERC_DOLLARS_PER_USD)} ${CURRENCY_CODE}, less the bank's spread. The bank issues Merc Dollars against the $MM it holds and stops when the city's headroom runs out.</p>
@@ -1719,7 +1688,6 @@ function renderMarket(): void {
         <small class="reserve-boundary">This bank is a mechanic inside the game. Moving $MM here converts it to ${CURRENCY_CODE} for use in the city.</small>
       </details>
     </section>
-
     ${withdrawalDesk ? `
     <section class="bank-desk withdraw-desk">
       <div class="reserve-heading"><div><small>On-chain</small><strong>Withdraw to your wallet</strong></div>
@@ -1740,6 +1708,14 @@ function renderMarket(): void {
         ${row.signature ? `<small>tx ${escapeMarkup(row.signature.slice(0, 20))}…</small>` : row.error ? `<small>${escapeMarkup(row.error)}</small>` : ""}</li>`).join("")}</ul>` : ""}
     </section>` : ""}
 
+  `;
+}
+
+function renderRewards(): void {
+  const node = document.querySelector<HTMLElement>("#rewardsPanel");
+  if (!node) return;
+  node.innerHTML = `
+    <h2>Your weekly share</h2>
     <section class="reserve-desk">
       <div class="reserve-heading"><div><small>Contribution Board</small><strong>Epoch Distribution</strong></div><span>${formatNumber(store.epochBudget())} $MM this week</span></div>
       <p>$MM is <strong>earned, never bought</strong>. Each week the rewards pool pays out a share of itself, split by how much you contributed — so it shrinks slowly instead of running out.</p>
@@ -1776,6 +1752,15 @@ function renderMarket(): void {
       </div>
       <small class="reserve-boundary">Prototype accounting only: no on-chain transfer, no redemption, and no promise of price or profit.</small>
     </section>
+  `;
+}
+
+/** The city: who is buying, what the treasury holds, and what the press says. */
+function renderCityPanel(): void {
+  const node = document.querySelector<HTMLElement>("#cityPanel");
+  if (!node) return;
+  node.innerHTML = `
+    <h2>Mercedonia today</h2>
     ${districtBoardMarkup()}
     <details class="treasury-books ledger-health">
       <summary>Ledger health</summary>
@@ -1786,9 +1771,11 @@ function renderMarket(): void {
     }</strong></div><div class="stat"><small>Total $MM supply</small><strong>${formatNumber(MM_TOTAL_SUPPLY)}</strong></div></div>
     <p class="model-note">Merc Dollar prices are bounded and mean-reverting. $MM is never required for leases, payroll, inputs, services or taxes. This remains a gameplay simulation—not a promise of token value, yield or profit.</p>
     </details>
+
+    <div class="section-title">Dispatch</div>
+    ${newsDeskMarkup()}
   `;
 }
-
 
 // --- The maker market ----------------------------------------------------------------
 //
@@ -2828,7 +2815,7 @@ function bankDeskMarkup(): string {
       <p class="bank-boundary">MERCS stay in the game. $MM you have earned can be withdrawn to
         your Solana wallet from the Exchange, and is earned in play — never bought. Nothing here is
         a deposit, a claim, or a promise of profit or price.</p>
-      <button class="drawer-link-button" data-action="tab" data-target="trade">Open the full Exchange <span aria-hidden="true">→</span></button>
+      <button class="drawer-link-button" data-action="tab" data-target="bank">Open the Bank <span aria-hidden="true">→</span></button>
     </section>`;
 }
 
@@ -3095,7 +3082,7 @@ function renderQuickBar(): void {
   const sellable = (Object.keys(RESOURCES) as ResourceKey[])
     .filter((key) => state.inventory[key] > 0 && store.procurementRemaining(key) > 0);
   if (sellable.length > 0) {
-    chips.push(`<button data-action="tab" data-target="trade" title="The district is still buying">
+    chips.push(`<button data-action="tab" data-target="market" title="The district is still buying">
       <i aria-hidden="true">⇄</i><span><small>Sell stock</small><strong>${sellable.length} good${sellable.length === 1 ? "" : "s"} wanted</strong></span></button>`);
   }
 
@@ -3161,42 +3148,49 @@ function renderVitals(): void {
  * then money, then the world, then reading matter. `drawer` opens a side desk, `panel`
  * jumps into the sheet.
  */
-type DockEntry =
-  | { kind: "panel"; panel: string; icon: UiIconName; label: string; hint: string }
-  | { kind: "drawer"; utility: string; icon: UiIconName; label: string; hint: string }
-  | { kind: "split" };
+type DockEntry = { tab: string; icon: UiIconName; label: string; hint: string } | { split: true };
 
+/**
+ * The dock is the ONLY navigation. Ten destinations, one purpose each, in the order a day
+ * runs: your shop, what it makes, where it sells, who is buying, then money, then the city.
+ * The sheet used to have its own four-tab row as well — two navigations for one set of
+ * places, and the second one wrapped its fourth tab onto a row of its own.
+ */
 const HUD_DOCK: readonly DockEntry[] = [
-  { kind: "panel", panel: "businessPanel", icon: "business", label: "Business", hint: "Your enterprise: rate, costs and takings" },
-  { kind: "panel", panel: "buildPanel", icon: "build", label: "Products", hint: "What you make, and what it sells for" },
-  { kind: "split" },
-  { kind: "panel", panel: "marketPanel", icon: "world", label: "Market", hint: "Buy and sell with the district" },
-  { kind: "panel", panel: "makerMarketPanel", icon: "network", label: "Traders", hint: "Buy and sell with other Mercedonians" },
-  { kind: "panel", panel: "contractsPanel", icon: "rank", label: "Orders", hint: "City Hall and household orders — they pay most" },
-  { kind: "split" },
-  { kind: "drawer", utility: "bank", icon: "bank", label: "Bank", hint: "Convert $MM to Merc Dollars, and back" },
-  { kind: "panel", panel: "mapPanel", icon: "compass", label: "Map", hint: "The districts, and how to travel" },
-  { kind: "drawer", utility: "news", icon: "news", label: "News", hint: "The city dispatch" },
-  { kind: "panel", panel: "infoPanel", icon: "info", label: "Info", hint: "How Mercedonia works, and where you stand" },
+  { tab: "business", icon: "business", label: "Business", hint: "Your enterprise: status, rate, costs, takings" },
+  { tab: "products", icon: "build",    label: "Products", hint: "What you make, and building it" },
+  { split: true },
+  { tab: "market",   icon: "world",    label: "Market",   hint: "Buy and sell with the district" },
+  { tab: "orders",   icon: "rank",     label: "Orders",   hint: "City Hall and household orders — they pay most" },
+  { tab: "traders",  icon: "network",  label: "Traders",  hint: "Buy and sell with other Mercedonians" },
+  { split: true },
+  { tab: "bank",     icon: "bank",     label: "Bank",     hint: "$MM to Merc Dollars and back; bring $MM in, take it out" },
+  { tab: "rewards",  icon: "exchange", label: "Rewards",  hint: "Your share of this week's $MM" },
+  { split: true },
+  { tab: "city",     icon: "news",     label: "City",     hint: "The treasury, the government, the press" },
+  { tab: "map",      icon: "compass",  label: "Map",      hint: "Districts and travel" },
+  { tab: "info",     icon: "info",     label: "Info",     hint: "How Mercedonia works" },
 ];
+
+type DockStop = Exclude<DockEntry, { split: true }>;
+function dockStops(): DockStop[] { return HUD_DOCK.filter((e): e is DockStop => !("split" in e)); }
+function dockShortcut(index: number): string { return `⌥${(index + 1) % 10}`; }
 
 function renderQuickAccess(): void {
   const node = document.querySelector<HTMLElement>("#quickAccess");
   if (!node) return;
-  // An order you could deliver right now is worth a number on the dock rather than a trip
-  // into the panel to discover it.
   const active = store.state.activeContract;
   const ready = active && store.state.inventory[active.resource] >= active.quantity ? 1 : 0;
+  const open = sheet.dataset.open === "true" ? activeTab : null;
+  let stop = 0;
   node.innerHTML = HUD_DOCK.map((entry) => {
-    if (entry.kind === "split") return `<span class="dock-split" aria-hidden="true"></span>`;
-    const badge = entry.kind === "panel" && entry.panel === "contractsPanel" && ready
-      ? `<b title="An order is ready to deliver">1</b>` : "";
-    // aria-controls survives the move off the old rail: a screen reader still needs to be
-    // told which drawer or sheet a dock button opens.
-    const attrs = entry.kind === "panel"
-      ? `data-action="goto" data-panel="${entry.panel}" aria-controls="sheet" aria-expanded="false"`
-      : `data-action="utility-open" data-utility="${entry.utility}" aria-controls="hudUtilityDrawer" aria-expanded="false"`;
-    return `<button ${attrs} title="${escapeMarkup(entry.hint)}">
+    if ("split" in entry) return `<span class="dock-split" aria-hidden="true"></span>`;
+    const badge = entry.tab === "orders" && ready ? `<b title="An order is ready to deliver">1</b>` : "";
+    const isOpen = open === entry.tab;
+    const key = dockShortcut(stop++);
+    return `<button role="tab" data-action="tab" data-target="${entry.tab}" data-tab="${entry.tab}"
+      class="${isOpen ? "active" : ""}" aria-selected="${isOpen}" aria-controls="sheet"
+      title="${escapeMarkup(entry.hint)} (${key})">
       ${uiIcon(entry.icon)}<span>${escapeMarkup(entry.label)}</span>${badge}
     </button>`;
   }).join("");
@@ -3282,7 +3276,7 @@ function renderBusinessPanel(): void {
     element("#businessDrawerMeta").textContent = "Your enterprise";
     element("#businessDrawerName").textContent = "Business desk";
     node.className = "bp bp-empty";
-    node.innerHTML = `<div class="hud-drawer-empty"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg><strong>No business yet</strong><p>Lease a plot, choose a trade, and your live production desk will appear here.</p><button data-action="tab" data-target="shop">Open Enterprise</button></div>`;
+    node.innerHTML = `<div class="hud-drawer-empty"><svg class="mm-icon" aria-hidden="true"><use href="#mm-icon-business" /></svg><strong>No business yet</strong><p>Lease a plot, choose a trade, and your live production desk will appear here.</p><button data-action="tab" data-target="business">Open Enterprise</button></div>`;
     return;
   }
 
@@ -3374,7 +3368,7 @@ function renderBusinessPanel(): void {
         const level = store.state.upgrades[key];
         const ceiling = store.upgradeCeiling();
         const beingFitted = fitting?.key === key;
-        return `<button class="${beingFitted ? "fitting" : ""}" data-action="tab" data-target="shop" title="Open ${escapeMarkup(UPGRADE_NAMES[key].name)} in Enterprise">
+        return `<button class="${beingFitted ? "fitting" : ""}" data-action="tab" data-target="business" title="Open ${escapeMarkup(UPGRADE_NAMES[key].name)} in Enterprise">
           <i aria-hidden="true">${UPGRADE_NAMES[key].icon}</i><span><strong>${escapeMarkup(UPGRADE_NAMES[key].name)}</strong><small>Level ${level} of ${ceiling}</small></span>
           <em>${Array.from({ length: ceiling }, (_, i) => `<u class="${i < level ? "on" : ""}"></u>`).join("")}</em><b>›</b>
         </button>`;
@@ -3382,7 +3376,7 @@ function renderBusinessPanel(): void {
       </div>
     </section>
 
-    <div class="business-drawer-actions"><button data-action="tab" data-target="shop">Open Enterprise</button><button class="secondary" data-action="interior">Enter equipment floor</button></div>`;
+    <div class="business-drawer-actions"><button data-action="tab" data-target="business">Open Enterprise</button><button class="secondary" data-action="interior">Enter equipment floor</button></div>`;
 }
 
 /**
@@ -3401,7 +3395,7 @@ function renderWorldStrip(): void {
     <div class="ws-item"><small>Confidence</small><strong>${store.consumerConfidenceIndex()}</strong><b>prices ${store.marketPriceIndex()}</b></div>
     ${wanted.map((entry) => `<div class="ws-item ws-wanted"><small>Wants ${escapeMarkup(RESOURCES[entry.key].short)}</small><strong>${entry.price} ${CURRENCY_CODE}</strong><b>${entry.remaining} more</b></div>`).join("")}
     ${offer
-      ? `<button class="ws-item ws-order" data-action="tab" data-target="trade"><small>Government order</small><strong>${offer.quantity} ${escapeMarkup(RESOURCES[offer.resource].short)}</strong><b>${formatNumber(offer.grossReward)} ${CURRENCY_CODE}</b></button>`
+      ? `<button class="ws-item ws-order" data-action="tab" data-target="orders"><small>Government order</small><strong>${offer.quantity} ${escapeMarkup(RESOURCES[offer.resource].short)}</strong><b>${formatNumber(offer.grossReward)} ${CURRENCY_CODE}</b></button>`
       : `<div class="ws-item"><small>Orders</small><strong>None worth taking</strong><b>check back later</b></div>`}`;
 }
 
@@ -3664,6 +3658,9 @@ function renderAll(): void {
   renderBuild();
   renderBusiness();
   renderMarket();
+  renderBank();
+  renderRewards();
+  renderCityPanel();
   renderMakerMarket();
   renderContracts();
   renderMap();
@@ -3846,15 +3843,17 @@ function travelTo(islandId: string): void {
 }
 
 document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab ?? "guide")));
-element<HTMLElement>(".sheet-route").addEventListener("keydown", (event) => {
-  if (!(event instanceof KeyboardEvent) || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-  const tabs = [...document.querySelectorAll<HTMLButtonElement>(".sheet-route [role='tab']")];
-  const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
-  const next = event.key === "Home"
-    ? 0
-    : event.key === "End"
-      ? tabs.length - 1
-      : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+// The dock is the tab bar. Arrow keys walk it; Home/End jump; Enter/Space is the button's own.
+element<HTMLElement>("#quickAccess").addEventListener("keydown", (event) => {
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>("#quickAccess [role='tab']")];
+  const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+  if (index < 0) return;
+  let next = index;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % tabs.length;
+  else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + tabs.length) % tabs.length;
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = tabs.length - 1;
+  else return;
   event.preventDefault();
   tabs[next]?.focus();
   tabs[next]?.click();
@@ -3902,9 +3901,11 @@ window.addEventListener("keydown", (event) => {
       renderInterior();
     }
   }
-  if (event.altKey && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
+  if (event.altKey && /^Digit\d$/.test(event.code)) {
+    // ⌥1 … ⌥9 and ⌥0 walk the ten dock stops in dock order.
     event.preventDefault();
-    switchTab(["shop", "trade", "world"][Number(event.code.at(-1)) - 1]);
+    const digit = Number(event.code.at(-1));
+    switchTab(dockStops()[(digit === 0 ? 10 : digit) - 1]?.tab ?? "business");
   }
 });
 
@@ -4141,7 +4142,8 @@ document.body.addEventListener("click", (event) => {
   }
   else if (action === "bank-in") { report(store.exchangeMMForMercDollars(convertAsked())); convertAmount = 0; }
   else if (action === "bank-out") report(store.exchangeMercDollarsForMM(redeemableMercs()));
-  else if (action === "utility-open") openUtilityDrawer(button.dataset.utility === "bank" ? "bank" : "news", button);
+  // Bank and News are panels now, not a side drawer: one place to look for each thing.
+  else if (action === "utility-open") switchTab(button.dataset.utility === "bank" ? "bank" : "city");
   else if (action === "utility-close") closeUtilityDrawer();
   else if (action === "business-drawer-toggle") {
     if (businessDrawer.dataset.open === "true") closeBusinessDrawer(); else openBusinessDrawer();
@@ -4159,7 +4161,7 @@ document.body.addEventListener("click", (event) => {
     const active = store.state.activeContract;
     if (active && store.state.inventory[active.resource] >= active.quantity) report(store.fulfillContract());
     else if (!active) { const offer = store.bestOffer(); if (offer) report(store.acceptContract(offer.id)); switchTab("trade"); }
-    else switchTab("trade");
+    else switchTab("orders");
   }
   else if (action === "taxi-close") { hailedTaxi = null; renderTaxi(); }
   else if (action === "taxi-call") { hailedTaxi = -1; taxiFilter = ""; renderTaxi(); }
@@ -4178,17 +4180,17 @@ document.body.addEventListener("click", (event) => {
   else if (action === "market-list") void placeMakerListing();
   else if (action === "market-buy") void takeMakerListing(button.dataset.listing ?? "");
   else if (action === "market-cancel") void withdrawMakerListing(button.dataset.listing ?? "");
-  else if (action === "marker" && button.dataset.plot === "market") switchTab("trade");
+  else if (action === "marker" && button.dataset.plot === "market") switchTab("orders");
   else if (action === "marker" && (button.dataset.plot ?? "").startsWith("civic-")) {
     const civic = CIVIC_BUILDINGS.find((entry) => `civic-${entry.id}` === button.dataset.plot);
     switchTab(civic?.opens ?? "trade");
   }
-  else if (action === "marker" && button.dataset.plot === "event") switchTab("world");
+  else if (action === "marker" && button.dataset.plot === "event") switchTab("map");
   else if (action === "marker") {
     const plotId = button.dataset.plot ?? "";
     if (store.state.portfolio[plotId]) { if (plotId !== store.state.ownedPlotId) store.switchBusiness(plotId); }
     else store.selectPlot(plotId);
-    switchTab(store.state.portfolio[plotId]?.buildingPlaced ? "shop" : "shop");
+    switchTab("business");
     openSheet();
   }
   else if (action === "gate-demo") { serverWallet = null; store.startDemoSession(); closeBootGate(); toast("Demo: nothing here is saved, and the shared market is closed."); }

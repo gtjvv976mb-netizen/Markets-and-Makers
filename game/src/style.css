@@ -4179,3 +4179,99 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
   /* Two up rather than one: three stacked cards is most of a phone screen. */
   .economic-dashboard { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── MINIMALIST PASS ─────────────────────────────────────────────────────────────────
+   The world is the point. Everything persistent gets quieter: the dock shows icons and
+   speaks its label only when you reach for it; the business card is a pill until you ask. */
+
+/* The dock, folded. Icons alone at rest; the label slides out on hover or focus. */
+.hud-dock { padding: 4px; gap: 2px; background: rgba(10,32,30,.62); }
+.hud-dock button { width: 38px; min-height: 36px; padding: 0; justify-content: center; gap: 0;
+  overflow: hidden; transition: width .14s ease, background .12s ease; }
+.hud-dock button span { max-width: 0; opacity: 0; white-space: nowrap; overflow: hidden;
+  transition: max-width .16s ease, opacity .12s ease, margin .16s ease; }
+.hud-dock:hover button, .hud-dock:focus-within button { width: 128px; justify-content: flex-start;
+  padding: 0 11px 0 9px; gap: 9px; }
+.hud-dock:hover button span, .hud-dock:focus-within button span { max-width: 90px; opacity: 1; }
+.hud-dock button.active { background: rgba(159,224,122,.16); color: #fff; }
+.hud-dock button.active .mm-icon { opacity: 1; color: #9fe07a; }
+.hud-dock .dock-split { margin: 2px 7px; }
+.hud-dock button b { position: absolute; top: 3px; right: 3px; margin: 0; min-width: 15px;
+  padding: 0 4px; font-size: 9.5px; line-height: 15px; }
+.hud-dock button { position: relative; }
+
+/* The business card, folded to a pill; the full card on hover or focus. */
+.hud-business-card { width: auto; max-width: 232px; padding: 7px 10px; transition: padding .14s ease; }
+.hud-business-card .bc-meter, .hud-business-card .bc-rows, .hud-business-card .bc-need,
+.hud-business-card .bc-open { display: none; }
+.hud-business-card .bc-head i { width: 24px; height: 24px; font-size: 12px; border-radius: 7px; }
+.hud-business-card .bc-head strong { font-size: 13px; }
+.hud-business-card:hover, .hud-business-card:focus-within { padding: 11px 13px; width: 232px; }
+.hud-business-card:hover .bc-meter, .hud-business-card:focus-within .bc-meter,
+.hud-business-card:hover .bc-rows,  .hud-business-card:focus-within .bc-rows,
+.hud-business-card:hover .bc-open,  .hud-business-card:focus-within .bc-open { display: revert; }
+.hud-business-card:hover .bc-rows,  .hud-business-card:focus-within .bc-rows { display: grid; }
+/* Something wrong is never folded away. */
+.hud-business-card.broken .bc-need, .hud-business-card.idle .bc-need { display: block; }
+.hud-business-card.broken, .hud-business-card.idle { padding: 11px 13px; }
+
+/* The purse, a touch quieter. */
+.hud-purse button { padding: 7px 11px; background: rgba(10,32,30,.7); }
+.hud-purse strong { font-size: 16px; }
+
+/* The sheet: no second tab row, so the header sits directly on the panel. */
+.sheet-route { display: none; }
+.sheet-header { min-height: 52px; padding-bottom: 4px; }
+
+/* One heading per screen: the sheet header names the place, so a panel's own opening
+   <h2> only said it again ("Government Bank" over "Government Bank"). */
+#sheet .panel > div > h2:first-child:not(.panel-heading) { display: none; }
+
+/* renderErrandPill sets `hidden` when there is no errand, but `.errand-pill { display: grid }`
+   outranked the attribute, so an EMPTY dark chip sat over the Call-a-cab prompt (measured
+   46×18 at the bottom centre, 9px overlap). The attribute wins now. */
+.errand-pill[hidden] { display: none; }
+
+#businessPanel .hud-drawer-empty button { margin-top: 10px; }
+
+/* .hud-drawer-empty was written for the DARK drawer — near-white copy. Bank and News moved
+   into the cream sheet, and Business grew an empty state there, so that copy went invisible
+   against the parchment. Inside the sheet it takes the sheet's ink. */
+#sheet .hud-drawer-empty, #sheet .hud-drawer-empty strong, #sheet .hud-drawer-empty p,
+#sheet .hud-drawer-empty .mm-icon { color: inherit; }
+#sheet .hud-drawer-empty p { opacity: .82; }
+#sheet .hud-drawer-empty .mm-icon { opacity: .7; }
+
+/* On a phone the open sheet is a bottom sheet that stops 78px short of the bottom edge, and a
+   left rail underneath it is unreachable (measured: elementFromPoint on the rail returned the
+   sheet). The dock becomes the bottom bar in that free band — the pattern thumbs expect. */
+/* Same breakpoint as the sheet's own bottom-sheet rule (900px); narrower and the rail hides under it between 720 and 900. */
+@media (max-width: 900px) {
+  /* id+class: the desktop anchor is written with the id and outranked a class-only override. */
+  #quickAccess.hud-dock { position: fixed; top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 12; flex-direction: row; justify-content: space-between; width: auto; height: 58px;
+    padding: 4px; gap: 2px; border-radius: 18px; }
+  .hud-dock button, .hud-dock:hover button, .hud-dock:focus-within button {
+    flex: 1 1 0; width: auto; min-width: 0; min-height: 50px; padding: 0; justify-content: center; gap: 0; }
+  .hud-dock button span, .hud-dock:hover button span, .hud-dock:focus-within button span { display: none; }
+  .hud-dock .dock-split { display: none; }
+  .hud-dock button .mm-icon { width: 21px; height: 21px; }
+  .hud-dock button b { top: 5px; right: 8px; }
+}
+/* Touch has no hover: never leave the rail half-expanded after a tap. */
+@media (hover: none) {
+  .hud-dock:hover button { width: 38px; justify-content: center; padding: 0; gap: 0; }
+  .hud-dock:hover button span { max-width: 0; opacity: 0; }
+  .hud-business-card:hover { padding: 7px 10px; width: auto; }
+  .hud-business-card:hover .bc-meter, .hud-business-card:hover .bc-rows, .hud-business-card:hover .bc-open { display: none; }
+}
+
+/* Drawer blocks (the bank desk, the dispatch) were written for the dark drawer and lean on
+   --hud-muted, a light muted ink. Inside the cream sheet body that ink is invisible (measured
+   on the phone Bank: "what you trade with", "TREASURY EXCHANGE", "Return MERCS" all washed
+   out). Re-point the token for the sheet body only — the header stays dark. */
+#sheet .panel-scroll { --hud-muted: rgba(8, 47, 53, .64); }
+#sheet .hud-bank-actions button.secondary { color: inherit; border-color: rgba(8, 47, 53, .28); }
+#sheet .bank-rate-card { color: inherit; }
+/* The drawer's "Open the Bank" link opened this very panel. */
+#sheet .drawer-link-button { display: none; }

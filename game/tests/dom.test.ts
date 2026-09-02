@@ -21,6 +21,22 @@ describe("markup contract", () => {
     expect(missing, `main.ts requires ids that index.html does not define: ${missing.join(", ")}`).toEqual([]);
   });
 
+  it("every required element lookup has markup to find", () => {
+    // element("…") throws at boot when the node is missing. The suite was green at 532/532
+    // while the game died on the loading card because the in-sheet tab row had been removed
+    // and one keydown listener still asked for it. Static markup must satisfy every lookup.
+    const lookups = new Set([...main.matchAll(/\belement(?:<[^>]+>)?\("([^"]+)"\)/g)].map((m) => m[1]!));
+    expect(lookups.size).toBeGreaterThan(40);
+    for (const selector of lookups) {
+      const present = selector.startsWith("#")
+        ? html.includes(`id="${selector.slice(1)}"`)
+        : selector.startsWith(".")
+          ? new RegExp(`class="[^"]*\\b${selector.slice(1)}\\b`).test(html)
+          : true;
+      expect(present, `${selector} is required at boot but index.html has no such element`).toBe(true);
+    }
+  });
+
   it("every routed target has a panel to show", () => {
     // The world routes navigation now, so targets come from data-target rather than tabs.
     const targets = new Set([...main.matchAll(/data-target="([a-z]+)"/g)].map((m) => m[1]!));
@@ -43,8 +59,10 @@ describe("markup contract", () => {
     expect(html).toContain('id="mm-icon-enterprise"');
     expect(html).toContain('id="mm-icon-exchange"');
     expect(html).toContain('id="mm-icon-world"');
-    expect(html).toContain('role="tablist"');
-    expect(html).toContain("⌥1");
+    // The dock is the tab bar: a real tablist, and every stop has a ⌥-digit shortcut in its title.
+    expect(html).toContain('id="quickAccess" role="tablist"');
+    expect(main).toContain("⌥${(index + 1) % 10}");
+    expect(main).toContain("/^Digit\\d$/");
   });
 
   it("uses the Mercedonia canon and shows MERCS beside every visible Merc Dollar price", () => {
@@ -79,8 +97,14 @@ describe("markup contract", () => {
     expect(html).toContain('class="hud-dock" id="quickAccess"');
     const dock = main.match(/const HUD_DOCK: readonly DockEntry\[\] = \[[\s\S]*?\n\];/)?.[0] ?? "";
     expect(dock, "the dock table must exist").not.toBe("");
-    for (const destination of ["News", "Bank", "Info", "Business", "Market", "Orders", "Map"]) {
+    // One destination per purpose. The sheet had four tabs stacking eleven panels; the dock
+    // is now the only navigation and every purpose is its own stop.
+    for (const destination of ["Business", "Products", "Market", "Orders", "Traders", "Bank", "Rewards", "City", "Map", "Info"]) {
       expect(dock, `${destination} must be reachable from the dock`).toContain(`label: "${destination}"`);
+    }
+    // And every dock stop must land on a real panel.
+    for (const tab of [...dock.matchAll(/tab: "([a-z]+)"/g)].map((m) => m[1]!)) {
+      expect(html, `dock stop "${tab}" has no panel`).toContain(`data-panel="${tab}"`);
     }
     // Nothing may appear twice: the old pair had Bank on both.
     const labels = [...dock.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
@@ -90,7 +114,10 @@ describe("markup contract", () => {
     expect(html).toContain('id="hudBusinessDrawer" data-open="false" aria-hidden="true" inert');
     // The drawer buttons moved into the rendered dock, so the relationship is asserted
     // where it is now written rather than in the static markup.
-    expect(main).toContain('aria-controls="hudUtilityDrawer"');
+    // Bank and News are panels now; nothing opens the utility drawer, and the old
+    // drawer routes land on the panels instead of a second copy of the same desk.
+    expect(main).not.toContain("openUtilityDrawer(");
+    expect(main).toContain('switchTab(button.dataset.utility === "bank" ? "bank" : "city")');
     expect(html).toContain('aria-controls="hudBusinessDrawer"');
     expect(html).toContain('id="onlinePill"');
     expect(html).toContain('id="hudVitals"');
