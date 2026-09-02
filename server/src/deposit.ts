@@ -41,6 +41,21 @@ export interface DepositReceipt {
   mercs: number;
 }
 
+/**
+ * What a confirmed transfer is worth, from the RAW base units the chain reports.
+ *
+ * Pure and exported so the arithmetic can be tested without a chain or a database — the
+ * bug it replaces (dividing per instruction, so a split transfer credited zero) lived
+ * inside a function that needed both, which is why nothing caught it.
+ */
+export function creditFor(raw: bigint, decimals: number): { units: number; mercs: number } {
+  const scale = 10n ** BigInt(decimals);
+  return {
+    units: Number(raw / scale),
+    mercs: Number((raw * BigInt(MERCS_PER_MM_DEPOSIT)) / scale),
+  };
+}
+
 /** Every whole $MM this player has brought in and not yet spent in game. */
 export async function depositedUnits(realmId: string, playerId: string): Promise<number> {
   if (!pool) return 0;
@@ -178,7 +193,14 @@ export async function creditDeposit(
     ...tx.transaction.message.instructions,
     ...(tx.meta?.innerInstructions ?? []).flatMap((entry) => entry.instructions),
   ];
-  let credited = 0;
+  // Raw base units, summed as BigInt and divided ONCE at the end.
+  //
+  // This used to divide per instruction — `credited += Number(BigInt(amount) / 10n ** decimals)`
+  // — which threw away the fraction on every leg. A 1.2 $MM transfer that a wallet routed as
+  // two 0.6 legs credited 0 + 0 and was then refused with "that transaction does not contain
+  // a $MM transfer", while the tokens were already in the treasury. The refusal read as
+  // "we never got it", which invites the player to send a second one.
+  let raw = 0n;
   for (const instruction of parsed) {
     const info = (instruction as { parsed?: { type?: string; info?: Record<string, unknown> } }).parsed;
     if (!info?.info) continue;
@@ -199,13 +221,24 @@ export async function creditDeposit(
     const amount = (detail.tokenAmount as { amount?: string } | undefined)?.amount
       ?? (detail.amount === undefined ? null : String(detail.amount));
     if (!amount) continue;
-    // Raw units to whole tokens, in integers — this is money.
-    credited += Number(BigInt(amount) / 10n ** BigInt(mint.decimals));
+    raw += BigInt(amount);
   }
 
-  if (credited <= 0) {
+  if (raw === 0n) {
     throw new DepositError("no-transfer",
       "That transaction does not contain a $MM transfer from your wallet to the city treasury.");
+  }
+
+  const scale = 10n ** BigInt(mint.decimals);
+  // Whole $MM for the ledger row, but MERCS are issued from the RAW amount, so the
+  // fraction of a token that used to vanish is paid for: 100.7 $MM is 9,868 MERCS, not
+  // 9,800.
+  const { units: credited, mercs: owed } = creditFor(raw, mint.decimals);
+
+  if (owed <= 0) {
+    // Real tokens arrived, so say that rather than "we could not find your transfer".
+    throw new DepositError("below-minimum",
+      `That transfer was ${(Number(raw) / Number(scale)).toFixed(6)} $MM, which is below the smallest amount the city can credit. It is in the treasury; contact support to have it returned.`);
   }
 
   // Record the deposit and issue the MERCS for it in ONE transaction, so the player never
@@ -224,7 +257,6 @@ export async function creditDeposit(
       [signature, realmId, playerId, credited, walletAddress]);
 
     if (inserted.rowCount) {
-      const owed = credited * MERCS_PER_MM_DEPOSIT;
       try {
         await moveCurrency(client, realmId, `deposit:${signature}`, owed,
           { type: "government", id: "treasury" }, { type: "player", id: playerId }, "chain.deposit");
