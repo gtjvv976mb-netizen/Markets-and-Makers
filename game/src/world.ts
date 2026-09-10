@@ -225,6 +225,8 @@ const QUALITY_SETTLE_SECONDS = 2.5;
 const PEER_LABEL_HEIGHT = 2.5;
 
 /** Reused by updateCamera every frame; never escapes it. */
+const SCRATCH_PAN_FORWARD = new THREE.Vector3();
+const SCRATCH_PAN_RIGHT = new THREE.Vector3();
 const SCRATCH_CAMERA_TARGET = new THREE.Vector3();
 const SCRATCH_CAMERA_OFFSET = new THREE.Vector3();
 
@@ -383,6 +385,21 @@ export class World3D {
   /** Reused so the recycle test allocates nothing per citizen per decision. */
   private readonly citizenFrustum = new THREE.Frustum();
   private readonly cameraViewProjection = new THREE.Matrix4();
+  /**
+   * Director mode: the player has no body.
+   *
+   * Mercedonia is a city you run, not a person you are, and walking a character across
+   * town to press a button was the whole of the spatial gameplay. So `avatar` stops being
+   * a body and becomes an invisible camera dolly. Everything that reads its position —
+   * the camera, chunk streaming, the fare and proximity checks in main.ts — keeps working
+   * unchanged; "where you are" simply means "where you are looking".
+   */
+  private director = true;
+  private dragging = false;
+  private dragMoved = 0;
+  private dragX = 0;
+  private dragY = 0;
+
   private cameraDistance = 34;
   private cameraHeight = this.cameraDistance * CAMERA_ELEVATION_TANGENT;
   private currentIsland = "hearth";
@@ -519,6 +536,8 @@ export class World3D {
 
     this.avatar.position.set(0, 1.02, 34);
     this.scene.add(this.avatar);
+    // The dolly is never drawn. It still moves, streams chunks and anchors the camera.
+    if (this.director) this.avatar.visible = false;
     this.scene.add(this.peerRoot);
   }
 
@@ -692,7 +711,41 @@ export class World3D {
     window.addEventListener("keyup", (event) => this.keys.delete(event.code));
     window.addEventListener("blur", () => this.keys.clear());
     window.addEventListener("resize", () => this.resize());
-    this.canvas.addEventListener("pointerdown", (event) => this.handlePointer(event));
+    // A drag pans the city; a tap selects. They share one gesture, so the difference is
+    // how far the pointer travelled before it came up.
+    this.canvas.addEventListener("pointerdown", (event) => {
+      if (!this.inputEnabled) return;
+      this.dragging = true;
+      this.dragMoved = 0;
+      this.dragX = event.clientX;
+      this.dragY = event.clientY;
+      this.canvas.setPointerCapture?.(event.pointerId);
+    });
+    this.canvas.addEventListener("pointermove", (event) => {
+      if (!this.dragging || !this.director) return;
+      const dx = event.clientX - this.dragX;
+      const dy = event.clientY - this.dragY;
+      this.dragX = event.clientX;
+      this.dragY = event.clientY;
+      this.dragMoved += Math.abs(dx) + Math.abs(dy);
+      // Metres per pixel, so the ground keeps pace with the cursor at any zoom.
+      const scale = (this.cameraDistance * 1.44) / Math.max(1, this.canvas.clientHeight);
+      const forward = SCRATCH_PAN_FORWARD.set(-Math.sin(this.cameraYaw), 0, -Math.cos(this.cameraYaw));
+      const right = SCRATCH_PAN_RIGHT.set(Math.cos(this.cameraYaw), 0, -Math.sin(this.cameraYaw));
+      this.panBy(
+        -(right.x * dx + forward.x * dy) * scale,
+        -(right.z * dx + forward.z * dy) * scale,
+      );
+    });
+    const endDrag = (event: PointerEvent) => {
+      if (!this.dragging) return;
+      this.dragging = false;
+      this.canvas.releasePointerCapture?.(event.pointerId);
+      // Under about six pixels of travel this was a tap, not a pan.
+      if (this.dragMoved < 6) this.handlePointer(event);
+    };
+    this.canvas.addEventListener("pointerup", endDrag);
+    this.canvas.addEventListener("pointercancel", endDrag);
     this.canvas.addEventListener("wheel", (event) => {
       if (!this.inputEnabled) return;
       event.preventDefault();
@@ -717,7 +770,8 @@ export class World3D {
     const hit = this.firstWalkableHit(
       this.raycaster.intersectObjects(this.walkableMeshes, false).filter((entry) => this.isEffectivelyVisible(entry.object)),
     );
-    if (hit) this.beginWalk(hit.point.x, hit.point.z, hit.point.y);
+    // Nothing to send there. In director mode the ground is scenery, not a destination.
+    if (hit && !this.director) this.beginWalk(hit.point.x, hit.point.z, hit.point.y);
   }
 
   async load(): Promise<void> {
@@ -1994,6 +2048,20 @@ export class World3D {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Slide the dolly. No collision and no step limit: a camera is not standing on anything. */
+  private panBy(dx: number, dz: number): void {
+    if (dx === 0 && dz === 0) return;
+    const LIMIT = 290;
+    this.avatar.position.x = THREE.MathUtils.clamp(this.avatar.position.x + dx, -LIMIT, LIMIT);
+    this.avatar.position.z = THREE.MathUtils.clamp(this.avatar.position.z + dz, -LIMIT, LIMIT);
+    // Ground height still matters — it keeps the camera level over the terraces and tells
+    // the streamer which chunks to load — but it may never REFUSE the move.
+    const groundY = this.sampleWalkHeight(this.avatar.position.x, this.avatar.position.z, true);
+    if (groundY !== null) this.avatarGroundY = groundY;
+    this.avatar.position.y = this.avatarGroundY;
+    this.updateChunkVisibility();
+  }
+
   private movementVector(): THREE.Vector3 {
     const forward = Number(this.keys.has("KeyW") || this.keys.has("ArrowUp")) - Number(this.keys.has("KeyS") || this.keys.has("ArrowDown"));
     const right = Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) - Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft"));
@@ -2063,6 +2131,20 @@ export class World3D {
 
   private updateMovement(delta: number, state: GameState): number {
     if (!this.inputEnabled) return 0;
+
+    if (this.director) {
+      const direction = this.movementVector();
+      if (direction.lengthSq() > 0) {
+        // Pan faster when zoomed out, so crossing the city takes about the same time
+        // whether you are reading a street or looking at the whole island.
+        const speed = this.cameraDistance * 0.85;
+        this.panBy(direction.x * delta * speed, direction.z * delta * speed);
+      }
+      state.player.x = this.avatar.position.x;
+      state.player.z = this.avatar.position.z;
+      return 0;
+    }
+
     const previousX = this.avatar.position.x;
     const previousZ = this.avatar.position.z;
     const direction = this.movementVector();
