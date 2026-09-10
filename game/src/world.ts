@@ -386,15 +386,18 @@ export class World3D {
   private readonly citizenFrustum = new THREE.Frustum();
   private readonly cameraViewProjection = new THREE.Matrix4();
   /**
-   * Director mode: the player has no body.
+   * The Sims arrangement: you keep your Maker, and the camera comes off their back.
    *
-   * Mercedonia is a city you run, not a person you are, and walking a character across
-   * town to press a button was the whole of the spatial gameplay. So `avatar` stops being
-   * a body and becomes an invisible camera dolly. Everything that reads its position —
-   * the camera, chunk streaming, the fare and proximity checks in main.ts — keeps working
-   * unchanged; "where you are" simply means "where you are looking".
+   * Before this the camera was welded to the avatar, so the only way to look at the city
+   * was to walk a body through it. Now the camera has its own focus that drags freely, and
+   * the Maker is DIRECTED — tap the ground and they walk there — rather than steered.
+   *
+   * The camera follows the Maker until you take hold of it, and hands control back when
+   * you press Centre. That is what keeps the Maker on screen (and their chunks streamed)
+   * without ever trapping the view on them.
    */
-  private director = true;
+  private readonly focus = new THREE.Vector3();
+  private followMaker = true;
   private dragging = false;
   private dragMoved = 0;
   private dragX = 0;
@@ -536,8 +539,6 @@ export class World3D {
 
     this.avatar.position.set(0, 1.02, 34);
     this.scene.add(this.avatar);
-    // The dolly is never drawn. It still moves, streams chunks and anchors the camera.
-    if (this.director) this.avatar.visible = false;
     this.scene.add(this.peerRoot);
   }
 
@@ -719,10 +720,13 @@ export class World3D {
       this.dragMoved = 0;
       this.dragX = event.clientX;
       this.dragY = event.clientY;
-      this.canvas.setPointerCapture?.(event.pointerId);
+      // Capture is an optimisation — it keeps a drag alive if the cursor leaves the
+      // canvas — and it throws for any pointer the element does not consider active.
+      // Letting that escape kills the whole pointerdown handler, and with it the tap.
+      try { this.canvas.setPointerCapture(event.pointerId); } catch { /* not capturable */ }
     });
     this.canvas.addEventListener("pointermove", (event) => {
-      if (!this.dragging || !this.director) return;
+      if (!this.dragging) return;
       const dx = event.clientX - this.dragX;
       const dy = event.clientY - this.dragY;
       this.dragX = event.clientX;
@@ -740,7 +744,7 @@ export class World3D {
     const endDrag = (event: PointerEvent) => {
       if (!this.dragging) return;
       this.dragging = false;
-      this.canvas.releasePointerCapture?.(event.pointerId);
+      try { this.canvas.releasePointerCapture(event.pointerId); } catch { /* never captured */ }
       // Under about six pixels of travel this was a tap, not a pan.
       if (this.dragMoved < 6) this.handlePointer(event);
     };
@@ -770,8 +774,8 @@ export class World3D {
     const hit = this.firstWalkableHit(
       this.raycaster.intersectObjects(this.walkableMeshes, false).filter((entry) => this.isEffectivelyVisible(entry.object)),
     );
-    // Nothing to send there. In director mode the ground is scenery, not a destination.
-    if (hit && !this.director) this.beginWalk(hit.point.x, hit.point.z, hit.point.y);
+    // Tap the ground and your Maker walks there. This is the whole verb.
+    if (hit) this.beginWalk(hit.point.x, hit.point.z, hit.point.y);
   }
 
   async load(): Promise<void> {
@@ -973,7 +977,8 @@ export class World3D {
   }
 
   private updateChunkVisibility(force = false): void {
-    const chunk = worldChunkAt(this.avatar.position.x, this.avatar.position.z);
+    // Keyed to the VIEW, not the body: what is drawn is what has to be loaded.
+    const chunk = worldChunkAt(this.focus.x, this.focus.z);
     if (!chunk) return;
     const key = `${chunk[0]}:${chunk[1]}`;
     if (!force && key === this.visibleChunkKey) return;
@@ -2032,6 +2037,8 @@ export class World3D {
     this.avatarGroundY = groundY ?? 1.02;
     this.avatar.position.y = this.avatarGroundY;
     this.clearWalk();
+    this.focus.set(state.player.x, 0, state.player.z);
+    this.followMaker = true;
     this.cameraTarget.set(state.player.x, this.avatarGroundY + 0.18, state.player.z);
   }
 
@@ -2048,18 +2055,27 @@ export class World3D {
     this.camera.updateProjectionMatrix();
   }
 
-  /** Slide the dolly. No collision and no step limit: a camera is not standing on anything. */
+  /** Slide the camera's own focus. Taking hold of it stops it following the Maker. */
   private panBy(dx: number, dz: number): void {
     if (dx === 0 && dz === 0) return;
     const LIMIT = 290;
-    this.avatar.position.x = THREE.MathUtils.clamp(this.avatar.position.x + dx, -LIMIT, LIMIT);
-    this.avatar.position.z = THREE.MathUtils.clamp(this.avatar.position.z + dz, -LIMIT, LIMIT);
-    // Ground height still matters — it keeps the camera level over the terraces and tells
-    // the streamer which chunks to load — but it may never REFUSE the move.
-    const groundY = this.sampleWalkHeight(this.avatar.position.x, this.avatar.position.z, true);
-    if (groundY !== null) this.avatarGroundY = groundY;
-    this.avatar.position.y = this.avatarGroundY;
+    this.followMaker = false;
+    this.focus.x = THREE.MathUtils.clamp(this.focus.x + dx, -LIMIT, LIMIT);
+    this.focus.z = THREE.MathUtils.clamp(this.focus.z + dz, -LIMIT, LIMIT);
     this.updateChunkVisibility();
+  }
+
+  /** Has the player panned away from their Maker far enough to want a way back? */
+  viewHasWandered(): boolean {
+    if (this.followMaker) return false;
+    return Math.hypot(this.focus.x - this.avatar.position.x, this.focus.z - this.avatar.position.z) > 6;
+  }
+
+  /** Put the view back on your Maker, and let it follow again. */
+  centreOnMaker(): void {
+    this.followMaker = true;
+    this.focus.set(this.avatar.position.x, 0, this.avatar.position.z);
+    this.updateChunkVisibility(true);
   }
 
   private movementVector(): THREE.Vector3 {
@@ -2132,27 +2148,20 @@ export class World3D {
   private updateMovement(delta: number, state: GameState): number {
     if (!this.inputEnabled) return 0;
 
-    if (this.director) {
-      const direction = this.movementVector();
-      if (direction.lengthSq() > 0) {
-        // Pan faster when zoomed out, so crossing the city takes about the same time
-        // whether you are reading a street or looking at the whole island.
-        const speed = this.cameraDistance * 0.85;
-        this.panBy(direction.x * delta * speed, direction.z * delta * speed);
-      }
-      state.player.x = this.avatar.position.x;
-      state.player.z = this.avatar.position.z;
-      return 0;
+    // Arrows and WASD move the CAMERA, the way they do in a management game. The Maker
+    // is directed by tapping, not driven.
+    const panning = this.movementVector();
+    if (panning.lengthSq() > 0) {
+      const speed = this.cameraDistance * 0.85;
+      this.panBy(panning.x * delta * speed, panning.z * delta * speed);
     }
 
     const previousX = this.avatar.position.x;
     const previousZ = this.avatar.position.z;
-    const direction = this.movementVector();
+    // No keyboard driving. WASD panned the camera above; the Maker only ever walks a route
+    // they were sent on. Calling movementVector() again here would do both at once.
     let moved = this.unstick(state);
-    if (direction.lengthSq() > 0) {
-      this.clearWalk();
-      moved = this.stepAlong(direction.x, direction.z, delta * PLAYER_WALK_SPEED_MPS) || moved;
-    } else if (this.walkPath.length > 0) {
+    if (this.walkPath.length > 0) {
       const leg = this.walkPath[0]!;
       const toLegX = leg.x - this.avatar.position.x;
       const toLegZ = leg.z - this.avatar.position.z;
@@ -2405,7 +2414,12 @@ export class World3D {
     // Scratch vectors, reused. Two fresh Vector3s a frame is 120 short-lived objects a
     // second for the collector to sweep up, and a GC pause reads to a player as a stutter
     // rather than as slowness. Every other per-frame method here is already allocation-free.
-    const target = SCRATCH_CAMERA_TARGET.set(this.avatar.position.x, 1.2, this.avatar.position.z);
+    if (this.followMaker) {
+      // Ease, do not snap: a camera that jerks after every step is unreadable.
+      this.focus.x += (this.avatar.position.x - this.focus.x) * (1 - Math.exp(-delta * 3));
+      this.focus.z += (this.avatar.position.z - this.focus.z) * (1 - Math.exp(-delta * 3));
+    }
+    const target = SCRATCH_CAMERA_TARGET.set(this.focus.x, 1.2, this.focus.z);
     const smooth = 1 - Math.exp(-delta * 6);
     this.cameraTarget.lerp(target, smooth);
     const offset = SCRATCH_CAMERA_OFFSET.set(

@@ -4254,6 +4254,7 @@ document.body.addEventListener("click", (event) => {
   else if (action === "interior") openInterior();
   else if (action === "tab") switchTab(button.dataset.target ?? "guide");
   else if (action === "goto") gotoPanel(button.dataset.panel ?? "");
+  else if (action === "centre-view") world.centreOnMaker();
   else if (action === "walk-plaza") world.walkTo(0, 0);
   else if (action === "business-filter") {
     activeBusinessStage = button.dataset.filter as "Recommended" | BusinessStage;
@@ -4317,6 +4318,13 @@ document.body.addEventListener("input", (event) => {
     }
   }
 });
+
+// The Centre button only earns its place once the view has actually wandered — a control
+// that does nothing is clutter, and this HUD has been cut back twice already.
+window.setInterval(() => {
+  const button = document.querySelector<HTMLButtonElement>("#centreView");
+  if (button) button.hidden = !world.viewHasWandered();
+}, 400);
 
 store.subscribe(renderAll);
 renderAll();

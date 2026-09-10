@@ -4275,3 +4275,32 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid #ffd36b; outline
 #sheet .bank-rate-card { color: inherit; }
 /* The drawer's "Open the Bank" link opened this very panel. */
 #sheet .drawer-link-button { display: none; }
+
+/* --- back to your Maker ----------------------------------------------------------
+   The camera roams free now, so it needs a way home. Shown only once the view has
+   actually wandered: a control that does nothing is clutter. */
+.centre-view {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px 7px 11px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  color: #f2f8ef;
+  background: rgba(14,70,73,.92);
+  box-shadow: 0 10px 26px rgba(6,46,49,.34);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+.centre-view[hidden] { display: none !important; }
+.centre-view:hover { border-color: rgba(120,200,190,.6); }
+.centre-view:active { transform: translateX(-50%) translateY(1px); }
+.centre-view svg { width: 16px; height: 16px; fill: none; stroke: #7fd4c6; stroke-width: 2; stroke-linecap: round; }
+@media (max-height: 560px) { .centre-view { bottom: 66px; padding: 5px 11px 5px 9px; font-size: 11.5px; } }
